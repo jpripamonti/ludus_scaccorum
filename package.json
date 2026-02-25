@@ -1,0 +1,9 @@
+{
+  "name": "chess-mistakes",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "python3 -m http.server 5010"
+  }
+}
