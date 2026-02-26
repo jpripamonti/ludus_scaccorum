@@ -1,0 +1,32 @@
+Original prompt: Quiero modificar las pantallas de este juego. La pantalla inicial tiene que tener la imagen de fondo un poco más clara. El título del juego en la posición en la que está ahora. Abajo del título una descripción breve del juego. Y abajo de la descripción un botón que dice "Comenzar".  Eso es todo para la pantalla inicial. Puedes hacerlo?
+
+## 2026-02-26
+- Revisión inicial: la landing actual tiene múltiples botones (Modo Estudio, Duelo, Historial, Opciones).
+- Objetivo de esta iteración: simplificar la landing a título + descripción + botón Comenzar y aclarar el fondo.
+- Implementación: `index.html` ahora muestra solo título, descripción breve y botón `Comenzar` en la landing.
+- Estilos: se aclaró la superposición del fondo en `.landing-screen`, `.landing-screen::before` y `.landing-sheen`.
+- Interacción: se agregó `landing-start-btn` en `app.js` para abrir configuración desde la landing.
+- Validación automatizada (skill): ejecutado `web_game_playwright_client.js` contra `http://127.0.0.1:4173`.
+- Evidencia:
+  - `output/web-game-landing/shot-0.png` muestra landing con fondo más claro, título, descripción y botón `Comenzar`.
+  - `output/web-game/shot-0.png` confirma que el botón `Comenzar` abre `setup-panel`.
+  - No se generaron archivos `errors-*.json` (sin errores de consola detectados por el cliente).
+- Verificación adicional móvil: `output/landing-mobile.png` con viewport 390x844.
+- Nota de entorno: para ejecutar el cliente del skill se instaló `playwright` en `/Users/neo/.codex/skills/develop-web-game` (no se dejó como dependencia del proyecto).
+- Implementación en curso (setup): se reemplazó `setup-panel` por estructura wizard de 4 pasos en `index.html`.
+- Se agregaron estilos dedicados del asistente guiado (`.setup-wizard`, pasos, progreso, tarjetas, errores y footer responsive) en `styles.css`.
+- Refactor setup implementado: `index.html` ahora usa wizard de 4 pasos (modo, fuente/usuario, cantidad, resumen).
+- JS: nuevo estado `STATE.setupWizard` y funciones de navegación/validación (`goToWizardStep`, `validateWizardStep`, `renderWizardStep`, `collectWizardConfig`, `syncWizardToLegacyInputs`).
+- Flujo remoto forzado: se eliminó camino de fuente local/PGN del flujo activo; `sourceMode` ahora usa solo `lichess|chesscom`.
+- Errores recuperables: al fallar descarga/análisis de usuario/plataforma se vuelve al paso 2 con mensaje y CTA (`Probar otro usuario`, `Cambiar plataforma`).
+- Verificación:
+  - Skill client: `output/web-game-wizard-final/shot-0.png` (wizard paso 1, sin errores de consola detectados por el cliente).
+  - E2E duelo/resumen: `output/wizard-e2e/duel-summary.png`.
+  - E2E error fuente: `output/wizard-e2e/source-error-return-step2.png`.
+  - E2E inicio partida (solo): `output/wizard-e2e/solo-after-start.png` (entra a `playing-mode`).
+  - Responsive móvil: `output/wizard-mobile/step1.png` y `output/wizard-mobile/step2.png`.
+- Ajuste adicional: en `collectWizardConfig` los nombres del duelo ahora se toman como texto real (trim + max 20) para que la validación del paso 1 controle vacíos correctamente.
+- Re-validación final:
+  - `node --check app.js` OK.
+  - Skill client post-ajustes: `output/web-game-wizard-final2/shot-0.png`.
+  - Caso invalid username mantiene paso 2 y mensaje: script E2E reportó `STEP2_STILL_VISIBLE yes`.

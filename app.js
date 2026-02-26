@@ -7,20 +7,14 @@ const pgnLibraryListEl = document.getElementById("pgn-library-list");
 const pgnClearBtn = document.getElementById("pgn-clear-btn");
 const sourceFileBtn = document.getElementById("source-file-btn");
 const sourceOnlineBtn = document.getElementById("source-online-btn");
-const setupWizardProgressLabelEl = document.getElementById("setup-wizard-progress-label");
-const setupWizardProgressBarEl = document.getElementById("setup-wizard-progress-bar");
 const landingScreenEl = document.getElementById("landing-screen");
+const landingStartBtn = document.getElementById("landing-start-btn");
 const landingStudyBtn = document.getElementById("landing-study-btn");
 const landingDuelBtn = document.getElementById("landing-duel-btn");
 const landingHistoryBtn = document.getElementById("landing-history-btn");
 const landingOptionsBtn = document.getElementById("landing-options-btn");
 const landingNoteEl = document.getElementById("landing-note");
-const wizardStepModeEl = document.getElementById("wizard-step-mode");
-const wizardStepSourceEl = document.getElementById("wizard-step-source");
-const wizardStepDataEl = document.getElementById("wizard-step-data");
 const sourceBackBtn = document.getElementById("source-back-btn");
-const dataBackBtn = document.getElementById("data-back-btn");
-const sourceSelectedHintEl = document.getElementById("source-selected-hint");
 const modeLevelSwitchEls = Array.from(document.querySelectorAll("[data-mode-level-switch]"));
 const modeSwitchNormalEls = Array.from(document.querySelectorAll('[data-mode-label="citizen"]'));
 const modeSwitchEngineerEls = Array.from(document.querySelectorAll('[data-mode-label="engineer"]'));
@@ -33,13 +27,6 @@ const onlineFallbackBlitzEl = document.getElementById("online-fallback-blitz");
 const onlinePlanSummaryEl = document.getElementById("online-plan-summary");
 const onlineNormalProtocolEl = document.getElementById("online-normal-protocol");
 const onlineStatusEl = document.getElementById("online-status");
-const goConfigBtn = document.getElementById("go-config-btn");
-const backUploadBtn = document.getElementById("back-upload-btn");
-const setupStepUploadEl = document.getElementById("setup-step-upload");
-const setupStepConfigEl = document.getElementById("setup-step-config");
-const configPrepProgressLabelEl = document.getElementById("config-prep-progress-label");
-const configPrepProgressBarEl = document.getElementById("config-prep-progress-bar");
-const configPrepProgressHintEl = document.getElementById("config-prep-progress-hint");
 const configFilesStatusEl = document.getElementById("config-files-status");
 const playerTargetLabelEl = document.getElementById("player-target-label");
 const playerTargetHintEl = document.getElementById("player-target-hint");
@@ -62,8 +49,54 @@ const analysisProgressLabelEl = document.getElementById("analysis-progress-label
 const setupPanelEl = document.getElementById("setup-panel");
 const sessionSizeEl = document.getElementById("session-size");
 const sessionHintEl = document.getElementById("session-hint");
+const wizardStepIndicatorEl = document.getElementById("wizard-step-indicator");
+const wizardProgressBarEl = document.getElementById("wizard-progress-bar");
+const wizardStep1El = document.getElementById("wizard-step-1");
+const wizardStep2El = document.getElementById("wizard-step-2");
+const wizardStep3El = document.getElementById("wizard-step-3");
+const wizardStep4El = document.getElementById("wizard-step-4");
+const wizardStepEls = [wizardStep1El, wizardStep2El, wizardStep3El, wizardStep4El];
+const wizardPrevBtn = document.getElementById("wizard-prev-btn");
+const wizardNextBtn = document.getElementById("wizard-next-btn");
+const wizardModeSoloBtn = document.getElementById("wizard-mode-solo");
+const wizardModeDuelBtn = document.getElementById("wizard-mode-duel");
+const wizardProviderLichessBtn = document.getElementById("wizard-provider-lichess");
+const wizardProviderChessComBtn = document.getElementById("wizard-provider-chesscom");
+const wizardSizeChipEls = Array.from(document.querySelectorAll(".wizard-size-chip"));
+const wizardSourceErrorEl = document.getElementById("wizard-source-error");
+const wizardSourceCtaEl = document.getElementById("wizard-source-cta");
+const wizardRetryUserBtn = document.getElementById("wizard-retry-user-btn");
+const wizardSwitchPlatformBtn = document.getElementById("wizard-switch-platform-btn");
+const wizardSummaryEl = document.getElementById("wizard-summary");
 
 const gameLayoutEl = document.getElementById("game-layout");
+const leftPlayerPanelEl = document.getElementById("left-player-panel");
+const rightPlayerPanelEl = document.getElementById("right-player-panel");
+const playerAKickerEl = document.getElementById("player-a-kicker");
+const playerBKickerEl = document.getElementById("player-b-kicker");
+const playerANameEl = document.getElementById("player-a-name");
+const playerBNameEl = document.getElementById("player-b-name");
+const playerAAvatarEl = document.getElementById("player-a-avatar");
+const playerBAvatarEl = document.getElementById("player-b-avatar");
+const playerAScoreLabelEl = document.getElementById("player-a-score-label");
+const playerBScoreLabelEl = document.getElementById("player-b-score-label");
+const playerAScoreValueEl = document.getElementById("player-a-score-value");
+const playerBScoreValueEl = document.getElementById("player-b-score-value");
+const playerATimerEl = document.getElementById("player-a-timer");
+const playerBTimerEl = document.getElementById("player-b-timer");
+const playerATimerValueEl = document.getElementById("player-a-timer-value");
+const playerBTimerValueEl = document.getElementById("player-b-timer-value");
+const playerATimerBarEl = document.getElementById("player-a-timer-bar");
+const playerBTimerBarEl = document.getElementById("player-b-timer-bar");
+const playerAActionsSlotEl = document.getElementById("player-a-actions-slot");
+const playerBActionsSlotEl = document.getElementById("player-b-actions-slot");
+const sharedActionsEl = document.getElementById("shared-actions");
+const handoffOverlayEl = document.getElementById("handoff-overlay");
+const handoffOverlayTitleEl = document.getElementById("handoff-overlay-title");
+const handoffOverlaySubtitleEl = document.getElementById("handoff-overlay-subtitle");
+const resultOverlayEl = document.getElementById("result-overlay");
+const resultOverlayTitleEl = document.getElementById("result-overlay-title");
+const resultOverlayPointsEl = document.getElementById("result-overlay-points");
 const roundStatusEl = document.getElementById("round-status");
 const sessionProgressEl = document.getElementById("session-progress");
 const turnSignalEl = document.getElementById("turn-signal");
@@ -88,6 +121,9 @@ const feedbackStripQualityEl = document.getElementById("feedback-strip-quality")
 const feedbackStripDeltaEl = document.getElementById("feedback-strip-delta");
 const feedbackStripPointsEl = document.getElementById("feedback-strip-points");
 const feedbackStripBarEl = document.getElementById("feedback-strip-bar");
+const playerTimerEls = [playerATimerEl, playerBTimerEl];
+const playerTimerValueEls = [playerATimerValueEl, playerBTimerValueEl];
+const playerTimerBarEls = [playerATimerBarEl, playerBTimerBarEl];
 
 const INTERNAL_ANALYSIS_DEPTH = 3;
 const DEFAULT_SCORING_SYSTEM = "cp_exponential";
@@ -136,22 +172,35 @@ const STATE = {
   sessionPlayed: 0,
   sessionHits: 0,
   scoringSystem: DEFAULT_SCORING_SYSTEM,
-  setupStep: "upload",
-  setupWizardStep: 1,
-  sourceMode: "file",
+  sourceMode: "lichess",
   localPgnSources: [],
   localPlayerGuess: { name: "", tiedTop: [] },
   remotePgnSources: [],
   userMode: "citizen",
   gameFormat: "solo",
   turnTimeSeconds: DEFAULT_TURN_TIME_SECONDS,
+  setupWizard: {
+    step: 1,
+    mode: "solo",
+    duelNames: [...DUEL_DEFAULT_PLAYERS],
+    platform: "lichess",
+    username: "",
+    sessionSize: DEFAULT_CITIZEN_SESSION_SIZE,
+    sourceError: "",
+  },
   timer: { intervalId: null, deadlineMs: 0, durationMs: 0 },
+  ui: {
+    phase: "playing",
+    blockBoardInput: false,
+    setupAnalyzing: false,
+  },
   duel: {
     players: [...DUEL_DEFAULT_PLAYERS],
     scores: [0, 0],
     hits: [0, 0],
     currentPlayer: 0,
     roundResults: [null, null],
+    handoffReady: false,
   },
 };
 
@@ -683,44 +732,23 @@ function hasAnyPgnSource(requireDownloadedRemote = false) {
   return pgnFilesCount() > 0;
 }
 
-function sourceModeLabel(mode = STATE.sourceMode) {
-  if (mode === "lichess") return "Base online (Lichess)";
-  if (mode === "chesscom") return "Base online (Chess.com)";
-  return "Archivo PGN";
-}
-
-function setUploadWizardStep(step) {
-  const safeStep = clamp(Number(step) || 1, 1, 2);
-  STATE.setupWizardStep = safeStep;
-  if (wizardStepModeEl) wizardStepModeEl.classList.add("hidden");
-  if (wizardStepSourceEl) wizardStepSourceEl.classList.toggle("hidden", safeStep !== 1);
-  if (wizardStepDataEl) wizardStepDataEl.classList.toggle("hidden", safeStep !== 2);
-  if (setupWizardProgressLabelEl) setupWizardProgressLabelEl.textContent = `Paso ${safeStep} de 3`;
-  if (setupWizardProgressBarEl) {
-    const pct = safeStep === 1 ? 33 : 66;
-    setupWizardProgressBarEl.style.width = `${pct}%`;
-  }
-  updateSetupCognitiveMode();
-}
-
 function setSourceMode(mode) {
-  const nextMode = mode === "lichess" || mode === "chesscom" ? mode : "file";
-  if (nextMode !== "file" && STATE.remotePgnSources.length > 0) {
+  const nextMode = mode === "chesscom" ? "chesscom" : "lichess";
+  if (STATE.remotePgnSources.length > 0) {
     const provider = getRemoteProvider(STATE.remotePgnSources[0]);
     if (provider !== nextMode) {
       clearRemotePgnSources();
     }
   }
   STATE.sourceMode = nextMode;
-  if (sourceFilePanelEl) sourceFilePanelEl.classList.toggle("hidden", nextMode !== "file");
-  if (sourceOnlinePanelEl) sourceOnlinePanelEl.classList.toggle("hidden", !isRemoteSourceMode(nextMode));
-  if (sourceFileBtn) sourceFileBtn.classList.toggle("active", nextMode === "file");
-  if (sourceOnlineBtn) sourceOnlineBtn.classList.toggle("active", isRemoteSourceMode(nextMode));
+  if (sourceFilePanelEl) sourceFilePanelEl.classList.add("hidden");
+  if (sourceOnlinePanelEl) sourceOnlinePanelEl.classList.remove("hidden");
+  if (sourceFileBtn) sourceFileBtn.classList.remove("active");
+  if (sourceOnlineBtn) sourceOnlineBtn.classList.add("active");
   if (onlineProviderSelectEl && isRemoteSourceMode(nextMode)) {
     onlineProviderSelectEl.value = nextMode;
   }
   updateOnlineProviderUi();
-  if (sourceSelectedHintEl) sourceSelectedHintEl.textContent = `Fuente elegida: ${sourceModeLabel(nextMode)}.`;
 }
 
 function clearRemotePgnSources() {
@@ -730,16 +758,6 @@ function clearRemotePgnSources() {
 function showSourceNeedsRedownloadMessage(message) {
   if (!isRemoteSourceMode()) return;
   if (onlineStatusEl) onlineStatusEl.textContent = message;
-}
-
-function modeLabel(mode = STATE.userMode) {
-  return mode === "engineer" ? "Opciones detalladas" : "Opciones básicas";
-}
-
-function updateSetupCognitiveMode() {
-  const compact = STATE.setupStep === "config"
-    || (STATE.setupStep === "upload" && Number(STATE.setupWizardStep) > 1);
-  document.body.classList.toggle("setup-minimal", compact);
 }
 
 function normalizeGameFormat(value) {
@@ -760,6 +778,105 @@ function duelPlayerName(index) {
   return sanitizePlayerName(STATE.duel.players[index], fallback);
 }
 
+function currentUiPlayerIndex() {
+  if (!isDuelMode()) return 0;
+  return STATE.duel.currentPlayer === 1 ? 1 : 0;
+}
+
+function initialsFromName(value, fallback = "J") {
+  const cleaned = String(value || "").trim().replace(/\s+/g, " ");
+  if (!cleaned) return fallback;
+  const bits = cleaned.split(" ").filter(Boolean);
+  const letters = bits.slice(0, 2).map((part) => part[0] || "").join("").toUpperCase();
+  return letters || fallback;
+}
+
+function setUiPhase(phase, blockBoardInput = false) {
+  STATE.ui.phase = String(phase || "playing");
+  STATE.ui.blockBoardInput = Boolean(blockBoardInput);
+}
+
+function showHandoffOverlay(title, subtitle) {
+  if (!handoffOverlayEl) return;
+  if (handoffOverlayTitleEl) handoffOverlayTitleEl.textContent = title || "Cambio de turno";
+  if (handoffOverlaySubtitleEl) handoffOverlaySubtitleEl.textContent = subtitle || "Toca para revelar";
+  handoffOverlayEl.classList.remove("hidden");
+}
+
+function hideHandoffOverlay() {
+  if (!handoffOverlayEl) return;
+  handoffOverlayEl.classList.add("hidden");
+}
+
+function showResultOverlay(title, pointsText) {
+  if (!resultOverlayEl) return;
+  if (resultOverlayTitleEl) resultOverlayTitleEl.textContent = title || "¡Posición Resuelta!";
+  if (resultOverlayPointsEl) resultOverlayPointsEl.textContent = pointsText || "";
+  resultOverlayEl.classList.remove("hidden");
+}
+
+function hideResultOverlay() {
+  if (!resultOverlayEl) return;
+  resultOverlayEl.classList.add("hidden");
+}
+
+function setPanelActiveState(activeIndex) {
+  const active = Number.isInteger(activeIndex) ? activeIndex : 0;
+  if (leftPlayerPanelEl) {
+    leftPlayerPanelEl.classList.toggle("is-active", active === 0);
+    leftPlayerPanelEl.classList.toggle("is-inactive", active !== 0);
+  }
+  if (rightPlayerPanelEl) {
+    rightPlayerPanelEl.classList.toggle("is-active", active === 1);
+    rightPlayerPanelEl.classList.toggle("is-inactive", active !== 1);
+  }
+}
+
+function mountSharedActionsToActivePanel() {
+  if (!sharedActionsEl) return;
+  if (!isDuelMode()) {
+    if (playerAActionsSlotEl) playerAActionsSlotEl.appendChild(sharedActionsEl);
+    return;
+  }
+  const activeIdx = currentUiPlayerIndex();
+  const host = activeIdx === 0 ? playerAActionsSlotEl : playerBActionsSlotEl;
+  if (host) host.appendChild(sharedActionsEl);
+}
+
+function updatePlayerPanels() {
+  const activeIdx = currentUiPlayerIndex();
+  if (isDuelMode()) {
+    const p1 = duelPlayerName(0);
+    const p2 = duelPlayerName(1);
+    if (playerAKickerEl) playerAKickerEl.textContent = "Jugador 1";
+    if (playerBKickerEl) playerBKickerEl.textContent = "Jugador 2";
+    if (playerANameEl) playerANameEl.textContent = p1;
+    if (playerBNameEl) playerBNameEl.textContent = p2;
+    if (playerAAvatarEl) playerAAvatarEl.textContent = initialsFromName(p1, "J1");
+    if (playerBAvatarEl) playerBAvatarEl.textContent = initialsFromName(p2, "J2");
+    if (playerAScoreLabelEl) playerAScoreLabelEl.textContent = "Puntaje";
+    if (playerBScoreLabelEl) playerBScoreLabelEl.textContent = "Puntaje";
+    if (playerAScoreValueEl) playerAScoreValueEl.textContent = String(STATE.duel.scores[0] || 0);
+    if (playerBScoreValueEl) playerBScoreValueEl.textContent = String(STATE.duel.scores[1] || 0);
+    setPanelActiveState(activeIdx);
+    mountSharedActionsToActivePanel();
+    return;
+  }
+
+  if (playerAKickerEl) playerAKickerEl.textContent = "Modo estudio";
+  if (playerBKickerEl) playerBKickerEl.textContent = "Sesión";
+  if (playerANameEl) playerANameEl.textContent = "Jugador";
+  if (playerBNameEl) playerBNameEl.textContent = "Resumen";
+  if (playerAAvatarEl) playerAAvatarEl.textContent = "YO";
+  if (playerBAvatarEl) playerBAvatarEl.textContent = "ST";
+  if (playerAScoreLabelEl) playerAScoreLabelEl.textContent = "Puntaje";
+  if (playerBScoreLabelEl) playerBScoreLabelEl.textContent = "Aciertos";
+  if (playerAScoreValueEl) playerAScoreValueEl.textContent = String(STATE.score || 0);
+  if (playerBScoreValueEl) playerBScoreValueEl.textContent = String(STATE.sessionHits || 0);
+  setPanelActiveState(0);
+  mountSharedActionsToActivePanel();
+}
+
 function formatClock(remainingMs) {
   const clamped = Math.max(0, Math.round(remainingMs));
   const totalSeconds = Math.ceil(clamped / 1000);
@@ -774,7 +891,7 @@ function setThinkingMode(active) {
 
 function setScoringInfoVisible(visible) {
   const show = Boolean(visible);
-  if (scorePanelEl) scorePanelEl.classList.toggle("hidden", !show);
+  if (scorePanelEl) scorePanelEl.classList.toggle("hidden", true);
   if (competitiveStatusEl) competitiveStatusEl.classList.toggle("hidden", !show);
 }
 
@@ -837,11 +954,13 @@ function updateScoreDisplay() {
     const p2 = duelPlayerName(1);
     scoreEl.textContent = `${p1}: ${STATE.duel.scores[0]} | ${p2}: ${STATE.duel.scores[1]}`;
     updateDecisionSignals();
+    updatePlayerPanels();
     return;
   }
   if (scoreLabelEl) scoreLabelEl.textContent = "Puntos totales";
   scoreEl.textContent = String(STATE.score);
   updateDecisionSignals();
+  updatePlayerPanels();
 }
 
 function updateCompetitiveStatus() {
@@ -860,6 +979,7 @@ function resetDuelState() {
   STATE.duel.hits = [0, 0];
   STATE.duel.currentPlayer = 0;
   STATE.duel.roundResults = [null, null];
+  STATE.duel.handoffReady = false;
 }
 
 function applyGameFormat(format) {
@@ -876,9 +996,13 @@ function applyGameFormat(format) {
   if (safe !== "duel") {
     resetDuelState();
   }
+  hideHandoffOverlay();
+  hideResultOverlay();
+  setUiPhase("playing", false);
   updateScoreDisplay();
   updateCompetitiveStatus();
   renderSessionProgress();
+  updatePlayerPanels();
 }
 
 function readSessionTimingConfig() {
@@ -894,6 +1018,7 @@ function readDuelPlayersFromInputs() {
   ];
   if (duelPlayerAEl) duelPlayerAEl.value = STATE.duel.players[0];
   if (duelPlayerBEl) duelPlayerBEl.value = STATE.duel.players[1];
+  updatePlayerPanels();
 }
 
 function stopRoundTimer() {
@@ -904,17 +1029,42 @@ function stopRoundTimer() {
 }
 
 function updateRoundTimerUi(remainingMs = STATE.timer.deadlineMs - Date.now()) {
-  if (!turnTimerEl || !turnTimerValueEl || !turnTimerBarEl) return;
   const duration = Math.max(1, STATE.timer.durationMs || Math.round(STATE.turnTimeSeconds * 1000));
   const safeRemaining = Math.max(0, remainingMs);
   const ratio = clamp(safeRemaining / duration, 0, 1);
-  turnTimerValueEl.textContent = formatClock(safeRemaining);
-  turnTimerBarEl.style.width = `${Math.round(ratio * 100)}%`;
-  turnTimerEl.classList.remove("urgency-mid", "urgency-high");
-  if (ratio <= 0.2) {
-    turnTimerEl.classList.add("urgency-high");
-  } else if (ratio <= 0.45) {
-    turnTimerEl.classList.add("urgency-mid");
+
+  const activePlayer = currentUiPlayerIndex();
+  playerTimerEls.forEach((timerEl, idx) => {
+    const valueEl = playerTimerValueEls[idx];
+    const barEl = playerTimerBarEls[idx];
+    if (!timerEl || !valueEl || !barEl) return;
+
+    const isActiveTimer = isDuelMode() ? idx === activePlayer : idx === 0;
+    const displayRatio = isActiveTimer ? ratio : 1;
+    const displayTime = isActiveTimer ? safeRemaining : duration;
+    valueEl.textContent = formatClock(displayTime);
+    barEl.style.width = `${Math.round(displayRatio * 100)}%`;
+    timerEl.classList.remove("is-passive");
+    timerEl.classList.remove("urgency-mid", "urgency-high");
+    if (isActiveTimer) {
+      if (ratio <= 0.2) {
+        timerEl.classList.add("urgency-high");
+      } else if (ratio <= 0.45) {
+        timerEl.classList.add("urgency-mid");
+      }
+    }
+  });
+
+  if (!isDuelMode()) {
+    const timerEl = playerTimerEls[1];
+    const valueEl = playerTimerValueEls[1];
+    const barEl = playerTimerBarEls[1];
+    if (timerEl && valueEl && barEl) {
+      valueEl.textContent = formatClock(duration);
+      barEl.style.width = "100%";
+      timerEl.classList.remove("urgency-mid", "urgency-high");
+      timerEl.classList.add("is-passive");
+    }
   }
 }
 
@@ -1074,136 +1224,241 @@ function getEffectiveAnalysisConfig() {
   };
 }
 
+function sanitizeWizardUsername(value) {
+  return String(value || "").trim();
+}
+
+function collectWizardConfig() {
+  const mode = normalizeGameFormat(STATE.setupWizard.mode);
+  const playerA = String(duelPlayerAEl ? duelPlayerAEl.value : STATE.setupWizard.duelNames[0] || "").trim().replace(/\s+/g, " ").slice(0, 20);
+  const playerB = String(duelPlayerBEl ? duelPlayerBEl.value : STATE.setupWizard.duelNames[1] || "").trim().replace(/\s+/g, " ").slice(0, 20);
+  const platform = getRemoteProviderModeFromUi();
+  const username = sanitizeWizardUsername(onlineUserInputEl ? onlineUserInputEl.value : STATE.setupWizard.username);
+  const sessionSize = clamp(Number(sessionSizeEl ? sessionSizeEl.value : STATE.setupWizard.sessionSize) || DEFAULT_CITIZEN_SESSION_SIZE, 1, 200);
+
+  STATE.setupWizard.mode = mode;
+  STATE.setupWizard.duelNames = [playerA, playerB];
+  STATE.setupWizard.platform = platform;
+  STATE.setupWizard.username = username;
+  STATE.setupWizard.sessionSize = sessionSize;
+
+  return {
+    mode,
+    duelNames: [playerA, playerB],
+    platform,
+    username,
+    sessionSize,
+  };
+}
+
+function syncWizardToLegacyInputs() {
+  const config = collectWizardConfig();
+  if (gameFormatEl) gameFormatEl.value = config.mode;
+  if (duelPlayerAEl) duelPlayerAEl.value = config.duelNames[0];
+  if (duelPlayerBEl) duelPlayerBEl.value = config.duelNames[1];
+  if (onlineProviderSelectEl) onlineProviderSelectEl.value = config.platform;
+  if (onlineUserInputEl) onlineUserInputEl.value = config.username;
+  if (sessionSizeEl) sessionSizeEl.value = String(config.sessionSize);
+  setSourceMode(config.platform);
+}
+
+function clearWizardSourceError() {
+  STATE.setupWizard.sourceError = "";
+  if (wizardSourceErrorEl) {
+    wizardSourceErrorEl.textContent = "";
+    wizardSourceErrorEl.classList.add("hidden");
+  }
+  if (wizardSourceCtaEl) wizardSourceCtaEl.classList.add("hidden");
+}
+
+function showWizardSourceError(message) {
+  const text = String(message || "").trim() || "No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma.";
+  STATE.setupWizard.sourceError = text;
+  if (wizardSourceErrorEl) {
+    wizardSourceErrorEl.textContent = text;
+    wizardSourceErrorEl.classList.remove("hidden");
+  }
+  if (wizardSourceCtaEl) wizardSourceCtaEl.classList.remove("hidden");
+}
+
+function renderWizardSummary() {
+  if (!wizardSummaryEl) return;
+  const config = collectWizardConfig();
+  const modeText = config.mode === "duel"
+    ? `Duelo local (${escapeHtml(config.duelNames[0])} vs ${escapeHtml(config.duelNames[1])})`
+    : "Modo estudio (solo/a)";
+  const platformText = config.platform === "chesscom" ? "Chess.com" : "Lichess";
+  wizardSummaryEl.innerHTML = [
+    `<p><strong>Modo:</strong> ${modeText}</p>`,
+    `<p><strong>Plataforma:</strong> ${platformText}</p>`,
+    `<p><strong>Usuario:</strong> ${escapeHtml(config.username || "-")}</p>`,
+    `<p><strong>Posiciones:</strong> ${config.sessionSize}</p>`,
+  ].join("");
+}
+
+function renderWizardStep() {
+  const step = clamp(Number(STATE.setupWizard.step) || 1, 1, 4);
+  STATE.setupWizard.step = step;
+  const config = collectWizardConfig();
+
+  wizardStepEls.forEach((stepEl, idx) => {
+    if (!stepEl) return;
+    const isCurrent = idx + 1 === step;
+    stepEl.classList.toggle("hidden", !isCurrent);
+    stepEl.classList.toggle("is-active", isCurrent);
+  });
+
+  if (wizardStepIndicatorEl) wizardStepIndicatorEl.textContent = `Paso ${step} de 4`;
+  if (wizardProgressBarEl) wizardProgressBarEl.style.width = `${Math.round((step / 4) * 100)}%`;
+
+  if (wizardModeSoloBtn) wizardModeSoloBtn.classList.toggle("is-selected", config.mode === "solo");
+  if (wizardModeDuelBtn) wizardModeDuelBtn.classList.toggle("is-selected", config.mode === "duel");
+  if (duelConfigEl) duelConfigEl.classList.toggle("hidden", config.mode !== "duel");
+
+  if (wizardProviderLichessBtn) wizardProviderLichessBtn.classList.toggle("is-selected", config.platform === "lichess");
+  if (wizardProviderChessComBtn) wizardProviderChessComBtn.classList.toggle("is-selected", config.platform === "chesscom");
+
+  wizardSizeChipEls.forEach((chipEl) => {
+    const chipSize = Number(chipEl.getAttribute("data-size")) || 0;
+    chipEl.classList.toggle("is-selected", chipSize === config.sessionSize);
+  });
+
+  if (wizardPrevBtn) wizardPrevBtn.classList.toggle("hidden", step <= 1);
+  if (wizardNextBtn) wizardNextBtn.classList.toggle("hidden", step >= 4);
+  if (analyzeBtn) analyzeBtn.classList.toggle("hidden", step !== 4);
+
+  if (step !== 2) clearWizardSourceError();
+  if (step === 4) renderWizardSummary();
+
+  updateAnalyzeButtonState();
+}
+
+function validateWizardStep(step = STATE.setupWizard.step) {
+  const config = collectWizardConfig();
+  const safeStep = clamp(Number(step) || 1, 1, 4);
+  const usernamePattern = /^[A-Za-z0-9_-]{3,30}$/;
+
+  if (safeStep >= 1) {
+    if (config.mode !== "solo" && config.mode !== "duel") {
+      return { valid: false, reason: "Elegí si querés jugar solo/a o contra alguien." };
+    }
+    if (config.mode === "duel") {
+      const [a, b] = config.duelNames;
+      if (!a || !b) {
+        return { valid: false, reason: "Completá ambos nombres para el duelo." };
+      }
+      if (a.length > 20 || b.length > 20) {
+        return { valid: false, reason: "Los nombres del duelo pueden tener hasta 20 caracteres." };
+      }
+    }
+  }
+
+  if (safeStep >= 2) {
+    if (!isRemoteSourceMode(config.platform)) {
+      return { valid: false, reason: "Elegí Lichess o Chess.com." };
+    }
+    if (!config.username) {
+      return { valid: false, reason: "Ingresá tu nombre de usuario para continuar." };
+    }
+    if (!usernamePattern.test(config.username)) {
+      return { valid: false, reason: "El usuario debe tener 3 a 30 caracteres (letras, números, _ o -)." };
+    }
+  }
+
+  if (safeStep >= 3) {
+    if (!Number.isInteger(config.sessionSize) || config.sessionSize < 1 || config.sessionSize > 200) {
+      return { valid: false, reason: "Elegí una cantidad entre 1 y 200 posiciones." };
+    }
+  }
+
+  return { valid: true, reason: "Configuración lista para comenzar la sesión." };
+}
+
+function goToWizardStep(step) {
+  STATE.setupWizard.step = clamp(Number(step) || 1, 1, 4);
+  renderWizardStep();
+  window.scrollTo({ top: 0, behavior: "auto" });
+}
+
+function resetSetupWizard({ mode = null, statusMessage = "" } = {}) {
+  if (mode) {
+    STATE.setupWizard.mode = normalizeGameFormat(mode);
+  }
+  STATE.setupWizard.step = 1;
+  STATE.setupWizard.platform = getRemoteProviderModeFromUi();
+  STATE.setupWizard.username = sanitizeWizardUsername(onlineUserInputEl ? onlineUserInputEl.value : "");
+  STATE.setupWizard.sessionSize = clamp(Number(sessionSizeEl ? sessionSizeEl.value : DEFAULT_CITIZEN_SESSION_SIZE) || DEFAULT_CITIZEN_SESSION_SIZE, 1, 200);
+  STATE.setupWizard.sourceError = "";
+  clearWizardSourceError();
+  syncWizardToLegacyInputs();
+  if (analysisStatusEl && statusMessage) analysisStatusEl.textContent = statusMessage;
+  goToWizardStep(1);
+}
+
+function sendWizardBackToSourceStep(message) {
+  showWizardSourceError(message || "No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma.");
+  STATE.ui.setupAnalyzing = false;
+  if (analyzeBtn) analyzeBtn.disabled = false;
+  goToWizardStep(2);
+  if (onlineUserInputEl) onlineUserInputEl.focus();
+}
+
+function getSetupReadiness() {
+  const normalizedTurnSeconds = clamp(
+    Number(turnTimeSecondsEl ? turnTimeSecondsEl.value : DEFAULT_TURN_TIME_SECONDS) || DEFAULT_TURN_TIME_SECONDS,
+    5,
+    300,
+  );
+  if (turnTimeSecondsEl) turnTimeSecondsEl.value = String(normalizedTurnSeconds);
+  syncWizardToLegacyInputs();
+  return validateWizardStep(4);
+}
+
+function updateAnalyzeButtonState() {
+  const readiness = getSetupReadiness();
+  const blockedByAnalysis = Boolean(STATE.ui.setupAnalyzing || STATE.analysisInProgress);
+  if (analyzeBtn) {
+    const isSummaryStep = STATE.setupWizard.step === 4;
+    analyzeBtn.disabled = blockedByAnalysis || !readiness.valid || !isSummaryStep;
+  }
+  if (analysisStatusEl && !blockedByAnalysis && STATE.setupWizard.step !== 2 && !readiness.valid) {
+    analysisStatusEl.textContent = readiness.reason;
+  }
+  return readiness;
+}
+
 function updatePgnSelectionUi() {
-  const filesCount = pgnFilesCount();
-  const localGames = localPgnGamesCount();
-  const hasRemote = isRemoteSourceMode() && hasAnyPgnSource(true);
+  const config = collectWizardConfig();
+  const hasRemote = hasAnyPgnSource(true);
   const remote = hasRemote ? STATE.remotePgnSources[0] : null;
-  const lichessSettings = getLichessFetchSettings();
-  const chessComSettings = getChessComFetchSettings();
-  const remoteUser = getConfiguredRemoteUsername();
-  if (sourceSelectedHintEl) sourceSelectedHintEl.textContent = `Fuente elegida: ${sourceModeLabel()}.`;
+  const chessCom = config.platform === "chesscom";
+  const protocol = chessCom ? describeChessComNormalProtocol(getChessComFetchSettings()) : describeLichessNormalProtocol(getLichessFetchSettings());
 
-  if (STATE.sourceMode === "file") {
-    pgnHintEl.textContent = filesCount > 0
-      ? `${filesCount} archivo(s) cargados | ${localGames} partida(s) detectadas.`
-      : "Sin archivos seleccionados.";
-  } else {
-    pgnHintEl.textContent = filesCount > 0
-      ? `${filesCount} archivo(s) seleccionados (no activos).`
-      : "Sin archivos seleccionados.";
-  }
-  renderLocalPgnLibrary();
-
-  if (onlinePlanSummaryEl && isRemoteSourceMode()) {
-    onlinePlanSummaryEl.textContent = STATE.sourceMode === "chesscom"
-      ? describeChessComPlan(chessComSettings)
-      : describeLichessPlan(lichessSettings);
-  }
-  if (onlineNormalProtocolEl && isRemoteSourceMode()) {
-    onlineNormalProtocolEl.textContent = STATE.sourceMode === "chesscom"
-      ? describeChessComNormalProtocol(chessComSettings)
-      : describeLichessNormalProtocol(lichessSettings);
-  }
-  if (onlineStatusEl && isRemoteSourceMode() && !hasRemote) {
-    if (!remoteUser) {
+  if (onlineStatusEl && !STATE.ui.setupAnalyzing && !STATE.setupWizard.sourceError) {
+    if (!config.username) {
       onlineStatusEl.textContent = "Ingresá tu usuario para continuar.";
-    } else if (STATE.userMode === "citizen") {
-      onlineStatusEl.textContent = STATE.sourceMode === "chesscom"
-        ? describeChessComNormalProtocol(chessComSettings)
-        : describeLichessNormalProtocol(lichessSettings);
+    } else if (hasRemote && remote?.username) {
+      onlineStatusEl.textContent = `Base lista para ${remote.username}.`;
     } else {
-      const settings = STATE.sourceMode === "chesscom" ? chessComSettings : lichessSettings;
-      onlineStatusEl.textContent = `Se descargarán hasta ${settings.maxGames} partidas automáticamente al comenzar la sesión.`;
+      onlineStatusEl.textContent = protocol;
     }
   }
 
   if (configFilesStatusEl) {
-    if (STATE.sourceMode === "lichess" && hasRemote) {
+    if (hasRemote && remote?.username) {
+      const providerLabel = getRemoteProvider(remote) === "chesscom" ? "Chess.com" : "Lichess";
       const games = Number.isFinite(remote.games) ? remote.games : 0;
-      const slowGames = Number.isFinite(remote?.detail?.slow) ? remote.detail.slow : null;
-      const blitzGames = Number.isFinite(remote?.detail?.blitz) ? remote.detail.blitz : null;
-      if (Number.isFinite(slowGames) && Number.isFinite(blitzGames)) {
-        configFilesStatusEl.textContent = `Fuente: Lichess (${remote.username}) | ${games} partida(s): ${slowGames} lentas + ${blitzGames} blitz.`;
-      } else {
-        const gamesText = games > 0 ? `${games} partida(s)` : "partidas";
-        configFilesStatusEl.textContent = `Fuente: Lichess (${remote.username}) | ${gamesText} cargadas.`;
-      }
-    } else if (STATE.sourceMode === "chesscom" && hasRemote) {
-      const games = Number.isFinite(remote.games) ? remote.games : 0;
-      const slowGames = Number.isFinite(remote?.detail?.slow) ? remote.detail.slow : null;
-      const blitzGames = Number.isFinite(remote?.detail?.blitz) ? remote.detail.blitz : null;
-      if (Number.isFinite(slowGames) && Number.isFinite(blitzGames)) {
-        configFilesStatusEl.textContent = `Fuente: Chess.com (${remote.username}) | ${games} partida(s): ${slowGames} lentas + ${blitzGames} blitz.`;
-      } else {
-        const gamesText = games > 0 ? `${games} partida(s)` : "partidas";
-        configFilesStatusEl.textContent = `Fuente: Chess.com (${remote.username}) | ${gamesText} cargadas.`;
-      }
-    } else if (isRemoteSourceMode() && remoteUser) {
-      configFilesStatusEl.textContent = "";
-    } else if (isRemoteSourceMode()) {
-      configFilesStatusEl.textContent = "";
+      configFilesStatusEl.textContent = `Fuente: ${providerLabel} (${remote.username}) | ${games} partida(s) cargadas.`;
     } else {
-      configFilesStatusEl.textContent = `PGN cargados: ${filesCount} archivo(s) | ${localGames} partida(s).`;
+      configFilesStatusEl.textContent = "";
     }
   }
 
-  if (playerNameDetectedEl && playerTargetLabelEl && playerTargetHintEl) {
-    if (isRemoteSourceMode()) {
-      playerTargetLabelEl.textContent = "Usuario objetivo del análisis";
-      if (hasRemote && remote?.username) {
-        playerNameDetectedEl.textContent = String(remote.username);
-        playerTargetHintEl.textContent = "Se usa este usuario como referencia para seleccionar jugadas.";
-      } else if (remoteUser) {
-        playerNameDetectedEl.textContent = remoteUser;
-        playerTargetHintEl.textContent = "Se usará este usuario al preparar automáticamente la base online.";
-      } else {
-        playerNameDetectedEl.textContent = "Ingresá el usuario en el paso anterior.";
-        playerTargetHintEl.textContent = "Cuando completes el usuario, se tomará como referencia de análisis.";
-      }
-    } else {
-      playerTargetLabelEl.textContent = "Jugador detectado automáticamente";
-      const guess = refreshLocalPlayerGuess();
-      if (guess.name) {
-        playerNameDetectedEl.textContent = guess.name;
-        if (Array.isArray(guess.tiedTop) && guess.tiedTop.length > 1) {
-          const tiedLabel = guess.tiedTop.slice(0, 3).join(", ");
-          playerTargetHintEl.textContent = `Empate en frecuencia (${tiedLabel}). Se usará ${guess.name} salvo que cambie la base.`;
-        } else {
-          playerTargetHintEl.textContent = "Detectado al cargar PGN: se usa el nombre más repetido entre blancas y negras.";
-        }
-      } else {
-        playerNameDetectedEl.textContent = "Se detectará al cargar los PGN.";
-        playerTargetHintEl.textContent = "Se toma el nombre que más se repite entre blancas y negras.";
-      }
-    }
-  }
+  if (playerTargetLabelEl) playerTargetLabelEl.textContent = "Usuario objetivo del análisis";
+  if (playerNameDetectedEl) playerNameDetectedEl.textContent = config.username || "Ingresá el usuario para continuar.";
+  if (playerTargetHintEl) playerTargetHintEl.textContent = "Usaremos este usuario para seleccionar posiciones.";
 
-  if (goConfigBtn) {
-    goConfigBtn.disabled = !hasAnyPgnSource(false);
-  }
-}
-
-function setConfigPreparationProgress(stage = "config", analysisPct = 0) {
-  if (!configPrepProgressBarEl || !configPrepProgressLabelEl || !configPrepProgressHintEl) return;
-  const safeStage = stage === "analyzing" || stage === "ready" ? stage : "config";
-  if (safeStage === "config") {
-    configPrepProgressBarEl.style.width = "100%";
-    configPrepProgressLabelEl.textContent = "Paso 3 de 3";
-    configPrepProgressHintEl.textContent = "Revisá ajustes y comenzá la sesión.";
-    return;
-  }
-  if (safeStage === "analyzing") {
-    const normalized = clamp(Number(analysisPct) || 0, 0, 100);
-    const visualPct = Math.round((55 + (normalized / 100) * 45) * 100) / 100;
-    configPrepProgressBarEl.style.width = `${visualPct}%`;
-    configPrepProgressLabelEl.textContent = "Paso 3 de 3";
-    configPrepProgressHintEl.textContent = `Preparando posiciones para la sesión (${Math.round(normalized)}%).`;
-    return;
-  }
-  configPrepProgressBarEl.style.width = "100%";
-  configPrepProgressLabelEl.textContent = "Paso 3 de 3";
-  configPrepProgressHintEl.textContent = "Primera posición lista. Iniciando partida.";
+  renderWizardStep();
 }
 
 function setLandingNote(message) {
@@ -1224,7 +1479,7 @@ function showLandingScreen(note = "") {
   setLandingNote(note);
 }
 
-function openSetupFromLanding({ format = null, wizardStep = 1, statusMessage = "" } = {}) {
+function openSetupFromLanding({ format = null, statusMessage = "" } = {}) {
   if (landingScreenEl) {
     landingScreenEl.classList.add("hidden");
     landingScreenEl.style.display = "none";
@@ -1234,26 +1489,15 @@ function openSetupFromLanding({ format = null, wizardStep = 1, statusMessage = "
     setupPanelEl.classList.remove("hidden");
     setupPanelEl.style.display = "grid";
   }
-  setSetupStep("upload");
-  setUploadWizardStep(clamp(Number(wizardStep) || 1, 1, 2));
-  // Hard guard: always land in upload/source flow after choosing Study/Duel.
-  if (setupStepUploadEl) setupStepUploadEl.classList.remove("hidden");
-  if (setupStepConfigEl) setupStepConfigEl.classList.add("hidden");
-  if (wizardStepSourceEl) wizardStepSourceEl.classList.remove("hidden");
-  if (wizardStepDataEl) wizardStepDataEl.classList.add("hidden");
-  if (setupWizardProgressLabelEl) setupWizardProgressLabelEl.textContent = "Paso 1 de 3";
-  if (setupWizardProgressBarEl) setupWizardProgressBarEl.style.width = "33%";
-  STATE.setupStep = "upload";
-  STATE.setupWizardStep = 1;
   if (format) {
     const normalized = normalizeGameFormat(format);
     if (gameFormatEl) gameFormatEl.value = normalized;
-    applyGameFormat(normalized);
+    STATE.setupWizard.mode = normalized;
   }
-  if (statusMessage && analysisStatusEl) {
-    analysisStatusEl.textContent = statusMessage;
-  }
-  window.scrollTo({ top: 0, behavior: "auto" });
+  resetSetupWizard({
+    mode: format ? normalizeGameFormat(format) : STATE.setupWizard.mode,
+    statusMessage: statusMessage || "Configurá el paso actual para continuar.",
+  });
   updatePgnSelectionUi();
 }
 
@@ -1261,7 +1505,6 @@ function startStudyFromLanding() {
   setUserMode("citizen");
   openSetupFromLanding({
     format: "solo",
-    wizardStep: 1,
     statusMessage: "Modo Estudio listo. Elegí fuente para continuar.",
   });
 }
@@ -1270,16 +1513,18 @@ function startDuelFromLanding() {
   setUserMode("citizen");
   openSetupFromLanding({
     format: "duel",
-    wizardStep: 1,
     statusMessage: "Duelo de Caballeros listo. Elegí fuente para continuar.",
   });
 }
 
 function openOptionsFromLanding() {
   openSetupFromLanding({
-    wizardStep: 1,
     statusMessage: "Configurá modo, fuente y opciones de análisis.",
   });
+}
+
+function startFromLanding() {
+  openOptionsFromLanding();
 }
 
 function showHistoryFromLanding() {
@@ -1294,20 +1539,8 @@ function showHistoryFromLanding() {
 window.startStudyFromLanding = startStudyFromLanding;
 window.startDuelFromLanding = startDuelFromLanding;
 window.openOptionsFromLanding = openOptionsFromLanding;
+window.startFromLanding = startFromLanding;
 window.showHistoryFromLanding = showHistoryFromLanding;
-
-function setSetupStep(step) {
-  const safeStep = step === "config" ? "config" : "upload";
-  STATE.setupStep = safeStep;
-  if (setupStepUploadEl) setupStepUploadEl.classList.toggle("hidden", safeStep !== "upload");
-  if (setupStepConfigEl) setupStepConfigEl.classList.toggle("hidden", safeStep !== "config");
-  if (safeStep === "upload") {
-    setUploadWizardStep(1);
-  } else {
-    updateSetupCognitiveMode();
-  }
-  setConfigPreparationProgress("config");
-}
 
 function sleepMs(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -2077,7 +2310,6 @@ function updateAnalysisProgress(done, total, detected, extraText) {
   analysisProgressWrapEl.classList.remove("hidden");
   analysisProgressBarEl.style.width = `${pctVisual}%`;
   analysisProgressLabelEl.textContent = `${pctLabel}% (${done}/${total || 0})${extraText ? ` - ${extraText}` : ""}`;
-  setConfigPreparationProgress("analyzing", pctRaw);
   if (STATE.userMode === "engineer") {
     analysisMetricsEl.classList.remove("hidden");
     analysisMetricsEl.textContent = `Posiciones totales: ${total || 0} | Posiciones analizadas: ${done} | Posiciones detectadas (>= umbral): ${detected || 0}`;
@@ -2490,6 +2722,10 @@ function startRound(options = {}) {
   STATE.roundSubmitted = false;
   STATE.isResolvingRound = false;
   STATE.revealed = { best: null, game: null, user: null, userAlt: null };
+  STATE.duel.handoffReady = false;
+  setUiPhase("playing", false);
+  hideHandoffOverlay();
+  hideResultOverlay();
 
   renderGameInfo(position);
   const totalTarget = Math.max(1, STATE.targetPositions || STATE.positions.length || 1);
@@ -2500,26 +2736,26 @@ function startRound(options = {}) {
   } else {
     roundStatusEl.textContent = `Posición ${STATE.index + 1}/${totalTarget}`;
   }
-  roundResultPanelEl.classList.add("hidden");
+  if (roundResultPanelEl) roundResultPanelEl.classList.add("hidden");
   roundResultEl.innerHTML = "";
   hideFeedbackStrip();
   setScoringInfoVisible(false);
   renderSessionProgress();
   updateScoreDisplay();
   updateCompetitiveStatus();
+  updatePlayerPanels();
   setThinkingMode(true);
   stopRoundTimer();
   startRoundTimer();
   nextBtn.disabled = true;
   skipBtn.disabled = false;
-  nextBtn.textContent = isDuelMode() && STATE.duel.currentPlayer === 0
-    ? `Turno de ${duelPlayerName(1)}`
-    : "Siguiente posición";
+  nextBtn.textContent = "Siguiente posición";
 
   renderBoard();
 }
 
 function onSquareClick(square) {
+  if (STATE.ui.blockBoardInput) return;
   if (!STATE.board || !STATE.positions.length || nextBtn.disabled === false) return;
   if (STATE.roundSubmitted || STATE.isResolvingRound) return;
 
@@ -2562,63 +2798,87 @@ async function submitNoMove(reason = "no_move") {
   await resolveRound(null, { noMoveReason: reason });
 }
 
-function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, userSan, userEvalText, bestMover, gameMover, userMover, scored, noMoveReason = "") {
+function resultStateClass({ hit = false, noMove = false, isReference = false } = {}) {
+  if (isReference) return "state-neutral";
+  if (noMove) return "state-neutral";
+  return hit ? "state-good" : "state-bad";
+}
+
+function renderResultCards(cards = [], summaryText = "") {
+  const cardsHtml = cards
+    .map((card) => `
+      <article class="result-card ${escapeHtml(card.state || "state-neutral")}">
+        <p class="card-label">${escapeHtml(card.label || "-")}</p>
+        <p class="card-move">${escapeHtml(card.move || "-")}</p>
+        <p class="card-meta">${escapeHtml(card.meta || "-")}</p>
+      </article>
+    `)
+    .join("");
+  roundResultEl.innerHTML = `
+    ${summaryText ? `<p class="result-summary-line">${escapeHtml(summaryText)}</p>` : ""}
+    <div class="result-cards">${cardsHtml}</div>
+  `;
+}
+
+function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, userSan, userEvalText, bestMover, gameMover, userMover, scored, noMoveReason = "", extra = {}) {
   const noMove = !Number.isFinite(userMover);
   const noMoveNote = noMoveReason === "timeout"
-    ? "Se agotó el tiempo: puntuación automática = 0."
-    : (noMove ? "No moviste en esta posición: puntuación automática = 0." : "");
-  if (STATE.userMode === "citizen") {
-    roundResultEl.innerHTML = `
-      <div class="feedback-brief">
-        <p><strong>Mejor:</strong> ${escapeHtml(bestSan)}</p>
-        <p><strong>Tu jugada:</strong> ${escapeHtml(userSan)}</p>
-      </div>
-      ${noMoveNote ? `<p class="feedback-note">${escapeHtml(noMoveNote)}</p>` : ""}
-    `;
+    ? "Tiempo agotado: 0 puntos."
+    : (noMove ? "No hubo jugada: 0 puntos." : "");
+  const baseSummary = `Clasificación: ${scored.qualityLabel} | Delta: ${formatDelta(bestMover, userMover)} | Puntos: ${formatSigned(scored.points)}${noMoveNote ? ` | ${noMoveNote}` : ""}`;
+
+  if (extra.mode === "duel" && extra.duel) {
+    const p1 = extra.duel.player1 || { name: duelPlayerName(0), san: "-", qualityLabel: "Sin jugada", points: 0, hit: false };
+    const p2 = extra.duel.player2 || { name: duelPlayerName(1), san: "-", qualityLabel: "Sin jugada", points: 0, hit: false };
+    renderResultCards([
+      {
+        label: "Mejor del módulo",
+        move: bestSan,
+        meta: bestEvalText,
+        state: resultStateClass({ isReference: true }),
+      },
+      {
+        label: p1.name,
+        move: p1.san || "-",
+        meta: `${p1.qualityLabel || "Sin jugada"} · ${formatSigned(p1.points || 0)} pts`,
+        state: resultStateClass({ hit: Boolean(p1.hit), noMove: !p1.san || p1.san === "Sin jugada" }),
+      },
+      {
+        label: p2.name,
+        move: p2.san || "-",
+        meta: `${p2.qualityLabel || "Sin jugada"} · ${formatSigned(p2.points || 0)} pts`,
+        state: resultStateClass({ hit: Boolean(p2.hit), noMove: !p2.san || p2.san === "Sin jugada" }),
+      },
+      {
+        label: "Jugada histórica",
+        move: gameSan,
+        meta: `${gameEvalText} · ${formatDelta(bestMover, gameMover)}`,
+        state: resultStateClass({ isReference: true }),
+      },
+    ], extra.duel.summary || baseSummary);
     return;
   }
 
-  const expectedLossNote = Number.isFinite(scored.expectedLoss)
-    ? ` | <strong>Expected points perdidos:</strong> ${escapeHtml(formatExpectedLoss(scored.expectedLoss))}`
-    : "";
-  roundResultEl.innerHTML = `
-    <div class="legend">
-      <span><i class="swatch best"></i> Verde: referencia única (mejor del módulo)</span>
-      <span><i class="swatch game"></i> Castaño: lo que se jugó en la partida</span>
-      <span><i class="swatch user"></i> Naranja: tu jugada</span>
-    </div>
-    <table class="feedback-table">
-      <thead>
-        <tr>
-          <th>Referencia</th>
-          <th>Jugada</th>
-          <th>Evaluación</th>
-          <th>Delta vs referencia</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Mejor del módulo</td>
-          <td>${escapeHtml(bestSan)}</td>
-          <td>${escapeHtml(bestEvalText)}</td>
-          <td>Referencia</td>
-        </tr>
-        <tr>
-          <td>Lo que se jugó en la partida</td>
-          <td>${escapeHtml(gameSan)}</td>
-          <td>${escapeHtml(gameEvalText)}</td>
-          <td>${escapeHtml(formatDelta(bestMover, gameMover))}</td>
-        </tr>
-        <tr>
-          <td>Tu jugada</td>
-          <td>${escapeHtml(userSan)}</td>
-          <td>${escapeHtml(userEvalText)}</td>
-          <td>${escapeHtml(formatDelta(bestMover, userMover))}</td>
-        </tr>
-      </tbody>
-    </table>
-    <p class="feedback-note"><strong>Sistema:</strong> ${escapeHtml(scored.scoringSystemLabel)} | <strong>Clasificación:</strong> ${escapeHtml(scored.qualityLabel)} | <strong>Pérdida vs referencia:</strong> ${scored.diff ?? "-"} cp${expectedLossNote} | <strong>Puntos:</strong> ${escapeHtml(formatSigned(scored.points))}${noMoveNote ? ` | ${escapeHtml(noMoveNote)}` : ""}</p>
-  `;
+  renderResultCards([
+    {
+      label: "Mejor del módulo",
+      move: bestSan,
+      meta: bestEvalText,
+      state: resultStateClass({ isReference: true }),
+    },
+    {
+      label: "Tu jugada",
+      move: userSan,
+      meta: `${userEvalText} · ${formatDelta(bestMover, userMover)}`,
+      state: resultStateClass({ hit: Number.isFinite(scored.diff) && scored.diff <= (Number.isFinite(extra.hitThreshold) ? extra.hitThreshold : 120), noMove }),
+    },
+    {
+      label: "Jugada histórica",
+      move: gameSan,
+      meta: `${gameEvalText} · ${formatDelta(bestMover, gameMover)}`,
+      state: resultStateClass({ isReference: true }),
+    },
+  ], baseSummary);
 }
 
 function finalSessionSummaryText() {
@@ -2638,6 +2898,7 @@ async function resolveRound(move, options = {}) {
   stopRoundTimer();
   STATE.roundSubmitted = true;
   STATE.isResolvingRound = true;
+  const duelFirstTurn = isDuelMode() && STATE.duel.currentPlayer === 0;
   try {
     const depth = INTERNAL_ANALYSIS_DEPTH;
     const moveTimeMs = getEffectiveAnalysisConfig().moveTimeMs;
@@ -2651,15 +2912,17 @@ async function resolveRound(move, options = {}) {
     STATE.selection = null;
     STATE.legalMoves = [];
     skipBtn.disabled = true;
+    setUiPhase(duelFirstTurn ? "handoff_wait_eval" : "playing", true);
 
-    if (noMoveReason === "timeout") {
-      roundResultEl.textContent = "Tiempo agotado. Evaluando posición...";
-    } else {
-      roundResultEl.textContent = noMove ? "Cerrando posición sin jugada..." : "Evaluando tu jugada...";
+    if (duelFirstTurn) {
+      showHandoffOverlay(`Turno de ${duelPlayerName(1)}`, "Evaluando jugada...");
     }
 
-    if (move) {
-      // Show the played move immediately on board so the user sees the piece in destination square.
+    roundResultEl.textContent = noMoveReason === "timeout"
+      ? "Tiempo agotado. Evaluando posición..."
+      : (noMove ? "Cerrando posición sin jugada..." : "Evaluando jugada...");
+
+    if (move && !duelFirstTurn) {
       STATE.board.makeMove(move);
       STATE.revealed = { ...STATE.revealed, user: move };
       renderBoard();
@@ -2706,8 +2969,10 @@ async function resolveRound(move, options = {}) {
         userMover,
         scored,
         noMoveReason,
+        { mode: "solo", hitThreshold },
       );
-      roundResultPanelEl.classList.remove("hidden");
+      showResultOverlay("¡Posición Resuelta!", `Puntos de la ronda: ${formatSigned(scored.points)} · ${scored.qualityLabel}`);
+      setUiPhase("result", true);
       STATE.score += scored.points;
       STATE.sessionPlayed += 1;
       if (hit) STATE.sessionHits += 1;
@@ -2727,6 +2992,7 @@ async function resolveRound(move, options = {}) {
       nextBtn.textContent = "Siguiente posición";
       nextBtn.disabled = false;
       skipBtn.disabled = true;
+      if (roundResultPanelEl) roundResultPanelEl.classList.remove("hidden");
       renderSessionProgress();
       updateScoreDisplay();
       updateCompetitiveStatus();
@@ -2748,16 +3014,24 @@ async function resolveRound(move, options = {}) {
 
     if (playerIdx === 0) {
       const nextPlayer = duelPlayerName(1);
+      STATE.board = new Chess(position.fen);
+      setBoardPerspective(base.turn);
+      STATE.selection = null;
+      STATE.legalMoves = [];
+      STATE.userMove = null;
       STATE.revealed = { best: null, game: null, user: null, userAlt: null };
       renderBoard();
       hideFeedbackStrip();
-      roundResultPanelEl.classList.remove("hidden");
-      roundResultEl.innerHTML = `<p class="feedback-note"><strong>${escapeHtml(playerName)}</strong> ya jugó. Ahora juega <strong>${escapeHtml(nextPlayer)}</strong> con la misma posición y el mismo reloj.</p>`;
-      nextBtn.textContent = `Turno de ${nextPlayer}`;
-      nextBtn.disabled = false;
+      roundResultEl.innerHTML = "";
+      showHandoffOverlay(`Turno de ${nextPlayer}`, "Toca para revelar");
+      STATE.duel.handoffReady = true;
+      setUiPhase("handoff_ready", true);
+      nextBtn.textContent = "Siguiente posición";
+      nextBtn.disabled = true;
       skipBtn.disabled = true;
       renderSessionProgress();
       updateScoreDisplay();
+      setPanelActiveState(1);
       updateCompetitiveStatus();
       setScoringInfoVisible(false);
       return;
@@ -2782,6 +3056,7 @@ async function resolveRound(move, options = {}) {
       userAlt: r1 ? (r1.userMove || null) : null,
     };
     renderBoard();
+    hideHandoffOverlay();
     renderRoundFeedbackTable(
       bestSan,
       bestEvalText,
@@ -2794,17 +3069,34 @@ async function resolveRound(move, options = {}) {
       userMover,
       scored,
       noMoveReason,
+      {
+        mode: "duel",
+        duel: {
+          player1: {
+            name: p1,
+            san: r1 ? r1.userSan : "Sin jugada",
+            qualityLabel: r1 ? r1.qualityLabel : "Sin jugada",
+            points: r1 ? r1.points : 0,
+            hit: r1 ? r1.hit : false,
+          },
+          player2: {
+            name: p2,
+            san: r2 ? r2.userSan : "Sin jugada",
+            qualityLabel: r2 ? r2.qualityLabel : "Sin jugada",
+            points: r2 ? r2.points : 0,
+            hit: r2 ? r2.hit : false,
+          },
+        },
+      },
     );
-    roundResultPanelEl.classList.remove("hidden");
+    showResultOverlay("¡Posición Resuelta!", `Ronda ${STATE.index + 1}: ${p1} ${formatSigned(r1 ? r1.points : 0)} · ${p2} ${formatSigned(r2 ? r2.points : 0)}`);
+    if (roundResultPanelEl) roundResultPanelEl.classList.remove("hidden");
     updateFeedbackStrip(scored, bestMover, userMover, playerName);
 
     let winnerText = "Comparativa: empate.";
     if (r1 && r2 && r1.points > r2.points) winnerText = `Comparativa: ventaja para ${p1}.`;
     if (r1 && r2 && r2.points > r1.points) winnerText = `Comparativa: ventaja para ${p2}.`;
-    roundResultEl.insertAdjacentHTML(
-      "beforeend",
-      `<p class="feedback-note"><strong>Duelo:</strong> ${escapeHtml(p1)} ${formatSigned(r1 ? r1.points : 0)} | ${escapeHtml(p2)} ${formatSigned(r2 ? r2.points : 0)}. ${escapeHtml(winnerText)}</p>`,
-    );
+    roundResultEl.insertAdjacentHTML("afterbegin", `<p class="result-summary-line">${escapeHtml(winnerText)}</p>`);
     STATE.sessionPlayed += 1;
     pushHistoryEntry({
       round: STATE.index + 1,
@@ -2825,15 +3117,20 @@ async function resolveRound(move, options = {}) {
     nextBtn.textContent = "Siguiente posición";
     nextBtn.disabled = false;
     skipBtn.disabled = true;
+    STATE.duel.handoffReady = false;
+    setUiPhase("result", true);
     renderSessionProgress();
     updateScoreDisplay();
     updateCompetitiveStatus();
     setScoringInfoVisible(true);
   } catch (error) {
+    hideHandoffOverlay();
+    hideResultOverlay();
     roundResultEl.textContent = `Error al evaluar la ronda: ${error.message || "desconocido"}`;
     STATE.roundSubmitted = false;
     skipBtn.disabled = false;
     nextBtn.disabled = true;
+    setUiPhase("playing", false);
     startRoundTimer();
   } finally {
     STATE.isResolvingRound = false;
@@ -2841,15 +3138,16 @@ async function resolveRound(move, options = {}) {
 }
 
 async function nextPosition() {
-  if (isDuelMode() && STATE.duel.currentPlayer === 0 && STATE.duel.roundResults[0] && !STATE.duel.roundResults[1]) {
-    STATE.duel.currentPlayer = 1;
-    startRound({ preserveDuelRoundResults: true });
-    return;
-  }
+  if (STATE.ui.phase !== "result") return;
+  hideResultOverlay();
+  hideFeedbackStrip();
 
   if (isDuelMode()) {
     STATE.duel.currentPlayer = 0;
+    STATE.duel.handoffReady = false;
+    STATE.duel.roundResults = [null, null];
   }
+  setUiPhase("playing", false);
 
   if (STATE.index >= Math.max(1, STATE.targetPositions) - 1) {
     roundStatusEl.textContent = `Sesión terminada. ${finalSessionSummaryText()}`;
@@ -2859,6 +3157,7 @@ async function nextPosition() {
     setThinkingMode(false);
     updateCompetitiveStatus();
     setScoringInfoVisible(true);
+    setUiPhase("result", true);
     return;
   }
 
@@ -2871,6 +3170,7 @@ async function nextPosition() {
       stopRoundTimer();
       setThinkingMode(false);
       setScoringInfoVisible(true);
+      setUiPhase("result", true);
       return;
     }
 
@@ -2885,6 +3185,7 @@ async function nextPosition() {
       stopRoundTimer();
       setThinkingMode(false);
       setScoringInfoVisible(true);
+      setUiPhase("result", true);
       return;
     }
     STATE.positions.push(nextMistake);
@@ -2897,10 +3198,25 @@ async function nextPosition() {
   startRound();
 }
 
+function revealDuelSecondTurn() {
+  if (!isDuelMode()) return;
+  if (STATE.ui.phase !== "handoff_ready") return;
+  if (STATE.duel.currentPlayer !== 0) return;
+  if (!STATE.duel.roundResults[0]) return;
+  STATE.duel.currentPlayer = 1;
+  STATE.duel.handoffReady = false;
+  hideHandoffOverlay();
+  startRound({ preserveDuelRoundResults: true });
+}
+
 function restartToSetup() {
   stopRoundTimer();
+  STATE.ui.setupAnalyzing = false;
   setThinkingMode(false);
   setScoringInfoVisible(false);
+  hideHandoffOverlay();
+  hideResultOverlay();
+  setUiPhase("playing", false);
   document.body.classList.remove("playing-mode");
   setupPanelEl.classList.remove("hidden");
   gameLayoutEl.classList.add("hidden");
@@ -2918,16 +3234,18 @@ function restartToSetup() {
   renderSessionProgress();
   updateScoreDisplay();
   updateCompetitiveStatus();
-  roundResultPanelEl.classList.add("hidden");
+  if (roundResultPanelEl) roundResultPanelEl.classList.add("hidden");
   roundResultEl.innerHTML = "";
   analysisStatusEl.textContent = "Esperando datos de partida.";
-  if (playerNameDetectedEl) playerNameDetectedEl.textContent = "Se detectará al analizar los PGN.";
+  if (playerNameDetectedEl) playerNameDetectedEl.textContent = "Ingresá el usuario para continuar.";
   resetAnalysisProgress();
   analysisProgressWrapEl.classList.add("hidden");
   skipBtn.disabled = true;
   nextBtn.disabled = true;
-  setSetupStep("upload");
-  setUploadWizardStep(1);
+  resetSetupWizard({
+    mode: "solo",
+    statusMessage: "Configurá tu próxima sesión paso a paso.",
+  });
   updatePgnSelectionUi();
   showLandingScreen("Elegí un modo para iniciar una nueva sesión.");
   buildBoard();
@@ -2942,7 +3260,7 @@ async function getActivePgnTextSources() {
   if (Array.isArray(STATE.localPgnSources) && STATE.localPgnSources.length > 0) {
     return STATE.localPgnSources.map((entry) => ({ name: entry.name, text: entry.text }));
   }
-  const filesList = Array.from(pgnInputEl.files || []);
+  const filesList = Array.from((pgnInputEl && pgnInputEl.files) ? pgnInputEl.files : []);
   return Promise.all(filesList.map(async (file) => ({ name: file.name, text: await file.text() })));
 }
 
@@ -2950,6 +3268,7 @@ async function fetchLichessPgn() {
   const rawUser = getConfiguredRemoteUsername();
   if (!rawUser) {
     if (onlineStatusEl) onlineStatusEl.textContent = "Ingresá un usuario de Lichess.";
+    showWizardSourceError("Ingresá un usuario de Lichess para continuar.");
     return false;
   }
 
@@ -3031,7 +3350,9 @@ async function fetchLichessPgn() {
     }
     return true;
   } catch (error) {
-    if (onlineStatusEl) onlineStatusEl.textContent = `No se pudo descargar: ${error.message || "error desconocido"}.`;
+    const message = `No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma. (${error.message || "error desconocido"})`;
+    if (onlineStatusEl) onlineStatusEl.textContent = message;
+    showWizardSourceError(message);
     return false;
   }
 }
@@ -3058,6 +3379,7 @@ async function fetchChessComPgn() {
   const rawUser = getConfiguredRemoteUsername();
   if (!rawUser) {
     if (onlineStatusEl) onlineStatusEl.textContent = "Ingresá un usuario de Chess.com.";
+    showWizardSourceError("Ingresá un usuario de Chess.com para continuar.");
     return false;
   }
 
@@ -3188,7 +3510,9 @@ async function fetchChessComPgn() {
     }
     return true;
   } catch (error) {
-    if (onlineStatusEl) onlineStatusEl.textContent = `No se pudo descargar: ${error.message || "error desconocido"}.`;
+    const message = `No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma. (${error.message || "error desconocido"})`;
+    if (onlineStatusEl) onlineStatusEl.textContent = message;
+    showWizardSourceError(message);
     return false;
   }
 }
@@ -3196,23 +3520,24 @@ async function fetchChessComPgn() {
 // ---------- Main analyze action ----------
 
 async function analyzePgnFiles() {
-  setConfigPreparationProgress("config");
-  if (!hasAnyPgnSource(false)) {
-    if (isRemoteSourceMode()) {
-      analysisStatusEl.textContent = "Completá el usuario de la base online.";
-    } else {
-      analysisStatusEl.textContent = "Subí al menos un archivo PGN.";
-    }
+  const readiness = getSetupReadiness();
+  if (!readiness.valid) {
+    if (analysisStatusEl) analysisStatusEl.textContent = readiness.reason;
+    updateAnalyzeButtonState();
     return;
   }
 
-  analyzeBtn.disabled = true;
+  clearWizardSourceError();
+  STATE.ui.setupAnalyzing = true;
+  if (analyzeBtn) analyzeBtn.disabled = true;
   resetAnalysisProgress();
   analysisProgressWrapEl.classList.remove("hidden");
-  setConfigPreparationProgress("analyzing", 0);
   stopRoundTimer();
   setThinkingMode(false);
   setScoringInfoVisible(false);
+  hideHandoffOverlay();
+  hideResultOverlay();
+  setUiPhase("playing", false);
   hideFeedbackStrip();
   STATE.allMistakes = [];
   STATE.positions = [];
@@ -3226,6 +3551,7 @@ async function analyzePgnFiles() {
   resetDuelState();
   updateRoundTimerUi(Math.round(STATE.turnTimeSeconds * 1000));
   updateScoreDisplay();
+  updatePlayerPanels();
   renderSessionProgress();
   STATE.historyEntries = [];
   STATE.historySelectedIdx = -1;
@@ -3245,8 +3571,7 @@ async function analyzePgnFiles() {
         ? await fetchChessComPgn()
         : await fetchLichessPgn();
       if (!downloaded || !hasAnyPgnSource(true)) {
-        analysisStatusEl.textContent = "No se pudo preparar la base online para iniciar la sesión.";
-        setConfigPreparationProgress("config");
+        sendWizardBackToSourceStep("No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma.");
         return;
       }
     }
@@ -3258,8 +3583,7 @@ async function analyzePgnFiles() {
     })));
 
     if (allGames.length === 0) {
-      analysisStatusEl.textContent = "No se encontraron partidas válidas en los PGN.";
-      setConfigPreparationProgress("config");
+      sendWizardBackToSourceStep("No encontramos partidas públicas válidas para ese usuario. Probá otro usuario o plataforma.");
       return;
     }
 
@@ -3276,8 +3600,7 @@ async function analyzePgnFiles() {
     }
 
     if (!playerName) {
-      analysisStatusEl.textContent = "No se pudo detectar automáticamente el jugador en los PGN.";
-      setConfigPreparationProgress("config");
+      sendWizardBackToSourceStep("No pudimos detectar el jugador en las partidas descargadas. Probá con otro usuario.");
       return;
     }
 
@@ -3287,8 +3610,7 @@ async function analyzePgnFiles() {
     const candidates = buildRandomCandidateQueue(allGames, playerName);
     const uniqueGameCount = new Set(candidates.map((c) => c.gameIdx)).size;
     if (candidates.length === 0) {
-      analysisStatusEl.textContent = "No hay jugadas analizables para el jugador detectado.";
-      setConfigPreparationProgress("config");
+      sendWizardBackToSourceStep("No encontramos posiciones analizables para ese usuario. Probá con otro usuario o plataforma.");
       return;
     }
 
@@ -3314,8 +3636,7 @@ async function analyzePgnFiles() {
 
     const firstMistake = await findNextMistake(ctx, "Inicio: ");
     if (!firstMistake) {
-      analysisStatusEl.textContent = `No se detectaron errores en el umbral. Candidatas analizadas: ${ctx.analyzed}/${ctx.total}.`;
-      setConfigPreparationProgress("config");
+      sendWizardBackToSourceStep(`No se detectaron errores útiles con este usuario. Candidatas analizadas: ${ctx.analyzed}/${ctx.total}.`);
       return;
     }
 
@@ -3327,69 +3648,25 @@ async function analyzePgnFiles() {
       sessionHintEl.textContent = `Objetivo de sesión: ${STATE.targetPositions} posiciones. Detectadas: ${ctx.detected}.`;
     }
     analysisStatusEl.textContent = "Primera posición detectada. Ya podés jugar.";
-    setConfigPreparationProgress("ready");
     setupPanelEl.classList.add("hidden");
     document.body.classList.add("playing-mode");
     gameLayoutEl.classList.remove("hidden");
     startRound();
   } catch (error) {
-    analysisStatusEl.textContent = `Error durante el análisis: ${error.message || "desconocido"}`;
-    setConfigPreparationProgress("config");
+    const message = `Error durante el análisis: ${error.message || "desconocido"}`;
+    analysisStatusEl.textContent = message;
     analysisProgressWrapEl.classList.add("hidden");
     analysisMetricsEl.classList.add("hidden");
+    if (isRemoteSourceMode()) {
+      sendWizardBackToSourceStep(`No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma. (${error.message || "error desconocido"})`);
+    }
   } finally {
-    analyzeBtn.disabled = false;
+    STATE.ui.setupAnalyzing = false;
+    updateAnalyzeButtonState();
   }
-}
-
-function goToConfigStep() {
-  if (!hasAnyPgnSource(false)) {
-    updatePgnSelectionUi();
-    return;
-  }
-  setSetupStep("config");
-  if (analysisStatusEl) analysisStatusEl.textContent = "";
 }
 
 // ---------- Events ----------
-
-if (pgnInputEl) {
-  pgnInputEl.addEventListener("change", async () => {
-    const selected = Array.from(pgnInputEl.files || []);
-    if (selected.length > 0) {
-      try {
-        await appendLocalPgnFiles(selected);
-        refreshLocalPlayerGuess();
-        clearRemotePgnSources();
-        setSourceMode("file");
-      } catch (error) {
-        if (analysisStatusEl) analysisStatusEl.textContent = `No se pudo leer uno o más PGN: ${error.message || "error desconocido"}.`;
-      }
-    }
-    pgnInputEl.value = "";
-    updatePgnSelectionUi();
-  });
-}
-
-if (pgnLibraryListEl) {
-  pgnLibraryListEl.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    const signatureEncoded = target.getAttribute("data-pgn-remove");
-    if (!signatureEncoded) return;
-    removeLocalPgnSource(decodeURIComponent(signatureEncoded));
-    refreshLocalPlayerGuess();
-    updatePgnSelectionUi();
-  });
-}
-
-if (pgnClearBtn) {
-  pgnClearBtn.addEventListener("click", () => {
-    clearLocalPgnSources();
-    refreshLocalPlayerGuess();
-    updatePgnSelectionUi();
-  });
-}
 
 if (sourceBackBtn) {
   sourceBackBtn.addEventListener("click", () => {
@@ -3397,115 +3674,134 @@ if (sourceBackBtn) {
   });
 }
 
-if (dataBackBtn) {
-  dataBackBtn.addEventListener("click", () => {
-    setUploadWizardStep(1);
+if (wizardPrevBtn) {
+  wizardPrevBtn.addEventListener("click", () => {
+    goToWizardStep(STATE.setupWizard.step - 1);
   });
 }
 
-if (sourceFileBtn) {
-  sourceFileBtn.addEventListener("click", () => {
-    setSourceMode("file");
-    setUploadWizardStep(2);
+if (wizardNextBtn) {
+  wizardNextBtn.addEventListener("click", () => {
+    const current = clamp(Number(STATE.setupWizard.step) || 1, 1, 4);
+    const validation = validateWizardStep(current);
+    if (!validation.valid) {
+      if (analysisStatusEl) analysisStatusEl.textContent = validation.reason;
+      if (current === 2) showWizardSourceError(validation.reason);
+      return;
+    }
+    clearWizardSourceError();
+    goToWizardStep(current + 1);
+    if (analysisStatusEl) analysisStatusEl.textContent = "Perfecto. Seguimos con el siguiente paso.";
+  });
+}
+
+if (wizardModeSoloBtn) {
+  wizardModeSoloBtn.addEventListener("click", () => {
+    STATE.setupWizard.mode = "solo";
+    if (gameFormatEl) gameFormatEl.value = "solo";
+    renderWizardStep();
+  });
+}
+
+if (wizardModeDuelBtn) {
+  wizardModeDuelBtn.addEventListener("click", () => {
+    STATE.setupWizard.mode = "duel";
+    if (gameFormatEl) gameFormatEl.value = "duel";
+    renderWizardStep();
+  });
+}
+
+if (wizardProviderLichessBtn) {
+  wizardProviderLichessBtn.addEventListener("click", () => {
+    const previous = STATE.setupWizard.platform;
+    STATE.setupWizard.platform = "lichess";
+    if (onlineProviderSelectEl) onlineProviderSelectEl.value = "lichess";
+    setSourceMode("lichess");
+    if (previous !== "lichess" && STATE.remotePgnSources.length > 0) clearRemotePgnSources();
+    clearWizardSourceError();
     updatePgnSelectionUi();
   });
 }
 
-if (sourceOnlineBtn) {
-  sourceOnlineBtn.addEventListener("click", () => {
-    setSourceMode(getRemoteProviderModeFromUi());
-    setUploadWizardStep(2);
+if (wizardProviderChessComBtn) {
+  wizardProviderChessComBtn.addEventListener("click", () => {
+    const previous = STATE.setupWizard.platform;
+    STATE.setupWizard.platform = "chesscom";
+    if (onlineProviderSelectEl) onlineProviderSelectEl.value = "chesscom";
+    setSourceMode("chesscom");
+    if (previous !== "chesscom" && STATE.remotePgnSources.length > 0) clearRemotePgnSources();
+    clearWizardSourceError();
     updatePgnSelectionUi();
   });
 }
-
-modeLevelSwitchEls.forEach((toggleEl) => {
-  toggleEl.addEventListener("change", () => {
-    setUserMode(toggleEl.checked ? "engineer" : "citizen");
-  });
-});
 
 if (onlineProviderSelectEl) {
   onlineProviderSelectEl.addEventListener("change", () => {
     const nextMode = getRemoteProviderModeFromUi();
-    updateOnlineProviderUi();
-    if (isRemoteSourceMode()) {
-      setSourceMode(nextMode);
-    }
-    if (STATE.remotePgnSources.length > 0) {
+    const previous = STATE.setupWizard.platform;
+    STATE.setupWizard.platform = nextMode;
+    setSourceMode(nextMode);
+    if (previous !== nextMode && STATE.remotePgnSources.length > 0) {
       clearRemotePgnSources();
-      if (onlineStatusEl) onlineStatusEl.textContent = "Plataforma cambiada. Se descargará la base correcta al comenzar.";
     }
+    clearWizardSourceError();
     updatePgnSelectionUi();
   });
 }
 
 if (onlineUserInputEl) {
   onlineUserInputEl.addEventListener("input", () => {
-    if (isRemoteSourceMode() && STATE.remotePgnSources.length > 0) {
+    STATE.setupWizard.username = sanitizeWizardUsername(onlineUserInputEl.value);
+    if (STATE.remotePgnSources.length > 0) {
       clearRemotePgnSources();
-      if (onlineStatusEl) onlineStatusEl.textContent = "Usuario cambiado. Se descargará la nueva base al comenzar.";
     }
+    clearWizardSourceError();
     updatePgnSelectionUi();
   });
 }
-
-[onlineMinSlowGamesEl, onlineFallbackBlitzEl]
-  .filter(Boolean)
-  .forEach((control) => {
-    control.addEventListener("change", () => {
-      if (isRemoteSourceMode() && STATE.remotePgnSources.length > 0) {
-        clearRemotePgnSources();
-        if (onlineStatusEl) onlineStatusEl.textContent = "Configuración cambiada. Se aplicará en la próxima descarga automática.";
-      }
-      updatePgnSelectionUi();
-    });
-  });
 
 if (sessionSizeEl) {
-  sessionSizeEl.addEventListener("change", () => {
-    if (isRemoteSourceMode() && STATE.remotePgnSources.length > 0) {
+  sessionSizeEl.addEventListener("input", () => {
+    STATE.setupWizard.sessionSize = clamp(Number(sessionSizeEl.value) || DEFAULT_CITIZEN_SESSION_SIZE, 1, 200);
+    sessionSizeEl.value = String(STATE.setupWizard.sessionSize);
+    if (STATE.remotePgnSources.length > 0) {
       clearRemotePgnSources();
-      if (onlineStatusEl) onlineStatusEl.textContent = "Cantidad de posiciones cambiada. Se recalculará la descarga automáticamente.";
     }
     updatePgnSelectionUi();
   });
 }
 
-if (goConfigBtn) {
-  goConfigBtn.addEventListener("click", () => {
-    goToConfigStep();
+wizardSizeChipEls.forEach((chipEl) => {
+  chipEl.addEventListener("click", () => {
+    const size = clamp(Number(chipEl.getAttribute("data-size")) || DEFAULT_CITIZEN_SESSION_SIZE, 1, 200);
+    STATE.setupWizard.sessionSize = size;
+    if (sessionSizeEl) sessionSizeEl.value = String(size);
+    if (STATE.remotePgnSources.length > 0) clearRemotePgnSources();
+    updatePgnSelectionUi();
+  });
+});
+
+if (landingStartBtn) {
+  landingStartBtn.addEventListener("click", () => {
+    startFromLanding();
   });
 }
 
-if (landingStudyBtn) {
-  landingStudyBtn.addEventListener("click", () => {
-    startStudyFromLanding();
+if (wizardRetryUserBtn) {
+  wizardRetryUserBtn.addEventListener("click", () => {
+    clearWizardSourceError();
+    if (onlineUserInputEl) onlineUserInputEl.focus();
   });
 }
 
-if (landingDuelBtn) {
-  landingDuelBtn.addEventListener("click", () => {
-    startDuelFromLanding();
-  });
-}
-
-if (landingOptionsBtn) {
-  landingOptionsBtn.addEventListener("click", () => {
-    openOptionsFromLanding();
-  });
-}
-
-if (landingHistoryBtn) {
-  landingHistoryBtn.addEventListener("click", () => {
-    showHistoryFromLanding();
-  });
-}
-
-if (backUploadBtn) {
-  backUploadBtn.addEventListener("click", () => {
-    setSetupStep("upload");
-    setUploadWizardStep(2);
+if (wizardSwitchPlatformBtn) {
+  wizardSwitchPlatformBtn.addEventListener("click", () => {
+    const nextPlatform = STATE.setupWizard.platform === "chesscom" ? "lichess" : "chesscom";
+    STATE.setupWizard.platform = nextPlatform;
+    if (onlineProviderSelectEl) onlineProviderSelectEl.value = nextPlatform;
+    setSourceMode(nextPlatform);
+    clearRemotePgnSources();
+    clearWizardSourceError();
     updatePgnSelectionUi();
   });
 }
@@ -3536,11 +3832,14 @@ if (turnTimeSecondsEl) {
 [duelPlayerAEl, duelPlayerBEl]
   .filter(Boolean)
   .forEach((inputEl) => {
-    inputEl.addEventListener("change", () => {
+    inputEl.addEventListener("input", () => {
+      const current = collectWizardConfig();
+      STATE.setupWizard.duelNames = [...current.duelNames];
       readDuelPlayersFromInputs();
       updateScoreDisplay();
       updateCompetitiveStatus();
       renderSessionProgress();
+      renderWizardStep();
     });
   });
 
@@ -3557,11 +3856,16 @@ if (nextBtn) {
 }
 if (skipBtn) {
   skipBtn.addEventListener("click", () => {
-    if (!STATE.board || !STATE.positions.length || (nextBtn && nextBtn.disabled === false)) return;
+    if (!STATE.board || !STATE.positions.length || STATE.ui.blockBoardInput || (nextBtn && nextBtn.disabled === false)) return;
     void submitNoMove("manual_skip");
   });
 }
 if (restartBtn) restartBtn.addEventListener("click", () => restartToSetup());
+if (handoffOverlayEl) {
+  handoffOverlayEl.addEventListener("click", () => {
+    revealDuelSecondTurn();
+  });
+}
 
 skipBtn.disabled = true;
 STATE.scoringSystem = normalizeScoringSystem(scoringSystemEl ? scoringSystemEl.value : DEFAULT_SCORING_SYSTEM);
@@ -3571,8 +3875,11 @@ setUserMode("citizen");
 readSessionTimingConfig();
 readDuelPlayersFromInputs();
 applyGameFormat(gameFormatEl ? gameFormatEl.value : "solo");
-setSourceMode("file");
-setSetupStep("upload");
+setSourceMode("lichess");
+resetSetupWizard({
+  mode: "solo",
+  statusMessage: "Respondé las preguntas para preparar tu sesión.",
+});
 updatePgnSelectionUi();
 updateRoundTimerUi(Math.round(STATE.turnTimeSeconds * 1000));
 updateScoreDisplay();
