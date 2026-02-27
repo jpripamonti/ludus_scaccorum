@@ -2152,8 +2152,16 @@ body.playing-mode .app {
 
 .board-stage-main {
   display: grid;
-  place-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-items: start;
+  gap: 16px;
   padding: clamp(10px, 2.2vh, 26px) 0;
+}
+
+body.result-visible .board-stage-main {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 390px);
+  justify-items: stretch;
 }
 
 .board-wrap {
@@ -2161,9 +2169,16 @@ body.playing-mode .app {
   width: min(100%, min(72vh, 980px));
   display: grid;
   place-items: center;
+  isolation: isolate;
+}
+
+body.result-visible .board-wrap {
+  justify-self: end;
 }
 
 #game-layout .board {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: min(72vh, 980px);
   aspect-ratio: 1 / 1;
@@ -2172,9 +2187,29 @@ body.playing-mode .app {
   box-shadow: 0 18px 46px rgba(31, 24, 14, 0.22);
 }
 
+.board-arrows {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 6;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.board-arrow-line {
+  stroke: rgba(31, 143, 95, 0.92);
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  filter: drop-shadow(0 2px 2px rgba(8, 24, 16, 0.45));
+}
+
 .handoff-overlay {
   position: absolute;
   inset: 0;
+  z-index: 30;
   border: 0;
   border-radius: 18px;
   background: rgba(18, 22, 28, 0.9);
@@ -2198,26 +2233,28 @@ body.playing-mode .app {
 }
 
 .result-overlay {
-  position: absolute;
-  inset: 0;
-  border-radius: 18px;
-  background: rgba(12, 15, 20, 0.8);
-  display: grid;
-  place-items: center;
-  padding: clamp(16px, 2.6vw, 28px);
+  position: relative;
+  z-index: 8;
+  width: min(390px, 100%);
+  align-self: stretch;
+}
+
+body.result-visible .result-overlay {
+  justify-self: start;
 }
 
 .result-overlay-panel {
-  width: min(900px, 100%);
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  max-height: min(72vh, 860px);
   overflow: auto;
   border-radius: 16px;
   border: 1px solid rgba(218, 218, 213, 0.56);
   background: rgba(252, 252, 250, 0.96);
-  box-shadow: 0 22px 42px rgba(5, 7, 10, 0.3);
-  padding: clamp(14px, 2vw, 24px);
+  box-shadow: 0 16px 30px rgba(5, 7, 10, 0.22);
+  padding: clamp(12px, 1.6vw, 20px);
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .result-overlay-header {
@@ -2305,6 +2342,25 @@ body.playing-mode .app {
 
 .result-overlay-actions {
   display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.result-overlay-actions button {
+  min-height: 44px;
+}
+
+.result-overlay-actions #result-analysis-btn,
+.result-overlay-actions #result-analysis-reset-btn {
+  border-color: #9ca3ad;
+  background: #f0f2f5;
+  color: #293240;
+}
+
+.result-overlay.analysis-mode #result-analysis-btn {
+  border-color: #2b7f59;
+  background: rgba(31, 143, 95, 0.18);
+  color: #1e5f42;
 }
 
 .result-overlay-actions #next-btn {
@@ -2389,8 +2445,17 @@ body.playing-mode #landing-screen {
     width: min(100%, 760px);
   }
 
+  body.result-visible .board-stage-main {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  body.result-visible .board-wrap {
+    justify-self: center;
+  }
+
   .result-overlay {
-    padding: 12px;
+    width: min(100%, 760px);
   }
 }
 

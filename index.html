@@ -105,11 +105,7 @@
             <input id="error-threshold" type="number" min="50" max="800" value="80" />
             <input id="analysis-time-ms" type="number" min="50" max="10000" value="400" />
             <select id="scoring-system">
-              <option value="cp_exponential" selected>Centipawns (curva suave)</option>
-              <option value="cp_linear">Centipawns (lineal)</option>
-              <option value="cp_labels">Etiquetas por centipawns</option>
-              <option value="expected_points_labels">Etiquetas por expected points</option>
-              <option value="exact_best">Priorizar jugada exacta</option>
+              <option value="simple_labels_v1" selected>Etiquetas simples (v1)</option>
             </select>
             <p id="scoring-system-hint"></p>
             <p id="game-format-hint"></p>
@@ -158,37 +154,40 @@
           <div class="board-stage-main">
             <div class="board-wrap">
               <div class="board" id="board"></div>
+              <svg id="board-arrows" class="board-arrows" aria-hidden="true"></svg>
 
               <button id="handoff-overlay" class="handoff-overlay hidden" type="button" aria-live="polite">
                 <span id="handoff-overlay-title" class="handoff-overlay-title">Cambio de turno</span>
                 <span id="handoff-overlay-subtitle" class="handoff-overlay-subtitle">Toca para revelar</span>
               </button>
+            </div>
 
-              <div id="result-overlay" class="result-overlay hidden">
-                <div class="result-overlay-panel">
-                  <header class="result-overlay-header">
-                    <p id="result-overlay-title" class="result-overlay-title">¡Posición Resuelta!</p>
-                    <p id="result-overlay-points" class="result-overlay-points">Puntos de la ronda: 0</p>
-                  </header>
+            <aside id="result-overlay" class="result-overlay hidden" aria-live="polite">
+              <div class="result-overlay-panel">
+                <header class="result-overlay-header">
+                  <p id="result-overlay-title" class="result-overlay-title">¡Posición Resuelta!</p>
+                  <p id="result-overlay-points" class="result-overlay-points">Puntos de la ronda: 0</p>
+                </header>
 
-                  <div id="feedback-strip" class="feedback-strip hidden" aria-live="polite">
-                    <div class="feedback-strip-head">
-                      <strong id="feedback-strip-quality">-</strong>
-                      <span id="feedback-strip-delta">-</span>
-                      <span id="feedback-strip-points">0 pts</span>
-                    </div>
-                    <div class="accuracy-track" aria-hidden="true">
-                      <div id="feedback-strip-bar" class="accuracy-bar"></div>
-                    </div>
+                <div id="feedback-strip" class="feedback-strip hidden" aria-live="polite">
+                  <div class="feedback-strip-head">
+                    <strong id="feedback-strip-quality">-</strong>
+                    <span id="feedback-strip-delta">-</span>
+                    <span id="feedback-strip-points">0 pts</span>
                   </div>
-
-                  <div id="round-result" class="result-overlay-grid"></div>
-                  <div class="result-overlay-actions">
-                    <button id="next-btn" disabled>Siguiente posición</button>
+                  <div class="accuracy-track" aria-hidden="true">
+                    <div id="feedback-strip-bar" class="accuracy-bar"></div>
                   </div>
                 </div>
+
+                <div id="round-result" class="result-overlay-grid"></div>
+                <div class="result-overlay-actions">
+                  <button id="result-analysis-btn" type="button">Explorar tablero</button>
+                  <button id="result-analysis-reset-btn" type="button">Reiniciar análisis</button>
+                  <button id="next-btn" disabled>Siguiente posición</button>
+                </div>
               </div>
-            </div>
+            </aside>
           </div>
 
           <div id="game-details-mini" class="mini-details">-</div>

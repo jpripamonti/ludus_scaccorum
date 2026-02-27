@@ -30,3 +30,38 @@ Original prompt: Quiero modificar las pantallas de este juego. La pantalla inici
   - `node --check app.js` OK.
   - Skill client post-ajustes: `output/web-game-wizard-final2/shot-0.png`.
   - Caso invalid username mantiene paso 2 y mensaje: script E2E reportó `STEP2_STILL_VISIBLE yes`.
+- Bugfix overlay resultado: se añadió `isolation: isolate` en `.board-wrap` y `z-index` explícito en `.handoff-overlay`/`.result-overlay` para forzar que el modal quede por encima de las piezas del tablero.
+- Fix UI overlay: en `styles.css` se forzó stacking seguro para overlays de tablero (`.board-wrap { isolation: isolate; }`, `.board { z-index: 1; }`, `.handoff-overlay { z-index: 30; }`, `.result-overlay { z-index: 40; }`).
+- Reproducción y verificación visual:
+  - Antes (bug): `output/overlay-debug-before/result-overlay-before.png` con piezas por encima del panel.
+  - Después (fix): `output/overlay-debug-after/result-overlay-after.png` sin superposición de piezas.
+- Validación skill client posterior al cambio: `output/web-game-overlay-fix/shot-0.png` (sin `errors-0.json`).
+- Implementación completada: scoring simplificado único `simple_labels_v1` en `app.js`.
+- Reglas activas de puntaje:
+  - Perfecta: 1.5 (exacta o equivalente por `<=20cp` o `expectedLoss<=0.02`)
+  - Muy buena: 1.25 | Buena: 1 | Interesante (!?): 0.75 | Dudosa: 0.5 | Mala: 0 | Blunder: -1 | Sin jugada: 0
+- Se agregó formato decimal de puntaje (hasta 2 decimales, sin ceros sobrantes) para marcador, paneles y textos de resultado.
+- UI resultado refactorizada a panel lateral visible (desktop) y apilado (móvil):
+  - `index.html`: `#result-overlay` salió de `board-wrap` y ahora es panel lateral.
+  - `styles.css`: nuevo layout `body.result-visible .board-stage-main`.
+- Se añadió capa SVG de flecha de módulo:
+  - `index.html`: `#board-arrows`.
+  - `app.js`: `renderBoardArrows()` dibuja flecha verde de la jugada del módulo.
+- Se añadió modo de análisis de resultado:
+  - Estado nuevo `STATE.resultView = { visible, analysisMode, snapshotFen, snapshotRevealed }`.
+  - Botones nuevos: `Explorar tablero` y `Reiniciar análisis`.
+  - `result_analysis` permite mover en tablero sin re-evaluar ni alterar score/historial.
+  - Antes de `nextPosition`, si hubo exploración, se restaura snapshot oficial.
+- Se forzó vista de resultado desde FEN base de la posición (no post-move) para inspección clara de mejor jugada.
+- Verificación técnica:
+  - `node --check app.js` OK.
+  - Playwright skill client: `output/web-game-scoring-result-panel/shot-0.png` (sin errores de consola reportados por el cliente).
+  - Validación visual dirigida (Playwright custom):
+    - `output/result-panel-validation/result-summary-desktop.png`
+    - `output/result-panel-validation/result-analysis-desktop.png`
+    - `output/result-panel-validation/result-summary-mobile.png`
+    - `output/result-panel-validation/errors.json` = `[]`
+- TODOs/seguimiento sugerido:
+  - Probar flujo E2E completo con usuario real de Lichess/Chess.com hasta resolver una ronda real (no mock de estado).
+  - Ajustar fino del grosor/opacidad de la flecha si en tableros chicos tapa piezas críticas.
+  - Considerar toggle explícito “Salir de exploración” (actualmente se mantiene en modo análisis hasta siguiente/reinicio).

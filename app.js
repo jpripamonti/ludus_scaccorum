@@ -97,6 +97,9 @@ const handoffOverlaySubtitleEl = document.getElementById("handoff-overlay-subtit
 const resultOverlayEl = document.getElementById("result-overlay");
 const resultOverlayTitleEl = document.getElementById("result-overlay-title");
 const resultOverlayPointsEl = document.getElementById("result-overlay-points");
+const resultAnalysisBtn = document.getElementById("result-analysis-btn");
+const resultAnalysisResetBtn = document.getElementById("result-analysis-reset-btn");
+const boardArrowsEl = document.getElementById("board-arrows");
 const roundStatusEl = document.getElementById("round-status");
 const sessionProgressEl = document.getElementById("session-progress");
 const turnSignalEl = document.getElementById("turn-signal");
@@ -126,7 +129,7 @@ const playerTimerValueEls = [playerATimerValueEl, playerBTimerValueEl];
 const playerTimerBarEls = [playerATimerBarEl, playerBTimerBarEl];
 
 const INTERNAL_ANALYSIS_DEPTH = 3;
-const DEFAULT_SCORING_SYSTEM = "cp_exponential";
+const DEFAULT_SCORING_SYSTEM = "simple_labels_v1";
 const DEFAULT_CITIZEN_THRESHOLD = 80;
 const DEFAULT_CITIZEN_MOVETIME = 400;
 const DEFAULT_CITIZEN_SESSION_SIZE = 10;
@@ -193,6 +196,12 @@ const STATE = {
     phase: "playing",
     blockBoardInput: false,
     setupAnalyzing: false,
+  },
+  resultView: {
+    visible: false,
+    analysisMode: false,
+    snapshotFen: "",
+    snapshotRevealed: { best: null, game: null, user: null, userAlt: null },
   },
   duel: {
     players: [...DUEL_DEFAULT_PLAYERS],
@@ -808,16 +817,83 @@ function hideHandoffOverlay() {
   handoffOverlayEl.classList.add("hidden");
 }
 
+function snapshotRevealedState(revealed = STATE.revealed) {
+  const safe = revealed || {};
+  return {
+    best: snapshotMove(safe.best),
+    game: snapshotMove(safe.game),
+    user: snapshotMove(safe.user),
+    userAlt: snapshotMove(safe.userAlt),
+  };
+}
+
+function applyResultSnapshotToBoard() {
+  if (!STATE.resultView.snapshotFen) return;
+  STATE.board = new Chess(STATE.resultView.snapshotFen);
+  setBoardPerspective(STATE.board.turn);
+  STATE.selection = null;
+  STATE.legalMoves = [];
+  STATE.userMove = null;
+  STATE.revealed = snapshotRevealedState(STATE.resultView.snapshotRevealed);
+  renderBoard();
+}
+
+function captureResultSnapshot(fen) {
+  STATE.resultView.snapshotFen = String(fen || "");
+  STATE.resultView.snapshotRevealed = snapshotRevealedState(STATE.revealed);
+}
+
+function updateResultAnalysisControls() {
+  const visible = Boolean(STATE.resultView.visible);
+  const analysisMode = Boolean(STATE.resultView.analysisMode);
+  if (resultOverlayEl) resultOverlayEl.classList.toggle("analysis-mode", analysisMode);
+  if (resultAnalysisBtn) {
+    resultAnalysisBtn.disabled = !visible || analysisMode;
+    resultAnalysisBtn.textContent = analysisMode ? "Exploración activa" : "Explorar tablero";
+    resultAnalysisBtn.setAttribute("aria-pressed", analysisMode ? "true" : "false");
+  }
+  if (resultAnalysisResetBtn) {
+    resultAnalysisResetBtn.disabled = !visible;
+  }
+}
+
+function enterResultAnalysisMode() {
+  if (!STATE.resultView.visible || !STATE.resultView.snapshotFen) return;
+  applyResultSnapshotToBoard();
+  STATE.resultView.analysisMode = true;
+  setUiPhase("result_analysis", false);
+  updateResultAnalysisControls();
+}
+
+function resetResultAnalysisBoard() {
+  if (!STATE.resultView.visible || !STATE.resultView.snapshotFen) return;
+  applyResultSnapshotToBoard();
+  if (STATE.resultView.analysisMode) setUiPhase("result_analysis", false);
+  updateResultAnalysisControls();
+}
+
 function showResultOverlay(title, pointsText) {
   if (!resultOverlayEl) return;
   if (resultOverlayTitleEl) resultOverlayTitleEl.textContent = title || "¡Posición Resuelta!";
   if (resultOverlayPointsEl) resultOverlayPointsEl.textContent = pointsText || "";
+  STATE.resultView.visible = true;
+  STATE.resultView.analysisMode = false;
+  document.body.classList.add("result-visible");
   resultOverlayEl.classList.remove("hidden");
+  updateResultAnalysisControls();
+  renderBoardArrows();
 }
 
 function hideResultOverlay() {
   if (!resultOverlayEl) return;
+  STATE.resultView.visible = false;
+  STATE.resultView.analysisMode = false;
+  STATE.resultView.snapshotFen = "";
+  STATE.resultView.snapshotRevealed = { best: null, game: null, user: null, userAlt: null };
+  document.body.classList.remove("result-visible");
   resultOverlayEl.classList.add("hidden");
+  updateResultAnalysisControls();
+  renderBoardArrows();
 }
 
 function setPanelActiveState(activeIndex) {
@@ -856,8 +932,8 @@ function updatePlayerPanels() {
     if (playerBAvatarEl) playerBAvatarEl.textContent = initialsFromName(p2, "J2");
     if (playerAScoreLabelEl) playerAScoreLabelEl.textContent = "Puntaje";
     if (playerBScoreLabelEl) playerBScoreLabelEl.textContent = "Puntaje";
-    if (playerAScoreValueEl) playerAScoreValueEl.textContent = String(STATE.duel.scores[0] || 0);
-    if (playerBScoreValueEl) playerBScoreValueEl.textContent = String(STATE.duel.scores[1] || 0);
+    if (playerAScoreValueEl) playerAScoreValueEl.textContent = formatPoints(STATE.duel.scores[0] || 0);
+    if (playerBScoreValueEl) playerBScoreValueEl.textContent = formatPoints(STATE.duel.scores[1] || 0);
     setPanelActiveState(activeIdx);
     mountSharedActionsToActivePanel();
     return;
@@ -871,7 +947,7 @@ function updatePlayerPanels() {
   if (playerBAvatarEl) playerBAvatarEl.textContent = "ST";
   if (playerAScoreLabelEl) playerAScoreLabelEl.textContent = "Puntaje";
   if (playerBScoreLabelEl) playerBScoreLabelEl.textContent = "Aciertos";
-  if (playerAScoreValueEl) playerAScoreValueEl.textContent = String(STATE.score || 0);
+  if (playerAScoreValueEl) playerAScoreValueEl.textContent = formatPoints(STATE.score || 0);
   if (playerBScoreValueEl) playerBScoreValueEl.textContent = String(STATE.sessionHits || 0);
   setPanelActiveState(0);
   mountSharedActionsToActivePanel();
@@ -935,9 +1011,9 @@ function scoreSignalText() {
   if (isDuelMode()) {
     const p1 = duelPlayerName(0);
     const p2 = duelPlayerName(1);
-    return `${p1} ${STATE.duel.scores[0]} - ${STATE.duel.scores[1]} ${p2}`;
+    return `${p1} ${formatPoints(STATE.duel.scores[0])} - ${formatPoints(STATE.duel.scores[1])} ${p2}`;
   }
-  return `${STATE.score} pts`;
+  return `${formatPoints(STATE.score)} pts`;
 }
 
 function updateDecisionSignals() {
@@ -952,13 +1028,13 @@ function updateScoreDisplay() {
     if (scoreLabelEl) scoreLabelEl.textContent = "Marcador duelo";
     const p1 = duelPlayerName(0);
     const p2 = duelPlayerName(1);
-    scoreEl.textContent = `${p1}: ${STATE.duel.scores[0]} | ${p2}: ${STATE.duel.scores[1]}`;
+    scoreEl.textContent = `${p1}: ${formatPoints(STATE.duel.scores[0])} | ${p2}: ${formatPoints(STATE.duel.scores[1])}`;
     updateDecisionSignals();
     updatePlayerPanels();
     return;
   }
   if (scoreLabelEl) scoreLabelEl.textContent = "Puntos totales";
-  scoreEl.textContent = String(STATE.score);
+  scoreEl.textContent = formatPoints(STATE.score);
   updateDecisionSignals();
   updatePlayerPanels();
 }
@@ -1610,25 +1686,9 @@ function evaluationToText(evalObj) {
 }
 
 const SCORING_SYSTEMS = {
-  cp_exponential: {
-    label: "Centipawns (curva suave)",
-    description: "Puntaje 0..100 con curva exponencial según cp perdidos vs la mejor del módulo.",
-  },
-  cp_linear: {
-    label: "Centipawns (lineal)",
-    description: "Puntaje 0..100 lineal: 0 cp = 100, 400 cp o más = 0.",
-  },
-  cp_labels: {
-    label: "Etiquetas por centipawns",
-    description: "Clasifica por calidad (muy buena, buena, dudosa, mala, blunder) y puede restar puntos.",
-  },
-  expected_points_labels: {
-    label: "Etiquetas por expected points",
-    description: "Usa pérdida de expected points (estilo Lichess/Chess.com) y la convierte en etiquetas + puntos.",
-  },
-  exact_best: {
-    label: "Priorizar jugada exacta",
-    description: "Premia fuerte la jugada exacta del módulo; las alternativas puntúan mucho menos.",
+  simple_labels_v1: {
+    label: "Etiquetas simples (v1)",
+    description: "Puntajes simples por calidad: Blunder -1, Mala 0, Dudosa 0.5, Interesante 0.75, Buena 1, Muy buena 1.25, Perfecta 1.5.",
   },
 };
 
@@ -1651,26 +1711,24 @@ function updateScoringSystemHint() {
   scoringSystemHintEl.textContent = getScoringSystemMeta(STATE.scoringSystem).description;
 }
 
-function formatSigned(value) {
+function formatPoints(value, options = {}) {
+  const { signed = false } = options;
   if (!Number.isFinite(value)) return "-";
-  const n = Math.round(value);
-  if (n > 0) return `+${n}`;
-  return String(n);
+  const rounded = Math.round(value * 100) / 100;
+  let text = Number.isInteger(rounded)
+    ? String(rounded)
+    : rounded.toFixed(2).replace(/\.?0+$/, "");
+  if (signed && rounded > 0) text = `+${text}`;
+  return text;
+}
+
+function formatSigned(value) {
+  return formatPoints(value, { signed: true });
 }
 
 function formatExpectedLoss(value) {
   if (!Number.isFinite(value)) return "No disponible";
   return `${(value * 100).toFixed(1)}%`;
-}
-
-function pointsFromLossExponential(loss) {
-  if (!Number.isFinite(loss)) return 0;
-  return clamp(Math.round(100 * Math.exp(-loss / 260)), 0, 100);
-}
-
-function pointsFromLossLinear(loss) {
-  if (!Number.isFinite(loss)) return 0;
-  return clamp(Math.round(100 - (loss * 100) / 400), 0, 100);
 }
 
 function scoreToWinningChance(score) {
@@ -1692,15 +1750,40 @@ function scoreToExpectedPoints(score) {
   return (chance + 1) / 2;
 }
 
-function cpQualityLabel(loss, exactBest = false) {
-  if (exactBest) return "Mejor (exacta)";
+function cpQualityLabel(loss, exactBest = false, expectedLoss = null, reason = "") {
+  if (reason === "Sin jugada") return "Sin jugada";
+  if (reason === "Permite mate" || reason === "Se escapó mate forzado") return "Blunder";
+  if (exactBest || reason === "Mate óptimo") return "Perfecta";
+  if ((Number.isFinite(loss) && loss <= 20) || (Number.isFinite(expectedLoss) && expectedLoss <= 0.02)) return "Perfecta";
   if (!Number.isFinite(loss)) return "Sin jugada";
-  if (loss <= 1) return "Mejor equivalente";
-  if (loss <= 20) return "Muy buena";
-  if (loss <= 60) return "Buena";
-  if (loss <= 120) return "Dudosa";
-  if (loss <= 220) return "Mala";
+  if (loss <= 45) return "Muy buena";
+  if (loss <= 80) return "Buena";
+  if (loss <= 120) return "Interesante (!?)";
+  if (loss <= 170) return "Dudosa";
+  if (loss <= 260) return "Mala";
   return "Blunder";
+}
+
+function pointsFromQualityLabel(label) {
+  switch (label) {
+    case "Perfecta":
+      return 1.5;
+    case "Muy buena":
+      return 1.25;
+    case "Buena":
+      return 1;
+    case "Interesante (!?)":
+      return 0.75;
+    case "Dudosa":
+      return 0.5;
+    case "Mala":
+      return 0;
+    case "Blunder":
+      return -1;
+    case "Sin jugada":
+    default:
+      return 0;
+  }
 }
 
 function computeLossAgainstBest(bestMoverScore, choiceMoverScore) {
@@ -1746,106 +1829,17 @@ function scoreMoveAgainstBest(bestMoverScore, choiceMoverScore, scoringSystem = 
   const system = normalizeScoringSystem(scoringSystem);
   const base = computeLossAgainstBest(bestMoverScore, choiceMoverScore);
   const exactBest = Boolean(options.exactBest);
-  let points = 0;
-  let qualityLabel = cpQualityLabel(base.loss, exactBest);
   const bestExpected = scoreToExpectedPoints(bestMoverScore);
   const choiceExpected = scoreToExpectedPoints(choiceMoverScore);
   const expectedLoss = Number.isFinite(bestExpected) && Number.isFinite(choiceExpected)
     ? clamp(bestExpected - choiceExpected, 0, 1)
     : null;
-
-  if (base.reason === "Sin jugada") {
-    qualityLabel = "Sin jugada";
-    points = 0;
-  } else {
-    switch (system) {
-      case "cp_linear": {
-        points = pointsFromLossLinear(base.loss);
-        break;
-      }
-      case "cp_labels": {
-        if (exactBest) {
-          qualityLabel = "Mejor (exacta)";
-          points = 100;
-        } else if (base.loss <= 1) {
-          qualityLabel = "Mejor equivalente";
-          points = 96;
-        } else if (base.loss <= 20) {
-          qualityLabel = "Muy buena";
-          points = 82;
-        } else if (base.loss <= 60) {
-          qualityLabel = "Buena";
-          points = 65;
-        } else if (base.loss <= 120) {
-          qualityLabel = "Dudosa";
-          points = 25;
-        } else if (base.loss <= 220) {
-          qualityLabel = "Mala";
-          points = -10;
-        } else {
-          qualityLabel = "Blunder";
-          points = -45;
-        }
-        break;
-      }
-      case "expected_points_labels": {
-        if (exactBest) {
-          qualityLabel = "Mejor (exacta)";
-          points = 100;
-        } else if (!Number.isFinite(expectedLoss)) {
-          qualityLabel = "No clasificable";
-          points = 0;
-        } else if (expectedLoss <= 0.001) {
-          qualityLabel = "Mejor equivalente";
-          points = 96;
-        } else if (expectedLoss <= 0.02) {
-          qualityLabel = "Excelente";
-          points = 88;
-        } else if (expectedLoss <= 0.05) {
-          qualityLabel = "Buena";
-          points = 68;
-        } else if (expectedLoss <= 0.1) {
-          qualityLabel = "Dudosa";
-          points = 28;
-        } else if (expectedLoss <= 0.2) {
-          qualityLabel = "Mala";
-          points = -12;
-        } else {
-          qualityLabel = "Blunder";
-          points = -55;
-        }
-        break;
-      }
-      case "exact_best": {
-        if (exactBest) {
-          qualityLabel = "Exacta del módulo";
-          points = 120;
-        } else if (base.loss <= 15) {
-          qualityLabel = "Casi exacta";
-          points = 35;
-        } else if (base.loss <= 60) {
-          qualityLabel = "Aceptable";
-          points = 10;
-        } else if (base.loss <= 140) {
-          qualityLabel = "Floja";
-          points = -20;
-        } else {
-          qualityLabel = "Mala";
-          points = -60;
-        }
-        break;
-      }
-      case "cp_exponential":
-      default: {
-        points = pointsFromLossExponential(base.loss);
-        break;
-      }
-    }
-  }
+  const qualityLabel = cpQualityLabel(base.loss, exactBest, expectedLoss, base.reason);
+  const points = pointsFromQualityLabel(qualityLabel);
 
   return {
     ...base,
-    points,
+    points: Math.round(points * 100) / 100,
     qualityLabel,
     expectedLoss,
     scoringSystem: system,
@@ -2521,6 +2515,82 @@ function buildBoard() {
   }
 }
 
+function squareCenterOnBoard(squareName) {
+  if (!boardArrowsEl || !squareName) return null;
+  const squareEl = boardEl.querySelector(`[data-square="${squareName}"]`);
+  if (!squareEl) return null;
+  const hostRect = boardArrowsEl.getBoundingClientRect();
+  const rect = squareEl.getBoundingClientRect();
+  return {
+    x: rect.left - hostRect.left + (rect.width / 2),
+    y: rect.top - hostRect.top + (rect.height / 2),
+    size: Math.min(rect.width, rect.height),
+  };
+}
+
+function renderBoardArrows() {
+  if (!boardArrowsEl) return;
+  boardArrowsEl.innerHTML = "";
+
+  if (!STATE.resultView.visible || !STATE.revealed.best) return;
+  const bestMove = STATE.revealed.best;
+  if (!Number.isFinite(bestMove.from) || !Number.isFinite(bestMove.to)) return;
+
+  const fromSquare = Chess.indexToSquare(bestMove.from);
+  const toSquare = Chess.indexToSquare(bestMove.to);
+  const from = squareCenterOnBoard(fromSquare);
+  const to = squareCenterOnBoard(toSquare);
+  if (!from || !to) return;
+
+  const width = boardArrowsEl.clientWidth || boardEl.clientWidth;
+  const height = boardArrowsEl.clientHeight || boardEl.clientHeight;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+  boardArrowsEl.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  boardArrowsEl.setAttribute("preserveAspectRatio", "none");
+
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const distance = Math.hypot(dx, dy);
+  if (!Number.isFinite(distance) || distance < 2) return;
+
+  const ux = dx / distance;
+  const uy = dy / distance;
+  const startTrim = Math.max(8, from.size * 0.15);
+  const endTrim = Math.max(12, to.size * 0.28);
+  const x1 = from.x + ux * startTrim;
+  const y1 = from.y + uy * startTrim;
+  const x2 = to.x - ux * endTrim;
+  const y2 = to.y - uy * endTrim;
+
+  const ns = "http://www.w3.org/2000/svg";
+  const defs = document.createElementNS(ns, "defs");
+  const marker = document.createElementNS(ns, "marker");
+  marker.setAttribute("id", "board-arrow-head");
+  marker.setAttribute("markerWidth", "11");
+  marker.setAttribute("markerHeight", "9");
+  marker.setAttribute("refX", "8");
+  marker.setAttribute("refY", "4.5");
+  marker.setAttribute("orient", "auto");
+  marker.setAttribute("markerUnits", "strokeWidth");
+
+  const arrowHead = document.createElementNS(ns, "path");
+  arrowHead.setAttribute("d", "M0,0 L9,4.5 L0,9 z");
+  arrowHead.setAttribute("fill", "rgba(31, 143, 95, 0.92)");
+  marker.appendChild(arrowHead);
+  defs.appendChild(marker);
+
+  const line = document.createElementNS(ns, "line");
+  line.classList.add("board-arrow-line");
+  line.setAttribute("x1", String(x1));
+  line.setAttribute("y1", String(y1));
+  line.setAttribute("x2", String(x2));
+  line.setAttribute("y2", String(y2));
+  line.setAttribute("marker-end", "url(#board-arrow-head)");
+
+  boardArrowsEl.appendChild(defs);
+  boardArrowsEl.appendChild(line);
+}
+
 function renderBoard() {
   boardEl.querySelectorAll(".square").forEach((square) => {
     square.classList.remove(
@@ -2566,6 +2636,7 @@ function renderBoard() {
   paint(STATE.revealed.game, "game-from", "game-to");
   paint(STATE.revealed.user, "user-from", "user-to");
   paint(STATE.revealed.userAlt, "user-alt-from", "user-alt-to");
+  renderBoardArrows();
 }
 
 function renderGameInfo(position) {
@@ -2756,8 +2827,10 @@ function startRound(options = {}) {
 
 function onSquareClick(square) {
   if (STATE.ui.blockBoardInput) return;
-  if (!STATE.board || !STATE.positions.length || nextBtn.disabled === false) return;
-  if (STATE.roundSubmitted || STATE.isResolvingRound) return;
+  if (!STATE.board || !STATE.positions.length) return;
+  const isAnalysisMode = STATE.ui.phase === "result_analysis";
+  if (!isAnalysisMode && nextBtn.disabled === false) return;
+  if (!isAnalysisMode && (STATE.roundSubmitted || STATE.isResolvingRound)) return;
 
   const index = Chess.squareToIndex(square);
   const piece = STATE.board.pieceAt(index);
@@ -2765,6 +2838,13 @@ function onSquareClick(square) {
   if (STATE.selection) {
     const move = STATE.legalMoves.find((candidate) => candidate.to === index);
     if (move) {
+      if (isAnalysisMode) {
+        STATE.board.makeMove(move);
+        STATE.selection = null;
+        STATE.legalMoves = [];
+        renderBoard();
+        return;
+      }
       submitUserMove(move);
       return;
     }
@@ -2850,7 +2930,7 @@ function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, 
         state: resultStateClass({ hit: Boolean(p2.hit), noMove: !p2.san || p2.san === "Sin jugada" }),
       },
       {
-        label: "Jugada histórica",
+        label: "Jugada de la partida",
         move: gameSan,
         meta: `${gameEvalText} · ${formatDelta(bestMover, gameMover)}`,
         state: resultStateClass({ isReference: true }),
@@ -2873,7 +2953,7 @@ function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, 
       state: resultStateClass({ hit: Number.isFinite(scored.diff) && scored.diff <= (Number.isFinite(extra.hitThreshold) ? extra.hitThreshold : 120), noMove }),
     },
     {
-      label: "Jugada histórica",
+      label: "Jugada de la partida",
       move: gameSan,
       meta: `${gameEvalText} · ${formatDelta(bestMover, gameMover)}`,
       state: resultStateClass({ isReference: true }),
@@ -2882,7 +2962,7 @@ function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, 
 }
 
 function finalSessionSummaryText() {
-  if (!isDuelMode()) return `Puntaje final: ${STATE.score}`;
+  if (!isDuelMode()) return `Puntaje final: ${formatPoints(STATE.score)}`;
   const p1 = duelPlayerName(0);
   const p2 = duelPlayerName(1);
   const s1 = STATE.duel.scores[0];
@@ -2890,7 +2970,7 @@ function finalSessionSummaryText() {
   let winner = "Resultado final: empate.";
   if (s1 > s2) winner = `Ganador: ${p1}.`;
   if (s2 > s1) winner = `Ganador: ${p2}.`;
-  return `Marcador final: ${p1} ${s1} - ${p2} ${s2}. ${winner}`;
+  return `Marcador final: ${p1} ${formatPoints(s1)} - ${formatPoints(s2)} ${p2}. ${winner}`;
 }
 
 async function resolveRound(move, options = {}) {
@@ -2955,7 +3035,12 @@ async function resolveRound(move, options = {}) {
     setThinkingMode(false);
 
     if (!isDuelMode()) {
+      STATE.board = new Chess(position.fen);
+      setBoardPerspective(base.turn);
+      STATE.selection = null;
+      STATE.legalMoves = [];
       STATE.revealed = { best, game, user: move || null, userAlt: null };
+      captureResultSnapshot(position.fen);
       renderBoard();
       renderRoundFeedbackTable(
         bestSan,
@@ -2973,7 +3058,7 @@ async function resolveRound(move, options = {}) {
       );
       showResultOverlay("¡Posición Resuelta!", `Puntos de la ronda: ${formatSigned(scored.points)} · ${scored.qualityLabel}`);
       setUiPhase("result", true);
-      STATE.score += scored.points;
+      STATE.score = Math.round((STATE.score + scored.points) * 100) / 100;
       STATE.sessionPlayed += 1;
       if (hit) STATE.sessionHits += 1;
       pushHistoryEntry({
@@ -3043,18 +3128,23 @@ async function resolveRound(move, options = {}) {
     const r2 = STATE.duel.roundResults[1];
 
     if (r1) {
-      STATE.duel.scores[0] += r1.points || 0;
+      STATE.duel.scores[0] = Math.round((STATE.duel.scores[0] + (r1.points || 0)) * 100) / 100;
       if (r1.hit) STATE.duel.hits[0] += 1;
     }
-    STATE.duel.scores[1] += scored.points;
+    STATE.duel.scores[1] = Math.round((STATE.duel.scores[1] + scored.points) * 100) / 100;
     if (hit) STATE.duel.hits[1] += 1;
 
+    STATE.board = new Chess(position.fen);
+    setBoardPerspective(base.turn);
+    STATE.selection = null;
+    STATE.legalMoves = [];
     STATE.revealed = {
       best,
       game,
       user: move || null,
       userAlt: r1 ? (r1.userMove || null) : null,
     };
+    captureResultSnapshot(position.fen);
     renderBoard();
     hideHandoffOverlay();
     renderRoundFeedbackTable(
@@ -3138,7 +3228,12 @@ async function resolveRound(move, options = {}) {
 }
 
 async function nextPosition() {
-  if (STATE.ui.phase !== "result") return;
+  if (STATE.ui.phase !== "result" && STATE.ui.phase !== "result_analysis") return;
+  if (STATE.resultView.analysisMode) {
+    applyResultSnapshotToBoard();
+    STATE.resultView.analysisMode = false;
+    updateResultAnalysisControls();
+  }
   hideResultOverlay();
   hideFeedbackStrip();
 
@@ -3854,6 +3949,16 @@ if (nextBtn) {
     void nextPosition();
   });
 }
+if (resultAnalysisBtn) {
+  resultAnalysisBtn.addEventListener("click", () => {
+    enterResultAnalysisMode();
+  });
+}
+if (resultAnalysisResetBtn) {
+  resultAnalysisResetBtn.addEventListener("click", () => {
+    resetResultAnalysisBoard();
+  });
+}
 if (skipBtn) {
   skipBtn.addEventListener("click", () => {
     if (!STATE.board || !STATE.positions.length || STATE.ui.blockBoardInput || (nextBtn && nextBtn.disabled === false)) return;
@@ -3867,10 +3972,15 @@ if (handoffOverlayEl) {
   });
 }
 
+window.addEventListener("resize", () => {
+  renderBoardArrows();
+});
+
 skipBtn.disabled = true;
 STATE.scoringSystem = normalizeScoringSystem(scoringSystemEl ? scoringSystemEl.value : DEFAULT_SCORING_SYSTEM);
 if (scoringSystemEl) scoringSystemEl.value = STATE.scoringSystem;
 updateScoringSystemHint();
+updateResultAnalysisControls();
 setUserMode("citizen");
 readSessionTimingConfig();
 readDuelPlayersFromInputs();
