@@ -1365,10 +1365,10 @@ function renderWizardSummary() {
     : "Modo estudio (solo/a)";
   const platformText = config.platform === "chesscom" ? "Chess.com" : "Lichess";
   wizardSummaryEl.innerHTML = [
-    `<p><strong>Modo:</strong> ${modeText}</p>`,
-    `<p><strong>Plataforma:</strong> ${platformText}</p>`,
-    `<p><strong>Usuario:</strong> ${escapeHtml(config.username || "-")}</p>`,
-    `<p><strong>Posiciones:</strong> ${config.sessionSize}</p>`,
+    `<div class="summary-row"><span class="summary-label">Modo</span><span>${modeText}</span></div>`,
+    `<div class="summary-row"><span class="summary-label">Plataforma</span><span>${platformText}</span></div>`,
+    `<div class="summary-row"><span class="summary-label">Usuario</span><span>${escapeHtml(config.username || "-")}</span></div>`,
+    `<div class="summary-row"><span class="summary-label">Posiciones</span><span>${config.sessionSize}</span></div>`,
   ].join("");
 }
 
@@ -2767,13 +2767,20 @@ function renderSessionProgress() {
   const remaining = Math.max(0, STATE.targetPositions - played);
   if (!isDuelMode()) {
     const hits = STATE.sessionHits;
-    sessionProgressEl.textContent = `Aciertos: ${hits} · Restan: ${remaining}`;
+    sessionProgressEl.innerHTML =
+      `<span class="stat-pill"><strong>${hits}</strong> Aciertos</span>` +
+      `<span class="stat-pill"><strong>${played}</strong> Jugadas</span>` +
+      `<span class="stat-pill"><strong>${remaining}</strong> Restantes</span>`;
     return;
   }
   const p1 = duelPlayerName(0);
   const p2 = duelPlayerName(1);
   const currentRound = Math.min(Math.max(1, STATE.index + 1), Math.max(1, STATE.targetPositions));
-  sessionProgressEl.textContent = `Ronda ${currentRound}/${STATE.targetPositions} · Restan: ${remaining} · Aciertos: ${p1} ${STATE.duel.hits[0]} - ${STATE.duel.hits[1]} ${p2}`;
+  sessionProgressEl.innerHTML =
+    `<span class="stat-pill"><strong>${currentRound}/${STATE.targetPositions}</strong> Ronda</span>` +
+    `<span class="stat-pill"><strong>${remaining}</strong> Restantes</span>` +
+    `<span class="stat-pill"><strong>${STATE.duel.hits[0]}</strong> ${p1}</span>` +
+    `<span class="stat-pill"><strong>${STATE.duel.hits[1]}</strong> ${p2}</span>`;
 }
 
 function startRound(options = {}) {
