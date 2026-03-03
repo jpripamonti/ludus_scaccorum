@@ -65,3 +65,75 @@ Original prompt: Quiero modificar las pantallas de este juego. La pantalla inici
   - Probar flujo E2E completo con usuario real de Lichess/Chess.com hasta resolver una ronda real (no mock de estado).
   - Ajustar fino del grosor/opacidad de la flecha si en tableros chicos tapa piezas críticas.
   - Considerar toggle explícito “Salir de exploración” (actualmente se mantiene en modo análisis hasta siguiente/reinicio).
+- Ajuste UX wizard (Paso 1): al tocar `Jugar solo/a` ahora avanza automáticamente a Paso 2 (`app.js`, handler `wizardModeSoloBtn`).
+- En `Jugar contra alguien` se mantiene comportamiento actual (permanece en Paso 1 para completar nombres).
+- Ajuste visual footer wizard: se unificó ancho mínimo de `Volver al inicio`, `Anterior`, `Siguiente` y `Comenzar sesión` a `160px` para evitar desbalance de botones (`styles.css`).
+- Verificación Playwright rápida:
+  - `output/wizard-step1-ux/verification.json` confirma `step=2` tras click en `solo` y anchos `back=160`, `next=160`.
+  - Capturas: `output/wizard-step1-ux/step1-before-click.png` y `output/wizard-step1-ux/step2-after-solo-autoadvance.png`.
+- Estandarización de botones por pantalla implementada en `styles.css` (sin cambios en HTML/JS para esta tarea).
+- Tokens globales nuevos:
+  - `--btn-h-base: 52px`
+  - `--btn-h-primary: 60px`
+  - `--btn-w-wizard-nav: 180px`
+- Wizard navegación (desktop): `#source-back-btn`, `#wizard-prev-btn`, `#wizard-next-btn`, `#analyze-btn` ahora usan altura base 52 y ancho fijo 180.
+- Wizard móvil (`max-width: 920px`): se mantiene layout en grilla y se evita forzar 180px con `min-width: 0; width: 100%` en navegación.
+- Juego/resultado (desktop):
+  - Secundarios (`#skip-btn`, `#restart-btn`, `#result-analysis-btn`, `#result-analysis-reset-btn`) fijados a 52px.
+  - Principal `#next-btn` fijado a 60px.
+- Juego/resultado móvil (`max-width: 1080px`): botones de `#shared-actions` y `.result-overlay-actions` en ancho completo.
+- Landing: sin cambios de tamaño/estilo del botón `Comenzar`.
+- Verificación Playwright (medición real + capturas):
+  - Archivo: `output/button-sizing-validation/verification.json` (errores `[]`).
+  - Desktop wizard: `back 180x52`, `next 180x52`.
+  - Desktop juego/resultado: `skip 180x52`, `restart 180x52`, `analysis 348x52`, `analysisReset 348x52`, `next 348x60`.
+  - Móvil juego/resultado: botones full width con alturas `52/60` según jerarquía.
+  - Capturas: `wizard-desktop.png`, `result-desktop.png`, `result-mobile.png`.
+## 2026-02-27
+- Implementación UX modo individual enfocada en claridad de puntaje y reducción de ruido visual.
+- `index.html`:
+  - Nuevo bloque `#solo-progress-line` en panel izquierdo.
+  - Botón de omisión renombrado a `Omitir jugada (0 pts)`.
+  - Texto base del overlay de resultado actualizado a `Resultado`.
+  - Botón `Reiniciar análisis` inicia oculto (`class="hidden"`).
+- `app.js`:
+  - Nuevo estado visual `solo-mode` aplicado desde `applyGameFormat`.
+  - En individual, panel izquierdo ahora muestra:
+    - Cabecera `Tu sesión`.
+    - Puntaje principal en formato `X / Y pts` con `Y = sessionPlayed * 1.5`.
+    - Progreso `Posiciones evaluadas: N / Objetivo` en `#solo-progress-line`.
+  - Se eliminó en individual la línea inferior de configuración (`#competitive-status`) manteniéndola para duelo.
+  - Resultado solo simplificado:
+    - Título `Resultado de tu jugada`.
+    - Línea principal clara (`Ganaste ...` o `No hiciste jugada: 0 pts.`).
+    - Tarjetas reducidas a 2 (`Mejor del módulo`, `Tu jugada`).
+    - Sin repetición de `Sin jugada` en múltiples bloques.
+  - `Reiniciar análisis` visible solo cuando `analysisMode` está activo.
+- `styles.css`:
+  - `body.solo-mode` oculta `#right-player-panel` y usa grilla de 2 columnas en desktop.
+  - Tablero ampliado en individual (`board-wrap` y `board` más grandes).
+  - En individual se ocultan `#session-progress` central y `#competitive-status`.
+  - Estilo nuevo para `.solo-progress-line`.
+  - Fix responsive: en `max-width: 1080px`, `body.solo-mode #game-layout.layout` vuelve a 1 columna para evitar desborde horizontal.
+- Verificación técnica:
+  - `node --check app.js` OK.
+- Verificación Playwright (skill + dirigida):
+  - Smoke skill client: `output/web-game-solo-redesign-smoke/shot-0.png`.
+  - Validación desktop+duelo: `output/solo-redesign-validation/verification.json`.
+  - Capturas desktop: `solo-start.png`, `solo-result.png`, `solo-analysis-mode.png`, `duel-start.png`.
+  - Validación móvil: `output/solo-redesign-validation/verification-mobile.json`.
+  - Capturas móvil: `solo-mobile-start.png`, `solo-mobile-result.png`.
+  - Errores de consola: `[]` en validaciones dirigidas.
+- Ajuste V2 aplicado: reloj vertical de solo movido fuera del tablero.
+  - `index.html`: `#solo-clock-rail` reubicado como hermano de `.board-wrap` dentro de `.board-stage-main` (ya no está dentro del board wrapper).
+  - `styles.css`: en solo y sin resultado, `.board-stage-main` ahora usa 2 columnas (`tablero + reloj`) con gap fijo; reloj pasa a flujo (`position: static`, `align-self: center`, `justify-self: start`).
+  - `styles.css` responsive (`max-width: 1080px`): se mantiene el mismo principio (2 columnas compactas) para evitar superposición en móvil.
+- Validación técnica:
+  - `node --check app.js` OK.
+- Validación visual/geométrica Playwright:
+  - Script ad-hoc ejecutado contra `http://127.0.0.1:5010`.
+  - Evidencias:
+    - `output/clock-outside-validation/desktop-solo-clock-outside.png`
+    - `output/clock-outside-validation/mobile-solo-clock-outside.png`
+    - `output/clock-outside-validation/verification.json`
+  - Resultado: `nonOverlapping: true` en desktop y móvil, con gaps medidos (`14px` desktop, `10px` móvil). Sin errores de consola (`errors: []`).

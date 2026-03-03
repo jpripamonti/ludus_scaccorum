@@ -12,7 +12,7 @@
         <div class="landing-sheen" aria-hidden="true"></div>
         <div class="landing-content">
           <h1 class="landing-title">El Rincón del Maestro</h1>
-          <p class="landing-description">Entrená tu visión táctica encontrando las mejores jugadas en posiciones reales de partidas.</p>
+          <p class="landing-description">Entrená cálculo, evaluación y toma de decisiones encontrando mejores jugadas en posiciones reales.</p>
           <button id="landing-start-btn" type="button" class="landing-btn landing-btn-start">Comenzar</button>
         </div>
       </section>
@@ -133,6 +133,7 @@
             <span id="player-a-score-label" class="player-score-label">Puntaje</span>
             <strong id="player-a-score-value" class="player-score-value">0</strong>
           </div>
+          <p id="solo-progress-line" class="solo-progress-line solo-only">Posiciones evaluadas: 0 / 0</p>
           <div id="player-a-timer" class="player-timer">
             <div class="player-timer-head">
               <span>Reloj</span>
@@ -155,18 +156,28 @@
             <div class="board-wrap">
               <div class="board" id="board"></div>
               <svg id="board-arrows" class="board-arrows" aria-hidden="true"></svg>
+              <aside id="position-search-overlay" class="position-search-overlay hidden" aria-live="polite">
+                <strong id="position-search-title" class="position-search-title">Buscando próxima posición...</strong>
+                <span id="position-search-meta" class="position-search-meta"></span>
+              </aside>
 
               <button id="handoff-overlay" class="handoff-overlay hidden" type="button" aria-live="polite">
                 <span id="handoff-overlay-title" class="handoff-overlay-title">Cambio de turno</span>
                 <span id="handoff-overlay-subtitle" class="handoff-overlay-subtitle">Toca para revelar</span>
               </button>
             </div>
+            <aside id="solo-clock-rail" class="solo-clock-rail" aria-live="polite">
+              <strong id="solo-clock-value" class="solo-clock-value">--:--</strong>
+              <div id="solo-clock-track" class="solo-clock-track" aria-hidden="true">
+                <div id="solo-clock-bar" class="solo-clock-bar"></div>
+              </div>
+            </aside>
 
             <aside id="result-overlay" class="result-overlay hidden" aria-live="polite">
               <div class="result-overlay-panel">
                 <header class="result-overlay-header">
-                  <p id="result-overlay-title" class="result-overlay-title">¡Posición Resuelta!</p>
-                  <p id="result-overlay-points" class="result-overlay-points">Puntos de la ronda: 0</p>
+                  <p id="result-overlay-title" class="result-overlay-title">Resultado</p>
+                  <p id="result-overlay-points" class="result-overlay-points">Todavía no hay jugada evaluada.</p>
                 </header>
 
                 <div id="feedback-strip" class="feedback-strip hidden" aria-live="polite">
@@ -183,7 +194,7 @@
                 <div id="round-result" class="result-overlay-grid"></div>
                 <div class="result-overlay-actions">
                   <button id="result-analysis-btn" type="button">Explorar tablero</button>
-                  <button id="result-analysis-reset-btn" type="button">Reiniciar análisis</button>
+                  <button id="result-analysis-reset-btn" type="button" class="hidden">Reiniciar análisis</button>
                   <button id="next-btn" disabled>Siguiente posición</button>
                 </div>
               </div>
@@ -220,7 +231,7 @@
       </main>
 
       <div id="shared-actions" class="board-actions-secondary">
-        <button id="skip-btn">No mover (0 puntos)</button>
+        <button id="skip-btn">Omitir jugada (0 pts)</button>
         <button id="restart-btn">Volver al menú</button>
       </div>
 
