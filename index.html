@@ -1,172 +1,196 @@
 <!doctype html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Chess Position Battle - Entrenamiento de Errores</title>
-    <link rel="stylesheet" href="styles.css?v=maestro34" />
-  </head>
-  <body class="mode-citizen">
-    <div class="app">
-      <section id="landing-screen" class="landing-screen">
-        <div class="landing-sheen" aria-hidden="true"></div>
-        <div class="landing-content">
-          <h1 class="landing-title">El Rincón del Maestro</h1>
-          <p class="landing-description">Entrená tu visión táctica encontrando las mejores jugadas en posiciones reales de partidas.</p>
-          <button id="landing-start-btn" type="button" class="landing-btn landing-btn-start">Comenzar</button>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chess Position Battle - Entrenamiento de Errores</title>
+  <link rel="stylesheet" href="styles.css?v=maestro43" />
+</head>
+
+<body class="mode-citizen">
+  <div class="app">
+    <section id="landing-screen" class="landing-screen">
+      <div class="landing-sheen" aria-hidden="true"></div>
+      <div class="landing-content">
+        <h1 class="landing-title">El Rincón del Maestro</h1>
+        <p class="landing-description">Entrená cálculo, evaluación y toma de decisiones encontrando mejores jugadas en
+          posiciones reales.</p>
+        <button id="landing-start-btn" type="button" class="landing-btn landing-btn-start">Comenzar</button>
+      </div>
+    </section>
+
+    <section class="panel hidden" id="setup-panel">
+      <div id="setup-wizard" class="setup-wizard">
+        <header class="wizard-header">
+          <p class="wizard-title">Configuración guiada</p>
+          <h2>Armemos tu sesión en 4 pasos</h2>
+          <p id="wizard-step-indicator" class="wizard-step-indicator">Paso 1 de 4</p>
+          <div class="wizard-progress-track" aria-hidden="true">
+            <div id="wizard-progress-bar" class="wizard-progress-bar"></div>
+          </div>
+        </header>
+
+        <div class="wizard-steps">
+          <section id="wizard-step-1" class="wizard-step is-active" aria-labelledby="wizard-step-1-title">
+            <h3 id="wizard-step-1-title" class="wizard-question">¿Cómo querés jugar?</h3>
+            <div class="wizard-card-grid" role="group" aria-label="Modo de juego">
+              <button id="wizard-mode-solo" type="button" class="wizard-choice-card">Jugar solo/a</button>
+              <button id="wizard-mode-duel" type="button" class="wizard-choice-card">Jugar contra alguien</button>
+            </div>
+            <div id="duel-config" class="wizard-inline-form hidden">
+              <label for="duel-player-a">Nombre Jugador 1</label>
+              <input id="duel-player-a" type="text" value="Jugador 1" maxlength="20" autocomplete="off" />
+              <label for="duel-player-b">Nombre Jugador 2</label>
+              <input id="duel-player-b" type="text" value="Jugador 2" maxlength="20" autocomplete="off" />
+            </div>
+          </section>
+
+          <section id="wizard-step-2" class="wizard-step hidden" aria-labelledby="wizard-step-2-title">
+            <h3 id="wizard-step-2-title" class="wizard-question">¿De dónde traemos tus partidas?</h3>
+            <p class="wizard-help" style="margin-bottom: 0;">Vamos a descargar partidas públicas del último año para
+              encontrar posiciones.</p>
+            <details class="wizard-details-help">
+              <summary>¿Cómo funciona?</summary>
+              <p>El sistema obtiene tus partidas recientes de partidas a ritmo Lento (Clásico/Rápido). Si no hay
+                suficientes, puede usar partidas Blitz como respaldo. Se descargan hasta la cantidad necesaria para
+                generar tus posiciones de entrenamiento.</p>
+            </details>
+            <div class="wizard-card-grid" role="group" aria-label="Plataforma">
+              <button id="wizard-provider-lichess" type="button" class="wizard-choice-card">Lichess</button>
+              <button id="wizard-provider-chesscom" type="button" class="wizard-choice-card">Chess.com</button>
+            </div>
+            <label for="online-user-input">Nombre de usuario</label>
+            <input id="online-user-input" type="text" placeholder="Ej: MagnusCarlsen" autocomplete="off" />
+            <p id="online-status" class="wizard-status" aria-live="polite">Ingresá tu usuario para continuar.</p>
+            <p id="wizard-source-error" class="wizard-error hidden" aria-live="polite"></p>
+            <div id="wizard-source-cta" class="wizard-inline-actions hidden">
+              <button id="wizard-retry-user-btn" type="button" class="wizard-secondary-btn">Probar otro usuario</button>
+              <button id="wizard-switch-platform-btn" type="button" class="wizard-secondary-btn">Cambiar
+                plataforma</button>
+            </div>
+          </section>
+
+          <section id="wizard-step-3" class="wizard-step hidden" aria-labelledby="wizard-step-3-title">
+            <h3 id="wizard-step-3-title" class="wizard-question">¿Cuántas posiciones querés jugar hoy?</h3>
+            <div class="wizard-size-grid" role="group" aria-label="Cantidad de posiciones">
+              <button type="button" class="wizard-size-chip" data-size="5">5 posiciones</button>
+              <button type="button" class="wizard-size-chip" data-size="10">10 posiciones</button>
+              <button type="button" class="wizard-size-chip" data-size="20">20 posiciones</button>
+            </div>
+            <label for="session-size">Personalizado (1 a 200)</label>
+            <input id="session-size" type="number" min="1" max="200" value="10" />
+          </section>
+
+          <section id="wizard-step-4" class="wizard-step hidden" aria-labelledby="wizard-step-4-title">
+            <h3 id="wizard-step-4-title" class="wizard-question">Resumen</h3>
+            <div id="wizard-summary" class="wizard-summary"></div>
+            <p id="analysis-status" class="wizard-status">Revisá el resumen y tocá “Comenzar sesión”.</p>
+            <p id="analysis-metrics" class="status-line hidden">Totales: 0 | Analizadas: 0 | Detectadas: 0</p>
+            <div id="analysis-progress-wrap" class="progress hidden" aria-live="polite">
+              <div class="progress-track">
+                <div id="analysis-progress-bar" class="progress-bar"></div>
+              </div>
+              <p id="analysis-progress-label" class="progress-label">0%</p>
+            </div>
+          </section>
         </div>
+
+        <footer class="wizard-footer">
+          <button id="source-back-btn" type="button" class="wizard-secondary-btn">Volver al inicio</button>
+          <button id="wizard-prev-btn" type="button" class="wizard-secondary-btn hidden">Anterior</button>
+          <button id="wizard-next-btn" type="button">Siguiente</button>
+          <button id="analyze-btn" class="hidden">Comenzar sesión</button>
+        </footer>
+
+        <div class="wizard-compat hidden" aria-hidden="true">
+          <select id="game-format">
+            <option value="solo" selected>Modo Estudio (1 jugador)</option>
+            <option value="duel">Duelo de Caballeros (2 jugadores)</option>
+          </select>
+          <select id="online-provider-select">
+            <option value="lichess" selected>Lichess.com</option>
+            <option value="chesscom">Chess.com</option>
+          </select>
+          <input id="turn-time-seconds" type="number" min="5" max="300" value="90" />
+          <input id="error-threshold" type="number" min="50" max="800" value="80" />
+          <input id="analysis-time-ms" type="number" min="50" max="10000" value="400" />
+          <select id="scoring-system">
+            <option value="simple_labels_v1" selected>Etiquetas simples (v1)</option>
+          </select>
+          <p id="scoring-system-hint"></p>
+          <p id="game-format-hint"></p>
+          <p id="config-files-status"></p>
+          <label id="player-target-label"></label>
+          <p id="player-name-detected"></p>
+          <p id="player-target-hint"></p>
+          <p id="session-hint"></p>
+          <div id="source-online-panel"></div>
+          <div id="source-file-panel"></div>
+        </div>
+      </div>
+    </section>
+
+    <main class="layout hidden" id="game-layout">
+      <section id="left-player-panel" class="player-panel">
+        <div class="player-identity">
+          <div id="player-a-avatar" class="player-avatar">J1</div>
+          <div class="player-identity-copy">
+            <p id="player-a-kicker" class="player-kicker">Jugador 1</p>
+            <h2 id="player-a-name">Jugador 1</h2>
+          </div>
+        </div>
+        <div class="player-score">
+          <span id="player-a-score-label" class="player-score-label" title="Puntaje">🏆</span>
+          <strong id="player-a-score-value" class="player-score-value">0</strong>
+        </div>
+        <p id="solo-progress-line" class="solo-progress-line solo-only" title="Posiciones evaluadas">🎯 0 / 0</p>
+        <div id="player-a-timer" class="player-timer">
+          <div class="player-timer-head">
+            <span title="Reloj">⏱️</span>
+            <strong id="player-a-timer-value">--:--</strong>
+          </div>
+          <div class="player-timer-track" aria-hidden="true">
+            <div id="player-a-timer-bar" class="player-timer-bar"></div>
+          </div>
+        </div>
+        <div id="player-a-actions-slot" class="player-actions-slot"></div>
       </section>
 
-      <section class="panel hidden" id="setup-panel">
-        <div id="setup-wizard" class="setup-wizard">
-          <header class="wizard-header">
-            <p class="wizard-title">Configuración guiada</p>
-            <h2>Armemos tu sesión en 4 pasos</h2>
-            <p id="wizard-step-indicator" class="wizard-step-indicator">Paso 1 de 4</p>
-            <div class="wizard-progress-track" aria-hidden="true">
-              <div id="wizard-progress-bar" class="wizard-progress-bar"></div>
-            </div>
-          </header>
-
-          <div class="wizard-steps">
-            <section id="wizard-step-1" class="wizard-step is-active" aria-labelledby="wizard-step-1-title">
-              <h3 id="wizard-step-1-title" class="wizard-question">¿Cómo querés jugar?</h3>
-              <div class="wizard-card-grid" role="group" aria-label="Modo de juego">
-                <button id="wizard-mode-solo" type="button" class="wizard-choice-card">Jugar solo/a</button>
-                <button id="wizard-mode-duel" type="button" class="wizard-choice-card">Jugar contra alguien</button>
-              </div>
-              <div id="duel-config" class="wizard-inline-form hidden">
-                <label for="duel-player-a">Nombre Jugador 1</label>
-                <input id="duel-player-a" type="text" value="Jugador 1" maxlength="20" autocomplete="off" />
-                <label for="duel-player-b">Nombre Jugador 2</label>
-                <input id="duel-player-b" type="text" value="Jugador 2" maxlength="20" autocomplete="off" />
-              </div>
-            </section>
-
-            <section id="wizard-step-2" class="wizard-step hidden" aria-labelledby="wizard-step-2-title">
-              <h3 id="wizard-step-2-title" class="wizard-question">¿De dónde traemos tus partidas?</h3>
-              <p class="wizard-help">Vamos a descargar partidas públicas del último año para encontrar posiciones.</p>
-              <div class="wizard-card-grid" role="group" aria-label="Plataforma">
-                <button id="wizard-provider-lichess" type="button" class="wizard-choice-card">Lichess</button>
-                <button id="wizard-provider-chesscom" type="button" class="wizard-choice-card">Chess.com</button>
-              </div>
-              <label for="online-user-input">Nombre de usuario</label>
-              <input id="online-user-input" type="text" placeholder="Ej: MagnusCarlsen" autocomplete="off" />
-              <p id="online-status" class="wizard-status" aria-live="polite">Ingresá tu usuario para continuar.</p>
-              <p id="wizard-source-error" class="wizard-error hidden" aria-live="polite"></p>
-              <div id="wizard-source-cta" class="wizard-inline-actions hidden">
-                <button id="wizard-retry-user-btn" type="button" class="wizard-secondary-btn">Probar otro usuario</button>
-                <button id="wizard-switch-platform-btn" type="button" class="wizard-secondary-btn">Cambiar plataforma</button>
-              </div>
-            </section>
-
-            <section id="wizard-step-3" class="wizard-step hidden" aria-labelledby="wizard-step-3-title">
-              <h3 id="wizard-step-3-title" class="wizard-question">¿Cuántas posiciones querés jugar hoy?</h3>
-              <div class="wizard-size-grid" role="group" aria-label="Cantidad de posiciones">
-                <button type="button" class="wizard-size-chip" data-size="5">5 posiciones</button>
-                <button type="button" class="wizard-size-chip" data-size="10">10 posiciones</button>
-                <button type="button" class="wizard-size-chip" data-size="20">20 posiciones</button>
-              </div>
-              <label for="session-size">Personalizado (1 a 200)</label>
-              <input id="session-size" type="number" min="1" max="200" value="10" />
-            </section>
-
-            <section id="wizard-step-4" class="wizard-step hidden" aria-labelledby="wizard-step-4-title">
-              <h3 id="wizard-step-4-title" class="wizard-question">Resumen</h3>
-              <div id="wizard-summary" class="wizard-summary"></div>
-              <p id="analysis-status" class="wizard-status">Revisá el resumen y tocá “Comenzar sesión”.</p>
-              <p id="analysis-metrics" class="status-line hidden">Totales: 0 | Analizadas: 0 | Detectadas: 0</p>
-              <div id="analysis-progress-wrap" class="progress hidden" aria-live="polite">
-                <div class="progress-track">
-                  <div id="analysis-progress-bar" class="progress-bar"></div>
-                </div>
-                <p id="analysis-progress-label" class="progress-label">0%</p>
-              </div>
-            </section>
-          </div>
-
-          <footer class="wizard-footer">
-            <button id="source-back-btn" type="button" class="btn-tertiary">Volver al inicio</button>
-            <button id="wizard-prev-btn" type="button" class="wizard-secondary-btn hidden">Anterior</button>
-            <button id="wizard-next-btn" type="button">Siguiente</button>
-            <button id="analyze-btn" class="hidden">Comenzar sesión</button>
-          </footer>
-
-          <div class="wizard-compat hidden" aria-hidden="true">
-            <select id="game-format">
-              <option value="solo" selected>Modo Estudio (1 jugador)</option>
-              <option value="duel">Duelo de Caballeros (2 jugadores)</option>
-            </select>
-            <select id="online-provider-select">
-              <option value="lichess" selected>Lichess.com</option>
-              <option value="chesscom">Chess.com</option>
-            </select>
-            <input id="turn-time-seconds" type="number" min="5" max="300" value="90" />
-            <input id="error-threshold" type="number" min="50" max="800" value="80" />
-            <input id="analysis-time-ms" type="number" min="50" max="10000" value="400" />
-            <select id="scoring-system">
-              <option value="simple_labels_v1" selected>Etiquetas simples (v1)</option>
-            </select>
-            <p id="scoring-system-hint"></p>
-            <p id="game-format-hint"></p>
-            <p id="config-files-status"></p>
-            <label id="player-target-label"></label>
-            <p id="player-name-detected"></p>
-            <p id="player-target-hint"></p>
-            <p id="session-hint"></p>
-            <div id="source-online-panel"></div>
-            <div id="source-file-panel"></div>
-          </div>
+      <section id="board-stage" class="board-stage">
+        <div class="board-stage-status">
+          <div id="round-status" class="round-status">-</div>
+          <div id="session-progress" class="session-progress">Aciertos: 0 | Jugadas: 0 | Restantes: 0</div>
         </div>
-      </section>
 
-      <main class="layout hidden" id="game-layout">
-        <section id="left-player-panel" class="player-panel">
-          <div class="player-identity">
-            <div id="player-a-avatar" class="player-avatar">J1</div>
-            <div class="player-identity-copy">
-              <p id="player-a-kicker" class="player-kicker">Jugador 1</p>
-              <h2 id="player-a-name">Jugador 1</h2>
-            </div>
+        <div class="board-stage-main">
+          <div class="board-wrap">
+            <div class="board" id="board"></div>
+            <svg id="board-arrows" class="board-arrows" aria-hidden="true"></svg>
+            <aside id="position-search-overlay" class="position-search-overlay hidden" aria-live="polite">
+              <strong id="position-search-title" class="position-search-title">Buscando próxima posición...</strong>
+              <span id="position-search-meta" class="position-search-meta"></span>
+            </aside>
+
+            <button id="handoff-overlay" class="handoff-overlay hidden" type="button" aria-live="polite">
+              <span id="handoff-overlay-title" class="handoff-overlay-title">Cambio de turno</span>
+              <span id="handoff-overlay-subtitle" class="handoff-overlay-subtitle">Toca para revelar</span>
+            </button>
           </div>
-          <div class="player-score">
-            <span id="player-a-score-label" class="player-score-label">Puntaje</span>
-            <strong id="player-a-score-value" class="player-score-value">0</strong>
-          </div>
-          <div id="player-a-timer" class="player-timer">
-            <div class="player-timer-head">
-              <span>Reloj</span>
-              <strong id="player-a-timer-value">--:--</strong>
+          <aside id="solo-clock-rail" class="solo-clock-rail" aria-live="polite">
+            <span class="solo-clock-icon" title="Reloj">⏱️</span>
+            <strong id="solo-clock-value" class="solo-clock-value">--:--</strong>
+            <div id="solo-clock-track" class="solo-clock-track" aria-hidden="true">
+              <div id="solo-clock-bar" class="solo-clock-bar"></div>
             </div>
-            <div class="player-timer-track" aria-hidden="true">
-              <div id="player-a-timer-bar" class="player-timer-bar"></div>
-            </div>
-          </div>
-          <div id="player-a-actions-slot" class="player-actions-slot"></div>
-        </section>
+          </aside>
 
-        <section id="board-stage" class="board-stage">
-          <div class="board-stage-status">
-            <div id="round-status" class="round-status">-</div>
-            <div id="session-progress" class="session-progress">Aciertos: 0 | Jugadas: 0 | Restantes: 0</div>
-          </div>
-
-          <div class="board-stage-main">
-            <div class="board-wrap">
-              <div class="board" id="board"></div>
-              <svg id="board-arrows" class="board-arrows" aria-hidden="true"></svg>
-
-              <button id="handoff-overlay" class="handoff-overlay hidden" type="button" aria-live="polite">
-                <span id="handoff-overlay-title" class="handoff-overlay-title">Cambio de turno</span>
-                <span id="handoff-overlay-subtitle" class="handoff-overlay-subtitle">Toca para revelar</span>
-              </button>
-            </div>
-
-            <aside id="result-overlay" class="result-overlay hidden" aria-live="polite">
-              <div class="result-overlay-panel">
+          <aside id="result-overlay" class="result-overlay hidden" aria-live="polite">
+            <div class="result-overlay-panel">
+              <div id="result-overlay-inner">
                 <header class="result-overlay-header">
-                  <p id="result-overlay-title" class="result-overlay-title">¡Posición Resuelta!</p>
-                  <p id="result-overlay-points" class="result-overlay-points">Puntos de la ronda: 0</p>
+                  <p id="result-overlay-title" class="result-overlay-title">Resultado</p>
+                  <p id="result-overlay-points" class="result-overlay-points">Todavía no hay jugada evaluada.</p>
                 </header>
 
                 <div id="feedback-strip" class="feedback-strip hidden" aria-live="polite">
@@ -181,57 +205,66 @@
                 </div>
 
                 <div id="round-result" class="result-overlay-grid"></div>
-                <div class="result-overlay-actions">
-                  <button id="result-analysis-btn" type="button">Explorar tablero</button>
-                  <button id="result-analysis-reset-btn" type="button">Reiniciar análisis</button>
-                  <button id="next-btn" disabled>Siguiente posición</button>
-                </div>
               </div>
-            </aside>
-          </div>
 
-          <div id="game-details-mini" class="mini-details">-</div>
-          <div id="competitive-status" class="status-line hidden">-</div>
-        </section>
+              <div id="session-summary-result" class="session-summary-result hidden">
+                <div class="summary-score-display">-</div>
+                <p class="summary-details-text">-</p>
+              </div>
 
-        <section id="right-player-panel" class="player-panel">
-          <div class="player-identity">
-            <div id="player-b-avatar" class="player-avatar">J2</div>
-            <div class="player-identity-copy">
-              <p id="player-b-kicker" class="player-kicker">Jugador 2</p>
-              <h2 id="player-b-name">Jugador 2</h2>
+              <div class="result-overlay-actions">
+                <button id="result-analysis-btn" type="button">Explorar tablero</button>
+                <button id="result-analysis-reset-btn" type="button" class="hidden">Reiniciar análisis</button>
+                <button id="next-btn" disabled>Siguiente posición</button>
+                <button id="summary-menu-btn" type="button" class="hidden">Volver al menú</button>
+              </div>
             </div>
-          </div>
-          <div class="player-score">
-            <span id="player-b-score-label" class="player-score-label">Puntaje</span>
-            <strong id="player-b-score-value" class="player-score-value">0</strong>
-          </div>
-          <div id="player-b-timer" class="player-timer">
-            <div class="player-timer-head">
-              <span>Reloj</span>
-              <strong id="player-b-timer-value">--:--</strong>
-            </div>
-            <div class="player-timer-track" aria-hidden="true">
-              <div id="player-b-timer-bar" class="player-timer-bar"></div>
-            </div>
-          </div>
-          <div id="player-b-actions-slot" class="player-actions-slot"></div>
-        </section>
-      </main>
+          </aside>
+        </div>
 
-      <div id="shared-actions" class="board-actions-secondary">
-        <button id="skip-btn">No mover (0 puntos)</button>
-        <button id="restart-btn" class="btn-tertiary">Volver al menú</button>
-      </div>
+        <div id="game-details-mini" class="mini-details">-</div>
+        <div id="competitive-status" class="status-line hidden">-</div>
+      </section>
 
-      <div id="score-panel" class="hidden" aria-hidden="true">
-        <span id="score-label">Puntos totales</span>
-        <strong id="score">0</strong>
-      </div>
-      <div id="round-result-panel" class="hidden" aria-hidden="true"></div>
-      <ul id="history" class="history hidden" aria-hidden="true"></ul>
+      <section id="right-player-panel" class="player-panel">
+        <div class="player-identity">
+          <div id="player-b-avatar" class="player-avatar">J2</div>
+          <div class="player-identity-copy">
+            <p id="player-b-kicker" class="player-kicker">Jugador 2</p>
+            <h2 id="player-b-name">Jugador 2</h2>
+          </div>
+        </div>
+        <div class="player-score">
+          <span id="player-b-score-label" class="player-score-label" title="Puntaje">🏆</span>
+          <strong id="player-b-score-value" class="player-score-value">0</strong>
+        </div>
+        <div id="player-b-timer" class="player-timer">
+          <div class="player-timer-head">
+            <span title="Reloj">⏱️</span>
+            <strong id="player-b-timer-value">--:--</strong>
+          </div>
+          <div class="player-timer-track" aria-hidden="true">
+            <div id="player-b-timer-bar" class="player-timer-bar"></div>
+          </div>
+        </div>
+        <div id="player-b-actions-slot" class="player-actions-slot"></div>
+      </section>
+    </main>
+
+    <div id="shared-actions" class="board-actions-secondary">
+      <button id="skip-btn">Omitir jugada (0 pts)</button>
+      <button id="restart-btn">Volver al menú</button>
     </div>
 
-    <script src="app.js?v=maestro34"></script>
-  </body>
+    <div id="score-panel" class="hidden" aria-hidden="true">
+      <span id="score-label">Puntos totales</span>
+      <strong id="score">0</strong>
+    </div>
+    <div id="round-result-panel" class="hidden" aria-hidden="true"></div>
+    <ul id="history" class="history hidden" aria-hidden="true"></ul>
+  </div>
+
+  <script src="app.js?v=maestro44"></script>
+</body>
+
 </html>

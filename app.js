@@ -94,7 +94,14 @@ const sharedActionsEl = document.getElementById("shared-actions");
 const handoffOverlayEl = document.getElementById("handoff-overlay");
 const handoffOverlayTitleEl = document.getElementById("handoff-overlay-title");
 const handoffOverlaySubtitleEl = document.getElementById("handoff-overlay-subtitle");
+const positionSearchOverlayEl = document.getElementById("position-search-overlay");
+const positionSearchTitleEl = document.getElementById("position-search-title");
+const positionSearchMetaEl = document.getElementById("position-search-meta");
+const soloClockRailEl = document.getElementById("solo-clock-rail");
+const soloClockValueEl = document.getElementById("solo-clock-value");
+const soloClockBarEl = document.getElementById("solo-clock-bar");
 const resultOverlayEl = document.getElementById("result-overlay");
+const resultOverlayInnerEl = document.getElementById("result-overlay-inner");
 const resultOverlayTitleEl = document.getElementById("result-overlay-title");
 const resultOverlayPointsEl = document.getElementById("result-overlay-points");
 const resultAnalysisBtn = document.getElementById("result-analysis-btn");
@@ -102,6 +109,7 @@ const resultAnalysisResetBtn = document.getElementById("result-analysis-reset-bt
 const boardArrowsEl = document.getElementById("board-arrows");
 const roundStatusEl = document.getElementById("round-status");
 const sessionProgressEl = document.getElementById("session-progress");
+const soloProgressLineEl = document.getElementById("solo-progress-line");
 const turnSignalEl = document.getElementById("turn-signal");
 const orientationSignalEl = document.getElementById("orientation-signal");
 const scoreSignalEl = document.getElementById("score-signal");
@@ -127,6 +135,10 @@ const feedbackStripBarEl = document.getElementById("feedback-strip-bar");
 const playerTimerEls = [playerATimerEl, playerBTimerEl];
 const playerTimerValueEls = [playerATimerValueEl, playerBTimerValueEl];
 const playerTimerBarEls = [playerATimerBarEl, playerBTimerBarEl];
+const sessionSummaryResultEl = document.getElementById("session-summary-result");
+const summaryScoreDisplayEl = document.querySelector(".summary-score-display");
+const summaryDetailsTextEl = document.querySelector(".summary-details-text");
+const summaryMenuBtn = document.getElementById("summary-menu-btn");
 
 const INTERNAL_ANALYSIS_DEPTH = 3;
 const DEFAULT_SCORING_SYSTEM = "simple_labels_v1";
@@ -817,6 +829,32 @@ function hideHandoffOverlay() {
   handoffOverlayEl.classList.add("hidden");
 }
 
+function showPositionSearchOverlay(title, meta = "") {
+  if (!positionSearchOverlayEl) return;
+  if (positionSearchTitleEl) {
+    positionSearchTitleEl.textContent = String(title || "").trim() || "Buscando próxima posición...";
+  }
+  if (positionSearchMetaEl) {
+    positionSearchMetaEl.textContent = String(meta || "").trim();
+  }
+  positionSearchOverlayEl.classList.remove("hidden");
+}
+
+function hidePositionSearchOverlay() {
+  if (!positionSearchOverlayEl) return;
+  positionSearchOverlayEl.classList.add("hidden");
+  if (positionSearchMetaEl) positionSearchMetaEl.textContent = "";
+}
+
+function formatPositionSearchMeta(position) {
+  const meta = position && position.meta ? position.meta : {};
+  const players = String(meta.players || "").trim() || "Jugadores no disponibles";
+  const result = String(meta.result || "").trim() || "-";
+  const moveNumber = Number.isFinite(Number(meta.moveNumber)) ? String(meta.moveNumber) : "-";
+  const year = String(meta.year || "").trim() || "-";
+  return `${players} · Resultado ${result} · Jugada ${moveNumber} · Año ${year}`;
+}
+
 function snapshotRevealedState(revealed = STATE.revealed) {
   const safe = revealed || {};
   return {
@@ -853,7 +891,8 @@ function updateResultAnalysisControls() {
     resultAnalysisBtn.setAttribute("aria-pressed", analysisMode ? "true" : "false");
   }
   if (resultAnalysisResetBtn) {
-    resultAnalysisResetBtn.disabled = !visible;
+    resultAnalysisResetBtn.disabled = !visible || !analysisMode;
+    resultAnalysisResetBtn.classList.toggle("hidden", !analysisMode);
   }
 }
 
@@ -874,7 +913,7 @@ function resetResultAnalysisBoard() {
 
 function showResultOverlay(title, pointsText) {
   if (!resultOverlayEl) return;
-  if (resultOverlayTitleEl) resultOverlayTitleEl.textContent = title || "¡Posición Resuelta!";
+  if (resultOverlayTitleEl) resultOverlayTitleEl.textContent = title || "Resultado";
   if (resultOverlayPointsEl) resultOverlayPointsEl.textContent = pointsText || "";
   STATE.resultView.visible = true;
   STATE.resultView.analysisMode = false;
@@ -919,6 +958,22 @@ function mountSharedActionsToActivePanel() {
   if (host) host.appendChild(sharedActionsEl);
 }
 
+function soloSessionTarget() {
+  return Math.max(1, STATE.targetPositions || STATE.positions.length || 1);
+}
+
+function soloMaxPoints() {
+  return Math.round(Math.max(0, STATE.sessionPlayed) * 1.5 * 100) / 100;
+}
+
+function soloScoreText() {
+  return `${formatPoints(STATE.score || 0)} / ${formatPoints(soloMaxPoints())} pts`;
+}
+
+function soloProgressText() {
+  return `Posiciones evaluadas: ${Math.max(0, STATE.sessionPlayed)} / ${soloSessionTarget()}`;
+}
+
 function updatePlayerPanels() {
   const activeIdx = currentUiPlayerIndex();
   if (isDuelMode()) {
@@ -930,8 +985,8 @@ function updatePlayerPanels() {
     if (playerBNameEl) playerBNameEl.textContent = p2;
     if (playerAAvatarEl) playerAAvatarEl.textContent = initialsFromName(p1, "J1");
     if (playerBAvatarEl) playerBAvatarEl.textContent = initialsFromName(p2, "J2");
-    if (playerAScoreLabelEl) playerAScoreLabelEl.textContent = "Puntaje";
-    if (playerBScoreLabelEl) playerBScoreLabelEl.textContent = "Puntaje";
+    // if (playerAScoreLabelEl) playerAScoreLabelEl.textContent = "Puntaje";
+    // if (playerBScoreLabelEl) playerBScoreLabelEl.textContent = "Puntaje";
     if (playerAScoreValueEl) playerAScoreValueEl.textContent = formatPoints(STATE.duel.scores[0] || 0);
     if (playerBScoreValueEl) playerBScoreValueEl.textContent = formatPoints(STATE.duel.scores[1] || 0);
     setPanelActiveState(activeIdx);
@@ -939,16 +994,10 @@ function updatePlayerPanels() {
     return;
   }
 
-  if (playerAKickerEl) playerAKickerEl.textContent = "Modo estudio";
-  if (playerBKickerEl) playerBKickerEl.textContent = "Sesión";
-  if (playerANameEl) playerANameEl.textContent = "Jugador";
-  if (playerBNameEl) playerBNameEl.textContent = "Resumen";
-  if (playerAAvatarEl) playerAAvatarEl.textContent = "YO";
-  if (playerBAvatarEl) playerBAvatarEl.textContent = "ST";
-  if (playerAScoreLabelEl) playerAScoreLabelEl.textContent = "Puntaje";
-  if (playerBScoreLabelEl) playerBScoreLabelEl.textContent = "Aciertos";
-  if (playerAScoreValueEl) playerAScoreValueEl.textContent = formatPoints(STATE.score || 0);
-  if (playerBScoreValueEl) playerBScoreValueEl.textContent = String(STATE.sessionHits || 0);
+  if (playerAScoreValueEl) playerAScoreValueEl.textContent = soloScoreText();
+  if (soloProgressLineEl) soloProgressLineEl.textContent = soloProgressText();
+
+  if (playerBScoreValueEl) playerBScoreValueEl.textContent = `${Math.max(0, STATE.sessionPlayed)} / ${soloSessionTarget()}`;
   setPanelActiveState(0);
   mountSharedActionsToActivePanel();
 }
@@ -968,12 +1017,16 @@ function setThinkingMode(active) {
 function setScoringInfoVisible(visible) {
   const show = Boolean(visible);
   if (scorePanelEl) scorePanelEl.classList.toggle("hidden", true);
-  if (competitiveStatusEl) competitiveStatusEl.classList.toggle("hidden", !show);
+  if (competitiveStatusEl) competitiveStatusEl.classList.toggle("hidden", !(show && isDuelMode()));
 }
 
 function updateFeedbackStrip(scored, bestMover, userMover, playerLabel = "") {
   if (!feedbackStripEl || !feedbackStripBarEl || !feedbackStripQualityEl || !feedbackStripDeltaEl || !feedbackStripPointsEl) return;
   if (!scored) {
+    feedbackStripEl.classList.add("hidden");
+    return;
+  }
+  if (!isDuelMode() && scored.qualityLabel === "Sin jugada") {
     feedbackStripEl.classList.add("hidden");
     return;
   }
@@ -1044,7 +1097,7 @@ function updateCompetitiveStatus() {
   const t = clamp(Number(STATE.turnTimeSeconds) || DEFAULT_TURN_TIME_SECONDS, 5, 300);
   const system = scoringSystemLabel(STATE.scoringSystem);
   if (!isDuelMode()) {
-    competitiveStatusEl.textContent = `Modo Estudio · ${t}s por posición · ${system}`;
+    competitiveStatusEl.textContent = "";
     return;
   }
   competitiveStatusEl.textContent = `Duelo local · ${t}s por turno · ${system}`;
@@ -1069,10 +1122,12 @@ function applyGameFormat(format) {
       : "Entrenamiento individual con puntaje total acumulado.";
   }
   document.body.classList.toggle("duel-mode", safe === "duel");
+  document.body.classList.toggle("solo-mode", safe !== "duel");
   if (safe !== "duel") {
     resetDuelState();
   }
   hideHandoffOverlay();
+  hidePositionSearchOverlay();
   hideResultOverlay();
   setUiPhase("playing", false);
   updateScoreDisplay();
@@ -1140,6 +1195,23 @@ function updateRoundTimerUi(remainingMs = STATE.timer.deadlineMs - Date.now()) {
       barEl.style.width = "100%";
       timerEl.classList.remove("urgency-mid", "urgency-high");
       timerEl.classList.add("is-passive");
+    }
+  }
+
+  if (soloClockRailEl && soloClockValueEl && soloClockBarEl) {
+    const showSoloClock = !isDuelMode()
+      && document.body.classList.contains("playing-mode")
+      && !STATE.resultView.visible;
+    soloClockRailEl.classList.toggle("hidden", !showSoloClock);
+    if (showSoloClock) {
+      soloClockValueEl.textContent = formatClock(safeRemaining);
+      soloClockBarEl.style.height = `${Math.round(ratio * 100)}%`;
+      soloClockRailEl.classList.remove("urgency-mid", "urgency-high");
+      if (ratio <= 0.2) {
+        soloClockRailEl.classList.add("urgency-high");
+      } else if (ratio <= 0.45) {
+        soloClockRailEl.classList.add("urgency-mid");
+      }
     }
   }
 }
@@ -1365,10 +1437,10 @@ function renderWizardSummary() {
     : "Modo estudio (solo/a)";
   const platformText = config.platform === "chesscom" ? "Chess.com" : "Lichess";
   wizardSummaryEl.innerHTML = [
-    `<div class="summary-row"><span class="summary-label">Modo</span><span>${modeText}</span></div>`,
-    `<div class="summary-row"><span class="summary-label">Plataforma</span><span>${platformText}</span></div>`,
-    `<div class="summary-row"><span class="summary-label">Usuario</span><span>${escapeHtml(config.username || "-")}</span></div>`,
-    `<div class="summary-row"><span class="summary-label">Posiciones</span><span>${config.sessionSize}</span></div>`,
+    `<p><strong>Modo:</strong> ${modeText}</p>`,
+    `<p><strong>Plataforma:</strong> ${platformText}</p>`,
+    `<p><strong>Usuario:</strong> ${escapeHtml(config.username || "-")}</p>`,
+    `<p><strong>Posiciones:</strong> ${config.sessionSize}</p>`,
   ].join("");
 }
 
@@ -1516,7 +1588,7 @@ function updatePgnSelectionUi() {
     } else if (hasRemote && remote?.username) {
       onlineStatusEl.textContent = `Base lista para ${remote.username}.`;
     } else {
-      onlineStatusEl.textContent = protocol;
+      onlineStatusEl.textContent = "Buscando partidas recientes...";
     }
   }
 
@@ -2764,23 +2836,17 @@ function pushHistoryEntry(entry) {
 
 function renderSessionProgress() {
   const played = STATE.sessionPlayed;
-  const remaining = Math.max(0, STATE.targetPositions - played);
+  const target = soloSessionTarget();
+  const remaining = Math.max(0, target - played);
+  if (soloProgressLineEl) soloProgressLineEl.textContent = soloProgressText();
   if (!isDuelMode()) {
-    const hits = STATE.sessionHits;
-    sessionProgressEl.innerHTML =
-      `<span class="stat-pill"><strong>${hits}</strong> Aciertos</span>` +
-      `<span class="stat-pill"><strong>${played}</strong> Jugadas</span>` +
-      `<span class="stat-pill"><strong>${remaining}</strong> Restantes</span>`;
+    sessionProgressEl.textContent = `Posiciones evaluadas: ${played} / ${target} · Restan: ${remaining}`;
     return;
   }
   const p1 = duelPlayerName(0);
   const p2 = duelPlayerName(1);
-  const currentRound = Math.min(Math.max(1, STATE.index + 1), Math.max(1, STATE.targetPositions));
-  sessionProgressEl.innerHTML =
-    `<span class="stat-pill"><strong>${currentRound}/${STATE.targetPositions}</strong> Ronda</span>` +
-    `<span class="stat-pill"><strong>${remaining}</strong> Restantes</span>` +
-    `<span class="stat-pill"><strong>${STATE.duel.hits[0]}</strong> ${p1}</span>` +
-    `<span class="stat-pill"><strong>${STATE.duel.hits[1]}</strong> ${p2}</span>`;
+  const currentRound = Math.min(Math.max(1, STATE.index + 1), target);
+  sessionProgressEl.textContent = `Ronda ${currentRound}/${target} · Restan: ${remaining} · Aciertos: ${p1} ${STATE.duel.hits[0]} - ${STATE.duel.hits[1]} ${p2}`;
 }
 
 function startRound(options = {}) {
@@ -2803,6 +2869,7 @@ function startRound(options = {}) {
   STATE.duel.handoffReady = false;
   setUiPhase("playing", false);
   hideHandoffOverlay();
+  hidePositionSearchOverlay();
   hideResultOverlay();
 
   renderGameInfo(position);
@@ -2865,7 +2932,7 @@ function onSquareClick(square) {
   }
 
   if ((STATE.board.turn === "w" && piece === piece.toLowerCase()) ||
-      (STATE.board.turn === "b" && piece === piece.toUpperCase())) {
+    (STATE.board.turn === "b" && piece === piece.toUpperCase())) {
     STATE.selection = null;
     STATE.legalMoves = [];
     renderBoard();
@@ -2909,10 +2976,14 @@ function renderResultCards(cards = [], summaryText = "") {
 
 function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, userSan, userEvalText, bestMover, gameMover, userMover, scored, noMoveReason = "", extra = {}) {
   const noMove = !Number.isFinite(userMover);
-  const noMoveNote = noMoveReason === "timeout"
+  const noMoveByTimeout = noMoveReason === "timeout";
+  const duelNoMoveNote = noMoveByTimeout
     ? "Tiempo agotado: 0 puntos."
     : (noMove ? "No hubo jugada: 0 puntos." : "");
-  const baseSummary = `Clasificación: ${scored.qualityLabel} | Delta: ${formatDelta(bestMover, userMover)} | Puntos: ${formatSigned(scored.points)}${noMoveNote ? ` | ${noMoveNote}` : ""}`;
+  const duelSummary = `Clasificación: ${scored.qualityLabel} | Delta: ${formatDelta(bestMover, userMover)} | Puntos: ${formatSigned(scored.points)}${duelNoMoveNote ? ` | ${duelNoMoveNote}` : ""}`;
+  const soloBaseSummary = noMove
+    ? ""
+    : `Ganaste ${formatSigned(scored.points)} pts · ${scored.qualityLabel}`;
 
   if (extra.mode === "duel" && extra.duel) {
     const p1 = extra.duel.player1 || { name: duelPlayerName(0), san: "-", qualityLabel: "Sin jugada", points: 0, hit: false };
@@ -2942,7 +3013,7 @@ function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, 
         meta: `${gameEvalText} · ${formatDelta(bestMover, gameMover)}`,
         state: resultStateClass({ isReference: true }),
       },
-    ], extra.duel.summary || baseSummary);
+    ], extra.duel.summary || duelSummary);
     return;
   }
 
@@ -2955,17 +3026,11 @@ function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, 
     },
     {
       label: "Tu jugada",
-      move: userSan,
-      meta: `${userEvalText} · ${formatDelta(bestMover, userMover)}`,
+      move: noMove ? "—" : userSan,
+      meta: noMove ? "0 pts" : `${scored.qualityLabel} · ${formatSigned(scored.points)} pts`,
       state: resultStateClass({ hit: Number.isFinite(scored.diff) && scored.diff <= (Number.isFinite(extra.hitThreshold) ? extra.hitThreshold : 120), noMove }),
     },
-    {
-      label: "Jugada de la partida",
-      move: gameSan,
-      meta: `${gameEvalText} · ${formatDelta(bestMover, gameMover)}`,
-      state: resultStateClass({ isReference: true }),
-    },
-  ], baseSummary);
+  ], soloBaseSummary);
 }
 
 function finalSessionSummaryText() {
@@ -3063,7 +3128,10 @@ async function resolveRound(move, options = {}) {
         noMoveReason,
         { mode: "solo", hitThreshold },
       );
-      showResultOverlay("¡Posición Resuelta!", `Puntos de la ronda: ${formatSigned(scored.points)} · ${scored.qualityLabel}`);
+      const soloRoundSummary = noMove
+        ? (noMoveReason === "timeout" ? "Tiempo agotado: 0 pts." : "No hiciste jugada: 0 pts.")
+        : `Ganaste ${formatSigned(scored.points)} pts`;
+      showResultOverlay("Resultado de tu jugada", soloRoundSummary);
       setUiPhase("result", true);
       STATE.score = Math.round((STATE.score + scored.points) * 100) / 100;
       STATE.sessionPlayed += 1;
@@ -3252,44 +3320,93 @@ async function nextPosition() {
   setUiPhase("playing", false);
 
   if (STATE.index >= Math.max(1, STATE.targetPositions) - 1) {
-    roundStatusEl.textContent = `Sesión terminada. ${finalSessionSummaryText()}`;
-    nextBtn.disabled = true;
+    if (roundResultEl) roundResultEl.classList.add("hidden");
+    if (resultAnalysisBtn) resultAnalysisBtn.classList.add("hidden");
+    if (nextBtn) nextBtn.classList.add("hidden");
+
+    if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
+    if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = formatPoints(STATE.score) + " pts";
+    if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText();
+    if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
+
+    roundStatusEl.textContent = "¡Sesión terminada!";
     skipBtn.disabled = true;
     stopRoundTimer();
     setThinkingMode(false);
     updateCompetitiveStatus();
     setScoringInfoVisible(true);
     setUiPhase("result", true);
+
+    // Show only the summary card overlay
+    STATE.resultView.visible = true;
+    if (resultOverlayEl) resultOverlayEl.classList.remove("hidden");
+    if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden"); // Hide normal layout
+    renderBoardArrows();
     return;
   }
 
   if (STATE.index >= STATE.positions.length - 1) {
     const ctx = STATE.analysisContext;
     if (!ctx) {
-      roundStatusEl.textContent = `Sesión terminada. ${finalSessionSummaryText()}`;
-      nextBtn.disabled = true;
+      if (roundResultEl) roundResultEl.classList.add("hidden");
+      if (resultAnalysisBtn) resultAnalysisBtn.classList.add("hidden");
+      if (nextBtn) nextBtn.classList.add("hidden");
+
+      if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
+      if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = formatPoints(STATE.score) + " pts";
+      if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText();
+      if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
+
+      roundStatusEl.textContent = "¡Sesión terminada!";
       skipBtn.disabled = true;
       stopRoundTimer();
       setThinkingMode(false);
       setScoringInfoVisible(true);
       setUiPhase("result", true);
+
+      // Show only the summary card overlay
+      STATE.resultView.visible = true;
+      if (resultOverlayEl) resultOverlayEl.classList.remove("hidden");
+      if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden"); // Hide normal layout
+      renderBoardArrows();
       return;
     }
 
     nextBtn.disabled = true;
     skipBtn.disabled = true;
     roundStatusEl.textContent = "Buscando próxima posición...";
+    showPositionSearchOverlay("Buscando próxima posición...");
+    setUiPhase("loading_next_position", true);
     const nextMistake = await findNextMistake(ctx, "Siguiente: ");
     if (!nextMistake) {
-      roundStatusEl.textContent = `Sesión terminada. ${finalSessionSummaryText()} No se encontraron más posiciones.`;
-      nextBtn.disabled = true;
+      hidePositionSearchOverlay();
+
+      if (roundResultEl) roundResultEl.classList.add("hidden");
+      if (resultAnalysisBtn) resultAnalysisBtn.classList.add("hidden");
+      if (nextBtn) nextBtn.classList.add("hidden");
+
+      if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
+      if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = formatPoints(STATE.score) + " pts";
+      if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText() + " No se encontraron más posiciones.";
+      if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
+
+      roundStatusEl.textContent = "¡Sesión terminada!";
       skipBtn.disabled = true;
       stopRoundTimer();
       setThinkingMode(false);
       setScoringInfoVisible(true);
       setUiPhase("result", true);
+
+      // Show only the summary card overlay
+      STATE.resultView.visible = true;
+      if (resultOverlayEl) resultOverlayEl.classList.remove("hidden");
+      if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden"); // Hide normal layout
+      renderBoardArrows();
       return;
     }
+    showPositionSearchOverlay("Posición encontrada", formatPositionSearchMeta(nextMistake));
+    await sleepMs(1200);
+    hidePositionSearchOverlay();
     STATE.positions.push(nextMistake);
     STATE.allMistakes.push(nextMistake);
     STATE.index += 1;
@@ -3317,7 +3434,15 @@ function restartToSetup() {
   setThinkingMode(false);
   setScoringInfoVisible(false);
   hideHandoffOverlay();
+  hidePositionSearchOverlay();
   hideResultOverlay();
+
+  if (resultOverlayInnerEl) resultOverlayInnerEl.classList.remove("hidden"); // Restore normal layout exactly
+  if (sessionSummaryResultEl) sessionSummaryResultEl.classList.add("hidden");
+  if (summaryMenuBtn) summaryMenuBtn.classList.add("hidden");
+  if (roundResultEl) roundResultEl.classList.remove("hidden");
+  if (resultAnalysisBtn) resultAnalysisBtn.classList.remove("hidden");
+
   setUiPhase("playing", false);
   document.body.classList.remove("playing-mode");
   setupPanelEl.classList.remove("hidden");
@@ -3638,6 +3763,7 @@ async function analyzePgnFiles() {
   setThinkingMode(false);
   setScoringInfoVisible(false);
   hideHandoffOverlay();
+  hidePositionSearchOverlay();
   hideResultOverlay();
   setUiPhase("playing", false);
   hideFeedbackStrip();
@@ -3797,11 +3923,22 @@ if (wizardNextBtn) {
   });
 }
 
+if (summaryMenuBtn) {
+  summaryMenuBtn.addEventListener("click", () => {
+    restartToSetup();
+  });
+}
+
 if (wizardModeSoloBtn) {
   wizardModeSoloBtn.addEventListener("click", () => {
     STATE.setupWizard.mode = "solo";
     if (gameFormatEl) gameFormatEl.value = "solo";
     renderWizardStep();
+    if (STATE.setupWizard.step === 1) {
+      clearWizardSourceError();
+      goToWizardStep(2);
+      if (analysisStatusEl) analysisStatusEl.textContent = "Perfecto. Seguimos con la fuente de partidas.";
+    }
   });
 }
 
