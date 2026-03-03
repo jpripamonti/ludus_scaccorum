@@ -134,6 +134,10 @@ const feedbackStripBarEl = document.getElementById("feedback-strip-bar");
 const playerTimerEls = [playerATimerEl, playerBTimerEl];
 const playerTimerValueEls = [playerATimerValueEl, playerBTimerValueEl];
 const playerTimerBarEls = [playerATimerBarEl, playerBTimerBarEl];
+const sessionSummaryResultEl = document.getElementById("session-summary-result");
+const summaryScoreDisplayEl = document.querySelector(".summary-score-display");
+const summaryDetailsTextEl = document.querySelector(".summary-details-text");
+const summaryMenuBtn = document.getElementById("summary-menu-btn");
 
 const INTERNAL_ANALYSIS_DEPTH = 3;
 const DEFAULT_SCORING_SYSTEM = "simple_labels_v1";
@@ -1591,7 +1595,7 @@ function updatePgnSelectionUi() {
     } else if (hasRemote && remote?.username) {
       onlineStatusEl.textContent = `Base lista para ${remote.username}.`;
     } else {
-      onlineStatusEl.textContent = protocol;
+      onlineStatusEl.textContent = "Buscando partidas recientes...";
     }
   }
 
@@ -2935,7 +2939,7 @@ function onSquareClick(square) {
   }
 
   if ((STATE.board.turn === "w" && piece === piece.toLowerCase()) ||
-      (STATE.board.turn === "b" && piece === piece.toUpperCase())) {
+    (STATE.board.turn === "b" && piece === piece.toUpperCase())) {
     STATE.selection = null;
     STATE.legalMoves = [];
     renderBoard();
@@ -3323,27 +3327,47 @@ async function nextPosition() {
   setUiPhase("playing", false);
 
   if (STATE.index >= Math.max(1, STATE.targetPositions) - 1) {
-    roundStatusEl.textContent = `Sesión terminada. ${finalSessionSummaryText()}`;
-    nextBtn.disabled = true;
+    if (roundResultEl) roundResultEl.classList.add("hidden");
+    if (resultAnalysisBtn) resultAnalysisBtn.classList.add("hidden");
+    if (nextBtn) nextBtn.classList.add("hidden");
+
+    if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
+    if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = formatPoints(STATE.score) + " pts";
+    if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText();
+    if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
+
+    roundStatusEl.textContent = "¡Sesión terminada!";
     skipBtn.disabled = true;
     stopRoundTimer();
     setThinkingMode(false);
     updateCompetitiveStatus();
     setScoringInfoVisible(true);
     setUiPhase("result", true);
+
+    showResultOverlay("Resumen de tu Partida", "Has completado la sesión.");
     return;
   }
 
   if (STATE.index >= STATE.positions.length - 1) {
     const ctx = STATE.analysisContext;
     if (!ctx) {
-      roundStatusEl.textContent = `Sesión terminada. ${finalSessionSummaryText()}`;
-      nextBtn.disabled = true;
+      if (roundResultEl) roundResultEl.classList.add("hidden");
+      if (resultAnalysisBtn) resultAnalysisBtn.classList.add("hidden");
+      if (nextBtn) nextBtn.classList.add("hidden");
+
+      if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
+      if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = formatPoints(STATE.score) + " pts";
+      if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText();
+      if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
+
+      roundStatusEl.textContent = "¡Sesión terminada!";
       skipBtn.disabled = true;
       stopRoundTimer();
       setThinkingMode(false);
       setScoringInfoVisible(true);
       setUiPhase("result", true);
+
+      showResultOverlay("Resumen de tu Partida", "Has completado la sesión.");
       return;
     }
 
@@ -3355,13 +3379,24 @@ async function nextPosition() {
     const nextMistake = await findNextMistake(ctx, "Siguiente: ");
     if (!nextMistake) {
       hidePositionSearchOverlay();
-      roundStatusEl.textContent = `Sesión terminada. ${finalSessionSummaryText()} No se encontraron más posiciones.`;
-      nextBtn.disabled = true;
+
+      if (roundResultEl) roundResultEl.classList.add("hidden");
+      if (resultAnalysisBtn) resultAnalysisBtn.classList.add("hidden");
+      if (nextBtn) nextBtn.classList.add("hidden");
+
+      if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
+      if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = formatPoints(STATE.score) + " pts";
+      if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText() + " No se encontraron más posiciones.";
+      if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
+
+      roundStatusEl.textContent = "¡Sesión terminada!";
       skipBtn.disabled = true;
       stopRoundTimer();
       setThinkingMode(false);
       setScoringInfoVisible(true);
       setUiPhase("result", true);
+
+      showResultOverlay("Resumen de tu Partida", "Has completado la sesión.");
       return;
     }
     showPositionSearchOverlay("Posición encontrada", formatPositionSearchMeta(nextMistake));
@@ -3396,6 +3431,11 @@ function restartToSetup() {
   hideHandoffOverlay();
   hidePositionSearchOverlay();
   hideResultOverlay();
+  if (sessionSummaryResultEl) sessionSummaryResultEl.classList.add("hidden");
+  if (summaryMenuBtn) summaryMenuBtn.classList.add("hidden");
+  if (roundResultEl) roundResultEl.classList.remove("hidden");
+  if (resultAnalysisBtn) resultAnalysisBtn.classList.remove("hidden");
+
   setUiPhase("playing", false);
   document.body.classList.remove("playing-mode");
   setupPanelEl.classList.remove("hidden");
@@ -3873,6 +3913,12 @@ if (wizardNextBtn) {
     clearWizardSourceError();
     goToWizardStep(current + 1);
     if (analysisStatusEl) analysisStatusEl.textContent = "Perfecto. Seguimos con el siguiente paso.";
+  });
+}
+
+if (summaryMenuBtn) {
+  summaryMenuBtn.addEventListener("click", () => {
+    restartToSetup();
   });
 }
 
