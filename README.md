@@ -1,4 +1,4 @@
-# Chess Position Battle
+# Ludus Scaccorum
 
 Entrenador de ajedrez para 1 o 2 jugadores con base online de partidas públicas.
 
