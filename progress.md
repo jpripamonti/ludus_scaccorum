@@ -1,0 +1,218 @@
+Original prompt: Quiero modificar las pantallas de este juego. La pantalla inicial tiene que tener la imagen de fondo un poco más clara. El título del juego en la posición en la que está ahora. Abajo del título una descripción breve del juego. Y abajo de la descripción un botón que dice "Comenzar".  Eso es todo para la pantalla inicial. Puedes hacerlo?
+
+## 2026-02-26
+- Revisión inicial: la landing actual tiene múltiples botones (Modo Estudio, Duelo, Historial, Opciones).
+- Objetivo de esta iteración: simplificar la landing a título + descripción + botón Comenzar y aclarar el fondo.
+- Implementación: `index.html` ahora muestra solo título, descripción breve y botón `Comenzar` en la landing.
+- Estilos: se aclaró la superposición del fondo en `.landing-screen`, `.landing-screen::before` y `.landing-sheen`.
+- Interacción: se agregó `landing-start-btn` en `app.js` para abrir configuración desde la landing.
+- Validación automatizada (skill): ejecutado `web_game_playwright_client.js` contra `http://127.0.0.1:4173`.
+- Evidencia:
+  - `output/web-game-landing/shot-0.png` muestra landing con fondo más claro, título, descripción y botón `Comenzar`.
+  - `output/web-game/shot-0.png` confirma que el botón `Comenzar` abre `setup-panel`.
+  - No se generaron archivos `errors-*.json` (sin errores de consola detectados por el cliente).
+- Verificación adicional móvil: `output/landing-mobile.png` con viewport 390x844.
+- Nota de entorno: para ejecutar el cliente del skill se instaló `playwright` en `/Users/neo/.codex/skills/develop-web-game` (no se dejó como dependencia del proyecto).
+- Implementación en curso (setup): se reemplazó `setup-panel` por estructura wizard de 4 pasos en `index.html`.
+- Se agregaron estilos dedicados del asistente guiado (`.setup-wizard`, pasos, progreso, tarjetas, errores y footer responsive) en `styles.css`.
+- Refactor setup implementado: `index.html` ahora usa wizard de 4 pasos (modo, fuente/usuario, cantidad, resumen).
+- JS: nuevo estado `STATE.setupWizard` y funciones de navegación/validación (`goToWizardStep`, `validateWizardStep`, `renderWizardStep`, `collectWizardConfig`, `syncWizardToLegacyInputs`).
+- Flujo remoto forzado: se eliminó camino de fuente local/PGN del flujo activo; `sourceMode` ahora usa solo `lichess|chesscom`.
+- Errores recuperables: al fallar descarga/análisis de usuario/plataforma se vuelve al paso 2 con mensaje y CTA (`Probar otro usuario`, `Cambiar plataforma`).
+- Verificación:
+  - Skill client: `output/web-game-wizard-final/shot-0.png` (wizard paso 1, sin errores de consola detectados por el cliente).
+  - E2E duelo/resumen: `output/wizard-e2e/duel-summary.png`.
+  - E2E error fuente: `output/wizard-e2e/source-error-return-step2.png`.
+  - E2E inicio partida (solo): `output/wizard-e2e/solo-after-start.png` (entra a `playing-mode`).
+  - Responsive móvil: `output/wizard-mobile/step1.png` y `output/wizard-mobile/step2.png`.
+- Ajuste adicional: en `collectWizardConfig` los nombres del duelo ahora se toman como texto real (trim + max 20) para que la validación del paso 1 controle vacíos correctamente.
+- Re-validación final:
+  - `node --check app.js` OK.
+  - Skill client post-ajustes: `output/web-game-wizard-final2/shot-0.png`.
+  - Caso invalid username mantiene paso 2 y mensaje: script E2E reportó `STEP2_STILL_VISIBLE yes`.
+- Bugfix overlay resultado: se añadió `isolation: isolate` en `.board-wrap` y `z-index` explícito en `.handoff-overlay`/`.result-overlay` para forzar que el modal quede por encima de las piezas del tablero.
+- Fix UI overlay: en `styles.css` se forzó stacking seguro para overlays de tablero (`.board-wrap { isolation: isolate; }`, `.board { z-index: 1; }`, `.handoff-overlay { z-index: 30; }`, `.result-overlay { z-index: 40; }`).
+- Reproducción y verificación visual:
+  - Antes (bug): `output/overlay-debug-before/result-overlay-before.png` con piezas por encima del panel.
+  - Después (fix): `output/overlay-debug-after/result-overlay-after.png` sin superposición de piezas.
+- Validación skill client posterior al cambio: `output/web-game-overlay-fix/shot-0.png` (sin `errors-0.json`).
+- Implementación completada: scoring simplificado único `simple_labels_v1` en `app.js`.
+- Reglas activas de puntaje:
+  - Perfecta: 1.5 (exacta o equivalente por `<=20cp` o `expectedLoss<=0.02`)
+  - Muy buena: 1.25 | Buena: 1 | Interesante (!?): 0.75 | Dudosa: 0.5 | Mala: 0 | Blunder: -1 | Sin jugada: 0
+- Se agregó formato decimal de puntaje (hasta 2 decimales, sin ceros sobrantes) para marcador, paneles y textos de resultado.
+- UI resultado refactorizada a panel lateral visible (desktop) y apilado (móvil):
+  - `index.html`: `#result-overlay` salió de `board-wrap` y ahora es panel lateral.
+  - `styles.css`: nuevo layout `body.result-visible .board-stage-main`.
+- Se añadió capa SVG de flecha de módulo:
+  - `index.html`: `#board-arrows`.
+  - `app.js`: `renderBoardArrows()` dibuja flecha verde de la jugada del módulo.
+- Se añadió modo de análisis de resultado:
+  - Estado nuevo `STATE.resultView = { visible, analysisMode, snapshotFen, snapshotRevealed }`.
+  - Botones nuevos: `Explorar tablero` y `Reiniciar análisis`.
+  - `result_analysis` permite mover en tablero sin re-evaluar ni alterar score/historial.
+  - Antes de `nextPosition`, si hubo exploración, se restaura snapshot oficial.
+- Se forzó vista de resultado desde FEN base de la posición (no post-move) para inspección clara de mejor jugada.
+- Verificación técnica:
+  - `node --check app.js` OK.
+  - Playwright skill client: `output/web-game-scoring-result-panel/shot-0.png` (sin errores de consola reportados por el cliente).
+  - Validación visual dirigida (Playwright custom):
+    - `output/result-panel-validation/result-summary-desktop.png`
+    - `output/result-panel-validation/result-analysis-desktop.png`
+    - `output/result-panel-validation/result-summary-mobile.png`
+    - `output/result-panel-validation/errors.json` = `[]`
+- TODOs/seguimiento sugerido:
+  - Probar flujo E2E completo con usuario real de Lichess/Chess.com hasta resolver una ronda real (no mock de estado).
+  - Ajustar fino del grosor/opacidad de la flecha si en tableros chicos tapa piezas críticas.
+  - Considerar toggle explícito “Salir de exploración” (actualmente se mantiene en modo análisis hasta siguiente/reinicio).
+- Ajuste UX wizard (Paso 1): al tocar `Jugar solo/a` ahora avanza automáticamente a Paso 2 (`app.js`, handler `wizardModeSoloBtn`).
+- En `Jugar contra alguien` se mantiene comportamiento actual (permanece en Paso 1 para completar nombres).
+- Ajuste visual footer wizard: se unificó ancho mínimo de `Volver al inicio`, `Anterior`, `Siguiente` y `Comenzar sesión` a `160px` para evitar desbalance de botones (`styles.css`).
+- Verificación Playwright rápida:
+  - `output/wizard-step1-ux/verification.json` confirma `step=2` tras click en `solo` y anchos `back=160`, `next=160`.
+  - Capturas: `output/wizard-step1-ux/step1-before-click.png` y `output/wizard-step1-ux/step2-after-solo-autoadvance.png`.
+- Estandarización de botones por pantalla implementada en `styles.css` (sin cambios en HTML/JS para esta tarea).
+- Tokens globales nuevos:
+  - `--btn-h-base: 52px`
+  - `--btn-h-primary: 60px`
+  - `--btn-w-wizard-nav: 180px`
+- Wizard navegación (desktop): `#source-back-btn`, `#wizard-prev-btn`, `#wizard-next-btn`, `#analyze-btn` ahora usan altura base 52 y ancho fijo 180.
+- Wizard móvil (`max-width: 920px`): se mantiene layout en grilla y se evita forzar 180px con `min-width: 0; width: 100%` en navegación.
+- Juego/resultado (desktop):
+  - Secundarios (`#skip-btn`, `#restart-btn`, `#result-analysis-btn`, `#result-analysis-reset-btn`) fijados a 52px.
+  - Principal `#next-btn` fijado a 60px.
+- Juego/resultado móvil (`max-width: 1080px`): botones de `#shared-actions` y `.result-overlay-actions` en ancho completo.
+- Landing: sin cambios de tamaño/estilo del botón `Comenzar`.
+- Verificación Playwright (medición real + capturas):
+  - Archivo: `output/button-sizing-validation/verification.json` (errores `[]`).
+  - Desktop wizard: `back 180x52`, `next 180x52`.
+  - Desktop juego/resultado: `skip 180x52`, `restart 180x52`, `analysis 348x52`, `analysisReset 348x52`, `next 348x60`.
+  - Móvil juego/resultado: botones full width con alturas `52/60` según jerarquía.
+  - Capturas: `wizard-desktop.png`, `result-desktop.png`, `result-mobile.png`.
+## 2026-02-27
+- Implementación UX modo individual enfocada en claridad de puntaje y reducción de ruido visual.
+- `index.html`:
+  - Nuevo bloque `#solo-progress-line` en panel izquierdo.
+  - Botón de omisión renombrado a `Omitir jugada (0 pts)`.
+  - Texto base del overlay de resultado actualizado a `Resultado`.
+  - Botón `Reiniciar análisis` inicia oculto (`class="hidden"`).
+- `app.js`:
+  - Nuevo estado visual `solo-mode` aplicado desde `applyGameFormat`.
+  - En individual, panel izquierdo ahora muestra:
+    - Cabecera `Tu sesión`.
+    - Puntaje principal en formato `X / Y pts` con `Y = sessionPlayed * 1.5`.
+    - Progreso `Posiciones evaluadas: N / Objetivo` en `#solo-progress-line`.
+  - Se eliminó en individual la línea inferior de configuración (`#competitive-status`) manteniéndola para duelo.
+  - Resultado solo simplificado:
+    - Título `Resultado de tu jugada`.
+    - Línea principal clara (`Ganaste ...` o `No hiciste jugada: 0 pts.`).
+    - Tarjetas reducidas a 2 (`Mejor del módulo`, `Tu jugada`).
+    - Sin repetición de `Sin jugada` en múltiples bloques.
+  - `Reiniciar análisis` visible solo cuando `analysisMode` está activo.
+- `styles.css`:
+  - `body.solo-mode` oculta `#right-player-panel` y usa grilla de 2 columnas en desktop.
+  - Tablero ampliado en individual (`board-wrap` y `board` más grandes).
+  - En individual se ocultan `#session-progress` central y `#competitive-status`.
+  - Estilo nuevo para `.solo-progress-line`.
+  - Fix responsive: en `max-width: 1080px`, `body.solo-mode #game-layout.layout` vuelve a 1 columna para evitar desborde horizontal.
+- Verificación técnica:
+  - `node --check app.js` OK.
+- Verificación Playwright (skill + dirigida):
+  - Smoke skill client: `output/web-game-solo-redesign-smoke/shot-0.png`.
+  - Validación desktop+duelo: `output/solo-redesign-validation/verification.json`.
+  - Capturas desktop: `solo-start.png`, `solo-result.png`, `solo-analysis-mode.png`, `duel-start.png`.
+  - Validación móvil: `output/solo-redesign-validation/verification-mobile.json`.
+  - Capturas móvil: `solo-mobile-start.png`, `solo-mobile-result.png`.
+  - Errores de consola: `[]` en validaciones dirigidas.
+- Ajuste V2 aplicado: reloj vertical de solo movido fuera del tablero.
+  - `index.html`: `#solo-clock-rail` reubicado como hermano de `.board-wrap` dentro de `.board-stage-main` (ya no está dentro del board wrapper).
+  - `styles.css`: en solo y sin resultado, `.board-stage-main` ahora usa 2 columnas (`tablero + reloj`) con gap fijo; reloj pasa a flujo (`position: static`, `align-self: center`, `justify-self: start`).
+  - `styles.css` responsive (`max-width: 1080px`): se mantiene el mismo principio (2 columnas compactas) para evitar superposición en móvil.
+- Validación técnica:
+  - `node --check app.js` OK.
+- Validación visual/geométrica Playwright:
+  - Script ad-hoc ejecutado contra `http://127.0.0.1:5010`.
+  - Evidencias:
+    - `output/clock-outside-validation/desktop-solo-clock-outside.png`
+    - `output/clock-outside-validation/mobile-solo-clock-outside.png`
+    - `output/clock-outside-validation/verification.json`
+  - Resultado: `nonOverlapping: true` en desktop y móvil, con gaps medidos (`14px` desktop, `10px` móvil). Sin errores de consola (`errors: []`).
+## 2026-03-04
+- Corrección funcional crítica en pipeline de duelo:
+  - `resolveRound` mantiene comportamiento esperado: turno de Jugador 1 guarda jugada pendiente y NO evalúa engine.
+  - La evaluación conjunta de ambos jugadores ocurre en turno de Jugador 2 sobre la misma posición base.
+- Bugfix adicional detectado durante validación:
+  - Se eliminó una llamada residual a `updateDecisionSignals()` en `setBoardPerspective` que provocaba `ReferenceError` en runtime.
+- Limpieza agresiva adicional de legado en `app.js`:
+  - Eliminadas funciones top-level sin uso restante: `soloMaxPoints`, `resultStateClass`, `renderResultCards`.
+- Validación estática:
+  - `node --check app.js` OK.
+  - Chequeo cruzado IDs JS vs HTML: sin IDs faltantes en HTML.
+  - Chequeo de funciones top-level (grep/rg): sin funciones huérfanas restantes de primer nivel.
+- Verificación funcional dirigida (Playwright determinístico con engine stub):
+  - Duelo feliz: turno 1 = 0 evaluaciones; turno 2 = evaluación conjunta (4 llamadas esperadas en este escenario: best/game/j1/j2).
+  - Duelo con no-move J1: turno 1 = 0 evaluaciones; turno 2 = evaluación conjunta coherente (3 llamadas: best/game/j2), J1=0 pts.
+  - Duelo timeout J2: evaluación conjunta coherente (3 llamadas: best/game/j1), J2=0 pts.
+  - Solo happy path: sin regresión (3 llamadas: best/game/user).
+- Evidencia:
+  - Smoke skill client: `output/web-game-pipeline-cleanup-final2/shot-0.png`, `output/web-game-pipeline-cleanup-final2/shot-1.png`.
+  - Flujo duelo validado visualmente:
+    - `output/duel-pipeline-validation-final/duel-turn1-ready.png`
+    - `output/duel-pipeline-validation-final/duel-handoff-after-p1.png`
+    - `output/duel-pipeline-validation-final/duel-result-after-p2.png`
+    - `output/duel-pipeline-validation-final/verification.json` (sin errores de consola).
+- TODO sugerido:
+  - Ejecutar una pasada manual E2E con usuario real de Lichess/Chess.com para confirmar UX completa de descarga remota en entorno real (sin stubs).
+- Limpieza adicional de coherencia JS/HTML/CSS:
+  - Se eliminaron referencias huérfanas a `feedback-strip` (JS y CSS) porque el markup ya no existe en `index.html`.
+  - Se retiró el bloque de infográfico vertical (`vertical-infographic`) y se restauró el render de resultado por tarjetas (`result-cards`) para evitar solapamientos visuales en resultados con deltas iguales.
+- Re-validación posterior:
+  - IDs faltantes JS->HTML: `0`.
+  - Funciones top-level huérfanas: `0`.
+  - Pruebas determinísticas de pipeline (duelo/solo): mismas métricas esperadas, sin regresión.
+  - Captura visual actualizada de resultado duelo (tarjetas): `output/duel-pipeline-validation-final2/duel-result-after-p2-cards.png`.
+- Mejora UX solicitada para evaluación de ronda (Stockfish):
+  - Se implementó presupuesto dinámico por dificultad con tope duro de `7s` para la evaluación de ronda (`ROUND_EVAL_MAX_TOTAL_MS = 7000`).
+  - Nueva heurística `getRoundEvaluationPlan(...)` clasifica dificultad (`baja/media/alta`) con base en complejidad de la posición (movidas legales, capturas, jaque, fase y umbral).
+  - El presupuesto total se reparte entre subtareas del engine dentro de la ronda (mejor, jugada de partida, jugadas de jugador/es).
+- Barra de progreso en overlay de pensamiento:
+  - `index.html`: agregado bloque `#position-search-progress` con track/bar/label.
+  - `styles.css`: estilos de barra y etiqueta de avance para overlay.
+  - `app.js`: nuevas utilidades `setPositionSearchProgress(...)`, `showPositionSearchOverlay(..., options)` y reset al ocultar overlay.
+- Mensajes dinámicos durante el pensamiento:
+  - Se agregaron 30 mensajes rotativos (`ROUND_THINKING_MESSAGES`: 10 easy, 10 medium, 10 hard).
+  - Rotación temporal con `startRoundThinkingMessages(...)`/`stopRoundThinkingMessages(...)` durante evaluación de ronda.
+- Engine progress plumbing:
+  - `stockfishEvaluate(...)` ahora acepta callback de progreso y reporta ratio/tiempo durante `info` + finalización.
+  - `getBestMoveWithEngine(...)` y `evaluateMoveWithEngine(...)` propagan progreso y respetan límites min/max por tarea.
+- Corrección colateral importante:
+  - Se restauró el render de resultado por tarjetas (`renderResultCards`) para evitar regresión de runtime.
+  - Se retiraron restos de infográfico vertical (`vertical-infographic`) del CSS que ya no tienen markup activo.
+- Validación:
+  - `node --check app.js` OK.
+  - IDs JS->HTML faltantes: `0`.
+  - Prueba dirigida: overlay muestra barra + mensajes rotativos y progreso numérico.
+    - Evidencia visual: `output/round-thinking-progress-visual/thinking-overlay.png`.
+  - Prueba dirigida de lógica duelo: turno 1 sigue sin evaluación; turno 2 evalúa conjunto.
+  - Smoke skill client: `output/web-game-round-thinking-smoke/shot-0.png`, `shot-1.png`.
+## 2026-03-12
+- Ajustes de scoring y coherencia visual implementados en `app.js` para resolver inconsistencias reportadas.
+- Cambios de puntaje (`simple_labels_v1`):
+  - `Perfecta: 1`, `Muy buena: 0.75`, `Buena: 0.5`, `Interesante: 0.25`, `Dudosa: 0`, `Mala: -0.5`, `Blunder: -1`, `Sin jugada: 0`.
+  - Se actualizó también la descripción visible del sistema de puntuación.
+- Reglas de clasificación ajustadas para que `Perfecta` sea más estricta:
+  - Ya no se marca `Perfecta` por una condición amplia de expected loss.
+  - Ahora requiere cercanía real (cp muy bajo) o expected loss muy bajo + pérdida cp acotada.
+- Barra vertical (`vertical-infographic`) alineada con la clasificación:
+  - Se dejó de posicionar nodos por una escala lineal simple que podía desalinear `Blunder` de la zona roja.
+  - Nuevo mapeo por bandas de etiqueta (`Perfecta` arriba/verde ... `Blunder` abajo/rojo), usando `scored.diff` como fuente principal.
+- Fixes de consistencia y bugs:
+  - Solo: el nodo de `Tu jugada` usa `scored.diff` directamente (misma métrica que puntaje/etiqueta).
+  - Duelo: el render ya no depende de `player1Eval/player2Eval` inexistentes; ahora usa `diff` real de cada jugador.
+  - Se evitaron defaults peligrosos con `||` en el diff del infográfico (caso `0` ya no se transforma artificialmente en `100`).
+- Nota de validación:
+  - En este entorno no hay runtime JS (`node`/`npx` no disponibles en PATH), por lo que no se ejecutaron checks Playwright ni `node --check` en esta iteración.
+- UX texto botón de análisis:
+  - `revealGameBtn` ahora usa nombre del jugador objetivo cuando está disponible: `Ver la que jugó <nombre>`.
+  - Se agregó fallback robusto: análisis (`STATE.analysisContext.targetName`) -> wizard (`STATE.setupWizard.username`) -> detectado en UI -> texto genérico `Ver la que se jugó`.
+  - Se aplica tanto al reset del panel de resultado como al toggle al cerrar la vista de esa jugada.
