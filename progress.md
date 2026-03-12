@@ -216,3 +216,13 @@ Original prompt: Quiero modificar las pantallas de este juego. La pantalla inici
   - `revealGameBtn` ahora usa nombre del jugador objetivo cuando está disponible: `Ver la que jugó <nombre>`.
   - Se agregó fallback robusto: análisis (`STATE.analysisContext.targetName`) -> wizard (`STATE.setupWizard.username`) -> detectado en UI -> texto genérico `Ver la que se jugó`.
   - Se aplica tanto al reset del panel de resultado como al toggle al cerrar la vista de esa jugada.
+- Fallback remoto ampliado para descarga de partidas (`app.js`):
+  - Lichess: si `classical/rapid` no alcanza y `blitz` tampoco, ahora intenta `bullet`.
+  - Chess.com: si `rapid/daily` no alcanza y `blitz` tampoco, ahora intenta `bullet`.
+- Advertencia UX agregada cuando se usa `bullet`:
+  - Mensaje explícito en estado online indicando que no hubo suficientes partidas lentas (ni blitz suficiente) y que se completa con bullet, pero que no es ideal.
+  - La advertencia se persiste en la fuente remota cargada (`remote.warning`) para que siga visible al volver al wizard.
+- Mensajes/protocolo actualizados para reflejar el nuevo orden de fallback: `slow -> blitz -> bullet (no ideal)`.
+- Detalle técnico de fuente remota enriquecido con conteo `bullet` en ambos proveedores.
+- Nota de validación de esta iteración:
+  - En este entorno no hay runtime JS (`node`/`npx` no disponibles en PATH), por lo que no se ejecutaron checks Playwright ni `node --check`.

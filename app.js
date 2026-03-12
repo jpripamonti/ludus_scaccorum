@@ -1192,12 +1192,13 @@ function getLichessFetchSettings() {
     preferredPerf: ["classical", "rapid"],
     minSlowGames,
     fallbackBlitz: true,
+    fallbackBullet: true,
   };
 }
 
 function describeLichessNormalProtocol(settings = getLichessFetchSettings()) {
   const preferredLabel = settings.preferredPerf.map((p) => p[0].toUpperCase() + p.slice(1)).join("/");
-  return `Protocolo modo normal: se descargan partidas públicas del último año. Primero ${preferredLabel}; si no llega a ${settings.minSlowGames}, se completa con Blitz hasta ${settings.maxGames}.`;
+  return `Protocolo modo normal: se descargan partidas públicas del último año. Primero ${preferredLabel}; si no llega a ${settings.minSlowGames}, se completa con Blitz y, si aún falta base, con Bullet (no ideal) hasta ${settings.maxGames}.`;
 }
 
 function getChessComFetchSettings() {
@@ -1214,12 +1215,13 @@ function getChessComFetchSettings() {
     preferredSlowClasses: ["rapid", "daily"],
     minSlowGames,
     fallbackBlitz: true,
+    fallbackBullet: true,
   };
 }
 
 function describeChessComNormalProtocol(settings = getChessComFetchSettings()) {
   const preferredLabel = settings.preferredSlowClasses.map((p) => p[0].toUpperCase() + p.slice(1)).join("/");
-  return `Protocolo modo normal: se descargan partidas públicas del último año desde archivos mensuales. Primero ${preferredLabel}; si no llega a ${settings.minSlowGames}, se completa con Blitz hasta ${settings.maxGames}.`;
+  return `Protocolo modo normal: se descargan partidas públicas del último año desde archivos mensuales. Primero ${preferredLabel}; si no llega a ${settings.minSlowGames}, se completa con Blitz y, si aún falta base, con Bullet (no ideal) hasta ${settings.maxGames}.`;
 }
 
 function getEffectiveAnalysisConfig() {
@@ -1453,7 +1455,10 @@ function updatePgnSelectionUi() {
     if (!config.username) {
       onlineStatusEl.textContent = "Ingresá tu usuario para continuar.";
     } else if (hasRemote && remote?.username) {
-      onlineStatusEl.textContent = `Base lista para ${remote.username}.`;
+      const warningText = typeof remote.warning === "string" && remote.warning.trim()
+        ? ` ${remote.warning.trim()}`
+        : "";
+      onlineStatusEl.textContent = `Base lista para ${remote.username}.${warningText}`;
     } else {
       onlineStatusEl.textContent = "Listo para descargar partidas cuando toques “Comenzar sesión”.";
     }
@@ -1463,7 +1468,10 @@ function updatePgnSelectionUi() {
     if (hasRemote && remote?.username) {
       const providerLabel = getRemoteProvider(remote) === "chesscom" ? "Chess.com" : "Lichess";
       const games = Number.isFinite(remote.games) ? remote.games : 0;
-      configFilesStatusEl.textContent = `Fuente: ${providerLabel} (${remote.username}) | ${games} partida(s) cargadas.`;
+      const warningText = typeof remote.warning === "string" && remote.warning.trim()
+        ? ` ${remote.warning.trim()}`
+        : "";
+      configFilesStatusEl.textContent = `Fuente: ${providerLabel} (${remote.username}) | ${games} partida(s) cargadas.${warningText}`;
     } else {
       configFilesStatusEl.textContent = "";
     }
@@ -3779,6 +3787,8 @@ async function fetchLichessPgn() {
     let finalText = slow.text;
     let totalGames = slow.games;
     let blitzGames = 0;
+    let bulletGames = 0;
+    let qualityWarning = "";
 
     if (settings.fallbackBlitz && totalGames < settings.minSlowGames && totalGames < settings.maxGames) {
       const remaining = settings.maxGames - totalGames;
@@ -3794,6 +3804,26 @@ async function fetchLichessPgn() {
       }
     }
 
+    if (settings.fallbackBullet && totalGames < settings.minSlowGames && totalGames < settings.maxGames) {
+      const remaining = settings.maxGames - totalGames;
+      const warningContext = blitzGames > 0
+        ? `${rawUser} no tiene suficientes partidas en ${preferredLabel}; tampoco alcanza con Blitz`
+        : `${rawUser} no tiene suficientes partidas en ${preferredLabel} ni Blitz`;
+      if (onlineStatusEl) {
+        onlineStatusEl.textContent = `Advertencia: ${warningContext}. Intentando completar con Bullet (${remaining} restantes)...`;
+      }
+      await sleepMs(220);
+      const bullet = await fetchChunk(["bullet"], remaining);
+      bulletGames = bullet.games;
+      totalGames += bulletGames;
+      if (bullet.text && bullet.text.trim()) {
+        finalText = finalText && finalText.trim() ? `${finalText.trim()}\n\n${bullet.text.trim()}\n` : bullet.text;
+      }
+      if (bulletGames > 0) {
+        qualityWarning = `Advertencia: ${warningContext}. Completamos con Bullet, pero no es ideal.`;
+      }
+    }
+
     if (totalGames <= 0) {
       throw new Error("No se encontraron partidas públicas en los ritmos/filtros elegidos.");
     }
@@ -3806,13 +3836,21 @@ async function fetchLichessPgn() {
       provider: "lichess",
       username: rawUser,
       games: totalGames,
-      detail: { slow: slow.games, blitz: blitzGames, preferred: settings.preferredPerf.join(",") },
+      warning: qualityWarning,
+      detail: {
+        slow: slow.games,
+        blitz: blitzGames,
+        bullet: bulletGames,
+        preferred: settings.preferredPerf.join(","),
+      },
     }];
 
     setSourceMode("lichess");
     updatePgnSelectionUi();
     if (onlineStatusEl) {
-      if (blitzGames > 0) {
+      if (bulletGames > 0) {
+        onlineStatusEl.textContent = `${qualityWarning} Listo: ${totalGames} partida(s) de ${rawUser}. ${slow.games} en ${preferredLabel} + ${blitzGames} Blitz + ${bulletGames} Bullet (fallback).`;
+      } else if (blitzGames > 0) {
         onlineStatusEl.textContent = `Listo: ${totalGames} partida(s) de ${rawUser}. ${slow.games} en ${preferredLabel} + ${blitzGames} Blitz (fallback).`;
       } else {
         onlineStatusEl.textContent = `Listo: ${totalGames} partida(s) de ${rawUser} en ${preferredLabel}.`;
@@ -3923,7 +3961,9 @@ async function fetchChessComPgn() {
     const slowClasses = new Set(settings.preferredSlowClasses);
     let slowGames = 0;
     let blitzGames = 0;
+    let bulletGames = 0;
     let totalGames = 0;
+    let qualityWarning = "";
 
     for (const archive of archives) {
       if (totalGames >= settings.maxGames) break;
@@ -3949,6 +3989,28 @@ async function fetchChessComPgn() {
       }
     }
 
+    if (settings.fallbackBullet && totalGames < settings.minSlowGames && totalGames < settings.maxGames) {
+      const remaining = settings.maxGames - totalGames;
+      const warningContext = blitzGames > 0
+        ? `${rawUser} no tiene suficientes partidas en ${preferredLabel}; tampoco alcanza con Blitz`
+        : `${rawUser} no tiene suficientes partidas en ${preferredLabel} ni Blitz`;
+      if (onlineStatusEl) {
+        onlineStatusEl.textContent = `Advertencia: ${warningContext}. Intentando completar con Bullet (${remaining} restantes)...`;
+      }
+      await sleepMs(220);
+      const bulletClass = new Set(["bullet"]);
+      for (const archive of archives) {
+        if (totalGames >= settings.maxGames) break;
+        const games = await loadArchiveGames(archive.url);
+        const added = takeGamesFromArchive(games, bulletClass, settings.maxGames - totalGames);
+        bulletGames += added;
+        totalGames += added;
+      }
+      if (bulletGames > 0) {
+        qualityWarning = `Advertencia: ${warningContext}. Completamos con Bullet, pero no es ideal.`;
+      }
+    }
+
     if (totalGames <= 0 || selectedPgn.length === 0) {
       throw new Error("No se encontraron partidas públicas en los ritmos/filtros elegidos.");
     }
@@ -3961,9 +4023,11 @@ async function fetchChessComPgn() {
       provider: "chesscom",
       username: rawUser,
       games: totalGames,
+      warning: qualityWarning,
       detail: {
         slow: slowGames,
         blitz: blitzGames,
+        bullet: bulletGames,
         preferred: settings.preferredSlowClasses.join(","),
       },
     }];
@@ -3971,7 +4035,9 @@ async function fetchChessComPgn() {
     setSourceMode("chesscom");
     updatePgnSelectionUi();
     if (onlineStatusEl) {
-      if (blitzGames > 0) {
+      if (bulletGames > 0) {
+        onlineStatusEl.textContent = `${qualityWarning} Listo: ${totalGames} partida(s) de ${rawUser}. ${slowGames} en ${preferredLabel} + ${blitzGames} Blitz + ${bulletGames} Bullet (fallback).`;
+      } else if (blitzGames > 0) {
         onlineStatusEl.textContent = `Listo: ${totalGames} partida(s) de ${rawUser}. ${slowGames} en ${preferredLabel} + ${blitzGames} Blitz (fallback).`;
       } else {
         onlineStatusEl.textContent = `Listo: ${totalGames} partida(s) de ${rawUser} en ${preferredLabel}.`;
