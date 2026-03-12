@@ -1,60 +1,88 @@
 # Ludus Scaccorum
 
-Entrenador de ajedrez para 1 o 2 jugadores con base online de partidas públicas.
+Web-based chess trainer for 1 or 2 players, built around public games from Lichess and Chess.com.
 
-## Cómo correrlo
+## Live URL
 
-1. Instalar dependencias:
+- GitHub Pages URL (once enabled in repository settings):
+  - https://jpripamonti.github.io/ludus_scaccorum/
+
+---
+
+## English
+
+### What this project does
+
+- Downloads public games from a selected user (Lichess or Chess.com).
+- Extracts candidate mistake positions.
+- Lets you play and compares your move against engine best move and game move.
+- Supports solo mode and local 2-player duel mode.
+
+### Download policy (current behavior)
+
+- Lichess priority: `classical` + `rapid`.
+- Chess.com priority: `rapid` + `daily`.
+- Fallback chain: `blitz` -> `bullet`.
+- If `bullet` is used, the UI shows a warning because quality is not ideal.
+
+### Local run
 
 ```bash
 npm install
-```
-
-2. Iniciar servidor local:
-
-```bash
 npm start
 ```
 
-3. Abrir en navegador:
+Open:
 
 - http://127.0.0.1:5010
 
-## Pipeline de usuario (flujo real actual)
+### Deployment
 
-1. Abrís el programa.
-2. Elegís modo:
-   - `Jugar solo/a`.
-   - `Jugar contra alguien` (duelo local de 2 jugadores).
-3. Elegís plataforma y usuario:
-   - `Lichess`.
-   - `Chess.com`.
-4. Elegís cantidad de posiciones de la sesión.
-5. Tocás `Comenzar sesión`.
-6. En ese momento el sistema descarga partidas públicas del último año.
-7. Con esas partidas se activa Stockfish para detectar la primera posición de error útil.
-8. Cuando encuentra la primera posición, arranca el tablero.
-9. Jugás la ronda y se evalúa:
-   - Mejor jugada del módulo.
-   - Jugada de la partida original.
-   - Jugada del jugador.
-10. `Siguiente posición` busca y prepara la próxima posición al vuelo.
+- Automatic GitHub Pages deployment is configured with GitHub Actions on push to `main`.
+- To activate it, set **Settings -> Pages -> Source: GitHub Actions**.
 
-### Diferencia entre 1 jugador y 2 jugadores
+### License
 
-- En `1 jugador`, la evaluación se hace al terminar tu jugada.
-- En `2 jugadores`, el Jugador 1 mueve y **no se evalúa todavía**.
-- Luego mueve el Jugador 2 y recién ahí se evalúan ambas jugadas juntas sobre la misma posición base.
+This repository is licensed under **GPL-3.0-or-later**. See [LICENSE](./LICENSE).
 
-## Puntuación
+Note: the project bundles Stockfish.js/Stockfish artifacts under GPL-compatible terms.
 
-- Sin jugada: `0` puntos.
-- Referencia única: siempre la mejor jugada del módulo.
-- Cuanto más cerca de la mejor jugada, mejor calidad y mayor puntaje.
-- Sistema activo: `Etiquetas simples (v1)`.
+---
 
-## Notas técnicas
+## Español
 
-- Motor principal: `vendor/stockfish-18-lite-single.js` (WASM local).
-- Si Stockfish no inicia o falla, el sistema cae a evaluador local de respaldo.
-- Cache de evaluación por `FEN + depth + movetime` para reducir recomputación.
+### Qué hace este proyecto
+
+- Descarga partidas públicas de un usuario elegido (Lichess o Chess.com).
+- Extrae posiciones candidatas con errores.
+- Te deja jugar y compara tu jugada contra la mejor del módulo y la jugada de la partida.
+- Soporta modo individual y duelo local de 2 jugadores.
+
+### Política de descarga (comportamiento actual)
+
+- Prioridad en Lichess: `classical` + `rapid`.
+- Prioridad en Chess.com: `rapid` + `daily`.
+- Cadena de fallback: `blitz` -> `bullet`.
+- Si se usa `bullet`, la UI muestra advertencia porque la calidad no es ideal.
+
+### Ejecutar en local
+
+```bash
+npm install
+npm start
+```
+
+Abrir:
+
+- http://127.0.0.1:5010
+
+### Deploy
+
+- El deploy automático a GitHub Pages ya está configurado con GitHub Actions al pushear a `main`.
+- Para activarlo, configurar **Settings -> Pages -> Source: GitHub Actions**.
+
+### Licencia
+
+Este repositorio está licenciado bajo **GPL-3.0-or-later**. Ver [LICENSE](./LICENSE).
+
+Nota: el proyecto incluye binarios/artefactos de Stockfish.js/Stockfish bajo términos compatibles con GPL.

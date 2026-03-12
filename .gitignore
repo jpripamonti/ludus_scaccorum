@@ -1,1 +1,4 @@
+node_modules/
 output/
+_site/
+.DS_Store
