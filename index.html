@@ -5,27 +5,34 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ludus Scaccorum - Entrenamiento de Errores</title>
-  <link rel="stylesheet" href="styles.css?v=maestro46" />
+  <link rel="stylesheet" href="styles.css?v=maestro47" />
 </head>
 
 <body class="mode-citizen">
   <div class="app">
+    <div class="app-toolbar">
+      <div id="language-switch" class="language-switch" role="group" aria-label="Language / Idioma">
+        <button id="language-btn-es" type="button" class="language-switch-btn" aria-pressed="true">ES</button>
+        <button id="language-btn-en" type="button" class="language-switch-btn" aria-pressed="false">EN</button>
+      </div>
+    </div>
+
     <section id="landing-screen" class="landing-screen">
       <div class="landing-sheen" aria-hidden="true"></div>
       <div class="landing-content">
         <h1 class="landing-title">Ludus Scaccorum</h1>
-        <p class="landing-description">Entrená cálculo, evaluación y toma de decisiones encontrando mejores jugadas en
+        <p class="landing-description" data-i18n="landing.description">Entrená cálculo, evaluación y toma de decisiones encontrando mejores jugadas en
           posiciones reales.</p>
-        <button id="landing-start-btn" type="button" class="landing-btn landing-btn-start">Comenzar</button>
+        <button id="landing-start-btn" type="button" class="landing-btn landing-btn-start" data-i18n="buttons.start">Comenzar</button>
       </div>
     </section>
 
     <section class="panel hidden" id="setup-panel">
       <div id="setup-wizard" class="setup-wizard">
         <header class="wizard-header">
-          <p class="wizard-title">Configuración guiada</p>
-          <h2>Armemos tu sesión en 4 pasos</h2>
-          <p id="wizard-step-indicator" class="wizard-step-indicator">Paso 1 de 4</p>
+          <p class="wizard-title" data-i18n="wizard.title">Configuración guiada</p>
+          <h2 data-i18n="wizard.heading">Armemos tu sesión en 3 pasos</h2>
+          <p id="wizard-step-indicator" class="wizard-step-indicator">Paso 1 de 3</p>
           <div class="wizard-progress-track" aria-hidden="true">
             <div id="wizard-progress-bar" class="wizard-progress-bar"></div>
           </div>
@@ -33,62 +40,62 @@
 
         <div class="wizard-steps">
           <section id="wizard-step-1" class="wizard-step is-active" aria-labelledby="wizard-step-1-title">
-            <h3 id="wizard-step-1-title" class="wizard-question">¿Cómo querés jugar?</h3>
-            <div class="wizard-card-grid" role="group" aria-label="Modo de juego">
-              <button id="wizard-mode-solo" type="button" class="wizard-choice-card">Jugar solo/a</button>
-              <button id="wizard-mode-duel" type="button" class="wizard-choice-card">Jugar contra alguien</button>
+            <h3 id="wizard-step-1-title" class="wizard-question" data-i18n="wizard.step1.question">¿Cómo querés jugar?</h3>
+            <div class="wizard-card-grid" role="group" data-i18n-aria-label="wizard.step1.ariaLabel" aria-label="Modo de juego">
+              <button id="wizard-mode-solo" type="button" class="wizard-choice-card" data-i18n="wizard.step1.solo">Jugar solo/a</button>
+              <button id="wizard-mode-duel" type="button" class="wizard-choice-card" data-i18n="wizard.step1.duel">Jugar contra alguien</button>
             </div>
             <div id="duel-config" class="wizard-inline-form hidden">
-              <label for="duel-player-a">Nombre Jugador 1</label>
-              <input id="duel-player-a" type="text" value="Jugador 1" maxlength="20" autocomplete="off" />
-              <label for="duel-player-b">Nombre Jugador 2</label>
-              <input id="duel-player-b" type="text" value="Jugador 2" maxlength="20" autocomplete="off" />
+              <label for="duel-player-a" data-i18n="wizard.step1.player1Label">Nombre Jugador 1</label>
+              <input id="duel-player-a" type="text" value="Jugador 1" maxlength="20" autocomplete="off" data-player-default="0" />
+              <label for="duel-player-b" data-i18n="wizard.step1.player2Label">Nombre Jugador 2</label>
+              <input id="duel-player-b" type="text" value="Jugador 2" maxlength="20" autocomplete="off" data-player-default="1" />
             </div>
           </section>
 
           <section id="wizard-step-2" class="wizard-step hidden" aria-labelledby="wizard-step-2-title">
-            <h3 id="wizard-step-2-title" class="wizard-question">¿De dónde traemos tus partidas?</h3>
-            <p class="wizard-help" style="margin-bottom: 0;">Vamos a descargar partidas públicas del último año para
+            <h3 id="wizard-step-2-title" class="wizard-question" data-i18n="wizard.step2.question">¿De dónde traemos tus partidas?</h3>
+            <p class="wizard-help" style="margin-bottom: 0;" data-i18n="wizard.step2.help">Vamos a descargar partidas públicas del último año para
               encontrar posiciones.</p>
             <details class="wizard-details-help">
-              <summary>¿Cómo funciona?</summary>
-              <p>El sistema obtiene tus partidas recientes de partidas a ritmo Lento (Clásico/Rápido). Si no hay
+              <summary data-i18n="wizard.step2.howItWorks">¿Cómo funciona?</summary>
+              <p data-i18n="wizard.step2.howItWorksBody">El sistema obtiene tus partidas recientes de partidas a ritmo Lento (Clásico/Rápido). Si no hay
                 suficientes, puede usar partidas Blitz como respaldo. Se descargan hasta la cantidad necesaria para
                 generar tus posiciones de entrenamiento.</p>
             </details>
-            <div class="wizard-card-grid" role="group" aria-label="Plataforma">
-              <button id="wizard-provider-lichess" type="button" class="wizard-choice-card">Lichess</button>
-              <button id="wizard-provider-chesscom" type="button" class="wizard-choice-card">Chess.com</button>
+            <div class="wizard-card-grid" role="group" data-i18n-aria-label="wizard.step2.platformAriaLabel" aria-label="Plataforma">
+              <button id="wizard-provider-lichess" type="button" class="wizard-choice-card" data-i18n="wizard.step2.lichess">Lichess</button>
+              <button id="wizard-provider-chesscom" type="button" class="wizard-choice-card" data-i18n="wizard.step2.chesscom">Chess.com</button>
             </div>
-            <label for="online-user-input">Nombre de usuario</label>
+            <label for="online-user-input" data-i18n="wizard.step2.usernameLabel">Nombre de usuario</label>
             <input id="online-user-input" type="text" placeholder="Ej: MagnusCarlsen" autocomplete="off" />
-            <p id="online-status" class="wizard-status" aria-live="polite">Ingresá tu usuario para continuar.</p>
+            <p id="online-status" class="wizard-status" aria-live="polite" data-i18n="wizard.step2.enterUsername">Ingresá tu usuario para continuar.</p>
             <p id="wizard-source-error" class="wizard-error hidden" aria-live="polite"></p>
             <div id="wizard-source-cta" class="wizard-inline-actions hidden">
-              <button id="wizard-retry-user-btn" type="button" class="wizard-secondary-btn">Probar otro usuario</button>
-              <button id="wizard-switch-platform-btn" type="button" class="wizard-secondary-btn">Cambiar
+              <button id="wizard-retry-user-btn" type="button" class="wizard-secondary-btn" data-i18n="buttons.retryUser">Probar otro usuario</button>
+              <button id="wizard-switch-platform-btn" type="button" class="wizard-secondary-btn" data-i18n="buttons.switchPlatform">Cambiar
                 plataforma</button>
             </div>
           </section>
 
           <section id="wizard-step-3" class="wizard-step hidden" aria-labelledby="wizard-step-3-title">
-            <h3 id="wizard-step-3-title" class="wizard-question">¿Cuántas posiciones querés jugar hoy?</h3>
-            <div class="wizard-size-grid" role="group" aria-label="Cantidad de posiciones">
-              <button type="button" class="wizard-size-chip" data-size="5">5 posiciones</button>
-              <button type="button" class="wizard-size-chip" data-size="10">10 posiciones</button>
-              <button type="button" class="wizard-size-chip" data-size="20">20 posiciones</button>
+            <h3 id="wizard-step-3-title" class="wizard-question" data-i18n="wizard.step3.question">¿Cuántas posiciones querés jugar hoy?</h3>
+            <div class="wizard-size-grid" role="group" data-i18n-aria-label="wizard.step3.ariaLabel" aria-label="Cantidad de posiciones">
+              <button type="button" class="wizard-size-chip" data-size="5" data-i18n="wizard.step3.positions5">5 posiciones</button>
+              <button type="button" class="wizard-size-chip" data-size="10" data-i18n="wizard.step3.positions10">10 posiciones</button>
+              <button type="button" class="wizard-size-chip" data-size="20" data-i18n="wizard.step3.positions20">20 posiciones</button>
             </div>
-            <label for="session-size">Personalizado (1 a 200)</label>
+            <label for="session-size" data-i18n="wizard.step3.customCount">Personalizado (1 a 200)</label>
             <input id="session-size" type="number" min="1" max="200" value="10" />
 
             <div id="wizard-summary-box" class="wizard-summary-floating">
-              <h4 class="wizard-summary-title">Resumen de la sesión</h4>
+              <h4 class="wizard-summary-title" data-i18n="wizard.step3.sessionSummary">Resumen de la sesión</h4>
               <div id="wizard-summary" class="wizard-summary"></div>
             </div>
 
-            <p id="analysis-status" class="wizard-status" style="margin-top:2rem">Tocá “Comenzar sesión” para buscar
+            <p id="analysis-status" class="wizard-status" style="margin-top:2rem" data-i18n="wizard.step3.analysisPrompt">Tocá “Comenzar sesión” para buscar
               errores.</p>
-            <p id="analysis-metrics" class="status-line hidden">Totales: 0 | Analizadas: 0 | Detectadas: 0</p>
+            <p id="analysis-metrics" class="status-line hidden" data-i18n="analysis.metrics.zero">Totales: 0 | Analizadas: 0 | Detectadas: 0</p>
             <div id="analysis-progress-wrap" class="progress hidden" aria-live="polite">
               <div class="progress-track">
                 <div id="analysis-progress-bar" class="progress-bar"></div>
@@ -99,16 +106,16 @@
         </div>
 
         <footer class="wizard-footer">
-          <button id="source-back-btn" type="button" class="wizard-secondary-btn">Volver al inicio</button>
-          <button id="wizard-prev-btn" type="button" class="wizard-secondary-btn hidden">Anterior</button>
-          <button id="wizard-next-btn" type="button">Siguiente</button>
-          <button id="analyze-btn" class="hidden">Comenzar sesión</button>
+          <button id="source-back-btn" type="button" class="wizard-secondary-btn" data-i18n="buttons.backHome">Volver al inicio</button>
+          <button id="wizard-prev-btn" type="button" class="wizard-secondary-btn hidden" data-i18n="buttons.previous">Anterior</button>
+          <button id="wizard-next-btn" type="button" data-i18n="buttons.next">Siguiente</button>
+          <button id="analyze-btn" class="hidden" data-i18n="buttons.startSession">Comenzar sesión</button>
         </footer>
 
         <div class="wizard-compat hidden" aria-hidden="true">
           <select id="game-format">
-            <option value="solo" selected>Modo Estudio (1 jugador)</option>
-            <option value="duel">Duelo de Caballeros (2 jugadores)</option>
+            <option value="solo" selected data-i18n="compat.gameFormat.solo">Modo Estudio (1 jugador)</option>
+            <option value="duel" data-i18n="compat.gameFormat.duel">Duelo de Caballeros (2 jugadores)</option>
           </select>
           <select id="online-provider-select">
             <option value="lichess" selected>Lichess.com</option>
@@ -118,7 +125,7 @@
           <input id="error-threshold" type="number" min="50" max="800" value="80" />
           <input id="analysis-time-ms" type="number" min="50" max="10000" value="400" />
           <select id="scoring-system">
-            <option value="simple_labels_v1" selected>Etiquetas simples (v1)</option>
+            <option value="simple_labels_v1" selected data-i18n="scoring.system.simple.label">Etiquetas simples (v1)</option>
           </select>
           <p id="scoring-system-hint"></p>
           <p id="game-format-hint"></p>
@@ -136,18 +143,18 @@
         <div class="player-identity">
           <div id="player-a-avatar" class="player-avatar">J1</div>
           <div class="player-identity-copy">
-            <p id="player-a-kicker" class="player-kicker">Jugador 1</p>
+            <p id="player-a-kicker" class="player-kicker" data-i18n="players.kicker1">Jugador 1</p>
             <h2 id="player-a-name">Jugador 1</h2>
           </div>
         </div>
         <div class="player-score">
-          <span id="player-a-score-label" class="player-score-label" title="Puntaje">🏆</span>
+          <span id="player-a-score-label" class="player-score-label" data-i18n-title="labels.scoreTitle" title="Puntaje">🏆</span>
           <strong id="player-a-score-value" class="player-score-value">0</strong>
         </div>
-        <p id="solo-progress-line" class="solo-progress-line solo-only" title="Posiciones evaluadas">🎯 0 / 0</p>
+        <p id="solo-progress-line" class="solo-progress-line solo-only" data-i18n-title="labels.positionsEvaluatedTitle" title="Posiciones evaluadas">🎯 0 / 0</p>
         <div id="player-a-timer" class="player-timer">
           <div class="player-timer-head">
-            <span title="Reloj">⏱️</span>
+            <span data-i18n-title="labels.clockTitle" title="Reloj">⏱️</span>
             <strong id="player-a-timer-value">--:--</strong>
           </div>
           <div class="player-timer-track" aria-hidden="true">
@@ -168,7 +175,7 @@
             <div class="board" id="board"></div>
             <svg id="board-arrows" class="board-arrows" aria-hidden="true"></svg>
             <aside id="position-search-overlay" class="position-search-overlay hidden" aria-live="polite">
-              <strong id="position-search-title" class="position-search-title">Buscando próxima posición...</strong>
+              <strong id="position-search-title" class="position-search-title" data-i18n="game.searchingNext">Buscando próxima posición...</strong>
               <span id="position-search-meta" class="position-search-meta"></span>
               <div id="position-search-progress" class="position-search-progress hidden" aria-hidden="true">
                 <div class="position-search-progress-track">
@@ -179,12 +186,12 @@
             </aside>
 
             <button id="handoff-overlay" class="handoff-overlay hidden" type="button" aria-live="polite">
-              <span id="handoff-overlay-title" class="handoff-overlay-title">Cambio de turno</span>
-              <span id="handoff-overlay-subtitle" class="handoff-overlay-subtitle">Toca para revelar</span>
+              <span id="handoff-overlay-title" class="handoff-overlay-title" data-i18n="game.handoff.genericTitle">Cambio de turno</span>
+              <span id="handoff-overlay-subtitle" class="handoff-overlay-subtitle" data-i18n="game.handoff.genericSubtitle">Toca para revelar</span>
             </button>
           </div>
           <aside id="solo-clock-rail" class="solo-clock-rail" aria-live="polite">
-            <span class="solo-clock-icon" title="Reloj">⏱️</span>
+            <span class="solo-clock-icon" data-i18n-title="labels.clockTitle" title="Reloj">⏱️</span>
             <strong id="solo-clock-value" class="solo-clock-value">--:--</strong>
             <div id="solo-clock-track" class="solo-clock-track" aria-hidden="true">
               <div id="solo-clock-bar" class="solo-clock-bar"></div>
@@ -195,8 +202,8 @@
             <div class="result-overlay-panel">
               <div id="result-overlay-inner">
                 <header class="result-overlay-header">
-                  <p id="result-overlay-title" class="result-overlay-title">Resultado</p>
-                  <p id="result-overlay-points" class="result-overlay-points">Todavía no hay jugada evaluada.</p>
+                  <p id="result-overlay-title" class="result-overlay-title" data-i18n="result.title">Resultado</p>
+                  <p id="result-overlay-points" class="result-overlay-points" data-i18n="result.pending">Todavía no hay jugada evaluada.</p>
                 </header>
 
                 <div id="round-result" class="result-overlay-grid"></div>
@@ -213,12 +220,12 @@
               </div>
 
               <div class="result-overlay-actions">
-                <button id="reveal-best-btn" type="button" class="wizard-secondary-btn hidden">Ver la mejor</button>
-                <button id="reveal-game-btn" type="button" class="wizard-secondary-btn hidden">Ver la partida</button>
-                <button id="result-analysis-btn" type="button">Explorar tablero</button>
-                <button id="result-analysis-reset-btn" type="button" class="hidden">Reiniciar análisis</button>
-                <button id="next-btn" disabled>Siguiente posición</button>
-                <button id="summary-menu-btn" type="button" class="hidden">Volver al menú</button>
+                <button id="reveal-best-btn" type="button" class="wizard-secondary-btn hidden" data-i18n="buttons.revealBest">Ver la mejor</button>
+                <button id="reveal-game-btn" type="button" class="wizard-secondary-btn hidden" data-i18n="buttons.revealGame">Ver la partida</button>
+                <button id="result-analysis-btn" type="button" data-i18n="buttons.exploreBoard">Explorar tablero</button>
+                <button id="result-analysis-reset-btn" type="button" class="hidden" data-i18n="buttons.resetAnalysis">Reiniciar análisis</button>
+                <button id="next-btn" disabled data-i18n="buttons.nextPosition">Siguiente posición</button>
+                <button id="summary-menu-btn" type="button" class="hidden" data-i18n="buttons.backToMenu">Volver al menú</button>
               </div>
             </div>
           </aside>
@@ -232,17 +239,17 @@
         <div class="player-identity">
           <div id="player-b-avatar" class="player-avatar">J2</div>
           <div class="player-identity-copy">
-            <p id="player-b-kicker" class="player-kicker">Jugador 2</p>
+            <p id="player-b-kicker" class="player-kicker" data-i18n="players.kicker2">Jugador 2</p>
             <h2 id="player-b-name">Jugador 2</h2>
           </div>
         </div>
         <div class="player-score">
-          <span id="player-b-score-label" class="player-score-label" title="Puntaje">🏆</span>
+          <span id="player-b-score-label" class="player-score-label" data-i18n-title="labels.scoreTitle" title="Puntaje">🏆</span>
           <strong id="player-b-score-value" class="player-score-value">0</strong>
         </div>
         <div id="player-b-timer" class="player-timer">
           <div class="player-timer-head">
-            <span title="Reloj">⏱️</span>
+            <span data-i18n-title="labels.clockTitle" title="Reloj">⏱️</span>
             <strong id="player-b-timer-value">--:--</strong>
           </div>
           <div class="player-timer-track" aria-hidden="true">
@@ -254,19 +261,19 @@
     </main>
 
     <div id="shared-actions" class="board-actions-secondary">
-      <button id="skip-btn">Omitir jugada (0 pts)</button>
-      <button id="restart-btn">Volver al menú</button>
+      <button id="skip-btn" data-i18n="buttons.skipMove">Omitir jugada (0 pts)</button>
+      <button id="restart-btn" data-i18n="buttons.restartMenu">Volver al menú</button>
     </div>
 
     <div id="score-panel" class="hidden" aria-hidden="true">
-      <span id="score-label">Puntos totales</span>
+      <span id="score-label" data-i18n="score.totalPoints">Puntos totales</span>
       <strong id="score">0</strong>
     </div>
     <div id="round-result-panel" class="hidden" aria-hidden="true"></div>
     <ul id="history" class="history hidden" aria-hidden="true"></ul>
   </div>
 
-  <script src="app.js?v=maestro47"></script>
+  <script src="app.js?v=maestro48"></script>
 </body>
 
 </html>

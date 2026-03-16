@@ -111,6 +111,9 @@ const sessionSummaryResultEl = document.getElementById("session-summary-result")
 const summaryScoreDisplayEl = document.querySelector(".summary-score-display");
 const summaryDetailsTextEl = document.querySelector(".summary-details-text");
 const summaryMenuBtn = document.getElementById("summary-menu-btn");
+const languageSwitchEl = document.getElementById("language-switch");
+const languageBtnEs = document.getElementById("language-btn-es");
+const languageBtnEn = document.getElementById("language-btn-en");
 
 const INTERNAL_ANALYSIS_DEPTH = 3;
 const DEFAULT_SCORING_SYSTEM = "simple_labels_v1";
@@ -125,6 +128,511 @@ const ROUND_EVAL_MIN_TOTAL_MS = 2200;
 const ROUND_EVAL_MIN_TASK_MS = 350;
 const ROUND_THINKING_MESSAGE_INTERVAL_MS = 1700;
 const CLOCK_TICK_MS = 100;
+const LANGUAGE_STORAGE_KEY = "ludus.language";
+const SUPPORTED_LANGUAGES = ["es", "en"];
+const TRANSLATIONS = {
+  es: {
+    "meta.title": "Ludus Scaccorum - Entrenamiento de Errores",
+    "landing.description": "Entrená cálculo, evaluación y toma de decisiones encontrando mejores jugadas en posiciones reales.",
+    "buttons.start": "Comenzar",
+    "buttons.backHome": "Volver al inicio",
+    "buttons.previous": "Anterior",
+    "buttons.next": "Siguiente",
+    "buttons.startSession": "Comenzar sesión",
+    "buttons.retryUser": "Probar otro usuario",
+    "buttons.switchPlatform": "Cambiar plataforma",
+    "buttons.revealBest": "Ver la mejor",
+    "buttons.revealGame": "Ver la partida",
+    "buttons.revealPlayedBy": "Ver la que jugó {name}",
+    "buttons.exploreBoard": "Explorar tablero",
+    "buttons.analysisActive": "Exploración activa",
+    "buttons.resetAnalysis": "Reiniciar análisis",
+    "buttons.nextPosition": "Siguiente posición",
+    "buttons.backToMenu": "Volver al menú",
+    "buttons.skipMove": "Omitir jugada (0 pts)",
+    "buttons.restartMenu": "Volver al menú",
+    "wizard.title": "Configuración guiada",
+    "wizard.heading": "Armemos tu sesión en 3 pasos",
+    "wizard.stepIndicator": "Paso {step} de {total}",
+    "wizard.step1.question": "¿Cómo querés jugar?",
+    "wizard.step1.ariaLabel": "Modo de juego",
+    "wizard.step1.solo": "Jugar solo/a",
+    "wizard.step1.duel": "Jugar contra alguien",
+    "wizard.step1.player1Label": "Nombre Jugador 1",
+    "wizard.step1.player2Label": "Nombre Jugador 2",
+    "wizard.step2.question": "¿De dónde traemos tus partidas?",
+    "wizard.step2.help": "Vamos a descargar partidas públicas del último año para encontrar posiciones.",
+    "wizard.step2.howItWorks": "¿Cómo funciona?",
+    "wizard.step2.howItWorksBody": "El sistema obtiene tus partidas recientes de partidas a ritmo Lento (Clásico/Rápido). Si no hay suficientes, puede usar partidas Blitz como respaldo. Se descargan hasta la cantidad necesaria para generar tus posiciones de entrenamiento.",
+    "wizard.step2.platformAriaLabel": "Plataforma",
+    "wizard.step2.lichess": "Lichess",
+    "wizard.step2.chesscom": "Chess.com",
+    "wizard.step2.usernameLabel": "Nombre de usuario",
+    "wizard.step2.enterUsername": "Ingresá tu usuario para continuar.",
+    "wizard.step3.question": "¿Cuántas posiciones querés jugar hoy?",
+    "wizard.step3.ariaLabel": "Cantidad de posiciones",
+    "wizard.step3.positions5": "5 posiciones",
+    "wizard.step3.positions10": "10 posiciones",
+    "wizard.step3.positions20": "20 posiciones",
+    "wizard.step3.customCount": "Personalizado (1 a 200)",
+    "wizard.step3.sessionSummary": "Resumen de la sesión",
+    "wizard.step3.analysisPrompt": "Tocá “Comenzar sesión” para buscar errores.",
+    "wizard.validation.chooseMode": "Elegí si querés jugar solo/a o contra alguien.",
+    "wizard.validation.fillDuelNames": "Completá ambos nombres para el duelo.",
+    "wizard.validation.duelNameMax": "Los nombres del duelo pueden tener hasta 20 caracteres.",
+    "wizard.validation.choosePlatform": "Elegí Lichess o Chess.com.",
+    "wizard.validation.enterUsername": "Ingresá tu nombre de usuario para continuar.",
+    "wizard.validation.invalidUsername": "El usuario debe tener 3 a 30 caracteres (letras, números, _ o -).",
+    "wizard.validation.chooseCount": "Elegí una cantidad entre 1 y 200 posiciones.",
+    "wizard.validation.ready": "Configuración lista para comenzar la sesión.",
+    "wizard.status.currentStep": "Configurá el paso actual para continuar.",
+    "wizard.status.answerQuestions": "Respondé las preguntas para preparar tu sesión.",
+    "wizard.status.nextSession": "Configurá tu próxima sesión paso a paso.",
+    "wizard.status.modeSourceOptions": "Configurá modo, fuente y opciones de análisis.",
+    "wizard.status.nextStep": "Perfecto. Seguimos con el siguiente paso.",
+    "wizard.status.sourceStep": "Perfecto. Seguimos con la fuente de partidas.",
+    "compat.gameFormat.solo": "Modo Estudio (1 jugador)",
+    "compat.gameFormat.duel": "Duelo de Caballeros (2 jugadores)",
+    "players.default1": "Jugador 1",
+    "players.default2": "Jugador 2",
+    "players.kicker1": "Jugador 1",
+    "players.kicker2": "Jugador 2",
+    "players.targetLabel": "Usuario objetivo del análisis",
+    "players.targetHint": "Usaremos este usuario para seleccionar posiciones.",
+    "players.enterUserContinue": "Ingresá el usuario para continuar.",
+    "players.notDetected": "No detectado",
+    "players.genericUser": "usuario",
+    "labels.scoreTitle": "Puntaje",
+    "labels.clockTitle": "Reloj",
+    "labels.positionsEvaluatedTitle": "Posiciones evaluadas",
+    "result.title": "Resultado",
+    "result.pending": "Todavía no hay jugada evaluada.",
+    "score.totalPoints": "Puntos totales",
+    "score.duelScore": "Marcador duelo",
+    "scoring.system.simple.label": "Etiquetas simples (v1)",
+    "scoring.system.simple.description": "Puntajes simples por calidad: Blunder -1, Mala -0.5, Dudosa 0, Interesante 0.25, Buena 0.5, Muy buena 0.75, Perfecta 1.",
+    "quality.no_move": "Sin jugada",
+    "quality.perfect": "Perfecta",
+    "quality.very_good": "Muy buena",
+    "quality.good": "Buena",
+    "quality.interesting": "Interesante (!?)",
+    "quality.dubious": "Dudosa",
+    "quality.bad": "Mala",
+    "quality.blunder": "Blunder",
+    "common.notAvailable": "No disponible",
+    "common.unknown": "desconocido",
+    "common.searching": "Pensando...",
+    "common.gameFallback": "Partida",
+    "common.playersUnavailable": "Jugadores no disponibles",
+    "common.white": "Blancas",
+    "common.black": "Negras",
+    "common.sourceError": "No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma.",
+    "common.sourceErrorWithDetail": "No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma. ({error})",
+    "time.classical": "Clásico",
+    "time.rapid": "Rápido",
+    "time.daily": "Diario",
+    "time.blitz": "Blitz",
+    "time.bullet": "Bullet",
+    "evaluation.mateIn": "Mate en {ply}",
+    "evaluation.getsMatedIn": "Recibe mate en {ply}",
+    "evaluation.deltaUnavailable": "No disponible",
+    "evaluation.deltaEqual": "Igual",
+    "evaluation.deltaMateBetter": "Mejor (mate/casi mate)",
+    "evaluation.deltaMateWorse": "Peor (mate/casi mate)",
+    "evaluation.deltaBetter": "+{delta} cp (mejor)",
+    "evaluation.deltaWorse": "{delta} cp (peor)",
+    "evaluation.moduleBest": "Mejor del módulo",
+    "evaluation.gameLine": "Partida",
+    "evaluation.yourMove": "Tu jugada",
+    "evaluation.historyPosition": "Posición {round}",
+    "evaluation.historyModule": "Módulo",
+    "evaluation.historyGame": "Partida",
+    "evaluation.historyYourMove": "Tu jugada",
+    "evaluation.historyEmpty": "Sin posiciones jugadas.",
+    "evaluation.classification": "Clasificación",
+    "evaluation.delta": "Delta",
+    "evaluation.points": "Puntos",
+    "evaluation.timeoutZeroPoints": "Tiempo agotado: 0 puntos.",
+    "evaluation.noMoveZeroPoints": "No hubo jugada: 0 puntos.",
+    "evaluation.timeoutZeroPts": "Tiempo agotado: 0 pts.",
+    "evaluation.noMoveMadeZeroPts": "No hiciste jugada: 0 pts.",
+    "evaluation.wonPoints": "Ganaste {points} pts",
+    "evaluation.bestPrefix": "Mejor: {san}",
+    "evaluation.gamePrefix": "Partida: {san}",
+    "game.searchingNext": "Buscando próxima posición...",
+    "game.positionFound": "Posición encontrada",
+    "game.handoff.genericTitle": "Cambio de turno",
+    "game.handoff.genericSubtitle": "Toca para revelar",
+    "game.handoff.title": "Turno de {player}",
+    "game.handoff.subtitle": "Toca para revelar",
+    "game.infoCitizen": "{players} | {event} {year} | Movida {move}",
+    "game.infoEngineer": "{players} | {event} {year} | ECO {eco} | Resultado {result} | Movida {move}",
+    "game.positionMeta": "{players} · Resultado {result} · Jugada {move} · Año {year}",
+    "game.progressSolo": "Posiciones evaluadas: {played} / {target} · Restan: {remaining}",
+    "game.progressDuel": "Ronda {round}/{target} · Restan: {remaining} · Aciertos: {p1} {p1Hits} - {p2Hits} {p2}",
+    "game.roundSolo": "Posición {current}/{target}",
+    "game.roundDuel": "Posición {current}/{target} · Juega {player} ({turn}/2)",
+    "game.roundReview": "Revisión · {label}",
+    "game.duelCompetitive": "Duelo local · {seconds}s por turno · {system}",
+    "game.duelHint": "Competitivo local: ambos jugadores reciben exactamente las mismas posiciones y tiempo.",
+    "game.soloHint": "Entrenamiento individual con puntaje total acumulado.",
+    "game.studyMode": "Modo estudio (solo/a)",
+    "game.localDuel": "Duelo local ({a} vs {b})",
+    "game.summaryMode": "Modo",
+    "game.summaryPlatform": "Plataforma",
+    "game.summaryUser": "Usuario",
+    "game.summaryPositions": "Posiciones",
+    "game.result.yourMove": "Resultado de tu jugada",
+    "game.result.positionSolved": "¡Posición resuelta!",
+    "game.comparison.tie": "Comparativa: empate.",
+    "game.comparison.advantage": "Comparativa: ventaja para {player}.",
+    "game.finalScoreSolo": "Puntaje final: {score}",
+    "game.finalDraw": "Resultado final: empate.",
+    "game.finalWinner": "Ganador: {player}.",
+    "game.finalMatchScore": "Marcador final: {p1} {s1} - {s2} {p2}. {winner}",
+    "game.sessionDone": "¡Sesión terminada!",
+    "game.noMorePositions": "No se encontraron más posiciones.",
+    "game.sessionHintCitizen": "Objetivo de sesión: {target} posiciones. Detectadas: {detected}.",
+    "game.sessionHintEngineer": "Objetivo de sesión: {target} posiciones. Sistema: {system}. Detectadas por ahora: {detected}. Analizadas: {analyzed}/{total}.",
+    "overlay.timeoutEvaluating": "Tiempo agotado. Evaluando posición...",
+    "overlay.closingWithoutMove": "Cerrando posición sin jugada...",
+    "overlay.evaluatingMove": "Evaluando jugada...",
+    "overlay.evaluatingBoth": "Evaluando jugadas de ambos jugadores...",
+    "overlay.evaluatingYours": "Evaluando tu jugada...",
+    "overlay.difficultyBudget": "Dificultad {label} · {budget}",
+    "overlay.progressLabel": "{pct}% · {elapsed}s / {total}s",
+    "overlay.searchingNext": "Buscando próxima posición...",
+    "analysis.metrics.zero": "Totales: 0 | Analizadas: 0 | Detectadas: 0",
+    "analysis.metrics.engineer": "Posiciones totales: {total} | Posiciones analizadas: {done} | Posiciones detectadas (>= umbral): {detected}",
+    "analysis.progressLabel": "{pct}% ({done}/{total}){extra}",
+    "analysis.extra.detectedRepeated": "Posición detectada (repetida)",
+    "analysis.extra.evaluatingCandidate": "Evaluando {ordinal}/{total}",
+    "analysis.extra.detected": "Posición detectada",
+    "analysis.extra.searchingError": "Buscando error",
+    "analysis.extra.finished": "Búsqueda finalizada",
+    "analysis.status.reused": "{prefix}Posición detectada ({count}). Se reutiliza partida por falta de alternativas.",
+    "analysis.status.candidate": "{prefix}Analizando candidata {ordinal}/{total}. Detectadas: {detected}.",
+    "analysis.status.ready": "{prefix}Posición detectada ({count}). Podés jugar.",
+    "analysis.status.continuity": "{prefix}Posición detectada ({count}). Se priorizó continuidad de sesión.",
+    "analysis.status.noFresh": "{prefix}Posición detectada ({count}). No hubo más partidas nuevas en el umbral.",
+    "analysis.status.noMore": "{prefix}No quedan más posiciones en el umbral.",
+    "analysis.status.prepareBase": "Preparando base online de {provider}...",
+    "analysis.status.shuffle": "Barajando {games} partidas y buscando primera posición para {player}...",
+    "analysis.status.firstReady": "Primera posición detectada. Ya podés jugar.",
+    "analysis.status.error": "Error durante el análisis: {error}",
+    "analysis.status.roundError": "Error al evaluar la ronda: {error}",
+    "provider.readyToDownload": "Listo para descargar partidas cuando toques “Comenzar sesión”.",
+    "provider.baseReady": "Base lista para {username}.{warning}",
+    "provider.sourceLoaded": "Fuente: {provider} ({username}) | {games} partida(s) cargadas.{warning}",
+    "provider.modeChangedRedownload": "Modo cambiado. La base online se descargará de nuevo al comenzar.",
+    "provider.enterLichessUser": "Ingresá un usuario de Lichess.",
+    "provider.enterLichessContinue": "Ingresá un usuario de Lichess para continuar.",
+    "provider.enterChesscomUser": "Ingresá un usuario de Chess.com.",
+    "provider.enterChesscomContinue": "Ingresá un usuario de Chess.com para continuar.",
+    "provider.protocolLichess": "Protocolo modo normal: se descargan partidas públicas del último año. Primero {preferred}; si no llega a {minSlowGames}, se completa con Blitz y, si aún falta base, con Bullet (no ideal) hasta {maxGames}.",
+    "provider.protocolChesscom": "Protocolo modo normal: se descargan partidas públicas del último año desde archivos mensuales. Primero {preferred}; si no llega a {minSlowGames}, se completa con Blitz y, si aún falta base, con Bullet (no ideal) hasta {maxGames}.",
+    "provider.downloadingFor": "Descargando para {user}. {protocol}",
+    "provider.searchingUpTo": "Buscando hasta {max} partida(s) de {user}: primero {preferred} (últimos 12 meses)...",
+    "provider.completingBlitz": "Se descargaron {count} partida(s) {preferred}. Completando con Blitz ({remaining} restantes)...",
+    "provider.bulletContextStillShort": "{user} no tiene suficientes partidas en {preferred}; tampoco alcanza con Blitz",
+    "provider.bulletContextNoBlitz": "{user} no tiene suficientes partidas en {preferred} ni Blitz",
+    "provider.bulletAttempt": "Advertencia: {context}. Intentando completar con Bullet ({remaining} restantes)...",
+    "provider.bulletCompleted": "Advertencia: {context}. Completamos con Bullet, pero no es ideal.",
+    "provider.readyBullet": "{warning} Listo: {total} partida(s) de {user}. {slow} en {preferred} + {blitz} Blitz + {bullet} Bullet (fallback).",
+    "provider.readyBlitz": "Listo: {total} partida(s) de {user}. {slow} en {preferred} + {blitz} Blitz (fallback).",
+    "provider.readyPreferred": "Listo: {total} partida(s) de {user} en {preferred}.",
+    "provider.chesscomReadArchiveError": "Chess.com respondió {status} al leer {url}.",
+    "provider.userNotFoundOrPrivate": "Usuario no encontrado o sin partidas públicas.",
+    "provider.lichessResponse": "Lichess respondió {status}",
+    "provider.chesscomResponse": "Chess.com respondió {status}",
+    "provider.noMonthlyArchives": "No hay archivos mensuales públicos en los últimos 12 meses.",
+    "provider.noGamesForFilters": "No se encontraron partidas públicas en los ritmos/filtros elegidos.",
+    "provider.noPublicValidGames": "No encontramos partidas públicas válidas para ese usuario. Probá otro usuario o plataforma.",
+    "provider.playerNotDetected": "No pudimos detectar el jugador en las partidas descargadas. Probá con otro usuario.",
+    "provider.noAnalyzablePositions": "No encontramos posiciones analizables para ese usuario. Probá con otro usuario o plataforma.",
+    "provider.noUsefulMistakes": "No se detectaron errores útiles con este usuario. Candidatas analizadas: {analyzed}/{total}.",
+    "difficulty.low": "baja",
+    "difficulty.medium": "media",
+    "difficulty.high": "alta",
+  },
+  en: {
+    "meta.title": "Ludus Scaccorum - Mistake Training",
+    "landing.description": "Train calculation, evaluation, and decision-making by finding better moves in real positions.",
+    "buttons.start": "Start",
+    "buttons.backHome": "Back to home",
+    "buttons.previous": "Previous",
+    "buttons.next": "Next",
+    "buttons.startSession": "Start session",
+    "buttons.retryUser": "Try another user",
+    "buttons.switchPlatform": "Switch platform",
+    "buttons.revealBest": "Show best move",
+    "buttons.revealGame": "Show game move",
+    "buttons.revealPlayedBy": "Show what {name} played",
+    "buttons.exploreBoard": "Explore board",
+    "buttons.analysisActive": "Exploration active",
+    "buttons.resetAnalysis": "Reset analysis",
+    "buttons.nextPosition": "Next position",
+    "buttons.backToMenu": "Back to menu",
+    "buttons.skipMove": "Skip move (0 pts)",
+    "buttons.restartMenu": "Back to menu",
+    "wizard.title": "Guided setup",
+    "wizard.heading": "Let's build your session in 3 steps",
+    "wizard.stepIndicator": "Step {step} of {total}",
+    "wizard.step1.question": "How do you want to play?",
+    "wizard.step1.ariaLabel": "Game mode",
+    "wizard.step1.solo": "Play solo",
+    "wizard.step1.duel": "Play against someone",
+    "wizard.step1.player1Label": "Player 1 name",
+    "wizard.step1.player2Label": "Player 2 name",
+    "wizard.step2.question": "Where should we get your games from?",
+    "wizard.step2.help": "We will download public games from the last year to find positions.",
+    "wizard.step2.howItWorks": "How does it work?",
+    "wizard.step2.howItWorksBody": "The system gets your recent long-time-control games (Classical/Rapid). If that is not enough, it can use Blitz as backup. It downloads up to the amount needed to generate your training positions.",
+    "wizard.step2.platformAriaLabel": "Platform",
+    "wizard.step2.lichess": "Lichess",
+    "wizard.step2.chesscom": "Chess.com",
+    "wizard.step2.usernameLabel": "Username",
+    "wizard.step2.enterUsername": "Enter your username to continue.",
+    "wizard.step3.question": "How many positions do you want to play today?",
+    "wizard.step3.ariaLabel": "Number of positions",
+    "wizard.step3.positions5": "5 positions",
+    "wizard.step3.positions10": "10 positions",
+    "wizard.step3.positions20": "20 positions",
+    "wizard.step3.customCount": "Custom (1 to 200)",
+    "wizard.step3.sessionSummary": "Session summary",
+    "wizard.step3.analysisPrompt": "Tap “Start session” to look for mistakes.",
+    "wizard.validation.chooseMode": "Choose whether you want to play solo or against someone.",
+    "wizard.validation.fillDuelNames": "Fill in both duel names.",
+    "wizard.validation.duelNameMax": "Duel names can be up to 20 characters long.",
+    "wizard.validation.choosePlatform": "Choose Lichess or Chess.com.",
+    "wizard.validation.enterUsername": "Enter your username to continue.",
+    "wizard.validation.invalidUsername": "The username must be 3 to 30 characters long (letters, numbers, _ or -).",
+    "wizard.validation.chooseCount": "Choose a number between 1 and 200 positions.",
+    "wizard.validation.ready": "Configuration is ready to start the session.",
+    "wizard.status.currentStep": "Configure the current step to continue.",
+    "wizard.status.answerQuestions": "Answer the questions to prepare your session.",
+    "wizard.status.nextSession": "Set up your next session step by step.",
+    "wizard.status.modeSourceOptions": "Configure mode, source, and analysis options.",
+    "wizard.status.nextStep": "Perfect. Let's move on to the next step.",
+    "wizard.status.sourceStep": "Perfect. Let's move on to the game source.",
+    "compat.gameFormat.solo": "Study mode (1 player)",
+    "compat.gameFormat.duel": "Gentlemen's duel (2 players)",
+    "players.default1": "Player 1",
+    "players.default2": "Player 2",
+    "players.kicker1": "Player 1",
+    "players.kicker2": "Player 2",
+    "players.targetLabel": "Target user for analysis",
+    "players.targetHint": "We will use this user to choose positions.",
+    "players.enterUserContinue": "Enter the user to continue.",
+    "players.notDetected": "Not detected",
+    "players.genericUser": "user",
+    "labels.scoreTitle": "Score",
+    "labels.clockTitle": "Clock",
+    "labels.positionsEvaluatedTitle": "Evaluated positions",
+    "result.title": "Result",
+    "result.pending": "There is no evaluated move yet.",
+    "score.totalPoints": "Total points",
+    "score.duelScore": "Duel score",
+    "scoring.system.simple.label": "Simple labels (v1)",
+    "scoring.system.simple.description": "Simple quality scoring: Blunder -1, Bad -0.5, Dubious 0, Interesting 0.25, Good 0.5, Very good 0.75, Perfect 1.",
+    "quality.no_move": "No move",
+    "quality.perfect": "Perfect",
+    "quality.very_good": "Very good",
+    "quality.good": "Good",
+    "quality.interesting": "Interesting (!?)",
+    "quality.dubious": "Dubious",
+    "quality.bad": "Bad",
+    "quality.blunder": "Blunder",
+    "common.notAvailable": "Not available",
+    "common.unknown": "unknown",
+    "common.searching": "Thinking...",
+    "common.gameFallback": "Game",
+    "common.playersUnavailable": "Players unavailable",
+    "common.white": "White",
+    "common.black": "Black",
+    "common.sourceError": "We couldn't fetch games for that user. Check the username or switch platform.",
+    "common.sourceErrorWithDetail": "We couldn't fetch games for that user. Check the username or switch platform. ({error})",
+    "time.classical": "Classical",
+    "time.rapid": "Rapid",
+    "time.daily": "Daily",
+    "time.blitz": "Blitz",
+    "time.bullet": "Bullet",
+    "evaluation.mateIn": "Mate in {ply}",
+    "evaluation.getsMatedIn": "Gets mated in {ply}",
+    "evaluation.deltaUnavailable": "Not available",
+    "evaluation.deltaEqual": "Equal",
+    "evaluation.deltaMateBetter": "Better (mate / near mate)",
+    "evaluation.deltaMateWorse": "Worse (mate / near mate)",
+    "evaluation.deltaBetter": "+{delta} cp (better)",
+    "evaluation.deltaWorse": "{delta} cp (worse)",
+    "evaluation.moduleBest": "Engine best",
+    "evaluation.gameLine": "Game",
+    "evaluation.yourMove": "Your move",
+    "evaluation.historyPosition": "Position {round}",
+    "evaluation.historyModule": "Engine",
+    "evaluation.historyGame": "Game",
+    "evaluation.historyYourMove": "Your move",
+    "evaluation.historyEmpty": "No played positions.",
+    "evaluation.classification": "Classification",
+    "evaluation.delta": "Delta",
+    "evaluation.points": "Points",
+    "evaluation.timeoutZeroPoints": "Time ran out: 0 points.",
+    "evaluation.noMoveZeroPoints": "No move played: 0 points.",
+    "evaluation.timeoutZeroPts": "Time ran out: 0 pts.",
+    "evaluation.noMoveMadeZeroPts": "You did not play a move: 0 pts.",
+    "evaluation.wonPoints": "You won {points} pts",
+    "evaluation.bestPrefix": "Best: {san}",
+    "evaluation.gamePrefix": "Game: {san}",
+    "game.searchingNext": "Searching next position...",
+    "game.positionFound": "Position found",
+    "game.handoff.genericTitle": "Turn change",
+    "game.handoff.genericSubtitle": "Tap to reveal",
+    "game.handoff.title": "{player}'s turn",
+    "game.handoff.subtitle": "Tap to reveal",
+    "game.infoCitizen": "{players} | {event} {year} | Move {move}",
+    "game.infoEngineer": "{players} | {event} {year} | ECO {eco} | Result {result} | Move {move}",
+    "game.positionMeta": "{players} · Result {result} · Move {move} · Year {year}",
+    "game.progressSolo": "Evaluated positions: {played} / {target} · Remaining: {remaining}",
+    "game.progressDuel": "Round {round}/{target} · Remaining: {remaining} · Hits: {p1} {p1Hits} - {p2Hits} {p2}",
+    "game.roundSolo": "Position {current}/{target}",
+    "game.roundDuel": "Position {current}/{target} · {player} to move ({turn}/2)",
+    "game.roundReview": "Review · {label}",
+    "game.duelCompetitive": "Local duel · {seconds}s per turn · {system}",
+    "game.duelHint": "Competitive local mode: both players get exactly the same positions and time.",
+    "game.soloHint": "Individual training with total accumulated score.",
+    "game.studyMode": "Study mode (solo)",
+    "game.localDuel": "Local duel ({a} vs {b})",
+    "game.summaryMode": "Mode",
+    "game.summaryPlatform": "Platform",
+    "game.summaryUser": "User",
+    "game.summaryPositions": "Positions",
+    "game.result.yourMove": "Your move result",
+    "game.result.positionSolved": "Position solved!",
+    "game.comparison.tie": "Comparison: tie.",
+    "game.comparison.advantage": "Comparison: edge for {player}.",
+    "game.finalScoreSolo": "Final score: {score}",
+    "game.finalDraw": "Final result: draw.",
+    "game.finalWinner": "Winner: {player}.",
+    "game.finalMatchScore": "Final score: {p1} {s1} - {s2} {p2}. {winner}",
+    "game.sessionDone": "Session finished!",
+    "game.noMorePositions": "No more positions were found.",
+    "game.sessionHintCitizen": "Session target: {target} positions. Found: {detected}.",
+    "game.sessionHintEngineer": "Session target: {target} positions. System: {system}. Found so far: {detected}. Analyzed: {analyzed}/{total}.",
+    "overlay.timeoutEvaluating": "Time ran out. Evaluating position...",
+    "overlay.closingWithoutMove": "Closing position without a move...",
+    "overlay.evaluatingMove": "Evaluating move...",
+    "overlay.evaluatingBoth": "Evaluating both players' moves...",
+    "overlay.evaluatingYours": "Evaluating your move...",
+    "overlay.difficultyBudget": "Difficulty {label} · {budget}",
+    "overlay.progressLabel": "{pct}% · {elapsed}s / {total}s",
+    "overlay.searchingNext": "Searching next position...",
+    "analysis.metrics.zero": "Totals: 0 | Analyzed: 0 | Found: 0",
+    "analysis.metrics.engineer": "Total positions: {total} | Analyzed positions: {done} | Found positions (>= threshold): {detected}",
+    "analysis.progressLabel": "{pct}% ({done}/{total}){extra}",
+    "analysis.extra.detectedRepeated": "Position found (repeated)",
+    "analysis.extra.evaluatingCandidate": "Evaluating {ordinal}/{total}",
+    "analysis.extra.detected": "Position found",
+    "analysis.extra.searchingError": "Looking for error",
+    "analysis.extra.finished": "Search finished",
+    "analysis.status.reused": "{prefix}Position found ({count}). Reusing a game due to lack of alternatives.",
+    "analysis.status.candidate": "{prefix}Analyzing candidate {ordinal}/{total}. Found: {detected}.",
+    "analysis.status.ready": "{prefix}Position found ({count}). You can play now.",
+    "analysis.status.continuity": "{prefix}Position found ({count}). Session continuity was prioritized.",
+    "analysis.status.noFresh": "{prefix}Position found ({count}). There were no more fresh games above the threshold.",
+    "analysis.status.noMore": "{prefix}There are no more positions above the threshold.",
+    "analysis.status.prepareBase": "Preparing online base from {provider}...",
+    "analysis.status.shuffle": "Shuffling {games} games and looking for the first position for {player}...",
+    "analysis.status.firstReady": "First position found. You can start playing now.",
+    "analysis.status.error": "Error during analysis: {error}",
+    "analysis.status.roundError": "Error while evaluating the round: {error}",
+    "provider.readyToDownload": "Ready to download games when you tap “Start session”.",
+    "provider.baseReady": "Base ready for {username}.{warning}",
+    "provider.sourceLoaded": "Source: {provider} ({username}) | {games} game(s) loaded.{warning}",
+    "provider.modeChangedRedownload": "Mode changed. The online base will be downloaded again when you start.",
+    "provider.enterLichessUser": "Enter a Lichess username.",
+    "provider.enterLichessContinue": "Enter a Lichess username to continue.",
+    "provider.enterChesscomUser": "Enter a Chess.com username.",
+    "provider.enterChesscomContinue": "Enter a Chess.com username to continue.",
+    "provider.protocolLichess": "Normal-mode protocol: public games from the last year are downloaded. First {preferred}; if it does not reach {minSlowGames}, Blitz is added and, if the base is still too small, Bullet (not ideal) is added up to {maxGames}.",
+    "provider.protocolChesscom": "Normal-mode protocol: public games from the last year are downloaded from monthly archives. First {preferred}; if it does not reach {minSlowGames}, Blitz is added and, if the base is still too small, Bullet (not ideal) is added up to {maxGames}.",
+    "provider.downloadingFor": "Downloading for {user}. {protocol}",
+    "provider.searchingUpTo": "Looking for up to {max} game(s) by {user}: first {preferred} (last 12 months)...",
+    "provider.completingBlitz": "{count} {preferred} game(s) were downloaded. Filling with Blitz ({remaining} left)...",
+    "provider.bulletContextStillShort": "{user} does not have enough games in {preferred}; Blitz is still not enough",
+    "provider.bulletContextNoBlitz": "{user} does not have enough games in {preferred} or Blitz",
+    "provider.bulletAttempt": "Warning: {context}. Trying to fill with Bullet ({remaining} left)...",
+    "provider.bulletCompleted": "Warning: {context}. We filled with Bullet, but it is not ideal.",
+    "provider.readyBullet": "{warning} Ready: {total} game(s) from {user}. {slow} in {preferred} + {blitz} Blitz + {bullet} Bullet (fallback).",
+    "provider.readyBlitz": "Ready: {total} game(s) from {user}. {slow} in {preferred} + {blitz} Blitz (fallback).",
+    "provider.readyPreferred": "Ready: {total} game(s) from {user} in {preferred}.",
+    "provider.chesscomReadArchiveError": "Chess.com returned {status} while reading {url}.",
+    "provider.userNotFoundOrPrivate": "User not found or without public games.",
+    "provider.lichessResponse": "Lichess returned {status}",
+    "provider.chesscomResponse": "Chess.com returned {status}",
+    "provider.noMonthlyArchives": "There are no public monthly archives in the last 12 months.",
+    "provider.noGamesForFilters": "No public games were found for the selected time controls / filters.",
+    "provider.noPublicValidGames": "We could not find valid public games for that user. Try another user or platform.",
+    "provider.playerNotDetected": "We could not detect the player in the downloaded games. Try another user.",
+    "provider.noAnalyzablePositions": "We could not find analyzable positions for that user. Try another user or platform.",
+    "provider.noUsefulMistakes": "No useful mistakes were detected for this user. Candidates analyzed: {analyzed}/{total}.",
+    "difficulty.low": "low",
+    "difficulty.medium": "medium",
+    "difficulty.high": "high",
+  },
+};
+
+function normalizeLanguage(value) {
+  return SUPPORTED_LANGUAGES.includes(String(value || "").toLowerCase()) ? String(value || "").toLowerCase() : "es";
+}
+
+function loadLanguagePreference() {
+  try {
+    const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (!stored) return "";
+    return normalizeLanguage(stored);
+  } catch (error) {
+    return "";
+  }
+}
+
+function detectInitialLanguage() {
+  const saved = loadLanguagePreference();
+  if (SUPPORTED_LANGUAGES.includes(saved)) return saved;
+  const browserLanguages = Array.isArray(navigator.languages) && navigator.languages.length
+    ? navigator.languages
+    : [navigator.language];
+  const prefersEnglish = browserLanguages.some((entry) => String(entry || "").toLowerCase().startsWith("en"));
+  return prefersEnglish ? "en" : "es";
+}
+
+function saveLanguagePreference(language) {
+  try {
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, normalizeLanguage(language));
+  } catch (error) {
+    // Ignore storage failures.
+  }
+}
+
+function interpolate(text, params = {}) {
+  return String(text || "").replace(/\{(\w+)\}/g, (_, key) => {
+    const value = params[key];
+    return value == null ? "" : String(value);
+  });
+}
+
+function rawTranslation(key, language = STATE?.language || "es") {
+  const normalized = normalizeLanguage(language);
+  return TRANSLATIONS[normalized]?.[key] ?? TRANSLATIONS.es?.[key] ?? key;
+}
+
+function t(key, params = {}, language = STATE?.language || "es") {
+  return interpolate(rawTranslation(key, language), params);
+}
+
+function preferredLocale() {
+  return normalizeLanguage(STATE?.language || detectInitialLanguage());
+}
+
 const DUEL_DEFAULT_PLAYERS = ["Jugador 1", "Jugador 2"];
 const ROUND_THINKING_FACTS = [
   "¿Sabías que Emanuel Lasker mantuvo el título mundial durante 27 años (1894-1921)? Es el reinado más largo en la historia del Campeonato Mundial de Ajedrez.",
@@ -175,6 +683,55 @@ const ROUND_THINKING_FACTS = [
   "¿Sabías que existe una variante llamada Chess960 creada por Bobby Fischer? Su objetivo es eliminar la memorización de aperturas sorteando la posición de las piezas en la primera fila, forzando la creatividad desde el primer movimiento.",
 ];
 
+const ROUND_THINKING_FACTS_EN = [
+  "Did you know Emanuel Lasker held the world title for 27 years (1894-1921)? It remains the longest reign in World Chess Championship history.",
+  "Did you know Garry Kasparov lost a match to IBM's Deep Blue supercomputer in 1997? It was the first time a reigning world champion lost to a machine under tournament conditions.",
+  "Did you know Frank Marshall saved a prepared sacrifice against Jose Raul Capablanca for years? When he finally played it in 1918, Capablanca found the correct defense over the board and won the game.",
+  "Did you know Paul Morphy played the famous Opera Game from a box at the Paris Opera House in 1858? He defeated two aristocrats who were consulting each other on every move.",
+  "Did you know Viktor Korchnoi accused Anatoly Karpov's team of sending him secret signals with yogurt during the 1978 World Championship? The organizers ended up stepping in because of the controversy.",
+  "Did you know Magnus Carlsen beat Bill Gates in a promotional game that lasted less than two minutes? The game ended in only 9 moves.",
+  "Did you know Akiba Rubinstein was considered the strongest player in the world around 1912 but never played for the world title? World War I and financial problems prevented the match from being organized.",
+  "Did you know Alexander Alekhine is the only world champion who died while still holding the title? He died in 1946 before he could play another championship match.",
+  "Did you know Bobby Fischer won 20 consecutive games against grandmasters between 1970 and 1971? The streak included games from the Palma de Mallorca Interzonal and the Candidates cycle.",
+  "Did you know Vera Menchik had a 'club' named after the grandmasters she beat? Whenever she defeated one, she said he was automatically admitted to the so-called Vera Menchik Club.",
+  "Did you know Vladimir Kramnik shocked the chess world by repeatedly using the Berlin Defense against Garry Kasparov in the 2000 title match? The opening's solidity was key to winning the championship.",
+  "Did you know David Bronstein was just one game away from becoming world champion in 1951? He drew the match against Mikhail Botvinnik, which allowed the champion to keep the title.",
+  "Did you know Paul Keres finished among the leaders in the Candidates tournament five times without ever getting a world title match? That is why he is sometimes called the best player never to become champion.",
+  "Did you know Miguel Najdorf played 45 blindfold simultaneous games in 1947? He won 39, drew 4, and lost only 2, setting a world record at the time.",
+  "Did you know Judit Polgar reached number 8 in the absolute world rankings? She is considered the strongest female chess player in history.",
+  "Did you know Paul Morphy earned his law degree in Louisiana at age 19 but could not practice immediately because of his age? That legal pause coincided with his explosion as the biggest chess star of his era.",
+  "Did you know Mikhail Botvinnik combined elite chess with a serious career as an electrical engineer? While fighting for the world title, he was also doing technical and research work away from the board.",
+  "Did you know Jose Raul Capablanca worked in the Cuban diplomatic service? The post allowed him to travel around Europe while building his career as one of chess's great geniuses.",
+  "Did you know Emanuel Lasker earned a doctorate in mathematics and published works of philosophy? He was one of the most intellectually versatile chess players, with serious academic work beyond the board.",
+  "Did you know Max Euwe, world champion in 1935, was trained as a mathematician and later became a university professor? For years he combined elite chess with academic life.",
+  "Did you know Vasily Smyslov, besides being world champion, was a baritone of professional level? He auditioned for the Bolshoi Theatre and kept giving opera recitals even during his elite chess years.",
+  "Did you know Viktor Korchnoi spent time competing as a stateless player after leaving the Soviet Union? One of the world's strongest players reached the top level without formally representing any country.",
+  "Did you know Samuel Reshevsky became famous as a child prodigy and gave simultaneous exhibitions against adults while still very young? His international fame began long before his mature grandmaster career.",
+  "Did you know Alexander Alekhine studied law at the University of Paris? In addition to being world champion, he also had a university education far from the board.",
+  "Did you know Mark Taimanov was not only a grandmaster but also a concert pianist of international level? He seriously pursued two elite careers at once: chess and music.",
+  "Did you know Reuben Fine, one of the world's strongest players in the 1930s and 1940s, largely left chess to devote himself to psychology? He became a psychologist, university professor, and author in both fields.",
+  "Did you know Milan Vidmar was both a grandmaster and an expert in electrical engineering? He remained among the world's best while developing an academic and technical career.",
+  "Did you know Capablanca learned to play by watching his father when he was just a child? His talent seemed so natural that he soon began defeating adult players in Cuba.",
+  "Did you know Lasker insisted on high fees and good match conditions? In doing so, he helped raise the professional status of chess players in an era when making a living from the game was much harder.",
+  "Did you know Samuel Reshevsky, after his early fame as a prodigy, also completed university studies in accounting? For years his life combined elite chess with formal professional training.",
+  "Did you know the 1984 World Championship match between Anatoly Karpov and Garry Kasparov was stopped without a result after more than five months? It was being played to the first 6 wins, but FIDE halted it with Karpov leading 5-3.",
+  "Did you know Ding Liren went 100 consecutive classical games without a loss between 2017 and 2018? It was one of the most impressive unbeaten streaks of the modern era.",
+  "Did you know Abhimanyu Mishra became the youngest grandmaster in history? He earned the title in 2021 at 12 years, 4 months, and 25 days old.",
+  "Did you know Susan Polgar was the first woman to earn the grandmaster title by meeting the full norms and rating requirements of the open category? She achieved it in 1991.",
+  "Did you know Hikaru Nakamura pulled off something very rare in modern chess: being both an elite world player and a streaming superstar? His profile helped connect professional chess with internet culture.",
+  "Did you know Levy Rozman, better known as GothamChess, took his nickname from New York? The 'Gotham' in his name comes from his bond with the city before he became one of the most popular chess educators in the world.",
+  "Did you know Alexandra Botez ended up lending her name to a so-called 'move' that is really an internet joke? The 'Botez Gambit' came from BotezLive viewers joking about positions where someone accidentally hangs their queen.",
+  "Did you know Pepe Cuenca is not only a grandmaster but also an engineer? That mix of strong chess skill and expressive commentary style helped make him one of the most recognizable chess voices in Spanish.",
+  "Did you know BotezLive became famous not only for chess strength but for turning chess into a mass entertainment format? The channel helped bring the game to much wider audiences than usual.",
+  "Did you know the number of possible chess games is greater than the number of atoms in the observable universe? It is known as the Shannon Number (10^120) and illustrates the game's near-infinite complexity.",
+  "Did you know Mikhail Tal, the 'Magician from Riga,' won the world title in 1960 with a sacrificial style so chaotic it hypnotized his rivals? People said his opponents were afraid to look him in the eyes during the game because of his intense stare.",
+  "Did you know 'The Turk' was a fake automaton that fooled the world for 84 years in the 18th and 19th centuries? It looked like a machine but hid a master inside; it even played against Napoleon Bonaparte and Benjamin Franklin.",
+  "Did you know the first chess game between Earth and space took place in 1970? Cosmonauts from Soyuz 9 played against representatives on the ground; the game ended in a draw after six hours of transmission.",
+  "Did you know Wilhelm Steinitz, the first official world champion, once claimed he could give God a pawn and still win? He was known for his strong personality and for being the father of modern strategy.",
+  "Did you know the longest official chess game in history lasted 20 hours and 15 minutes? It was played by Ivan Nikolic and Goran Arsovic in Belgrade in 1989 and ended in a draw after 269 moves.",
+  "Did you know Bobby Fischer created a variant called Chess960? Its goal is to remove opening memorization by randomizing the back-rank pieces, forcing creativity from move one.",
+];
+
 const ROUND_THINKING_MESSAGES = {
   easy: ROUND_THINKING_FACTS,
   medium: ROUND_THINKING_FACTS,
@@ -197,6 +754,8 @@ const PIECE_IMAGES = {
   k: "assets/pieces/cburnett/bK.svg",
 };
 
+const INITIAL_LANGUAGE = detectInitialLanguage();
+
 const STATE = {
   allMistakes: [],
   positions: [],
@@ -218,6 +777,7 @@ const STATE = {
   targetPositions: 10,
   sessionPlayed: 0,
   sessionHits: 0,
+  language: INITIAL_LANGUAGE,
   scoringSystem: DEFAULT_SCORING_SYSTEM,
   sourceMode: "lichess",
   remotePgnSources: [],
@@ -231,13 +791,15 @@ const STATE = {
     platform: "lichess",
     username: "",
     sessionSize: DEFAULT_CITIZEN_SESSION_SIZE,
-    sourceError: "",
+    sourceError: null,
   },
   timer: { intervalId: null, deadlineMs: 0, durationMs: 0 },
   ui: {
     phase: "playing",
     blockBoardInput: false,
     setupAnalyzing: false,
+    positionSearchState: null,
+    handoffState: null,
     thinkingMessages: {
       level: "medium",
       queue: [],
@@ -249,6 +811,7 @@ const STATE = {
     analysisMode: false,
     snapshotFen: "",
     snapshotRevealed: { best: null, game: null, user: null, userAlt: null },
+    context: null,
   },
   duel: {
     players: [...DUEL_DEFAULT_PLAYERS],
@@ -259,6 +822,104 @@ const STATE = {
     handoffReady: false,
   },
 };
+
+function providerLabel(provider) {
+  return provider === "chesscom" ? "Chess.com" : "Lichess";
+}
+
+function remoteWarningText(remote) {
+  if (!remote?.detail || !Number.isFinite(remote.detail.bullet) || remote.detail.bullet <= 0) {
+    return "";
+  }
+  const preferredValues = String(remote.detail.preferred || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const preferred = joinPreferredTimeClasses(preferredValues);
+  const context = Number(remote.detail.blitz) > 0
+    ? t("provider.bulletContextStillShort", { user: remote.username, preferred })
+    : t("provider.bulletContextNoBlitz", { user: remote.username, preferred });
+  return t("provider.bulletCompleted", { context });
+}
+
+function qualityLabel(code) {
+  return t(`quality.${code || "no_move"}`);
+}
+
+function defaultDuelPlayerName(index, language = STATE.language) {
+  return t(index === 1 ? "players.default2" : "players.default1", {}, language);
+}
+
+function knownDefaultPlayerNames(index) {
+  return SUPPORTED_LANGUAGES.map((language) => defaultDuelPlayerName(index, language));
+}
+
+function shouldTranslatePlayerName(value, index) {
+  const cleaned = String(value || "").trim();
+  return !cleaned || knownDefaultPlayerNames(index).includes(cleaned);
+}
+
+function syncLocalizedPlayerDefaults() {
+  [duelPlayerAEl, duelPlayerBEl].forEach((inputEl, index) => {
+    if (!inputEl) return;
+    if (shouldTranslatePlayerName(inputEl.value, index)) {
+      inputEl.value = defaultDuelPlayerName(index);
+    }
+  });
+}
+
+function updateDocumentLanguage() {
+  document.documentElement.lang = preferredLocale();
+  document.title = t("meta.title");
+}
+
+function updateLanguageToggleUi() {
+  const current = preferredLocale();
+  if (languageBtnEs) languageBtnEs.setAttribute("aria-pressed", current === "es" ? "true" : "false");
+  if (languageBtnEn) languageBtnEn.setAttribute("aria-pressed", current === "en" ? "true" : "false");
+}
+
+function applyStaticTranslations() {
+  document.querySelectorAll("[data-i18n]").forEach((node) => {
+    const key = node.getAttribute("data-i18n");
+    if (!key) return;
+    node.textContent = t(key);
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
+    const key = node.getAttribute("data-i18n-placeholder");
+    if (!key) return;
+    node.setAttribute("placeholder", t(key));
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach((node) => {
+    const key = node.getAttribute("data-i18n-title");
+    if (!key) return;
+    node.setAttribute("title", t(key));
+  });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach((node) => {
+    const key = node.getAttribute("data-i18n-aria-label");
+    if (!key) return;
+    node.setAttribute("aria-label", t(key));
+  });
+}
+
+function translateTimeClass(value) {
+  return t(`time.${String(value || "").toLowerCase()}`);
+}
+
+function joinPreferredTimeClasses(values = []) {
+  return values.map((entry) => translateTimeClass(entry)).join("/");
+}
+
+function setLanguage(language, options = {}) {
+  const nextLanguage = normalizeLanguage(language);
+  STATE.language = nextLanguage;
+  if (!options.skipPersist) saveLanguagePreference(nextLanguage);
+  updateDocumentLanguage();
+  updateLanguageToggleUi();
+  syncLocalizedPlayerDefaults();
+  applyStaticTranslations();
+  refreshLocalizedUi();
+}
 
 class Chess {
   constructor(fen) {
@@ -656,8 +1317,8 @@ function getRemoteProviderModeFromUi() {
 function updateOnlineProviderUi() {
   if (!onlineUserInputEl) return;
   onlineUserInputEl.placeholder = getRemoteProviderModeFromUi() === "chesscom"
-    ? "Ej: Hikaru"
-    : "Ej: MagnusCarlsen";
+    ? (preferredLocale() === "en" ? "e.g. Hikaru" : "Ej: Hikaru")
+    : (preferredLocale() === "en" ? "e.g. MagnusCarlsen" : "Ej: MagnusCarlsen");
 }
 
 function getConfiguredRemoteUsername() {
@@ -711,7 +1372,7 @@ function sanitizePlayerName(value, fallback) {
 }
 
 function duelPlayerName(index) {
-  const fallback = DUEL_DEFAULT_PLAYERS[index] || `Jugador ${index + 1}`;
+  const fallback = defaultDuelPlayerName(index);
   return sanitizePlayerName(STATE.duel.players[index], fallback);
 }
 
@@ -723,12 +1384,12 @@ function gameMoveAuthorName() {
   const fromRemote = sanitizePlayerName(STATE.remotePgnSources?.[0]?.username, "");
   if (fromRemote) return fromRemote;
   const fromDetected = sanitizePlayerName(playerNameDetectedEl?.textContent, "");
-  if (fromDetected && fromDetected !== "No detectado") return fromDetected;
-  return "usuario";
+  if (fromDetected && fromDetected !== t("players.notDetected")) return fromDetected;
+  return t("players.genericUser");
 }
 
 function revealGameButtonLabel() {
-  return `Ver la que jugó ${gameMoveAuthorName()}`;
+  return t("buttons.revealPlayedBy", { name: gameMoveAuthorName() });
 }
 
 function currentUiPlayerIndex() {
@@ -751,25 +1412,38 @@ function setUiPhase(phase, blockBoardInput = false) {
 
 function showHandoffOverlay(title, subtitle) {
   if (!handoffOverlayEl) return;
-  if (handoffOverlayTitleEl) handoffOverlayTitleEl.textContent = title || "Cambio de turno";
-  if (handoffOverlaySubtitleEl) handoffOverlaySubtitleEl.textContent = subtitle || "Toca para revelar";
+  STATE.ui.handoffState = {
+    title: title || t("game.handoff.genericTitle"),
+    subtitle: subtitle || t("game.handoff.genericSubtitle"),
+  };
+  if (handoffOverlayTitleEl) handoffOverlayTitleEl.textContent = STATE.ui.handoffState.title;
+  if (handoffOverlaySubtitleEl) handoffOverlaySubtitleEl.textContent = STATE.ui.handoffState.subtitle;
   handoffOverlayEl.classList.remove("hidden");
 }
 
 function hideHandoffOverlay() {
   if (!handoffOverlayEl) return;
+  STATE.ui.handoffState = null;
   handoffOverlayEl.classList.add("hidden");
 }
 
 function setPositionSearchProgress(ratio = null, label = "") {
   if (!positionSearchProgressEl || !positionSearchProgressBarEl || !positionSearchProgressLabelEl) return;
   if (!Number.isFinite(ratio)) {
+    if (STATE.ui.positionSearchState) {
+      STATE.ui.positionSearchState.progressRatio = null;
+      STATE.ui.positionSearchState.progressLabel = "";
+    }
     positionSearchProgressEl.classList.add("hidden");
     positionSearchProgressBarEl.style.width = "0%";
     positionSearchProgressLabelEl.textContent = "";
     return;
   }
   const safeRatio = clamp(Number(ratio) || 0, 0, 1);
+  if (STATE.ui.positionSearchState) {
+    STATE.ui.positionSearchState.progressRatio = safeRatio;
+    STATE.ui.positionSearchState.progressLabel = String(label || `${Math.round(safeRatio * 100)}%`);
+  }
   positionSearchProgressEl.classList.remove("hidden");
   positionSearchProgressBarEl.style.width = `${Math.round(safeRatio * 100)}%`;
   positionSearchProgressLabelEl.textContent = String(label || `${Math.round(safeRatio * 100)}%`);
@@ -786,9 +1460,10 @@ function nextRoundThinkingMessage(level = "medium") {
   const thinkingState = STATE.ui.thinkingMessages;
   if (thinkingState.level !== bucket || !Array.isArray(thinkingState.queue) || thinkingState.queue.length === 0) {
     thinkingState.level = bucket;
-    thinkingState.queue = shuffle([...(ROUND_THINKING_MESSAGES[bucket] || ROUND_THINKING_MESSAGES.medium)]);
+    const facts = preferredLocale() === "en" ? ROUND_THINKING_FACTS_EN : ROUND_THINKING_FACTS;
+    thinkingState.queue = shuffle([...(facts || ROUND_THINKING_FACTS)]);
   }
-  return thinkingState.queue.pop() || "Pensando...";
+  return thinkingState.queue.pop() || t("common.searching");
 }
 
 function stopRoundThinkingMessages() {
@@ -816,11 +1491,18 @@ function startRoundThinkingMessages(level = "medium") {
 function showPositionSearchOverlay(title, meta = "", options = {}) {
   if (!positionSearchOverlayEl) return;
   const opts = options || {};
+  STATE.ui.positionSearchState = {
+    title: String(title || "").trim(),
+    meta: String(meta || "").trim(),
+    showProgress: Boolean(opts.showProgress),
+    progressRatio: opts.progressRatio,
+    progressLabel: opts.progressLabel || "",
+  };
   if (positionSearchTitleEl) {
-    positionSearchTitleEl.textContent = String(title || "").trim() || "Buscando próxima posición...";
+    positionSearchTitleEl.textContent = STATE.ui.positionSearchState.title || t("game.searchingNext");
   }
   if (positionSearchMetaEl) {
-    positionSearchMetaEl.textContent = String(meta || "").trim();
+    positionSearchMetaEl.textContent = STATE.ui.positionSearchState.meta;
   }
   if (opts.showProgress) {
     setPositionSearchProgress(opts.progressRatio, opts.progressLabel);
@@ -833,6 +1515,7 @@ function showPositionSearchOverlay(title, meta = "", options = {}) {
 function hidePositionSearchOverlay() {
   if (!positionSearchOverlayEl) return;
   positionSearchOverlayEl.classList.add("hidden");
+  STATE.ui.positionSearchState = null;
   stopRoundThinkingMessages();
   setPositionSearchProgress(null);
   if (positionSearchMetaEl) positionSearchMetaEl.textContent = "";
@@ -840,11 +1523,11 @@ function hidePositionSearchOverlay() {
 
 function formatPositionSearchMeta(position) {
   const meta = position && position.meta ? position.meta : {};
-  const players = String(meta.players || "").trim() || "Jugadores no disponibles";
+  const players = String(meta.players || "").trim() || t("common.playersUnavailable");
   const result = String(meta.result || "").trim() || "-";
   const moveNumber = Number.isFinite(Number(meta.moveNumber)) ? String(meta.moveNumber) : "-";
   const year = String(meta.year || "").trim() || "-";
-  return `${players} · Resultado ${result} · Jugada ${moveNumber} · Año ${year}`;
+  return t("game.positionMeta", { players, result, move: moveNumber, year });
 }
 
 function snapshotRevealedState(revealed = STATE.revealed) {
@@ -879,7 +1562,7 @@ function updateResultAnalysisControls() {
   if (resultOverlayEl) resultOverlayEl.classList.toggle("analysis-mode", analysisMode);
   if (resultAnalysisBtn) {
     resultAnalysisBtn.disabled = !visible || analysisMode;
-    resultAnalysisBtn.textContent = analysisMode ? "Exploración activa" : "Explorar tablero";
+    resultAnalysisBtn.textContent = analysisMode ? t("buttons.analysisActive") : t("buttons.exploreBoard");
     resultAnalysisBtn.setAttribute("aria-pressed", analysisMode ? "true" : "false");
   }
   if (resultAnalysisResetBtn) {
@@ -905,7 +1588,7 @@ function resetResultAnalysisBoard() {
 
 function showResultOverlay(title, pointsText) {
   if (!resultOverlayEl) return;
-  if (resultOverlayTitleEl) resultOverlayTitleEl.textContent = title || "Resultado";
+  if (resultOverlayTitleEl) resultOverlayTitleEl.textContent = title || t("result.title");
   if (resultOverlayPointsEl) resultOverlayPointsEl.textContent = pointsText || "";
   STATE.resultView.visible = true;
   STATE.resultView.analysisMode = false;
@@ -921,10 +1604,79 @@ function hideResultOverlay() {
   STATE.resultView.analysisMode = false;
   STATE.resultView.snapshotFen = "";
   STATE.resultView.snapshotRevealed = { best: null, game: null, user: null, userAlt: null };
+  STATE.resultView.context = null;
   document.body.classList.remove("result-visible");
   resultOverlayEl.classList.add("hidden");
   updateResultAnalysisControls();
   renderBoardArrows();
+}
+
+function renderResultViewContext() {
+  const context = STATE.resultView.context;
+  if (!context) return;
+  if (context.kind === "round_solo") {
+    renderRoundFeedbackTable(
+      context.bestSan,
+      evaluationToText(decodeEvaluation(context.bestMover)),
+      context.gameSan,
+      Number.isFinite(context.gameMover) ? evaluationToText(decodeEvaluation(context.gameMover)) : t("common.notAvailable"),
+      context.userSan || "",
+      evaluationToText(decodeEvaluation(context.userMover)),
+      context.bestMover,
+      context.gameMover,
+      context.userMover,
+      context.scored,
+      context.noMoveReason,
+      { mode: "solo", hitThreshold: context.hitThreshold },
+    );
+    const summary = !context.userMove
+      ? (context.noMoveReason === "timeout" ? t("evaluation.timeoutZeroPts") : t("evaluation.noMoveMadeZeroPts"))
+      : t("evaluation.wonPoints", { points: formatSigned(context.scored.points) });
+    showResultOverlay(t("game.result.yourMove"), summary);
+    return;
+  }
+
+  if (context.kind === "round_duel") {
+    renderRoundFeedbackTable(
+      context.bestSan,
+      evaluationToText(decodeEvaluation(context.bestMover)),
+      context.gameSan,
+      Number.isFinite(context.gameMover) ? evaluationToText(decodeEvaluation(context.gameMover)) : t("common.notAvailable"),
+      context.player2.userSan || "",
+      evaluationToText(decodeEvaluation(context.currentUserMover)),
+      context.bestMover,
+      context.gameMover,
+      context.currentUserMover,
+      context.currentScored,
+      context.currentNoMoveReason,
+      {
+        mode: "duel",
+        duel: {
+          player1: context.player1,
+          player2: context.player2,
+        },
+      },
+    );
+    showResultOverlay(
+      t("game.result.positionSolved"),
+      `R${context.round}: ${context.player1.name} ${formatSigned(context.player1.points)} · ${context.player2.name} ${formatSigned(context.player2.points)}`
+    );
+    let winnerText = t("game.comparison.tie");
+    if (context.player1.points > context.player2.points) winnerText = t("game.comparison.advantage", { player: context.player1.name });
+    if (context.player2.points > context.player1.points) winnerText = t("game.comparison.advantage", { player: context.player2.name });
+    roundResultEl.insertAdjacentHTML("afterbegin", `<p class="result-summary-line">${escapeHtml(winnerText)}</p>`);
+    return;
+  }
+
+  if (context.kind === "session_summary") {
+    if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
+    if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = `${formatPoints(STATE.score)} pts`;
+    const noMoreText = context.noMorePositions ? ` ${t("game.noMorePositions")}` : "";
+    if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText() + noMoreText;
+    if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
+    if (resultOverlayEl) resultOverlayEl.classList.remove("hidden");
+    if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden");
+  }
 }
 
 function setPanelActiveState(activeIndex) {
@@ -959,7 +1711,7 @@ function soloScoreText() {
 }
 
 function soloProgressText() {
-  return `Posiciones evaluadas: ${Math.max(0, STATE.sessionPlayed)} / ${soloSessionTarget()}`;
+  return `${t("labels.positionsEvaluatedTitle")}: ${Math.max(0, STATE.sessionPlayed)} / ${soloSessionTarget()}`;
 }
 
 function updatePlayerPanels() {
@@ -967,8 +1719,8 @@ function updatePlayerPanels() {
   if (isDuelMode()) {
     const p1 = duelPlayerName(0);
     const p2 = duelPlayerName(1);
-    if (playerAKickerEl) playerAKickerEl.textContent = "Jugador 1";
-    if (playerBKickerEl) playerBKickerEl.textContent = "Jugador 2";
+    if (playerAKickerEl) playerAKickerEl.textContent = t("players.kicker1");
+    if (playerBKickerEl) playerBKickerEl.textContent = t("players.kicker2");
     if (playerANameEl) playerANameEl.textContent = p1;
     if (playerBNameEl) playerBNameEl.textContent = p2;
     if (playerAAvatarEl) playerAAvatarEl.textContent = initialsFromName(p1, "J1");
@@ -1011,27 +1763,27 @@ function setScoringInfoVisible(visible) {
 function updateScoreDisplay() {
   if (!scoreEl) return;
   if (isDuelMode()) {
-    if (scoreLabelEl) scoreLabelEl.textContent = "Marcador duelo";
+    if (scoreLabelEl) scoreLabelEl.textContent = t("score.duelScore");
     const p1 = duelPlayerName(0);
     const p2 = duelPlayerName(1);
     scoreEl.textContent = `${p1}: ${formatPoints(STATE.duel.scores[0])} | ${p2}: ${formatPoints(STATE.duel.scores[1])}`;
     updatePlayerPanels();
     return;
   }
-  if (scoreLabelEl) scoreLabelEl.textContent = "Puntos totales";
+  if (scoreLabelEl) scoreLabelEl.textContent = t("score.totalPoints");
   scoreEl.textContent = formatPoints(STATE.score);
   updatePlayerPanels();
 }
 
 function updateCompetitiveStatus() {
   if (!competitiveStatusEl) return;
-  const t = clamp(Number(STATE.turnTimeSeconds) || DEFAULT_TURN_TIME_SECONDS, 5, 300);
+  const seconds = clamp(Number(STATE.turnTimeSeconds) || DEFAULT_TURN_TIME_SECONDS, 5, 300);
   const system = scoringSystemLabel(STATE.scoringSystem);
   if (!isDuelMode()) {
     competitiveStatusEl.textContent = "";
     return;
   }
-  competitiveStatusEl.textContent = `Duelo local · ${t}s por turno · ${system}`;
+  competitiveStatusEl.textContent = t("game.duelCompetitive", { seconds, system });
 }
 
 function resetDuelState() {
@@ -1049,8 +1801,8 @@ function applyGameFormat(format) {
   if (duelConfigEl) duelConfigEl.classList.toggle("hidden", safe !== "duel");
   if (gameFormatHintEl) {
     gameFormatHintEl.textContent = safe === "duel"
-      ? "Competitivo local: ambos jugadores reciben exactamente las mismas posiciones y tiempo."
-      : "Entrenamiento individual con puntaje total acumulado.";
+      ? t("game.duelHint")
+      : t("game.soloHint");
   }
   document.body.classList.toggle("duel-mode", safe === "duel");
   document.body.classList.toggle("solo-mode", safe !== "duel");
@@ -1188,7 +1940,7 @@ function setUserMode(mode) {
 
   if (previous && previous !== safe && isRemoteSourceMode() && STATE.remotePgnSources.length > 0) {
     clearRemotePgnSources();
-    showSourceNeedsRedownloadMessage("Modo cambiado. La base online se descargará de nuevo al comenzar.");
+    showSourceNeedsRedownloadMessage(t("provider.modeChangedRedownload"));
   }
 
   updatePgnSelectionUi();
@@ -1213,8 +1965,12 @@ function getLichessFetchSettings() {
 }
 
 function describeLichessNormalProtocol(settings = getLichessFetchSettings()) {
-  const preferredLabel = settings.preferredPerf.map((p) => p[0].toUpperCase() + p.slice(1)).join("/");
-  return `Protocolo modo normal: se descargan partidas públicas del último año. Primero ${preferredLabel}; si no llega a ${settings.minSlowGames}, se completa con Blitz y, si aún falta base, con Bullet (no ideal) hasta ${settings.maxGames}.`;
+  const preferredLabel = joinPreferredTimeClasses(settings.preferredPerf);
+  return t("provider.protocolLichess", {
+    preferred: preferredLabel,
+    minSlowGames: settings.minSlowGames,
+    maxGames: settings.maxGames,
+  });
 }
 
 function getChessComFetchSettings() {
@@ -1236,8 +1992,12 @@ function getChessComFetchSettings() {
 }
 
 function describeChessComNormalProtocol(settings = getChessComFetchSettings()) {
-  const preferredLabel = settings.preferredSlowClasses.map((p) => p[0].toUpperCase() + p.slice(1)).join("/");
-  return `Protocolo modo normal: se descargan partidas públicas del último año desde archivos mensuales. Primero ${preferredLabel}; si no llega a ${settings.minSlowGames}, se completa con Blitz y, si aún falta base, con Bullet (no ideal) hasta ${settings.maxGames}.`;
+  const preferredLabel = joinPreferredTimeClasses(settings.preferredSlowClasses);
+  return t("provider.protocolChesscom", {
+    preferred: preferredLabel,
+    minSlowGames: settings.minSlowGames,
+    maxGames: settings.maxGames,
+  });
 }
 
 function getEffectiveAnalysisConfig() {
@@ -1298,7 +2058,7 @@ function syncWizardToLegacyInputs() {
 }
 
 function clearWizardSourceError() {
-  STATE.setupWizard.sourceError = "";
+  STATE.setupWizard.sourceError = null;
   if (wizardSourceErrorEl) {
     wizardSourceErrorEl.textContent = "";
     wizardSourceErrorEl.classList.add("hidden");
@@ -1306,9 +2066,11 @@ function clearWizardSourceError() {
   if (wizardSourceCtaEl) wizardSourceCtaEl.classList.add("hidden");
 }
 
-function showWizardSourceError(message) {
-  const text = String(message || "").trim() || "No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma.";
-  STATE.setupWizard.sourceError = text;
+function showWizardSourceError(key = "common.sourceError", params = {}) {
+  const hasTranslation = Object.prototype.hasOwnProperty.call(TRANSLATIONS[preferredLocale()] || {}, key)
+    || Object.prototype.hasOwnProperty.call(TRANSLATIONS.es || {}, key);
+  const text = hasTranslation ? t(key, params) : String(key || "").trim();
+  STATE.setupWizard.sourceError = hasTranslation ? { key, params } : { raw: text };
   if (wizardSourceErrorEl) {
     wizardSourceErrorEl.textContent = text;
     wizardSourceErrorEl.classList.remove("hidden");
@@ -1320,14 +2082,14 @@ function renderWizardSummary() {
   if (!wizardSummaryEl) return;
   const config = collectWizardConfig();
   const modeText = config.mode === "duel"
-    ? `Duelo local (${escapeHtml(config.duelNames[0])} vs ${escapeHtml(config.duelNames[1])})`
-    : "Modo estudio (solo/a)";
-  const platformText = config.platform === "chesscom" ? "Chess.com" : "Lichess";
+    ? t("game.localDuel", { a: escapeHtml(config.duelNames[0]), b: escapeHtml(config.duelNames[1]) })
+    : t("game.studyMode");
+  const platformText = providerLabel(config.platform);
   wizardSummaryEl.innerHTML = [
-    `<p><strong>Modo:</strong> ${modeText}</p>`,
-    `<p><strong>Plataforma:</strong> ${platformText}</p>`,
-    `<p><strong>Usuario:</strong> ${escapeHtml(config.username || "-")}</p>`,
-    `<p><strong>Posiciones:</strong> ${config.sessionSize}</p>`,
+    `<p><strong>${escapeHtml(t("game.summaryMode"))}:</strong> ${modeText}</p>`,
+    `<p><strong>${escapeHtml(t("game.summaryPlatform"))}:</strong> ${escapeHtml(platformText)}</p>`,
+    `<p><strong>${escapeHtml(t("game.summaryUser"))}:</strong> ${escapeHtml(config.username || "-")}</p>`,
+    `<p><strong>${escapeHtml(t("game.summaryPositions"))}:</strong> ${config.sessionSize}</p>`,
   ].join("");
 }
 
@@ -1343,7 +2105,7 @@ function renderWizardStep() {
     stepEl.classList.toggle("is-active", isCurrent);
   });
 
-  if (wizardStepIndicatorEl) wizardStepIndicatorEl.textContent = `Paso ${step} de 3`;
+  if (wizardStepIndicatorEl) wizardStepIndicatorEl.textContent = t("wizard.stepIndicator", { step, total: 3 });
   if (wizardProgressBarEl) wizardProgressBarEl.style.width = `${Math.round((step / 3) * 100)}%`;
 
   if (wizardModeSoloBtn) wizardModeSoloBtn.classList.toggle("is-selected", config.mode === "solo");
@@ -1375,38 +2137,38 @@ function validateWizardStep(step = STATE.setupWizard.step) {
 
   if (safeStep >= 1) {
     if (config.mode !== "solo" && config.mode !== "duel") {
-      return { valid: false, reason: "Elegí si querés jugar solo/a o contra alguien." };
+      return { valid: false, reason: t("wizard.validation.chooseMode") };
     }
     if (config.mode === "duel") {
       const [a, b] = config.duelNames;
       if (!a || !b) {
-        return { valid: false, reason: "Completá ambos nombres para el duelo." };
+        return { valid: false, reason: t("wizard.validation.fillDuelNames") };
       }
       if (a.length > 20 || b.length > 20) {
-        return { valid: false, reason: "Los nombres del duelo pueden tener hasta 20 caracteres." };
+        return { valid: false, reason: t("wizard.validation.duelNameMax") };
       }
     }
   }
 
   if (safeStep >= 2) {
     if (!isRemoteSourceMode(config.platform)) {
-      return { valid: false, reason: "Elegí Lichess o Chess.com." };
+      return { valid: false, reason: t("wizard.validation.choosePlatform") };
     }
     if (!config.username) {
-      return { valid: false, reason: "Ingresá tu nombre de usuario para continuar." };
+      return { valid: false, reason: t("wizard.validation.enterUsername") };
     }
     if (!usernamePattern.test(config.username)) {
-      return { valid: false, reason: "El usuario debe tener 3 a 30 caracteres (letras, números, _ o -)." };
+      return { valid: false, reason: t("wizard.validation.invalidUsername") };
     }
   }
 
   if (safeStep >= 3) {
     if (!Number.isInteger(config.sessionSize) || config.sessionSize < 1 || config.sessionSize > 200) {
-      return { valid: false, reason: "Elegí una cantidad entre 1 y 200 posiciones." };
+      return { valid: false, reason: t("wizard.validation.chooseCount") };
     }
   }
 
-  return { valid: true, reason: "Configuración lista para comenzar la sesión." };
+  return { valid: true, reason: t("wizard.validation.ready") };
 }
 
 function goToWizardStep(step) {
@@ -1423,15 +2185,15 @@ function resetSetupWizard({ mode = null, statusMessage = "" } = {}) {
   STATE.setupWizard.platform = getRemoteProviderModeFromUi();
   STATE.setupWizard.username = sanitizeWizardUsername(onlineUserInputEl ? onlineUserInputEl.value : "");
   STATE.setupWizard.sessionSize = clamp(Number(sessionSizeEl ? sessionSizeEl.value : DEFAULT_CITIZEN_SESSION_SIZE) || DEFAULT_CITIZEN_SESSION_SIZE, 1, 200);
-  STATE.setupWizard.sourceError = "";
+  STATE.setupWizard.sourceError = null;
   clearWizardSourceError();
   syncWizardToLegacyInputs();
   if (analysisStatusEl && statusMessage) analysisStatusEl.textContent = statusMessage;
   goToWizardStep(1);
 }
 
-function sendWizardBackToSourceStep(message) {
-  showWizardSourceError(message || "No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma.");
+function sendWizardBackToSourceStep(key = "common.sourceError", params = {}) {
+  showWizardSourceError(key, params);
   STATE.ui.setupAnalyzing = false;
   if (analyzeBtn) analyzeBtn.disabled = false;
   goToWizardStep(2);
@@ -1469,33 +2231,36 @@ function updatePgnSelectionUi() {
 
   if (onlineStatusEl && !STATE.ui.setupAnalyzing && !STATE.setupWizard.sourceError) {
     if (!config.username) {
-      onlineStatusEl.textContent = "Ingresá tu usuario para continuar.";
+      onlineStatusEl.textContent = t("wizard.step2.enterUsername");
     } else if (hasRemote && remote?.username) {
-      const warningText = typeof remote.warning === "string" && remote.warning.trim()
-        ? ` ${remote.warning.trim()}`
-        : "";
-      onlineStatusEl.textContent = `Base lista para ${remote.username}.${warningText}`;
+      const warning = remoteWarningText(remote);
+      const warningText = warning ? ` ${warning}` : "";
+      onlineStatusEl.textContent = t("provider.baseReady", { username: remote.username, warning: warningText });
     } else {
-      onlineStatusEl.textContent = "Listo para descargar partidas cuando toques “Comenzar sesión”.";
+      onlineStatusEl.textContent = t("provider.readyToDownload");
     }
   }
 
   if (configFilesStatusEl) {
     if (hasRemote && remote?.username) {
-      const providerLabel = getRemoteProvider(remote) === "chesscom" ? "Chess.com" : "Lichess";
+      const remoteProviderLabel = providerLabel(getRemoteProvider(remote));
       const games = Number.isFinite(remote.games) ? remote.games : 0;
-      const warningText = typeof remote.warning === "string" && remote.warning.trim()
-        ? ` ${remote.warning.trim()}`
-        : "";
-      configFilesStatusEl.textContent = `Fuente: ${providerLabel} (${remote.username}) | ${games} partida(s) cargadas.${warningText}`;
+      const warning = remoteWarningText(remote);
+      const warningText = warning ? ` ${warning}` : "";
+      configFilesStatusEl.textContent = t("provider.sourceLoaded", {
+        provider: remoteProviderLabel,
+        username: remote.username,
+        games,
+        warning: warningText,
+      });
     } else {
       configFilesStatusEl.textContent = "";
     }
   }
 
-  if (playerTargetLabelEl) playerTargetLabelEl.textContent = "Usuario objetivo del análisis";
-  if (playerNameDetectedEl) playerNameDetectedEl.textContent = config.username || "Ingresá el usuario para continuar.";
-  if (playerTargetHintEl) playerTargetHintEl.textContent = "Usaremos este usuario para seleccionar posiciones.";
+  if (playerTargetLabelEl) playerTargetLabelEl.textContent = t("players.targetLabel");
+  if (playerNameDetectedEl) playerNameDetectedEl.textContent = config.username || t("players.enterUserContinue");
+  if (playerTargetHintEl) playerTargetHintEl.textContent = t("players.targetHint");
 
   renderWizardStep();
 }
@@ -1529,14 +2294,14 @@ function openSetupFromLanding({ format = null, statusMessage = "" } = {}) {
   }
   resetSetupWizard({
     mode: format ? normalizeGameFormat(format) : STATE.setupWizard.mode,
-    statusMessage: statusMessage || "Configurá el paso actual para continuar.",
+    statusMessage: statusMessage || t("wizard.status.currentStep"),
   });
   updatePgnSelectionUi();
 }
 
 function startFromLanding() {
   openSetupFromLanding({
-    statusMessage: "Configurá modo, fuente y opciones de análisis.",
+    statusMessage: t("wizard.status.modeSourceOptions"),
   });
 }
 
@@ -1598,19 +2363,21 @@ function decodeEvaluation(moverScore) {
 }
 
 function evaluationToText(evalObj) {
-  if (!evalObj) return "No disponible";
+  if (!evalObj) return t("common.notAvailable");
   if (evalObj.kind === "cp") {
     const cp = Math.round(evalObj.cp);
     const sign = cp > 0 ? "+" : "";
     return `${sign}${cp} cp`;
   }
-  return evalObj.matePly > 0 ? `Mate en ${evalObj.matePly}` : `Recibe mate en ${Math.abs(evalObj.matePly)}`;
+  return evalObj.matePly > 0
+    ? t("evaluation.mateIn", { ply: evalObj.matePly })
+    : t("evaluation.getsMatedIn", { ply: Math.abs(evalObj.matePly) });
 }
 
 const SCORING_SYSTEMS = {
   simple_labels_v1: {
-    label: "Etiquetas simples (v1)",
-    description: "Puntajes simples por calidad: Blunder -1, Mala -0.5, Dudosa 0, Interesante 0.25, Buena 0.5, Muy buena 0.75, Perfecta 1.",
+    labelKey: "scoring.system.simple.label",
+    descriptionKey: "scoring.system.simple.description",
   },
 };
 
@@ -1625,12 +2392,12 @@ function getScoringSystemMeta(value) {
 }
 
 function scoringSystemLabel(value) {
-  return getScoringSystemMeta(value).label;
+  return t(getScoringSystemMeta(value).labelKey);
 }
 
 function updateScoringSystemHint() {
   if (!scoringSystemHintEl) return;
-  scoringSystemHintEl.textContent = getScoringSystemMeta(STATE.scoringSystem).description;
+  scoringSystemHintEl.textContent = t(getScoringSystemMeta(STATE.scoringSystem).descriptionKey);
 }
 
 function formatPoints(value, options = {}) {
@@ -1667,39 +2434,39 @@ function scoreToExpectedPoints(score) {
   return (chance + 1) / 2;
 }
 
-function cpQualityLabel(loss, exactBest = false, expectedLoss = null, reason = "") {
-  if (reason === "Sin jugada") return "Sin jugada";
-  if (reason === "Permite mate" || reason === "Se escapó mate forzado") return "Blunder";
-  if (exactBest || reason === "Mate óptimo") return "Perfecta";
-  if (!Number.isFinite(loss)) return "Sin jugada";
+function cpQualityCode(loss, exactBest = false, expectedLoss = null, reasonCode = "") {
+  if (reasonCode === "no_move") return "no_move";
+  if (reasonCode === "allows_mate" || reasonCode === "missed_forced_mate") return "blunder";
+  if (exactBest || reasonCode === "optimal_mate") return "perfect";
+  if (!Number.isFinite(loss)) return "no_move";
   const nearPerfectByCp = loss <= 10;
   const nearPerfectByExpected = Number.isFinite(expectedLoss) && expectedLoss <= 0.008 && loss <= 18;
-  if (nearPerfectByCp || nearPerfectByExpected) return "Perfecta";
-  if (loss <= 35) return "Muy buena";
-  if (loss <= 70) return "Buena";
-  if (loss <= 115) return "Interesante (!?)";
-  if (loss <= 165) return "Dudosa";
-  if (loss <= 240) return "Mala";
-  return "Blunder";
+  if (nearPerfectByCp || nearPerfectByExpected) return "perfect";
+  if (loss <= 35) return "very_good";
+  if (loss <= 70) return "good";
+  if (loss <= 115) return "interesting";
+  if (loss <= 165) return "dubious";
+  if (loss <= 240) return "bad";
+  return "blunder";
 }
 
-function pointsFromQualityLabel(label) {
-  switch (label) {
-    case "Perfecta":
+function pointsFromQualityCode(code) {
+  switch (code) {
+    case "perfect":
       return 1;
-    case "Muy buena":
+    case "very_good":
       return 0.75;
-    case "Buena":
+    case "good":
       return 0.5;
-    case "Interesante (!?)":
+    case "interesting":
       return 0.25;
-    case "Dudosa":
+    case "dubious":
       return 0;
-    case "Mala":
+    case "bad":
       return -0.5;
-    case "Blunder":
+    case "blunder":
       return -1;
-    case "Sin jugada":
+    case "no_move":
     default:
       return 0;
   }
@@ -1707,27 +2474,27 @@ function pointsFromQualityLabel(label) {
 
 function computeLossAgainstBest(bestMoverScore, choiceMoverScore) {
   if (!Number.isFinite(choiceMoverScore)) {
-    return { loss: Number.POSITIVE_INFINITY, diff: null, reason: "Sin jugada", best: null, choice: null };
+    return { loss: Number.POSITIVE_INFINITY, diff: null, reasonCode: "no_move", best: null, choice: null };
   }
   const best = decodeEvaluation(bestMoverScore);
   const choice = decodeEvaluation(choiceMoverScore);
   if (!best || !choice) {
-    return { loss: 2000, diff: null, reason: "Evaluación inválida", best, choice };
+    return { loss: 2000, diff: null, reasonCode: "invalid_eval", best, choice };
   }
 
   let loss = 0;
-  let reason = "Diferencia centipeones";
+  let reasonCode = "cp_diff";
 
   if (choice.kind === "mate" && choice.matePly < 0 && !(best.kind === "mate" && best.matePly < 0)) {
     loss = 2500;
-    reason = "Permite mate";
+    reasonCode = "allows_mate";
   } else if (best.kind === "mate" && best.matePly > 0) {
     if (choice.kind === "mate" && choice.matePly > 0) {
       loss = 40 * Math.max(0, choice.matePly - best.matePly);
-      reason = loss === 0 ? "Mate óptimo" : "Mate más lento";
+      reasonCode = loss === 0 ? "optimal_mate" : "slower_mate";
     } else {
       loss = 1200 + 40 * Math.min(best.matePly, 20);
-      reason = "Se escapó mate forzado";
+      reasonCode = "missed_forced_mate";
     }
   } else if (best.kind === "cp" && choice.kind === "cp") {
     loss = clamp(best.cp - choice.cp, 0, 2000);
@@ -1738,7 +2505,7 @@ function computeLossAgainstBest(bestMoverScore, choiceMoverScore) {
   return {
     loss,
     diff: Number.isFinite(loss) ? Math.round(loss) : null,
-    reason,
+    reasonCode,
     best,
     choice,
   };
@@ -1753,16 +2520,15 @@ function scoreMoveAgainstBest(bestMoverScore, choiceMoverScore, scoringSystem = 
   const expectedLoss = Number.isFinite(bestExpected) && Number.isFinite(choiceExpected)
     ? clamp(bestExpected - choiceExpected, 0, 1)
     : null;
-  const qualityLabel = cpQualityLabel(base.loss, exactBest, expectedLoss, base.reason);
-  const points = pointsFromQualityLabel(qualityLabel);
+  const qualityCode = cpQualityCode(base.loss, exactBest, expectedLoss, base.reasonCode);
+  const points = pointsFromQualityCode(qualityCode);
 
   return {
     ...base,
     points: Math.round(points * 100) / 100,
-    qualityLabel,
+    qualityCode,
     expectedLoss,
     scoringSystem: system,
-    scoringSystemLabel: scoringSystemLabel(system),
   };
 }
 
@@ -1835,13 +2601,13 @@ function getRoundEvaluationPlan(board, position, baseMoveTimeMs = RATING_MOVE_TI
 
   const normalized = clamp(difficultyScore / 7.2, 0, 1);
   let level = "easy";
-  let label = "baja";
+  let label = "low";
   if (normalized >= 0.74) {
     level = "hard";
-    label = "alta";
+    label = "high";
   } else if (normalized >= 0.42) {
     level = "medium";
-    label = "media";
+    label = "medium";
   }
 
   const base = clamp(Number(baseMoveTimeMs) || RATING_MOVE_TIME_MS, 900, ROUND_EVAL_MAX_TOTAL_MS);
@@ -1857,11 +2623,13 @@ function getRoundEvaluationPlan(board, position, baseMoveTimeMs = RATING_MOVE_TI
 }
 
 function formatDelta(referenceScore, comparedScore) {
-  if (!Number.isFinite(referenceScore) || !Number.isFinite(comparedScore)) return "No disponible";
+  if (!Number.isFinite(referenceScore) || !Number.isFinite(comparedScore)) return t("evaluation.deltaUnavailable");
   const delta = Math.round(comparedScore - referenceScore);
-  if (delta === 0) return "Igual";
-  if (Math.abs(delta) >= 90000) return delta > 0 ? "Mejor (mate/casi mate)" : "Peor (mate/casi mate)";
-  return delta > 0 ? `+${delta} cp (mejor)` : `${delta} cp (peor)`;
+  if (delta === 0) return t("evaluation.deltaEqual");
+  if (Math.abs(delta) >= 90000) return delta > 0 ? t("evaluation.deltaMateBetter") : t("evaluation.deltaMateWorse");
+  return delta > 0
+    ? t("evaluation.deltaBetter", { delta })
+    : t("evaluation.deltaWorse", { delta });
 }
 
 // ---------- Local fallback evaluator ----------
@@ -2264,8 +3032,8 @@ function getPlayerColor(tags, targetName) {
 }
 
 function buildMeta(tags, moveNumber, sideToMove) {
-  const players = `${cleanTagValue(tags.White) || "Blancas"} vs ${cleanTagValue(tags.Black) || "Negras"}`;
-  const event = cleanTagValue(tags.Event) || "Partida";
+  const players = `${cleanTagValue(tags.White) || t("common.white")} vs ${cleanTagValue(tags.Black) || t("common.black")}`;
+  const event = cleanTagValue(tags.Event) || t("common.gameFallback");
   const date = cleanTagValue(tags.Date);
   const yearMatch = date.match(/^(\d{4})/);
   const year = yearMatch ? yearMatch[1] : "";
@@ -2280,7 +3048,7 @@ function buildMeta(tags, moveNumber, sideToMove) {
     eco,
     result,
     moveNumber,
-    sideToMove: sideToMove === "w" ? "blancas" : "negras",
+    sideToMove,
   };
 }
 
@@ -2323,10 +3091,19 @@ function updateAnalysisProgress(done, total, detected, extraText) {
   const pctVisual = done > 0 ? Math.max(pctRaw, 0.35) : 0;
   analysisProgressWrapEl.classList.remove("hidden");
   analysisProgressBarEl.style.width = `${pctVisual}%`;
-  analysisProgressLabelEl.textContent = `${pctLabel}% (${done}/${total || 0})${extraText ? ` - ${extraText}` : ""}`;
+  analysisProgressLabelEl.textContent = t("analysis.progressLabel", {
+    pct: pctLabel,
+    done,
+    total: total || 0,
+    extra: extraText ? ` - ${extraText}` : "",
+  });
   if (STATE.userMode === "engineer") {
     analysisMetricsEl.classList.remove("hidden");
-    analysisMetricsEl.textContent = `Posiciones totales: ${total || 0} | Posiciones analizadas: ${done} | Posiciones detectadas (>= umbral): ${detected || 0}`;
+    analysisMetricsEl.textContent = t("analysis.metrics.engineer", {
+      total: total || 0,
+      done,
+      detected: detected || 0,
+    });
   } else {
     analysisMetricsEl.classList.add("hidden");
   }
@@ -2336,7 +3113,7 @@ function resetAnalysisProgress() {
   analysisProgressBarEl.style.width = "0%";
   analysisProgressLabelEl.textContent = "0%";
   analysisMetricsEl.classList.add("hidden");
-  analysisMetricsEl.textContent = "Posiciones totales: 0 | Posiciones analizadas: 0 | Posiciones detectadas (>= umbral): 0";
+  analysisMetricsEl.textContent = t("analysis.metrics.zero");
 }
 
 function updateNextSearchStatus(ctx, phaseText = "", ordinal = null) {
@@ -2406,8 +3183,8 @@ async function findNextMistake(ctx, extraStatusPrefix = "") {
       const usedGames = ctx.usedGameIndices instanceof Set ? ctx.usedGameIndices : null;
       if (usedGames && Number.isInteger(fallback.gameIdx)) usedGames.add(fallback.gameIdx);
       ctx.detected += 1;
-      updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, "Posición detectada (repetida)");
-      analysisStatusEl.textContent = `${extraStatusPrefix}Posición detectada (${ctx.detected}). Se reutiliza partida por falta de alternativas.`;
+      updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.detectedRepeated"));
+      analysisStatusEl.textContent = t("analysis.status.reused", { prefix: extraStatusPrefix, count: ctx.detected });
       if (isNextSearch) updateNextSearchStatus(ctx, "Posición detectada (repetida)");
       return fallback;
     }
@@ -2417,8 +3194,13 @@ async function findNextMistake(ctx, extraStatusPrefix = "") {
     while (ctx.cursor < ctx.candidates.length) {
       const candidate = ctx.candidates[ctx.cursor];
       const ordinal = ctx.cursor + 1;
-      analysisStatusEl.textContent = `${extraStatusPrefix}Analizando candidata ${ordinal}/${ctx.total}. Detectadas: ${ctx.detected}.`;
-      updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, `Evaluando ${ordinal}/${ctx.total}`);
+      analysisStatusEl.textContent = t("analysis.status.candidate", {
+        prefix: extraStatusPrefix,
+        ordinal,
+        total: ctx.total,
+        detected: ctx.detected,
+      });
+      updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.evaluatingCandidate", { ordinal, total: ctx.total }));
       if (isNextSearch) updateNextSearchStatus(ctx, "Evaluando candidata", ordinal);
       await yieldToUi();
 
@@ -2435,8 +3217,8 @@ async function findNextMistake(ctx, extraStatusPrefix = "") {
         if (!alreadyUsed || !canStillDiversify) {
           if (usedGames) usedGames.add(gameIdx);
           ctx.detected += 1;
-          updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, "Posición detectada");
-          analysisStatusEl.textContent = `${extraStatusPrefix}Posición detectada (${ctx.detected}). Podés jugar.`;
+          updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.detected"));
+          analysisStatusEl.textContent = t("analysis.status.ready", { prefix: extraStatusPrefix, count: ctx.detected });
           if (isNextSearch) updateNextSearchStatus(ctx, "Posición detectada");
           return mistake;
         }
@@ -2451,14 +3233,14 @@ async function findNextMistake(ctx, extraStatusPrefix = "") {
         const usedGames = ctx.usedGameIndices instanceof Set ? ctx.usedGameIndices : null;
         if (usedGames && Number.isInteger(fallback.gameIdx)) usedGames.add(fallback.gameIdx);
         ctx.detected += 1;
-        updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, "Posición detectada (repetida)");
-        analysisStatusEl.textContent = `${extraStatusPrefix}Posición detectada (${ctx.detected}). Se priorizó continuidad de sesión.`;
+        updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.detectedRepeated"));
+        analysisStatusEl.textContent = t("analysis.status.continuity", { prefix: extraStatusPrefix, count: ctx.detected });
         if (isNextSearch) updateNextSearchStatus(ctx, "Posición detectada (repetida)");
         return fallback;
       }
 
       if (ctx.analyzed % 2 === 0) {
-        updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, "Buscando error");
+        updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.searchingError"));
         if (isNextSearch) updateNextSearchStatus(ctx, "Buscando error");
         await yieldToUi();
       }
@@ -2469,14 +3251,14 @@ async function findNextMistake(ctx, extraStatusPrefix = "") {
       const usedGames = ctx.usedGameIndices instanceof Set ? ctx.usedGameIndices : null;
       if (usedGames && Number.isInteger(deferredRepeat.gameIdx)) usedGames.add(deferredRepeat.gameIdx);
       ctx.detected += 1;
-      updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, "Posición detectada (repetida)");
-      analysisStatusEl.textContent = `${extraStatusPrefix}Posición detectada (${ctx.detected}). No hubo más partidas nuevas en el umbral.`;
+      updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.detectedRepeated"));
+      analysisStatusEl.textContent = t("analysis.status.noFresh", { prefix: extraStatusPrefix, count: ctx.detected });
       if (isNextSearch) updateNextSearchStatus(ctx, "Posición detectada (repetida)");
       return deferredRepeat;
     }
 
-    updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, "Búsqueda finalizada");
-    analysisStatusEl.textContent = `${extraStatusPrefix}No quedan más posiciones en el umbral.`;
+    updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.finished"));
+    analysisStatusEl.textContent = t("analysis.status.noMore", { prefix: extraStatusPrefix });
     if (isNextSearch) updateNextSearchStatus(ctx, "Búsqueda finalizada");
     return null;
   } finally {
@@ -2668,7 +3450,7 @@ function renderBoard() {
 
 function renderGameInfo(position) {
   const m = position.meta;
-  const event = m.event || "Partida";
+  const event = m.event || t("common.gameFallback");
   const year = m.year || "?";
   const eco = m.eco || "-";
   const result = m.result || "-";
@@ -2676,9 +3458,9 @@ function renderGameInfo(position) {
   const players = m.players || "-";
   if (gameDetailsMiniEl) {
     if (STATE.userMode === "citizen") {
-      gameDetailsMiniEl.textContent = `${players} | ${event} ${year} | Movida ${move}`;
+      gameDetailsMiniEl.textContent = t("game.infoCitizen", { players, event, year, move });
     } else {
-      gameDetailsMiniEl.textContent = `${players} | ${event} ${year} | ECO ${eco} | Resultado ${result} | Movida ${move}`;
+      gameDetailsMiniEl.textContent = t("game.infoEngineer", { players, event, year, eco, result, move });
     }
   }
 }
@@ -2692,21 +3474,21 @@ function snapshotMove(move) {
 
 function historyEntryLabel(entry) {
   const round = Number.isFinite(entry?.round) ? entry.round : "-";
-  return `Posición ${round}`;
+  return t("evaluation.historyPosition", { round });
 }
 
 function renderHistoryPreview(entry) {
   if (!roundResultEl || !entry) return;
-  const moduleLine = `<p><strong>Módulo:</strong> ${escapeHtml(entry.bestSan || "-")}</p>`;
-  const gameLine = `<p><strong>Partida:</strong> ${escapeHtml(entry.gameSan || "-")}</p>`;
+  const moduleLine = `<p><strong>${escapeHtml(t("evaluation.historyModule"))}:</strong> ${escapeHtml(entry.bestSan || "-")}</p>`;
+  const gameLine = `<p><strong>${escapeHtml(t("evaluation.historyGame"))}:</strong> ${escapeHtml(entry.gameSan || "-")}</p>`;
   let userLines = "";
   if (entry.mode === "duel") {
     userLines = `
-      <p><strong>${escapeHtml(entry.player1Name || "Jugador 1")}:</strong> ${escapeHtml(entry.player1San || "Sin jugada")}</p>
-      <p><strong>${escapeHtml(entry.player2Name || "Jugador 2")}:</strong> ${escapeHtml(entry.player2San || "Sin jugada")}</p>
+      <p><strong>${escapeHtml(entry.player1Name || duelPlayerName(0))}:</strong> ${escapeHtml(entry.player1San || qualityLabel("no_move"))}</p>
+      <p><strong>${escapeHtml(entry.player2Name || duelPlayerName(1))}:</strong> ${escapeHtml(entry.player2San || qualityLabel("no_move"))}</p>
     `;
   } else {
-    userLines = `<p><strong>Tu jugada:</strong> ${escapeHtml(entry.userSan || "Sin jugada")}</p>`;
+    userLines = `<p><strong>${escapeHtml(t("evaluation.historyYourMove"))}:</strong> ${escapeHtml(entry.userSan || qualityLabel("no_move"))}</p>`;
   }
   roundResultEl.innerHTML = `
     <div class="history-preview">
@@ -2733,7 +3515,7 @@ function openHistoryEntry(index) {
     renderGameInfo({ meta: entry.meta });
   }
   if (roundStatusEl) {
-    roundStatusEl.textContent = `Revisión · ${historyEntryLabel(entry)}`;
+    roundStatusEl.textContent = t("game.roundReview", { label: historyEntryLabel(entry) });
   }
   STATE.selection = null;
   STATE.legalMoves = [];
@@ -2763,7 +3545,7 @@ function openHistoryEntry(index) {
 function renderHistoryList() {
   if (!historyEl) return;
   if (!Array.isArray(STATE.historyEntries) || STATE.historyEntries.length === 0) {
-    historyEl.innerHTML = '<li class="history-empty">Sin posiciones jugadas.</li>';
+    historyEl.innerHTML = `<li class="history-empty">${escapeHtml(t("evaluation.historyEmpty"))}</li>`;
     return;
   }
   historyEl.innerHTML = "";
@@ -2794,13 +3576,21 @@ function renderSessionProgress() {
   const remaining = Math.max(0, target - played);
   if (soloProgressLineEl) soloProgressLineEl.textContent = soloProgressText();
   if (!isDuelMode()) {
-    sessionProgressEl.textContent = `Posiciones evaluadas: ${played} / ${target} · Restan: ${remaining}`;
+    sessionProgressEl.textContent = t("game.progressSolo", { played, target, remaining });
     return;
   }
   const p1 = duelPlayerName(0);
   const p2 = duelPlayerName(1);
   const currentRound = Math.min(Math.max(1, STATE.index + 1), target);
-  sessionProgressEl.textContent = `Ronda ${currentRound}/${target} · Restan: ${remaining} · Aciertos: ${p1} ${STATE.duel.hits[0]} - ${STATE.duel.hits[1]} ${p2}`;
+  sessionProgressEl.textContent = t("game.progressDuel", {
+    round: currentRound,
+    target,
+    remaining,
+    p1,
+    p2,
+    p1Hits: STATE.duel.hits[0],
+    p2Hits: STATE.duel.hits[1],
+  });
 }
 
 function startRound(options = {}) {
@@ -2831,9 +3621,9 @@ function startRound(options = {}) {
   if (isDuelMode()) {
     const activePlayer = duelPlayerName(STATE.duel.currentPlayer);
     const turnNumber = STATE.duel.currentPlayer + 1;
-    roundStatusEl.textContent = `Posición ${STATE.index + 1}/${totalTarget} · Juega ${activePlayer} (${turnNumber}/2)`;
+    roundStatusEl.textContent = t("game.roundDuel", { current: STATE.index + 1, target: totalTarget, player: activePlayer, turn: turnNumber });
   } else {
-    roundStatusEl.textContent = `Posición ${STATE.index + 1}/${totalTarget}`;
+    roundStatusEl.textContent = t("game.roundSolo", { current: STATE.index + 1, target: totalTarget });
   }
   if (roundResultPanelEl) roundResultPanelEl.classList.add("hidden");
   roundResultEl.innerHTML = "";
@@ -2847,7 +3637,7 @@ function startRound(options = {}) {
   startRoundTimer();
   nextBtn.disabled = true;
   skipBtn.disabled = false;
-  nextBtn.textContent = "Siguiente posición";
+  nextBtn.textContent = t("buttons.nextPosition");
 
   renderBoard();
 }
@@ -2912,18 +3702,18 @@ function resultStateClass({ hit = false, noMove = false, isReference = false } =
 }
 
 const INF_BAR_LABEL_BANDS = Object.freeze({
-  "Perfecta": { min: 0, max: 12 },
-  "Muy buena": { min: 12, max: 26 },
-  "Buena": { min: 26, max: 42 },
-  "Interesante (!?)": { min: 42, max: 58 },
-  "Dudosa": { min: 58, max: 74 },
-  "Mala": { min: 74, max: 88 },
-  "Blunder": { min: 88, max: 100 },
-  "Sin jugada": { min: 46, max: 56 },
+  perfect: { min: 0, max: 12 },
+  very_good: { min: 12, max: 26 },
+  good: { min: 26, max: 42 },
+  interesting: { min: 42, max: 58 },
+  dubious: { min: 58, max: 74 },
+  bad: { min: 74, max: 88 },
+  blunder: { min: 88, max: 100 },
+  no_move: { min: 46, max: 56 },
 });
 
-function qualityToInfographicPercent(label, diff, maxDiff) {
-  const band = INF_BAR_LABEL_BANDS[label] || INF_BAR_LABEL_BANDS["Sin jugada"];
+function qualityToInfographicPercent(code, diff, maxDiff) {
+  const band = INF_BAR_LABEL_BANDS[code] || INF_BAR_LABEL_BANDS.no_move;
   const safeMax = Math.max(1, Number(maxDiff) || 1);
   const safeDiff = Number.isFinite(diff) ? clamp(diff, 0, safeMax) : safeMax * 0.5;
   const ratio = safeDiff / safeMax;
@@ -2943,7 +3733,7 @@ function renderVerticalInfographic({ bestNode, gameNode, userNodes }) {
 
   if (bestNode && bestNode.san && bestNode.san !== "-") {
     rawNodes.push({
-      label: "Mejor del módulo",
+      label: t("evaluation.moduleBest"),
       san: bestNode.san,
       meta: bestNode.meta,
       diff: 0,
@@ -2955,7 +3745,7 @@ function renderVerticalInfographic({ bestNode, gameNode, userNodes }) {
 
   if (gameNode && gameNode.san && gameNode.san !== "-") {
     rawNodes.push({
-      label: "Partida",
+      label: t("evaluation.gameLine"),
       san: gameNode.san,
       meta: gameNode.meta,
       diff: gameNode.diff || 0,
@@ -2968,7 +3758,7 @@ function renderVerticalInfographic({ bestNode, gameNode, userNodes }) {
   userNodes.forEach(user => {
     if (!user.noMove) {
       const safeDiff = Number.isFinite(user.diff) ? user.diff : maxDiff;
-      const label = typeof user.meta === "string" ? user.meta : "";
+      const label = typeof user.qualityCode === "string" ? user.qualityCode : "no_move";
       rawNodes.push({
         label: user.label,
         san: user.san,
@@ -3045,31 +3835,33 @@ function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, 
   const noMove = !Number.isFinite(userMover);
   const noMoveByTimeout = noMoveReason === "timeout";
   const duelNoMoveNote = noMoveByTimeout
-    ? "Tiempo agotado: 0 puntos."
-    : (noMove ? "No hubo jugada: 0 puntos." : "");
-  const duelSummary = `Clasificación: ${scored.qualityLabel} | Delta: ${formatDelta(bestMover, userMover)} | Puntos: ${formatSigned(scored.points)}${duelNoMoveNote ? ` | ${duelNoMoveNote}` : ""}`;
+    ? t("evaluation.timeoutZeroPoints")
+    : (noMove ? t("evaluation.noMoveZeroPoints") : "");
+  const duelSummary = `${t("evaluation.classification")}: ${qualityLabel(scored.qualityCode)} | ${t("evaluation.delta")}: ${formatDelta(bestMover, userMover)} | ${t("evaluation.points")}: ${formatSigned(scored.points)}${duelNoMoveNote ? ` | ${duelNoMoveNote}` : ""}`;
 
   let userNodes = [];
 
   if (extra.mode === "duel" && extra.duel) {
-    const p1 = extra.duel.player1 || { name: duelPlayerName(0), san: "-", qualityLabel: "Sin jugada", points: 0, hit: false };
-    const p2 = extra.duel.player2 || { name: duelPlayerName(1), san: "-", qualityLabel: "Sin jugada", points: 0, hit: false };
+    const p1 = extra.duel.player1 || { name: duelPlayerName(0), san: "-", qualityCode: "no_move", points: 0, hit: false };
+    const p2 = extra.duel.player2 || { name: duelPlayerName(1), san: "-", qualityCode: "no_move", points: 0, hit: false };
 
-    if (p1.san && p1.san !== "Sin jugada") {
+    if (p1.san) {
       userNodes.push({
         label: p1.name,
         san: p1.san,
-        meta: `${p1.qualityLabel}`,
+        meta: qualityLabel(p1.qualityCode),
+        qualityCode: p1.qualityCode,
         diff: Number.isFinite(p1.diff) ? p1.diff : null,
         authorClass: "node-p1",
         noMove: false
       });
     }
-    if (p2.san && p2.san !== "Sin jugada") {
+    if (p2.san) {
       userNodes.push({
         label: p2.name,
         san: p2.san,
-        meta: `${p2.qualityLabel}`,
+        meta: qualityLabel(p2.qualityCode),
+        qualityCode: p2.qualityCode,
         diff: Number.isFinite(p2.diff) ? p2.diff : null,
         authorClass: "node-p2", // Player 2 is LightBlue
         noMove: false
@@ -3080,9 +3872,10 @@ function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, 
   } else {
     if (!noMove) {
       userNodes.push({
-        label: "Tu jugada",
+        label: t("evaluation.yourMove"),
         san: userSan,
-        meta: `${scored.qualityLabel}`,
+        meta: qualityLabel(scored.qualityCode),
+        qualityCode: scored.qualityCode,
         diff: Number.isFinite(scored.diff) ? scored.diff : null,
         authorClass: "node-p1", // You are Player 1 (Blue)
         noMove: false
@@ -3094,7 +3887,7 @@ function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, 
   // Re-enable and reset the reveal buttons
   if (revealBestBtn) {
     revealBestBtn.classList.remove("hidden");
-    revealBestBtn.textContent = "Ver la mejor";
+    revealBestBtn.textContent = t("buttons.revealBest");
   }
   if (revealGameBtn) {
     revealGameBtn.classList.remove("hidden");
@@ -3105,15 +3898,21 @@ function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, 
 }
 
 function finalSessionSummaryText() {
-  if (!isDuelMode()) return `Puntaje final: ${formatPoints(STATE.score)}`;
+  if (!isDuelMode()) return t("game.finalScoreSolo", { score: formatPoints(STATE.score) });
   const p1 = duelPlayerName(0);
   const p2 = duelPlayerName(1);
   const s1 = STATE.duel.scores[0];
   const s2 = STATE.duel.scores[1];
-  let winner = "Resultado final: empate.";
-  if (s1 > s2) winner = `Ganador: ${p1}.`;
-  if (s2 > s1) winner = `Ganador: ${p2}.`;
-  return `Marcador final: ${p1} ${formatPoints(s1)} - ${formatPoints(s2)} ${p2}. ${winner}`;
+  let winner = t("game.finalDraw");
+  if (s1 > s2) winner = t("game.finalWinner", { player: p1 });
+  if (s2 > s1) winner = t("game.finalWinner", { player: p2 });
+  return t("game.finalMatchScore", {
+    p1,
+    p2,
+    s1: formatPoints(s1),
+    s2: formatPoints(s2),
+    winner,
+  });
 }
 
 async function evaluateRoundMovesForPosition(base, position, moves, ratingDepth, ratingMoveTimeMs, options = {}) {
@@ -3176,21 +3975,21 @@ async function evaluateRoundMovesForPosition(base, position, moves, ratingDepth,
   const bestByTag = uciToMove(position.bestMoveUci, base);
   const searchedBest = await runEngineTask(
     !bestByTag,
-    "Buscando mejor jugada",
+    "best_move_search",
     (engineOptions, plannedTaskMs) => getBestMoveWithEngine(base, ratingDepth, plannedTaskMs, engineOptions),
   );
   const best = bestByTag || searchedBest?.move || null;
   const bestEvalSource = best
     ? await runEngineTask(
       true,
-      "Evaluando mejor jugada",
+      "best_move_eval",
       (engineOptions, plannedTaskMs) => evaluateMoveWithEngine(base, best, Math.max(1, ratingDepth - 1), plannedTaskMs, engineOptions),
     )
     : NaN;
   const gameEvalWhite = game
     ? await runEngineTask(
       true,
-      "Evaluando jugada de la partida",
+      "game_move_eval",
       (engineOptions, plannedTaskMs) => evaluateMoveWithEngine(base, game, Math.max(1, ratingDepth - 1), plannedTaskMs, engineOptions),
     )
     : NaN;
@@ -3206,7 +4005,7 @@ async function evaluateRoundMovesForPosition(base, position, moves, ratingDepth,
     const userEvalWhite = candidateMove
       ? await runEngineTask(
         true,
-        `Evaluando jugada ${idx + 1}`,
+        `move_eval_${idx + 1}`,
         (engineOptions, plannedTaskMs) => evaluateMoveWithEngine(base, candidateMove, Math.max(1, ratingDepth - 1), plannedTaskMs, engineOptions),
       )
       : NaN;
@@ -3221,11 +4020,11 @@ async function evaluateRoundMovesForPosition(base, position, moves, ratingDepth,
       userMover,
       scored,
       hit,
-      userSan: candidateMove ? moveToSan(base, candidateMove) : "Sin jugada",
+      userSan: candidateMove ? moveToSan(base, candidateMove) : "",
       userEvalText: evaluationToText(decodeEvaluation(userMover)),
     });
   }
-  emitProgress(1, "Evaluación completa", { elapsedMs: Date.now() - overallStartMs, targetMs: totalBudgetMs });
+  emitProgress(1, "evaluation_complete", { elapsedMs: Date.now() - overallStartMs, targetMs: totalBudgetMs });
 
   return {
     best,
@@ -3235,7 +4034,7 @@ async function evaluateRoundMovesForPosition(base, position, moves, ratingDepth,
     bestSan: best ? moveToSan(base, best) : position.bestMoveSan || "-",
     gameSan: game ? moveToSan(base, game) : position.gameMoveSan || "-",
     bestEvalText: evaluationToText(decodeEvaluation(bestMover)),
-    gameEvalText: Number.isFinite(gameMover) ? evaluationToText(decodeEvaluation(gameMover)) : position.gameEvalText || "No disponible",
+    gameEvalText: Number.isFinite(gameMover) ? evaluationToText(decodeEvaluation(gameMover)) : position.gameEvalText || t("common.notAvailable"),
     hitThreshold,
     evaluatedMoves,
   };
@@ -3276,10 +4075,10 @@ async function resolveRound(move, options = {}) {
       STATE.revealed = { best: null, game: null, user: null, userAlt: null };
       renderBoard();
       roundResultEl.innerHTML = "";
-      showHandoffOverlay(`Turno de ${duelPlayerName(1)}`, "Toca para revelar");
+      showHandoffOverlay(t("game.handoff.title", { player: duelPlayerName(1) }), t("game.handoff.subtitle"));
       STATE.duel.handoffReady = true;
       setUiPhase("handoff_ready", true);
-      nextBtn.textContent = "Siguiente posición";
+      nextBtn.textContent = t("buttons.nextPosition");
       nextBtn.disabled = true;
       skipBtn.disabled = true;
       setThinkingMode(false);
@@ -3292,8 +4091,8 @@ async function resolveRound(move, options = {}) {
     }
 
     roundResultEl.textContent = noMoveReason === "timeout"
-      ? "Tiempo agotado. Evaluando posición..."
-      : (noMove ? "Cerrando posición sin jugada..." : "Evaluando jugada...");
+      ? t("overlay.timeoutEvaluating")
+      : (noMove ? t("overlay.closingWithoutMove") : t("overlay.evaluatingMove"));
 
     if (move) {
       STATE.board.makeMove(move);
@@ -3302,8 +4101,8 @@ async function resolveRound(move, options = {}) {
     }
 
     const evaluationTitle = isDuelMode()
-      ? "Evaluando jugadas de ambos jugadores..."
-      : "Evaluando tu jugada...";
+      ? t("overlay.evaluatingBoth")
+      : t("overlay.evaluatingYours");
 
     const movesToEvaluate = [];
     if (!isDuelMode()) {
@@ -3320,11 +4119,15 @@ async function resolveRound(move, options = {}) {
     const budgetLabel = `${(roundPlan.totalBudgetMs / 1000).toFixed(1)}s max`;
     showPositionSearchOverlay(
       evaluationTitle,
-      `Dificultad ${roundPlan.label} · ${budgetLabel}`,
+      t("overlay.difficultyBudget", { label: t(`difficulty.${roundPlan.label}`), budget: budgetLabel }),
       {
         showProgress: true,
         progressRatio: 0,
-        progressLabel: `0% · 0.0s / ${(roundPlan.totalBudgetMs / 1000).toFixed(1)}s`,
+        progressLabel: t("overlay.progressLabel", {
+          pct: 0,
+          elapsed: "0.0",
+          total: (roundPlan.totalBudgetMs / 1000).toFixed(1),
+        }),
       },
     );
     startRoundThinkingMessages(roundPlan.level);
@@ -3343,7 +4146,11 @@ async function resolveRound(move, options = {}) {
           const ratio = clamp(Number(payload.ratio) || 0, 0, 1);
           const elapsedTotalMs = Math.max(0, Number(payload.elapsedTotalMs) || 0);
           const pct = Math.round(ratio * 100);
-          const progressLabel = `${pct}% · ${(elapsedTotalMs / 1000).toFixed(1)}s / ${(roundPlan.totalBudgetMs / 1000).toFixed(1)}s`;
+          const progressLabel = t("overlay.progressLabel", {
+            pct,
+            elapsed: (elapsedTotalMs / 1000).toFixed(1),
+            total: (roundPlan.totalBudgetMs / 1000).toFixed(1),
+          });
           setPositionSearchProgress(ratio, progressLabel);
         },
       },
@@ -3354,8 +4161,8 @@ async function resolveRound(move, options = {}) {
       userMover: NaN,
       scored: scoreMoveAgainstBest(evaluation.bestMover, NaN, STATE.scoringSystem),
       hit: false,
-      userSan: "Sin jugada",
-      userEvalText: "No disponible",
+      userSan: "",
+      userEvalText: t("common.notAvailable"),
     };
 
     hidePositionSearchOverlay();
@@ -3383,10 +4190,23 @@ async function resolveRound(move, options = {}) {
         baseResult.noMoveReason,
         { mode: "solo", hitThreshold: evaluation.hitThreshold },
       );
+      STATE.resultView.context = {
+        kind: "round_solo",
+        bestSan: evaluation.bestSan,
+        gameSan: evaluation.gameSan,
+        bestMover: evaluation.bestMover,
+        gameMover: evaluation.gameMover,
+        userMover: baseResult.userMover,
+        scored: baseResult.scored,
+        noMoveReason: baseResult.noMoveReason,
+        userSan: baseResult.userSan || "",
+        userMove: snapshotMove(move),
+        hitThreshold: evaluation.hitThreshold,
+      };
       const soloRoundSummary = noMove
-        ? (noMoveReason === "timeout" ? "Tiempo agotado: 0 pts." : "No hiciste jugada: 0 pts.")
-        : `Ganaste ${formatSigned(baseResult.scored.points)} pts`;
-      showResultOverlay("Resultado de tu jugada", soloRoundSummary);
+        ? (noMoveReason === "timeout" ? t("evaluation.timeoutZeroPts") : t("evaluation.noMoveMadeZeroPts"))
+        : t("evaluation.wonPoints", { points: formatSigned(baseResult.scored.points) });
+      showResultOverlay(t("game.result.yourMove"), soloRoundSummary);
       setUiPhase("result", true);
       STATE.score = Math.round((STATE.score + baseResult.scored.points) * 100) / 100;
       STATE.sessionPlayed += 1;
@@ -3398,12 +4218,12 @@ async function resolveRound(move, options = {}) {
         meta: position.meta,
         bestSan: evaluation.bestSan,
         gameSan: evaluation.gameSan,
-        userSan: baseResult.userSan,
+        userSan: baseResult.userSan || "",
         bestMove: snapshotMove(evaluation.best),
         gameMove: snapshotMove(evaluation.game),
         userMove: snapshotMove(move),
       });
-      nextBtn.textContent = "Siguiente posición";
+      nextBtn.textContent = t("buttons.nextPosition");
       nextBtn.disabled = false;
       skipBtn.disabled = true;
       if (roundResultPanelEl) roundResultPanelEl.classList.remove("hidden");
@@ -3420,7 +4240,7 @@ async function resolveRound(move, options = {}) {
     const r1 = {
       points: baseResult.scored.points,
       diff: baseResult.scored.diff,
-      qualityLabel: baseResult.scored.qualityLabel,
+      qualityCode: baseResult.scored.qualityCode,
       bestSan: evaluation.bestSan,
       userSan: baseResult.userSan,
       userMove: snapshotMove(baseResult.move),
@@ -3429,7 +4249,7 @@ async function resolveRound(move, options = {}) {
     const r2 = {
       points: secondResult.scored.points,
       diff: secondResult.scored.diff,
-      qualityLabel: secondResult.scored.qualityLabel,
+      qualityCode: secondResult.scored.qualityCode,
       bestSan: evaluation.bestSan,
       userSan: secondResult.userSan,
       userMove: snapshotMove(secondResult.move),
@@ -3472,7 +4292,7 @@ async function resolveRound(move, options = {}) {
           player1: {
             name: p1,
             san: r1.userSan,
-            qualityLabel: r1.qualityLabel,
+            qualityCode: r1.qualityCode,
             points: r1.points,
             diff: r1.diff,
             hit: r1.hit,
@@ -3480,7 +4300,7 @@ async function resolveRound(move, options = {}) {
           player2: {
             name: p2,
             san: r2.userSan,
-            qualityLabel: r2.qualityLabel,
+            qualityCode: r2.qualityCode,
             points: r2.points,
             diff: r2.diff,
             hit: r2.hit,
@@ -3488,12 +4308,42 @@ async function resolveRound(move, options = {}) {
         },
       },
     );
-    showResultOverlay("¡Posición Resuelta!", `Ronda ${STATE.index + 1}: ${p1} ${formatSigned(r1.points)} · ${p2} ${formatSigned(r2.points)}`);
+    STATE.resultView.context = {
+      kind: "round_duel",
+      round: STATE.index + 1,
+      bestSan: evaluation.bestSan,
+      gameSan: evaluation.gameSan,
+      bestMover: evaluation.bestMover,
+      gameMover: evaluation.gameMover,
+      currentUserMover: secondResult.userMover,
+      currentScored: secondResult.scored,
+      currentNoMoveReason: secondResult.noMoveReason,
+      player1: {
+        name: p1,
+        san: r1.userSan,
+        qualityCode: r1.qualityCode,
+        points: r1.points,
+        diff: r1.diff,
+        hit: r1.hit,
+      },
+      player2: {
+        name: p2,
+        san: r2.userSan,
+        qualityCode: r2.qualityCode,
+        points: r2.points,
+        diff: r2.diff,
+        hit: r2.hit,
+      },
+    };
+    showResultOverlay(
+      t("game.result.positionSolved"),
+      `R${STATE.index + 1}: ${p1} ${formatSigned(r1.points)} · ${p2} ${formatSigned(r2.points)}`
+    );
     if (roundResultPanelEl) roundResultPanelEl.classList.remove("hidden");
 
-    let winnerText = "Comparativa: empate.";
-    if (r1.points > r2.points) winnerText = `Comparativa: ventaja para ${p1}.`;
-    if (r2.points > r1.points) winnerText = `Comparativa: ventaja para ${p2}.`;
+    let winnerText = t("game.comparison.tie");
+    if (r1.points > r2.points) winnerText = t("game.comparison.advantage", { player: p1 });
+    if (r2.points > r1.points) winnerText = t("game.comparison.advantage", { player: p2 });
     roundResultEl.insertAdjacentHTML("afterbegin", `<p class="result-summary-line">${escapeHtml(winnerText)}</p>`);
     STATE.sessionPlayed += 1;
     pushHistoryEntry({
@@ -3512,7 +4362,7 @@ async function resolveRound(move, options = {}) {
       player1Move: r1.userMove,
       player2Move: r2.userMove,
     });
-    nextBtn.textContent = "Siguiente posición";
+    nextBtn.textContent = t("buttons.nextPosition");
     nextBtn.disabled = false;
     skipBtn.disabled = true;
     STATE.duel.handoffReady = false;
@@ -3525,7 +4375,7 @@ async function resolveRound(move, options = {}) {
     hidePositionSearchOverlay();
     hideHandoffOverlay();
     hideResultOverlay();
-    roundResultEl.textContent = `Error al evaluar la ronda: ${error.message || "desconocido"}`;
+    roundResultEl.textContent = t("analysis.status.roundError", { error: error.message || t("common.unknown") });
     STATE.roundSubmitted = false;
     skipBtn.disabled = false;
     nextBtn.disabled = true;
@@ -3558,11 +4408,12 @@ async function nextPosition() {
     if (nextBtn) nextBtn.classList.add("hidden");
 
     if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
-    if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = formatPoints(STATE.score) + " pts";
+    STATE.resultView.context = { kind: "session_summary", noMorePositions: false };
+    if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = `${formatPoints(STATE.score)} pts`;
     if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText();
     if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
 
-    roundStatusEl.textContent = "¡Sesión terminada!";
+    roundStatusEl.textContent = t("game.sessionDone");
     skipBtn.disabled = true;
     stopRoundTimer();
     setThinkingMode(false);
@@ -3586,11 +4437,12 @@ async function nextPosition() {
       if (nextBtn) nextBtn.classList.add("hidden");
 
       if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
-      if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = formatPoints(STATE.score) + " pts";
+      STATE.resultView.context = { kind: "session_summary", noMorePositions: false };
+      if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = `${formatPoints(STATE.score)} pts`;
       if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText();
       if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
 
-      roundStatusEl.textContent = "¡Sesión terminada!";
+      roundStatusEl.textContent = t("game.sessionDone");
       skipBtn.disabled = true;
       stopRoundTimer();
       setThinkingMode(false);
@@ -3609,7 +4461,7 @@ async function nextPosition() {
     skipBtn.disabled = true;
     // Do not show a duplicate loading message on the top bar
     roundStatusEl.textContent = "";
-    showPositionSearchOverlay("Buscando próxima posición...");
+    showPositionSearchOverlay(t("overlay.searchingNext"));
     setUiPhase("loading_next_position", true);
     const nextMistake = await findNextMistake(ctx, "Siguiente: ");
     if (!nextMistake) {
@@ -3619,11 +4471,12 @@ async function nextPosition() {
       if (nextBtn) nextBtn.classList.add("hidden");
 
       if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
-      if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = formatPoints(STATE.score) + " pts";
-      if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText() + " No se encontraron más posiciones.";
+      STATE.resultView.context = { kind: "session_summary", noMorePositions: true };
+      if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = `${formatPoints(STATE.score)} pts`;
+      if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = `${finalSessionSummaryText()} ${t("game.noMorePositions")}`;
       if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
 
-      roundStatusEl.textContent = "¡Sesión terminada!";
+      roundStatusEl.textContent = t("game.sessionDone");
       skipBtn.disabled = true;
       stopRoundTimer();
       setThinkingMode(false);
@@ -3637,7 +4490,7 @@ async function nextPosition() {
       renderBoardArrows();
       return;
     }
-    showPositionSearchOverlay("Posición encontrada", formatPositionSearchMeta(nextMistake));
+    showPositionSearchOverlay(t("game.positionFound"), formatPositionSearchMeta(nextMistake));
     await sleepMs(1200);
     hidePositionSearchOverlay();
     STATE.positions.push(nextMistake);
@@ -3698,20 +4551,86 @@ function restartToSetup() {
   updateCompetitiveStatus();
   if (roundResultPanelEl) roundResultPanelEl.classList.add("hidden");
   roundResultEl.innerHTML = "";
-  analysisStatusEl.textContent = "Esperando datos de partida.";
-  if (playerNameDetectedEl) playerNameDetectedEl.textContent = "Ingresá el usuario para continuar.";
+  analysisStatusEl.textContent = t("wizard.status.currentStep");
+  if (playerNameDetectedEl) playerNameDetectedEl.textContent = t("players.enterUserContinue");
   resetAnalysisProgress();
   analysisProgressWrapEl.classList.add("hidden");
   skipBtn.disabled = true;
   nextBtn.disabled = true;
   resetSetupWizard({
     mode: "solo",
-    statusMessage: "Configurá tu próxima sesión paso a paso.",
+    statusMessage: t("wizard.status.nextSession"),
   });
   updatePgnSelectionUi();
   showLandingScreen();
   buildBoard();
   renderBoard();
+}
+
+function refreshLocalizedUi() {
+  applyStaticTranslations();
+  updateOnlineProviderUi();
+  syncLocalizedPlayerDefaults();
+  updateScoringSystemHint();
+  updateResultAnalysisControls();
+  updateScoreDisplay();
+  updateCompetitiveStatus();
+  renderSessionProgress();
+  renderHistoryList();
+  updatePgnSelectionUi();
+  if (STATE.setupWizard.sourceError?.key) {
+    showWizardSourceError(STATE.setupWizard.sourceError.key, STATE.setupWizard.sourceError.params || {});
+  } else if (STATE.setupWizard.step === 2) {
+    const validation = validateWizardStep(2);
+    if (!validation.valid && wizardSourceErrorEl && !wizardSourceErrorEl.classList.contains("hidden")) {
+      wizardSourceErrorEl.textContent = validation.reason;
+    }
+  } else if (STATE.setupWizard.sourceError?.raw && wizardSourceErrorEl) {
+    wizardSourceErrorEl.textContent = STATE.setupWizard.sourceError.raw;
+    wizardSourceErrorEl.classList.remove("hidden");
+    if (wizardSourceCtaEl) wizardSourceCtaEl.classList.remove("hidden");
+  }
+
+  if (STATE.positions[STATE.index]) {
+    renderGameInfo(STATE.positions[STATE.index]);
+  }
+
+  if (STATE.historySelectedIdx >= 0 && STATE.historyEntries[STATE.historySelectedIdx]) {
+    renderHistoryPreview(STATE.historyEntries[STATE.historySelectedIdx]);
+  }
+
+  if (STATE.resultView.visible && STATE.resultView.context && !STATE.resultView.analysisMode) {
+    renderResultViewContext();
+  }
+
+  if (handoffOverlayEl && !handoffOverlayEl.classList.contains("hidden") && isDuelMode() && STATE.duel.currentPlayer === 0) {
+    showHandoffOverlay(t("game.handoff.title", { player: duelPlayerName(1) }), t("game.handoff.subtitle"));
+  }
+
+  if (positionSearchOverlayEl && !positionSearchOverlayEl.classList.contains("hidden") && STATE.ui.positionSearchState) {
+    const overlayState = STATE.ui.positionSearchState;
+    const isFoundTitle = SUPPORTED_LANGUAGES.some((language) => rawTranslation("game.positionFound", language) === overlayState.title);
+    const isSearchTitle = SUPPORTED_LANGUAGES.some((language) => rawTranslation("overlay.searchingNext", language) === overlayState.title)
+      || SUPPORTED_LANGUAGES.some((language) => rawTranslation("game.searchingNext", language) === overlayState.title);
+    const translatedTitle = overlayState.showProgress
+      ? (isDuelMode() ? t("overlay.evaluatingBoth") : t("overlay.evaluatingYours"))
+      : (STATE.ui.phase === "loading_next_position" || isSearchTitle
+        ? t("overlay.searchingNext")
+        : (isFoundTitle ? t("game.positionFound") : overlayState.title));
+    showPositionSearchOverlay(translatedTitle, overlayState.meta, {
+      showProgress: overlayState.showProgress,
+      progressRatio: overlayState.progressRatio,
+      progressLabel: overlayState.progressLabel,
+    });
+  }
+
+  if (!document.body.classList.contains("playing-mode")) {
+    const readiness = validateWizardStep(STATE.setupWizard.step);
+    if (analysisStatusEl && !STATE.ui.setupAnalyzing) {
+      const readyMessage = STATE.setupWizard.step === 3 ? t("wizard.step3.analysisPrompt") : t("wizard.status.currentStep");
+      analysisStatusEl.textContent = readiness.valid ? readyMessage : readiness.reason;
+    }
+  }
 }
 
 function revealSpecificMove(type) {
@@ -3722,7 +4641,7 @@ function revealSpecificMove(type) {
   if (type === "best") {
     if (revealBestBtn.classList.contains("revealed-state")) {
       revealBestBtn.classList.remove("revealed-state");
-      revealBestBtn.textContent = "Ver la mejor";
+      revealBestBtn.textContent = t("buttons.revealBest");
       STATE.revealed.best = null;
     } else {
       const from = Chess.squareToIndex(p.bestMoveUci.substring(0, 2));
@@ -3730,7 +4649,7 @@ function revealSpecificMove(type) {
       const prom = p.bestMoveUci.length > 4 ? p.bestMoveUci[4] : undefined;
       STATE.revealed.best = { from, to, promotion: prom };
       if (revealBestBtn) {
-        revealBestBtn.textContent = `Mejor: ${p.bestMoveSan || "-"}`;
+        revealBestBtn.textContent = t("evaluation.bestPrefix", { san: p.bestMoveSan || "-" });
         revealBestBtn.classList.add("revealed-state");
       }
     }
@@ -3745,7 +4664,7 @@ function revealSpecificMove(type) {
       const prom = p.gameMoveUci.length > 4 ? p.gameMoveUci[4] : undefined;
       STATE.revealed.game = { from, to, promotion: prom };
       if (revealGameBtn) {
-        revealGameBtn.textContent = `Partida: ${p.gameMoveSan || "-"}`;
+        revealGameBtn.textContent = t("evaluation.gamePrefix", { san: p.gameMoveSan || "-" });
         revealGameBtn.classList.add("revealed-state");
       }
     }
@@ -3762,8 +4681,8 @@ async function getActivePgnTextSources() {
 async function fetchLichessPgn() {
   const rawUser = getConfiguredRemoteUsername();
   if (!rawUser) {
-    if (onlineStatusEl) onlineStatusEl.textContent = "Ingresá un usuario de Lichess.";
-    showWizardSourceError("Ingresá un usuario de Lichess para continuar.");
+    if (onlineStatusEl) onlineStatusEl.textContent = t("provider.enterLichessUser");
+    showWizardSourceError("provider.enterLichessContinue");
     return false;
   }
 
@@ -3771,13 +4690,13 @@ async function fetchLichessPgn() {
   const nowMs = Date.now();
   const oneYearMs = 365 * 24 * 60 * 60 * 1000;
   const sinceMs = nowMs - oneYearMs;
-  const preferredLabel = settings.preferredPerf.map((p) => p[0].toUpperCase() + p.slice(1)).join("/");
+  const preferredLabel = joinPreferredTimeClasses(settings.preferredPerf);
 
   if (onlineStatusEl) {
     if (STATE.userMode === "citizen") {
-      onlineStatusEl.textContent = `Descargando para ${rawUser}. ${describeLichessNormalProtocol(settings)}`;
+      onlineStatusEl.textContent = t("provider.downloadingFor", { user: rawUser, protocol: describeLichessNormalProtocol(settings) });
     } else {
-      onlineStatusEl.textContent = `Buscando hasta ${settings.maxGames} partida(s) de ${rawUser}: primero ${preferredLabel} (últimos 12 meses)...`;
+      onlineStatusEl.textContent = t("provider.searchingUpTo", { max: settings.maxGames, user: rawUser, preferred: preferredLabel });
     }
   }
 
@@ -3792,7 +4711,7 @@ async function fetchLichessPgn() {
       headers: { Accept: "application/x-chess-pgn" },
     });
     if (!response.ok) {
-      throw new Error(`Lichess respondió ${response.status}`);
+      throw new Error(t("provider.lichessResponse", { status: response.status }));
     }
     const text = await response.text();
     return { text, games: countPgnGames(text) };
@@ -3809,7 +4728,7 @@ async function fetchLichessPgn() {
     if (settings.fallbackBlitz && totalGames < settings.minSlowGames && totalGames < settings.maxGames) {
       const remaining = settings.maxGames - totalGames;
       if (onlineStatusEl) {
-        onlineStatusEl.textContent = `Se descargaron ${totalGames} partida(s) ${preferredLabel}. Completando con Blitz (${remaining} restantes)...`;
+        onlineStatusEl.textContent = t("provider.completingBlitz", { count: totalGames, preferred: preferredLabel, remaining });
       }
       await sleepMs(220);
       const blitz = await fetchChunk(["blitz"], remaining);
@@ -3823,10 +4742,10 @@ async function fetchLichessPgn() {
     if (settings.fallbackBullet && totalGames < settings.minSlowGames && totalGames < settings.maxGames) {
       const remaining = settings.maxGames - totalGames;
       const warningContext = blitzGames > 0
-        ? `${rawUser} no tiene suficientes partidas en ${preferredLabel}; tampoco alcanza con Blitz`
-        : `${rawUser} no tiene suficientes partidas en ${preferredLabel} ni Blitz`;
+        ? t("provider.bulletContextStillShort", { user: rawUser, preferred: preferredLabel })
+        : t("provider.bulletContextNoBlitz", { user: rawUser, preferred: preferredLabel });
       if (onlineStatusEl) {
-        onlineStatusEl.textContent = `Advertencia: ${warningContext}. Intentando completar con Bullet (${remaining} restantes)...`;
+        onlineStatusEl.textContent = t("provider.bulletAttempt", { context: warningContext, remaining });
       }
       await sleepMs(220);
       const bullet = await fetchChunk(["bullet"], remaining);
@@ -3836,12 +4755,12 @@ async function fetchLichessPgn() {
         finalText = finalText && finalText.trim() ? `${finalText.trim()}\n\n${bullet.text.trim()}\n` : bullet.text;
       }
       if (bulletGames > 0) {
-        qualityWarning = `Advertencia: ${warningContext}. Completamos con Bullet, pero no es ideal.`;
+        qualityWarning = t("provider.bulletCompleted", { context: warningContext });
       }
     }
 
     if (totalGames <= 0) {
-      throw new Error("No se encontraron partidas públicas en los ritmos/filtros elegidos.");
+      throw new Error(t("provider.noGamesForFilters"));
     }
 
     const safeUser = rawUser.replace(/[^a-z0-9_-]+/gi, "") || "user";
@@ -3865,18 +4784,32 @@ async function fetchLichessPgn() {
     updatePgnSelectionUi();
     if (onlineStatusEl) {
       if (bulletGames > 0) {
-        onlineStatusEl.textContent = `${qualityWarning} Listo: ${totalGames} partida(s) de ${rawUser}. ${slow.games} en ${preferredLabel} + ${blitzGames} Blitz + ${bulletGames} Bullet (fallback).`;
+        onlineStatusEl.textContent = t("provider.readyBullet", {
+          warning: `${qualityWarning} `,
+          total: totalGames,
+          user: rawUser,
+          slow: slow.games,
+          preferred: preferredLabel,
+          blitz: blitzGames,
+          bullet: bulletGames,
+        });
       } else if (blitzGames > 0) {
-        onlineStatusEl.textContent = `Listo: ${totalGames} partida(s) de ${rawUser}. ${slow.games} en ${preferredLabel} + ${blitzGames} Blitz (fallback).`;
+        onlineStatusEl.textContent = t("provider.readyBlitz", {
+          total: totalGames,
+          user: rawUser,
+          slow: slow.games,
+          preferred: preferredLabel,
+          blitz: blitzGames,
+        });
       } else {
-        onlineStatusEl.textContent = `Listo: ${totalGames} partida(s) de ${rawUser} en ${preferredLabel}.`;
+        onlineStatusEl.textContent = t("provider.readyPreferred", { total: totalGames, user: rawUser, preferred: preferredLabel });
       }
     }
     return true;
   } catch (error) {
-    const message = `No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma. (${error.message || "error desconocido"})`;
+    const message = t("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
     if (onlineStatusEl) onlineStatusEl.textContent = message;
-    showWizardSourceError(message);
+    showWizardSourceError("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
     return false;
   }
 }
@@ -3902,18 +4835,18 @@ function isArchiveInLastTwelveMonths(year, month) {
 async function fetchChessComPgn() {
   const rawUser = getConfiguredRemoteUsername();
   if (!rawUser) {
-    if (onlineStatusEl) onlineStatusEl.textContent = "Ingresá un usuario de Chess.com.";
-    showWizardSourceError("Ingresá un usuario de Chess.com para continuar.");
+    if (onlineStatusEl) onlineStatusEl.textContent = t("provider.enterChesscomUser");
+    showWizardSourceError("provider.enterChesscomContinue");
     return false;
   }
 
   const settings = getChessComFetchSettings();
-  const preferredLabel = settings.preferredSlowClasses.map((p) => p[0].toUpperCase() + p.slice(1)).join("/");
+  const preferredLabel = joinPreferredTimeClasses(settings.preferredSlowClasses);
   if (onlineStatusEl) {
     if (STATE.userMode === "citizen") {
-      onlineStatusEl.textContent = `Descargando para ${rawUser}. ${describeChessComNormalProtocol(settings)}`;
+      onlineStatusEl.textContent = t("provider.downloadingFor", { user: rawUser, protocol: describeChessComNormalProtocol(settings) });
     } else {
-      onlineStatusEl.textContent = `Buscando hasta ${settings.maxGames} partida(s) de ${rawUser}: primero ${preferredLabel} (últimos 12 meses)...`;
+      onlineStatusEl.textContent = t("provider.searchingUpTo", { max: settings.maxGames, user: rawUser, preferred: preferredLabel });
     }
   }
 
@@ -3925,7 +4858,7 @@ async function fetchChessComPgn() {
     if (monthGamesCache.has(archiveUrl)) return monthGamesCache.get(archiveUrl);
     const response = await fetch(archiveUrl);
     if (!response.ok) {
-      throw new Error(`Chess.com respondió ${response.status} al leer ${archiveUrl}.`);
+      throw new Error(t("provider.chesscomReadArchiveError", { status: response.status, url: archiveUrl }));
     }
     const payload = await response.json();
     const games = Array.isArray(payload?.games) ? payload.games : [];
@@ -3959,9 +4892,9 @@ async function fetchChessComPgn() {
     const archivesResponse = await fetch(archivesUrl);
     if (!archivesResponse.ok) {
       if (archivesResponse.status === 404) {
-        throw new Error("Usuario no encontrado o sin partidas públicas.");
+        throw new Error(t("provider.userNotFoundOrPrivate"));
       }
-      throw new Error(`Chess.com respondió ${archivesResponse.status}`);
+      throw new Error(t("provider.chesscomResponse", { status: archivesResponse.status }));
     }
     const archivesPayload = await archivesResponse.json();
     const archives = (Array.isArray(archivesPayload?.archives) ? archivesPayload.archives : [])
@@ -3971,7 +4904,7 @@ async function fetchChessComPgn() {
       .sort((a, b) => (b.year * 100 + b.month) - (a.year * 100 + a.month));
 
     if (archives.length === 0) {
-      throw new Error("No hay archivos mensuales públicos en los últimos 12 meses.");
+      throw new Error(t("provider.noMonthlyArchives"));
     }
 
     const slowClasses = new Set(settings.preferredSlowClasses);
@@ -3992,7 +4925,7 @@ async function fetchChessComPgn() {
     if (settings.fallbackBlitz && totalGames < settings.minSlowGames && totalGames < settings.maxGames) {
       const remaining = settings.maxGames - totalGames;
       if (onlineStatusEl) {
-        onlineStatusEl.textContent = `Se descargaron ${totalGames} partida(s) ${preferredLabel}. Completando con Blitz (${remaining} restantes)...`;
+        onlineStatusEl.textContent = t("provider.completingBlitz", { count: totalGames, preferred: preferredLabel, remaining });
       }
       await sleepMs(220);
       const blitzClass = new Set(["blitz"]);
@@ -4008,10 +4941,10 @@ async function fetchChessComPgn() {
     if (settings.fallbackBullet && totalGames < settings.minSlowGames && totalGames < settings.maxGames) {
       const remaining = settings.maxGames - totalGames;
       const warningContext = blitzGames > 0
-        ? `${rawUser} no tiene suficientes partidas en ${preferredLabel}; tampoco alcanza con Blitz`
-        : `${rawUser} no tiene suficientes partidas en ${preferredLabel} ni Blitz`;
+        ? t("provider.bulletContextStillShort", { user: rawUser, preferred: preferredLabel })
+        : t("provider.bulletContextNoBlitz", { user: rawUser, preferred: preferredLabel });
       if (onlineStatusEl) {
-        onlineStatusEl.textContent = `Advertencia: ${warningContext}. Intentando completar con Bullet (${remaining} restantes)...`;
+        onlineStatusEl.textContent = t("provider.bulletAttempt", { context: warningContext, remaining });
       }
       await sleepMs(220);
       const bulletClass = new Set(["bullet"]);
@@ -4023,12 +4956,12 @@ async function fetchChessComPgn() {
         totalGames += added;
       }
       if (bulletGames > 0) {
-        qualityWarning = `Advertencia: ${warningContext}. Completamos con Bullet, pero no es ideal.`;
+        qualityWarning = t("provider.bulletCompleted", { context: warningContext });
       }
     }
 
     if (totalGames <= 0 || selectedPgn.length === 0) {
-      throw new Error("No se encontraron partidas públicas en los ritmos/filtros elegidos.");
+      throw new Error(t("provider.noGamesForFilters"));
     }
 
     const safeUser = rawUser.replace(/[^a-z0-9_-]+/gi, "") || "user";
@@ -4052,18 +4985,32 @@ async function fetchChessComPgn() {
     updatePgnSelectionUi();
     if (onlineStatusEl) {
       if (bulletGames > 0) {
-        onlineStatusEl.textContent = `${qualityWarning} Listo: ${totalGames} partida(s) de ${rawUser}. ${slowGames} en ${preferredLabel} + ${blitzGames} Blitz + ${bulletGames} Bullet (fallback).`;
+        onlineStatusEl.textContent = t("provider.readyBullet", {
+          warning: `${qualityWarning} `,
+          total: totalGames,
+          user: rawUser,
+          slow: slowGames,
+          preferred: preferredLabel,
+          blitz: blitzGames,
+          bullet: bulletGames,
+        });
       } else if (blitzGames > 0) {
-        onlineStatusEl.textContent = `Listo: ${totalGames} partida(s) de ${rawUser}. ${slowGames} en ${preferredLabel} + ${blitzGames} Blitz (fallback).`;
+        onlineStatusEl.textContent = t("provider.readyBlitz", {
+          total: totalGames,
+          user: rawUser,
+          slow: slowGames,
+          preferred: preferredLabel,
+          blitz: blitzGames,
+        });
       } else {
-        onlineStatusEl.textContent = `Listo: ${totalGames} partida(s) de ${rawUser} en ${preferredLabel}.`;
+        onlineStatusEl.textContent = t("provider.readyPreferred", { total: totalGames, user: rawUser, preferred: preferredLabel });
       }
     }
     return true;
   } catch (error) {
-    const message = `No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma. (${error.message || "error desconocido"})`;
+    const message = t("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
     if (onlineStatusEl) onlineStatusEl.textContent = message;
-    showWizardSourceError(message);
+    showWizardSourceError("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
     return false;
   }
 }
@@ -4116,13 +5063,13 @@ async function startSessionPipeline() {
   updateCompetitiveStatus();
 
   try {
-    if (!hasAnyPgnSource(true)) {
-      analysisStatusEl.textContent = `Preparando base online de ${STATE.sourceMode === "chesscom" ? "Chess.com" : "Lichess"}...`;
+  if (!hasAnyPgnSource(true)) {
+      analysisStatusEl.textContent = t("analysis.status.prepareBase", { provider: providerLabel(STATE.sourceMode) });
       const downloaded = STATE.sourceMode === "chesscom"
         ? await fetchChessComPgn()
         : await fetchLichessPgn();
       if (!downloaded || !hasAnyPgnSource(true)) {
-        sendWizardBackToSourceStep("No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma.");
+        sendWizardBackToSourceStep("common.sourceError");
         return;
       }
     }
@@ -4134,15 +5081,15 @@ async function startSessionPipeline() {
     })));
 
     if (allGames.length === 0) {
-      sendWizardBackToSourceStep("No encontramos partidas públicas válidas para ese usuario. Probá otro usuario o plataforma.");
+      sendWizardBackToSourceStep("provider.noPublicValidGames");
       return;
     }
 
     const playerName = inferPlayerName(allGames);
-    playerNameDetectedEl.textContent = playerName || "No detectado";
+    playerNameDetectedEl.textContent = playerName || t("players.notDetected");
 
     if (!playerName) {
-      sendWizardBackToSourceStep("No pudimos detectar el jugador en las partidas descargadas. Probá con otro usuario.");
+      sendWizardBackToSourceStep("provider.playerNotDetected");
       return;
     }
 
@@ -4152,12 +5099,12 @@ async function startSessionPipeline() {
     const candidates = buildRandomCandidateQueue(allGames, playerName);
     const uniqueGameCount = new Set(candidates.map((c) => c.gameIdx)).size;
     if (candidates.length === 0) {
-      sendWizardBackToSourceStep("No encontramos posiciones analizables para ese usuario. Probá con otro usuario o plataforma.");
+      sendWizardBackToSourceStep("provider.noAnalyzablePositions");
       return;
     }
 
-    updateAnalysisProgress(0, candidates.length, 0, "Buscando primera posición");
-    analysisStatusEl.textContent = `Barajando ${allGames.length} partidas y buscando primera posición para ${playerName}...`;
+    updateAnalysisProgress(0, candidates.length, 0, t("game.searchingNext"));
+    analysisStatusEl.textContent = t("analysis.status.shuffle", { games: allGames.length, player: playerName });
 
     const ctx = {
       games: allGames,
@@ -4178,28 +5125,34 @@ async function startSessionPipeline() {
 
     const firstMistake = await findNextMistake(ctx, "Inicio: ");
     if (!firstMistake) {
-      sendWizardBackToSourceStep(`No se detectaron errores útiles con este usuario. Candidatas analizadas: ${ctx.analyzed}/${ctx.total}.`);
+      sendWizardBackToSourceStep("provider.noUsefulMistakes", { analyzed: ctx.analyzed, total: ctx.total });
       return;
     }
 
     STATE.allMistakes = [firstMistake];
     STATE.positions = [firstMistake];
     if (STATE.userMode === "engineer") {
-      sessionHintEl.textContent = `Objetivo de sesión: ${STATE.targetPositions} posiciones. Sistema: ${scoringSystemLabel(STATE.scoringSystem)}. Detectadas por ahora: ${ctx.detected}. Analizadas: ${ctx.analyzed}/${ctx.total}.`;
+      sessionHintEl.textContent = t("game.sessionHintEngineer", {
+        target: STATE.targetPositions,
+        system: scoringSystemLabel(STATE.scoringSystem),
+        detected: ctx.detected,
+        analyzed: ctx.analyzed,
+        total: ctx.total,
+      });
     } else {
-      sessionHintEl.textContent = `Objetivo de sesión: ${STATE.targetPositions} posiciones. Detectadas: ${ctx.detected}.`;
+      sessionHintEl.textContent = t("game.sessionHintCitizen", { target: STATE.targetPositions, detected: ctx.detected });
     }
-    analysisStatusEl.textContent = "Primera posición detectada. Ya podés jugar.";
+    analysisStatusEl.textContent = t("analysis.status.firstReady");
     setupPanelEl.classList.add("hidden");
     document.body.classList.add("playing-mode");
     gameLayoutEl.classList.remove("hidden");
     startRound();
   } catch (error) {
-    const message = `Error durante el análisis: ${error.message || "desconocido"}`;
+    const message = t("analysis.status.error", { error: error.message || t("common.unknown") });
     analysisStatusEl.textContent = message;
     analysisProgressWrapEl.classList.add("hidden");
     analysisMetricsEl.classList.add("hidden");
-    sendWizardBackToSourceStep(`No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma. (${error.message || "error desconocido"})`);
+    sendWizardBackToSourceStep("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
   } finally {
     STATE.ui.setupAnalyzing = false;
     updateAnalyzeButtonState();
@@ -4207,6 +5160,18 @@ async function startSessionPipeline() {
 }
 
 // ---------- Events ----------
+
+if (languageBtnEs) {
+  languageBtnEs.addEventListener("click", () => {
+    setLanguage("es");
+  });
+}
+
+if (languageBtnEn) {
+  languageBtnEn.addEventListener("click", () => {
+    setLanguage("en");
+  });
+}
 
 if (sourceBackBtn) {
   sourceBackBtn.addEventListener("click", () => {
@@ -4231,7 +5196,7 @@ if (wizardNextBtn) {
     }
     clearWizardSourceError();
     goToWizardStep(current + 1);
-    if (analysisStatusEl) analysisStatusEl.textContent = "Perfecto. Seguimos con el siguiente paso.";
+    if (analysisStatusEl) analysisStatusEl.textContent = t("wizard.status.nextStep");
   });
 }
 
@@ -4249,7 +5214,7 @@ if (wizardModeSoloBtn) {
     if (STATE.setupWizard.step === 1) {
       clearWizardSourceError();
       goToWizardStep(2);
-      if (analysisStatusEl) analysisStatusEl.textContent = "Perfecto. Seguimos con la fuente de partidas.";
+      if (analysisStatusEl) analysisStatusEl.textContent = t("wizard.status.sourceStep");
     }
   });
 }
@@ -4443,6 +5408,10 @@ window.addEventListener("resize", () => {
 });
 
 skipBtn.disabled = true;
+updateDocumentLanguage();
+updateLanguageToggleUi();
+syncLocalizedPlayerDefaults();
+applyStaticTranslations();
 STATE.scoringSystem = normalizeScoringSystem(scoringSystemEl ? scoringSystemEl.value : DEFAULT_SCORING_SYSTEM);
 if (scoringSystemEl) scoringSystemEl.value = STATE.scoringSystem;
 updateScoringSystemHint();
@@ -4454,7 +5423,7 @@ applyGameFormat(gameFormatEl ? gameFormatEl.value : "solo");
 setSourceMode("lichess");
 resetSetupWizard({
   mode: "solo",
-  statusMessage: "Respondé las preguntas para preparar tu sesión.",
+  statusMessage: t("wizard.status.answerQuestions"),
 });
 updatePgnSelectionUi();
 updateRoundTimerUi(Math.round(STATE.turnTimeSeconds * 1000));
@@ -4465,3 +5434,4 @@ showLandingScreen();
 void setupStockfish();
 buildBoard();
 renderBoard();
+refreshLocalizedUi();
