@@ -40,7 +40,8 @@ const wizardModeSoloBtn = document.getElementById("wizard-mode-solo");
 const wizardModeDuelBtn = document.getElementById("wizard-mode-duel");
 const wizardProviderLichessBtn = document.getElementById("wizard-provider-lichess");
 const wizardProviderChessComBtn = document.getElementById("wizard-provider-chesscom");
-const wizardSizeChipEls = Array.from(document.querySelectorAll(".wizard-size-chip"));
+const wizardSizeChipEls = Array.from(document.querySelectorAll(".wizard-size-chip[data-size]"));
+const wizardTimerChipEls = Array.from(document.querySelectorAll(".wizard-timer-chip[data-seconds]"));
 const wizardSourceErrorEl = document.getElementById("wizard-source-error");
 const wizardSourceCtaEl = document.getElementById("wizard-source-cta");
 const wizardRetryUserBtn = document.getElementById("wizard-retry-user-btn");
@@ -121,6 +122,8 @@ const DEFAULT_CITIZEN_THRESHOLD = 80;
 const DEFAULT_CITIZEN_MOVETIME = 250;
 const DEFAULT_CITIZEN_SESSION_SIZE = 10;
 const DEFAULT_TURN_TIME_SECONDS = 90;
+const MIN_TURN_TIME_SECONDS = 5;
+const MAX_TURN_TIME_SECONDS = 360;
 const RATING_MOVE_TIME_MS = 5000;
 const RATING_DEPTH = 18;
 const ROUND_EVAL_MAX_TOTAL_MS = 7000;
@@ -129,6 +132,7 @@ const ROUND_EVAL_MIN_TASK_MS = 350;
 const ROUND_THINKING_MESSAGE_INTERVAL_MS = 1700;
 const CLOCK_TICK_MS = 100;
 const LANGUAGE_STORAGE_KEY = "ludus.language";
+const SETUP_STORAGE_KEY = "ludus.setup.v1";
 const SUPPORTED_LANGUAGES = ["es", "en"];
 const TRANSLATIONS = {
   es: {
@@ -175,6 +179,8 @@ const TRANSLATIONS = {
     "wizard.step3.positions10": "10 posiciones",
     "wizard.step3.positions20": "20 posiciones",
     "wizard.step3.customCount": "Personalizado (1 a 200)",
+    "wizard.step3.timerLabel": "Tiempo por ronda",
+    "wizard.step3.timerAriaLabel": "Tiempo por ronda",
     "wizard.step3.sessionSummary": "Resumen de la sesión",
     "wizard.step3.analysisPrompt": "Tocá “Comenzar sesión” para buscar errores.",
     "wizard.validation.chooseMode": "Elegí si querés jugar solo/a o contra alguien.",
@@ -282,6 +288,7 @@ const TRANSLATIONS = {
     "game.summaryPlatform": "Plataforma",
     "game.summaryUser": "Usuario",
     "game.summaryPositions": "Posiciones",
+    "game.summaryRoundTime": "Tiempo de ronda",
     "game.result.yourMove": "Resultado de tu jugada",
     "game.result.positionSolved": "¡Posición resuelta!",
     "game.comparison.tie": "Comparativa: empate.",
@@ -399,6 +406,8 @@ const TRANSLATIONS = {
     "wizard.step3.positions10": "10 positions",
     "wizard.step3.positions20": "20 positions",
     "wizard.step3.customCount": "Custom (1 to 200)",
+    "wizard.step3.timerLabel": "Time per round",
+    "wizard.step3.timerAriaLabel": "Time per round",
     "wizard.step3.sessionSummary": "Session summary",
     "wizard.step3.analysisPrompt": "Tap “Start session” to look for mistakes.",
     "wizard.validation.chooseMode": "Choose whether you want to play solo or against someone.",
@@ -506,6 +515,7 @@ const TRANSLATIONS = {
     "game.summaryPlatform": "Platform",
     "game.summaryUser": "User",
     "game.summaryPositions": "Positions",
+    "game.summaryRoundTime": "Round time",
     "game.result.yourMove": "Your move result",
     "game.result.positionSolved": "Position solved!",
     "game.comparison.tie": "Comparison: tie.",
@@ -608,6 +618,39 @@ function detectInitialLanguage() {
 function saveLanguagePreference(language) {
   try {
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, normalizeLanguage(language));
+  } catch (error) {
+    // Ignore storage failures.
+  }
+}
+
+function normalizeTurnTimeSeconds(value, options = {}) {
+  const fallback = options.fallback ?? DEFAULT_TURN_TIME_SECONDS;
+  const numeric = Number(value);
+  const safeValue = Number.isFinite(numeric) ? numeric : fallback;
+  return clamp(Math.round(safeValue), MIN_TURN_TIME_SECONDS, MAX_TURN_TIME_SECONDS);
+}
+
+function loadSetupPreference() {
+  try {
+    const stored = window.localStorage.getItem(SETUP_STORAGE_KEY);
+    if (!stored) {
+      return { turnTimeSeconds: DEFAULT_TURN_TIME_SECONDS };
+    }
+    const parsed = JSON.parse(stored);
+    return {
+      turnTimeSeconds: normalizeTurnTimeSeconds(parsed?.turnTimeSeconds),
+    };
+  } catch (error) {
+    return { turnTimeSeconds: DEFAULT_TURN_TIME_SECONDS };
+  }
+}
+
+function saveSetupPreference(turnTimeSeconds) {
+  try {
+    const payload = {
+      turnTimeSeconds: normalizeTurnTimeSeconds(turnTimeSeconds),
+    };
+    window.localStorage.setItem(SETUP_STORAGE_KEY, JSON.stringify(payload));
   } catch (error) {
     // Ignore storage failures.
   }
@@ -755,6 +798,7 @@ const PIECE_IMAGES = {
 };
 
 const INITIAL_LANGUAGE = detectInitialLanguage();
+const INITIAL_SETUP = loadSetupPreference();
 
 const STATE = {
   allMistakes: [],
@@ -783,7 +827,7 @@ const STATE = {
   remotePgnSources: [],
   userMode: "citizen",
   gameFormat: "solo",
-  turnTimeSeconds: DEFAULT_TURN_TIME_SECONDS,
+  turnTimeSeconds: INITIAL_SETUP.turnTimeSeconds,
   setupWizard: {
     step: 1,
     mode: "solo",
@@ -791,6 +835,7 @@ const STATE = {
     platform: "lichess",
     username: "",
     sessionSize: DEFAULT_CITIZEN_SESSION_SIZE,
+    turnTimeSeconds: INITIAL_SETUP.turnTimeSeconds,
     sourceError: null,
   },
   timer: { intervalId: null, deadlineMs: 0, durationMs: 0 },
@@ -1777,7 +1822,7 @@ function updateScoreDisplay() {
 
 function updateCompetitiveStatus() {
   if (!competitiveStatusEl) return;
-  const seconds = clamp(Number(STATE.turnTimeSeconds) || DEFAULT_TURN_TIME_SECONDS, 5, 300);
+  const seconds = normalizeTurnTimeSeconds(STATE.turnTimeSeconds);
   const system = scoringSystemLabel(STATE.scoringSystem);
   if (!isDuelMode()) {
     competitiveStatusEl.textContent = "";
@@ -1819,10 +1864,22 @@ function applyGameFormat(format) {
   updatePlayerPanels();
 }
 
-function readSessionTimingConfig() {
-  const seconds = clamp(Number(turnTimeSecondsEl ? turnTimeSecondsEl.value : DEFAULT_TURN_TIME_SECONDS) || DEFAULT_TURN_TIME_SECONDS, 5, 300);
+function updateWizardTimerChipSelection(seconds = STATE.setupWizard.turnTimeSeconds) {
+  wizardTimerChipEls.forEach((chipEl) => {
+    const chipSeconds = Number(chipEl.getAttribute("data-seconds")) || 0;
+    chipEl.classList.toggle("is-selected", chipSeconds === seconds);
+  });
+}
+
+function setWizardTurnTimeSeconds(value, options = {}) {
+  const fallback = options.fallback ?? STATE.setupWizard.turnTimeSeconds ?? DEFAULT_TURN_TIME_SECONDS;
+  const seconds = normalizeTurnTimeSeconds(value, { fallback });
+  STATE.setupWizard.turnTimeSeconds = seconds;
   STATE.turnTimeSeconds = seconds;
   if (turnTimeSecondsEl) turnTimeSecondsEl.value = String(seconds);
+  updateWizardTimerChipSelection(seconds);
+  if (!options.skipPersist) saveSetupPreference(seconds);
+  return seconds;
 }
 
 function readDuelPlayersFromInputs() {
@@ -1901,7 +1958,7 @@ function updateRoundTimerUi(remainingMs = STATE.timer.deadlineMs - Date.now()) {
 
 function startRoundTimer() {
   stopRoundTimer();
-  const durationMs = Math.round(clamp(Number(STATE.turnTimeSeconds) || DEFAULT_TURN_TIME_SECONDS, 5, 300) * 1000);
+  const durationMs = Math.round(normalizeTurnTimeSeconds(STATE.turnTimeSeconds) * 1000);
   STATE.timer.durationMs = durationMs;
   STATE.timer.deadlineMs = Date.now() + durationMs;
   updateRoundTimerUi(durationMs);
@@ -1933,7 +1990,7 @@ function setUserMode(mode) {
     if (sessionSizeEl && (!Number.isFinite(Number(sessionSizeEl.value)) || Number(sessionSizeEl.value) <= 0)) {
       sessionSizeEl.value = String(DEFAULT_CITIZEN_SESSION_SIZE);
     }
-    if (turnTimeSecondsEl && (!Number.isFinite(Number(turnTimeSecondsEl.value)) || Number(turnTimeSecondsEl.value) < 5)) {
+    if (turnTimeSecondsEl && (!Number.isFinite(Number(turnTimeSecondsEl.value)) || Number(turnTimeSecondsEl.value) < MIN_TURN_TIME_SECONDS)) {
       turnTimeSecondsEl.value = String(DEFAULT_TURN_TIME_SECONDS);
     }
   }
@@ -2030,12 +2087,17 @@ function collectWizardConfig() {
   const platform = getRemoteProviderModeFromUi();
   const username = sanitizeWizardUsername(onlineUserInputEl ? onlineUserInputEl.value : STATE.setupWizard.username);
   const sessionSize = clamp(Number(sessionSizeEl ? sessionSizeEl.value : STATE.setupWizard.sessionSize) || DEFAULT_CITIZEN_SESSION_SIZE, 1, 200);
+  const turnTimeSeconds = normalizeTurnTimeSeconds(
+    turnTimeSecondsEl ? turnTimeSecondsEl.value : STATE.setupWizard.turnTimeSeconds,
+    { fallback: STATE.setupWizard.turnTimeSeconds },
+  );
 
   STATE.setupWizard.mode = mode;
   STATE.setupWizard.duelNames = [playerA, playerB];
   STATE.setupWizard.platform = platform;
   STATE.setupWizard.username = username;
   STATE.setupWizard.sessionSize = sessionSize;
+  STATE.setupWizard.turnTimeSeconds = turnTimeSeconds;
 
   return {
     mode,
@@ -2043,6 +2105,7 @@ function collectWizardConfig() {
     platform,
     username,
     sessionSize,
+    turnTimeSeconds,
   };
 }
 
@@ -2054,6 +2117,8 @@ function syncWizardToLegacyInputs() {
   if (onlineProviderSelectEl) onlineProviderSelectEl.value = config.platform;
   if (onlineUserInputEl) onlineUserInputEl.value = config.username;
   if (sessionSizeEl) sessionSizeEl.value = String(config.sessionSize);
+  if (turnTimeSecondsEl) turnTimeSecondsEl.value = String(config.turnTimeSeconds);
+  updateWizardTimerChipSelection(config.turnTimeSeconds);
   setSourceMode(config.platform);
 }
 
@@ -2090,6 +2155,7 @@ function renderWizardSummary() {
     `<p><strong>${escapeHtml(t("game.summaryPlatform"))}:</strong> ${escapeHtml(platformText)}</p>`,
     `<p><strong>${escapeHtml(t("game.summaryUser"))}:</strong> ${escapeHtml(config.username || "-")}</p>`,
     `<p><strong>${escapeHtml(t("game.summaryPositions"))}:</strong> ${config.sessionSize}</p>`,
+    `<p><strong>${escapeHtml(t("game.summaryRoundTime"))}:</strong> ${config.turnTimeSeconds}s</p>`,
   ].join("");
 }
 
@@ -2119,6 +2185,7 @@ function renderWizardStep() {
     const chipSize = Number(chipEl.getAttribute("data-size")) || 0;
     chipEl.classList.toggle("is-selected", chipSize === config.sessionSize);
   });
+  updateWizardTimerChipSelection(config.turnTimeSeconds);
 
   if (wizardPrevBtn) wizardPrevBtn.classList.toggle("hidden", step <= 1);
   if (wizardNextBtn) wizardNextBtn.classList.toggle("hidden", step >= 3);
@@ -2185,6 +2252,10 @@ function resetSetupWizard({ mode = null, statusMessage = "" } = {}) {
   STATE.setupWizard.platform = getRemoteProviderModeFromUi();
   STATE.setupWizard.username = sanitizeWizardUsername(onlineUserInputEl ? onlineUserInputEl.value : "");
   STATE.setupWizard.sessionSize = clamp(Number(sessionSizeEl ? sessionSizeEl.value : DEFAULT_CITIZEN_SESSION_SIZE) || DEFAULT_CITIZEN_SESSION_SIZE, 1, 200);
+  STATE.setupWizard.turnTimeSeconds = normalizeTurnTimeSeconds(
+    turnTimeSecondsEl ? turnTimeSecondsEl.value : STATE.setupWizard.turnTimeSeconds,
+    { fallback: STATE.setupWizard.turnTimeSeconds },
+  );
   STATE.setupWizard.sourceError = null;
   clearWizardSourceError();
   syncWizardToLegacyInputs();
@@ -2201,12 +2272,6 @@ function sendWizardBackToSourceStep(key = "common.sourceError", params = {}) {
 }
 
 function getSetupReadiness() {
-  const normalizedTurnSeconds = clamp(
-    Number(turnTimeSecondsEl ? turnTimeSecondsEl.value : DEFAULT_TURN_TIME_SECONDS) || DEFAULT_TURN_TIME_SECONDS,
-    5,
-    300,
-  );
-  if (turnTimeSecondsEl) turnTimeSecondsEl.value = String(normalizedTurnSeconds);
   syncWizardToLegacyInputs();
   return validateWizardStep(3);
 }
@@ -5043,8 +5108,10 @@ async function startSessionPipeline() {
   STATE.score = 0;
   STATE.sessionPlayed = 0;
   STATE.sessionHits = 0;
-  readSessionTimingConfig();
-  applyGameFormat(gameFormatEl ? gameFormatEl.value : STATE.gameFormat);
+  const setupConfig = collectWizardConfig();
+  STATE.turnTimeSeconds = setupConfig.turnTimeSeconds;
+  if (turnTimeSecondsEl) turnTimeSecondsEl.value = String(setupConfig.turnTimeSeconds);
+  applyGameFormat(setupConfig.mode);
   readDuelPlayersFromInputs();
   resetDuelState();
   updateRoundTimerUi(Math.round(STATE.turnTimeSeconds * 1000));
@@ -5057,7 +5124,7 @@ async function startSessionPipeline() {
   STATE.analysisContext = null;
   nextBtn.disabled = true;
   skipBtn.disabled = true;
-  STATE.targetPositions = clamp(Number(sessionSizeEl.value) || 10, 1, 200);
+  STATE.targetPositions = setupConfig.sessionSize;
   const effectiveConfig = getEffectiveAnalysisConfig();
   STATE.scoringSystem = effectiveConfig.scoringSystem;
   updateCompetitiveStatus();
@@ -5297,6 +5364,19 @@ wizardSizeChipEls.forEach((chipEl) => {
   });
 });
 
+wizardTimerChipEls.forEach((chipEl) => {
+  chipEl.addEventListener("click", () => {
+    const seconds = normalizeTurnTimeSeconds(
+      chipEl.getAttribute("data-seconds"),
+      { fallback: DEFAULT_TURN_TIME_SECONDS },
+    );
+    setWizardTurnTimeSeconds(seconds);
+    renderWizardStep();
+    updateRoundTimerUi(Math.round(STATE.turnTimeSeconds * 1000));
+    updateCompetitiveStatus();
+  });
+});
+
 if (landingStartBtn) {
   landingStartBtn.addEventListener("click", () => {
     startFromLanding();
@@ -5338,8 +5418,17 @@ if (gameFormatEl) {
 }
 
 if (turnTimeSecondsEl) {
+  turnTimeSecondsEl.addEventListener("input", () => {
+    const rawSeconds = Number(turnTimeSecondsEl.value);
+    if (!Number.isFinite(rawSeconds)) {
+      updateWizardTimerChipSelection(NaN);
+      return;
+    }
+    updateWizardTimerChipSelection(rawSeconds);
+  });
   turnTimeSecondsEl.addEventListener("change", () => {
-    readSessionTimingConfig();
+    setWizardTurnTimeSeconds(turnTimeSecondsEl.value, { fallback: MIN_TURN_TIME_SECONDS });
+    renderWizardStep();
     updateRoundTimerUi(Math.round(STATE.turnTimeSeconds * 1000));
     updateCompetitiveStatus();
   });
@@ -5417,7 +5506,8 @@ if (scoringSystemEl) scoringSystemEl.value = STATE.scoringSystem;
 updateScoringSystemHint();
 updateResultAnalysisControls();
 setUserMode("citizen");
-readSessionTimingConfig();
+STATE.setupWizard.turnTimeSeconds = loadSetupPreference().turnTimeSeconds;
+setWizardTurnTimeSeconds(STATE.setupWizard.turnTimeSeconds, { skipPersist: true });
 readDuelPlayersFromInputs();
 applyGameFormat(gameFormatEl ? gameFormatEl.value : "solo");
 setSourceMode("lichess");

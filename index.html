@@ -88,6 +88,16 @@
             <label for="session-size" data-i18n="wizard.step3.customCount">Personalizado (1 a 200)</label>
             <input id="session-size" type="number" min="1" max="200" value="10" />
 
+            <div class="wizard-step-group">
+              <label for="turn-time-seconds" data-i18n="wizard.step3.timerLabel">Tiempo por ronda</label>
+              <div class="wizard-size-grid wizard-timer-grid" role="group" data-i18n-aria-label="wizard.step3.timerAriaLabel" aria-label="Tiempo por ronda">
+                <button type="button" class="wizard-size-chip wizard-timer-chip" data-seconds="90">90s</button>
+                <button type="button" class="wizard-size-chip wizard-timer-chip" data-seconds="180">180s</button>
+                <button type="button" class="wizard-size-chip wizard-timer-chip" data-seconds="360">360s</button>
+              </div>
+              <input id="turn-time-seconds" type="number" min="5" max="360" value="90" />
+            </div>
+
             <div id="wizard-summary-box" class="wizard-summary-floating">
               <h4 class="wizard-summary-title" data-i18n="wizard.step3.sessionSummary">Resumen de la sesión</h4>
               <div id="wizard-summary" class="wizard-summary"></div>
@@ -121,7 +131,6 @@
             <option value="lichess" selected>Lichess.com</option>
             <option value="chesscom">Chess.com</option>
           </select>
-          <input id="turn-time-seconds" type="number" min="5" max="300" value="90" />
           <input id="error-threshold" type="number" min="50" max="800" value="80" />
           <input id="analysis-time-ms" type="number" min="50" max="10000" value="400" />
           <select id="scoring-system">

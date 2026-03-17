@@ -2322,6 +2322,12 @@ body.playing-mode #landing-screen {
   gap: 10px;
 }
 
+.wizard-step-group {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
 .wizard-size-chip {
   min-height: 70px;
   border: 2px solid #a06a38;
@@ -2335,6 +2341,15 @@ body.playing-mode #landing-screen {
 .wizard-size-chip.is-selected {
   border-color: #6e3f20;
   box-shadow: 0 0 0 3px rgba(123, 75, 38, 0.28);
+}
+
+.wizard-timer-grid {
+  grid-template-columns: repeat(3, minmax(96px, 1fr));
+}
+
+.wizard-timer-chip {
+  min-height: 58px;
+  font-size: clamp(20px, 2vw, 26px);
 }
 
 .wizard-summary {
@@ -2404,6 +2419,10 @@ body.playing-mode #landing-screen {
 
   .wizard-size-grid {
     grid-template-columns: 1fr;
+  }
+
+  .wizard-timer-grid {
+    grid-template-columns: 1fr 1fr;
   }
 
   .wizard-inline-form input,
