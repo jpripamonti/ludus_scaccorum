@@ -126,6 +126,7 @@ const MIN_TURN_TIME_SECONDS = 5;
 const MAX_TURN_TIME_SECONDS = 360;
 const RATING_MOVE_TIME_MS = 5000;
 const RATING_DEPTH = 18;
+const MIN_ROUND_EVAL_VISIBLE_MS = 5000;
 const ROUND_EVAL_MAX_TOTAL_MS = 7000;
 const ROUND_EVAL_MIN_TOTAL_MS = 2200;
 const ROUND_EVAL_MIN_TASK_MS = 350;
@@ -4196,6 +4197,7 @@ async function resolveRound(move, options = {}) {
       },
     );
     startRoundThinkingMessages(roundPlan.level);
+    const evaluationVisibleStartedAt = Date.now();
 
     const evaluation = await evaluateRoundMovesForPosition(
       base,
@@ -4220,6 +4222,10 @@ async function resolveRound(move, options = {}) {
         },
       },
     );
+    const evaluationVisibleElapsedMs = Date.now() - evaluationVisibleStartedAt;
+    if (evaluationVisibleElapsedMs < MIN_ROUND_EVAL_VISIBLE_MS) {
+      await sleepMs(MIN_ROUND_EVAL_VISIBLE_MS - evaluationVisibleElapsedMs);
+    }
     const baseResult = evaluation.evaluatedMoves[0] || {
       move: null,
       noMoveReason: "no_move",
