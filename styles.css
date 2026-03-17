@@ -1306,6 +1306,13 @@ body.duel-mode #next-btn {
   .board-actions-secondary {
     grid-template-columns: 1fr;
   }
+
+  body.playing-mode .history,
+  .history,
+  .result-overlay-panel {
+    max-height: none !important;
+    overflow: visible !important;
+  }
 }
 
 /* -------------------- Gameplay Redesign -------------------- */
