@@ -85,6 +85,7 @@ const soloClockBarEl = document.getElementById("solo-clock-bar");
 const resultOverlayEl = document.getElementById("result-overlay");
 const resultOverlayInnerEl = document.getElementById("result-overlay-inner");
 const resultOverlayTitleEl = document.getElementById("result-overlay-title");
+const resultOverlayHeaderEl = document.querySelector(".result-overlay-header");
 const resultOverlayPointsEl = document.getElementById("result-overlay-points");
 const revealBestBtn = document.getElementById("reveal-best-btn");
 const revealGameBtn = document.getElementById("reveal-game-btn");
@@ -1632,10 +1633,24 @@ function resetResultAnalysisBoard() {
   updateResultAnalysisControls();
 }
 
-function showResultOverlay(title, pointsText) {
+function qualityToVerdictClass(qualityCode) {
+  if (!qualityCode) return "";
+  if (qualityCode === "perfect" || qualityCode === "very_good") return "verdict-perfect";
+  if (qualityCode === "good") return "verdict-good";
+  if (qualityCode === "interesting" || qualityCode === "dubious") return "verdict-dubious";
+  if (qualityCode === "bad" || qualityCode === "blunder") return "verdict-blunder";
+  return "";
+}
+
+function showResultOverlay(title, pointsText, qualityCode) {
   if (!resultOverlayEl) return;
   if (resultOverlayTitleEl) resultOverlayTitleEl.textContent = title || t("result.title");
   if (resultOverlayPointsEl) resultOverlayPointsEl.textContent = pointsText || "";
+  if (resultOverlayHeaderEl) {
+    resultOverlayHeaderEl.className = "result-overlay-header";
+    const vc = qualityToVerdictClass(qualityCode);
+    if (vc) resultOverlayHeaderEl.classList.add(vc);
+  }
   STATE.resultView.visible = true;
   STATE.resultView.analysisMode = false;
   document.body.classList.add("result-visible");
@@ -1678,7 +1693,7 @@ function renderResultViewContext() {
     const summary = !context.userMove
       ? (context.noMoveReason === "timeout" ? t("evaluation.timeoutZeroPts") : t("evaluation.noMoveMadeZeroPts"))
       : t("evaluation.wonPoints", { points: formatSigned(context.scored.points) });
-    showResultOverlay(t("game.result.yourMove"), summary);
+    showResultOverlay(t("game.result.yourMove"), summary, context.scored?.qualityCode);
     return;
   }
 
@@ -1756,6 +1771,15 @@ function soloScoreText() {
   return `${formatPoints(STATE.score || 0)} pts`;
 }
 
+function renderProgressPips(played, total) {
+  let html = '';
+  for (let i = 0; i < total; i++) {
+    const done = i < played;
+    html += `<span style="display:inline-block;height:5px;width:${done ? 20 : 10}px;border-radius:999px;background:${done ? 'var(--color-gold)' : 'var(--color-surface-3)'};margin-right:4px;vertical-align:middle"></span>`;
+  }
+  return html;
+}
+
 function soloProgressText() {
   return `${t("labels.positionsEvaluatedTitle")}: ${Math.max(0, STATE.sessionPlayed)} / ${soloSessionTarget()}`;
 }
@@ -1781,7 +1805,7 @@ function updatePlayerPanels() {
   }
 
   if (playerAScoreValueEl) playerAScoreValueEl.textContent = soloScoreText();
-  if (soloProgressLineEl) soloProgressLineEl.textContent = soloProgressText();
+  if (soloProgressLineEl) soloProgressLineEl.innerHTML = renderProgressPips(Math.max(0, STATE.sessionPlayed), soloSessionTarget());
 
   if (playerBScoreValueEl) playerBScoreValueEl.textContent = `${Math.max(0, STATE.sessionPlayed)} / ${soloSessionTarget()}`;
   setPanelActiveState(0);
@@ -3640,7 +3664,7 @@ function renderSessionProgress() {
   const played = STATE.sessionPlayed;
   const target = soloSessionTarget();
   const remaining = Math.max(0, target - played);
-  if (soloProgressLineEl) soloProgressLineEl.textContent = soloProgressText();
+  if (soloProgressLineEl) soloProgressLineEl.innerHTML = renderProgressPips(played, target);
   if (!isDuelMode()) {
     sessionProgressEl.textContent = t("game.progressSolo", { played, target, remaining });
     return;
@@ -4277,7 +4301,7 @@ async function resolveRound(move, options = {}) {
       const soloRoundSummary = noMove
         ? (noMoveReason === "timeout" ? t("evaluation.timeoutZeroPts") : t("evaluation.noMoveMadeZeroPts"))
         : t("evaluation.wonPoints", { points: formatSigned(baseResult.scored.points) });
-      showResultOverlay(t("game.result.yourMove"), soloRoundSummary);
+      showResultOverlay(t("game.result.yourMove"), soloRoundSummary, baseResult.scored?.qualityCode);
       setUiPhase("result", true);
       STATE.score = Math.round((STATE.score + baseResult.scored.points) * 100) / 100;
       STATE.sessionPlayed += 1;
@@ -4406,9 +4430,11 @@ async function resolveRound(move, options = {}) {
         hit: r2.hit,
       },
     };
+    const duelBestQuality = r1.points >= r2.points ? r1.qualityCode : r2.qualityCode;
     showResultOverlay(
       t("game.result.positionSolved"),
-      `R${STATE.index + 1}: ${p1} ${formatSigned(r1.points)} · ${p2} ${formatSigned(r2.points)}`
+      `R${STATE.index + 1}: ${p1} ${formatSigned(r1.points)} · ${p2} ${formatSigned(r2.points)}`,
+      duelBestQuality
     );
     if (roundResultPanelEl) roundResultPanelEl.classList.remove("hidden");
 
