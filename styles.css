@@ -140,6 +140,7 @@ body {
   margin: 0 auto;
   display: grid;
   gap: 18px;
+  min-width: 0;
 }
 
 /* ── Toolbar ── */
@@ -236,6 +237,7 @@ body {
   display: grid;
   justify-items: center;
   gap: 16px;
+  min-width: 0;
 }
 
 .landing-title {
@@ -247,6 +249,8 @@ body {
   font-size: clamp(32px, 5vw, 54px);
   letter-spacing: -0.01em;
   font-weight: 800;
+  max-width: 100%;
+  overflow-wrap: break-word;
 }
 
 .landing-description {
@@ -303,6 +307,7 @@ body {
 
 .landing-btn-start {
   min-width: clamp(200px, 28vw, 320px);
+  max-width: 100%;
   min-height: var(--btn-h-lg);
   padding: 0 34px;
   font-family: var(--font-display);
@@ -373,6 +378,7 @@ body.landing-active {
   display: grid;
   gap: var(--space-3);
   box-shadow: var(--shadow-panel);
+  min-width: 0;
 }
 
 .panel h2 {
@@ -396,6 +402,7 @@ body.landing-active {
   background: var(--color-bg);
   border-color: var(--color-border);
   box-shadow: var(--shadow-panel);
+  min-width: 0;
 }
 
 #setup-panel::before { display: none; }
@@ -929,6 +936,7 @@ body.duel-mode #next-btn { min-width: 176px; }
 /* ── Responsive: tablet ── */
 @media (max-width: 920px) {
   body { padding: 16px 12px 28px; }
+  .app { width: 100%; max-width: 100%; }
 
   .app-toolbar { top: 6px; }
 
@@ -945,10 +953,10 @@ body.duel-mode #next-btn { min-width: 176px; }
 
   .landing-screen { min-height: auto; border-radius: 15px; }
 
-  .landing-content { width: min(760px, 100%); padding: 28px 12px 24px; gap: 14px; }
-  .landing-title { font-size: clamp(28px, 7vw, 38px); margin-bottom: 8px; }
-  .landing-description { font-size: clamp(15px, 3.8vw, 18px); max-width: 620px; }
-  .landing-btn-start { min-width: min(300px, 92%); min-height: 64px; font-size: clamp(20px, 5.4vw, 24px); }
+  .landing-content { width: 100%; padding: 28px 12px 24px; gap: 14px; }
+  .landing-title { max-width: 12ch; font-size: 22px; margin-bottom: 8px; }
+  .landing-description { font-size: 13px; max-width: 18ch; }
+  .landing-btn-start { min-width: 0; width: min(220px, 92%); min-height: 58px; font-size: clamp(20px, 4vw, 24px); }
 
   .panel { border-radius: 13px; padding: 13px; }
   .panel h2 { font-size: 26px; }
@@ -978,6 +986,35 @@ body.duel-mode #next-btn { min-width: 176px; }
   .result-overlay-panel {
     max-height: none !important;
     overflow: visible !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .app {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+  }
+  .landing-screen {
+    width: 100%;
+    max-width: 100%;
+  }
+  .landing-content {
+    width: 100%;
+    margin: 0;
+  }
+  .landing-title {
+    font-size: clamp(22px, 7.5vw, 28px);
+    line-height: 1.05;
+  }
+  .landing-description {
+    max-width: 18ch;
+    font-size: 13px;
+  }
+  .landing-btn-start {
+    width: min(100%, 220px);
+    min-width: 0;
+    min-height: 54px;
+    font-size: 22px;
   }
 }
 
@@ -1014,6 +1051,7 @@ body.playing-mode .app {
   grid-template-columns: minmax(220px, 18%) minmax(700px, 64%) minmax(220px, 18%);
   gap: clamp(16px, 2vw, 26px);
   align-items: stretch;
+  min-width: 0;
 }
 
 body.solo-mode #game-layout.layout {
@@ -1045,6 +1083,7 @@ body.solo-mode #player-a-name {
   align-content: start;
   gap: var(--space-4);
   transition: opacity var(--dur-base) ease, filter var(--dur-base) ease;
+  min-width: 0;
 }
 
 .player-panel.is-active   { opacity: 1; filter: none; }
@@ -1208,6 +1247,7 @@ body.solo-mode .player-score-value {
   display: grid;
   grid-template-rows: auto 1fr auto auto;
   gap: 14px;
+  min-width: 0;
 }
 
 .board-stage-status { display: grid; gap: 5px; }
@@ -1235,6 +1275,7 @@ body.solo-mode #session-progress { display: none; }
   align-items: start;
   gap: 16px;
   padding: clamp(10px, 2.2vh, 26px) 0;
+  min-width: 0;
 }
 
 body.result-visible .board-stage-main {
@@ -1251,14 +1292,18 @@ body.solo-mode:not(.result-visible) .board-stage-main {
 
 .board-wrap {
   position: relative;
-  width: min(100%, min(72vh, 980px));
+  width: min(100%, 72vh, 980px, calc(100vw - 32px));
   display: grid;
   place-items: center;
   isolation: isolate;
+  min-width: 0;
 }
 
-body.solo-mode .board-wrap { width: min(100%, min(80vh, 1120px)); }
-body.solo-mode:not(.result-visible) .board-wrap { justify-self: end; }
+body.solo-mode .board-wrap { width: min(100%, 80vh, 1120px, calc(100vw - 32px)); }
+body.solo-mode:not(.result-visible) .board-wrap {
+  width: min(100%, 80vh, 1120px, calc(100vw - 90px));
+  justify-self: end;
+}
 body.result-visible .board-wrap { justify-self: end; }
 
 #game-layout .board {
@@ -1430,8 +1475,9 @@ body.result-visible .solo-clock-rail { display: none; }
 .result-overlay {
   position: relative;
   z-index: 8;
-  width: min(390px, 100%);
+  width: min(390px, 100%, calc(100vw - 32px));
   align-self: stretch;
+  min-width: 0;
 }
 
 body.result-visible .result-overlay { justify-self: start; }
@@ -1684,6 +1730,15 @@ body.playing-mode #landing-screen { display: none !important; }
   #game-layout.layout { grid-template-columns: 1fr; gap: 12px; }
   body.solo-mode #game-layout.layout { grid-template-columns: 1fr; }
 
+  body.playing-mode .app,
+  #game-layout.layout,
+  .board-stage,
+  .board-stage-main {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
   .board-stage     { order: 1; min-height: auto; }
   #left-player-panel  { order: 2; min-height: auto; }
   #right-player-panel { order: 3; min-height: auto; }
@@ -1691,24 +1746,37 @@ body.playing-mode #landing-screen { display: none !important; }
   .player-panel.is-inactive { opacity: 0.8; filter: none; }
 
   .board-wrap { width: min(100%, 760px); }
+  body.solo-mode .board-wrap,
+  body.result-visible .board-wrap {
+    width: min(60vw, 760px);
+  }
+  body.solo-mode:not(.result-visible) .board-wrap {
+    width: min(60vw, 760px);
+    justify-self: start;
+  }
+  #game-layout .board { max-width: 100%; }
 
   body.solo-mode:not(.result-visible) .board-stage-main {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
     gap: 10px;
     align-items: center;
   }
 
-  .solo-clock-rail { width: 48px; padding: 6px 6px 8px; gap: 6px; }
+  .solo-clock-rail { width: 48px; padding: 6px 6px 8px; gap: 6px; justify-self: center; }
   .solo-clock-value { font-size: 12px; }
   .solo-clock-track { width: 10px; height: 126px; }
 
   body.result-visible .board-stage-main {
     grid-template-columns: 1fr;
-    justify-items: center;
+    justify-items: start;
   }
-  body.result-visible .board-wrap { justify-self: center; }
+  body.result-visible .board-wrap { justify-self: start; }
 
-  .result-overlay { width: min(100%, 760px); }
+  .result-overlay {
+    width: min(86vw, 760px);
+    max-width: 100%;
+  }
 
   #shared-actions button,
   .result-overlay-actions button { width: 100%; }
@@ -1728,6 +1796,7 @@ body.playing-mode #landing-screen { display: none !important; }
   padding: var(--space-5);
   display: grid;
   gap: var(--space-4);
+  min-width: 0;
 }
 
 .wizard-header { display: grid; gap: var(--space-2); }
@@ -1773,13 +1842,14 @@ body.playing-mode #landing-screen { display: none !important; }
   transition: width var(--dur-base) var(--ease-out);
 }
 
-.wizard-steps { display: grid; }
+.wizard-steps { display: grid; min-width: 0; }
 
 .wizard-step {
   display: grid;
   align-content: start;
   gap: var(--space-3);
   animation: stepFade 180ms ease;
+  min-width: 0;
 }
 
 .wizard-question {
@@ -2011,10 +2081,27 @@ body.playing-mode #landing-screen { display: none !important; }
 
 /* ── Responsive: wizard ── */
 @media (max-width: 920px) {
-  .setup-wizard { padding: var(--space-4); gap: var(--space-3); }
+  body { overflow-x: hidden; }
+  #setup-panel { width: 100%; max-width: 100%; overflow-x: hidden; }
+  .setup-wizard { width: 100%; max-width: 100%; padding: var(--space-4); gap: var(--space-3); }
+  .wizard-header { min-width: 0; }
+  #setup-panel .wizard-header h2 {
+    max-width: 18ch;
+    font-size: 20px;
+  }
+  #setup-panel .wizard-question {
+    max-width: 32ch;
+    font-size: 14px;
+  }
+  .wizard-header h2,
+  .wizard-question,
+  .wizard-help,
+  .wizard-status {
+    overflow-wrap: anywhere;
+  }
   .wizard-card-grid { grid-template-columns: 1fr; }
-  .wizard-size-grid { grid-template-columns: repeat(3, 1fr); }
-  .wizard-timer-grid { grid-template-columns: repeat(3, 1fr); }
+  .wizard-size-grid,
+  .wizard-timer-grid { grid-template-columns: 1fr; }
 
   .wizard-inline-form input,
   #wizard-step-2 input,

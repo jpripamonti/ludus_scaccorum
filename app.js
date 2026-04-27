@@ -203,6 +203,7 @@ const TRANSLATIONS = {
     "compat.gameFormat.duel": "Duelo de Caballeros (2 jugadores)",
     "players.default1": "Jugador 1",
     "players.default2": "Jugador 2",
+    "players.soloSession": "Tu sesión",
     "players.kicker1": "Jugador 1",
     "players.kicker2": "Jugador 2",
     "players.targetLabel": "Usuario objetivo del análisis",
@@ -430,6 +431,7 @@ const TRANSLATIONS = {
     "compat.gameFormat.duel": "Gentlemen's duel (2 players)",
     "players.default1": "Player 1",
     "players.default2": "Player 2",
+    "players.soloSession": "Your session",
     "players.kicker1": "Player 1",
     "players.kicker2": "Player 2",
     "players.targetLabel": "Target user for analysis",
@@ -1804,6 +1806,9 @@ function updatePlayerPanels() {
     return;
   }
 
+  if (playerANameEl) playerANameEl.textContent = t("players.soloSession");
+  if (playerAKickerEl) playerAKickerEl.textContent = t("game.studyMode");
+  if (playerAAvatarEl) playerAAvatarEl.textContent = initialsFromName(t("players.soloSession"), "S");
   if (playerAScoreValueEl) playerAScoreValueEl.textContent = soloScoreText();
   if (soloProgressLineEl) soloProgressLineEl.innerHTML = renderProgressPips(Math.max(0, STATE.sessionPlayed), soloSessionTarget());
 
@@ -4520,8 +4525,10 @@ async function nextPosition() {
 
     // Show only the summary card overlay
     STATE.resultView.visible = true;
+    document.body.classList.add("result-visible");
     if (resultOverlayEl) resultOverlayEl.classList.remove("hidden");
     if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden"); // Hide normal layout
+    updateRoundTimerUi(0);
     renderBoardArrows();
     return;
   }
@@ -4548,8 +4555,10 @@ async function nextPosition() {
 
       // Show only the summary card overlay
       STATE.resultView.visible = true;
+      document.body.classList.add("result-visible");
       if (resultOverlayEl) resultOverlayEl.classList.remove("hidden");
       if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden"); // Hide normal layout
+      updateRoundTimerUi(0);
       renderBoardArrows();
       return;
     }
@@ -4582,8 +4591,10 @@ async function nextPosition() {
 
       // Show only the summary card overlay
       STATE.resultView.visible = true;
+      document.body.classList.add("result-visible");
       if (resultOverlayEl) resultOverlayEl.classList.remove("hidden");
       if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden"); // Hide normal layout
+      updateRoundTimerUi(0);
       renderBoardArrows();
       return;
     }
