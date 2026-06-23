@@ -42,6 +42,7 @@ const wizardProviderLichessBtn = document.getElementById("wizard-provider-liches
 const wizardProviderChessComBtn = document.getElementById("wizard-provider-chesscom");
 const wizardSizeChipEls = Array.from(document.querySelectorAll(".wizard-size-chip[data-size]"));
 const wizardTimerChipEls = Array.from(document.querySelectorAll(".wizard-timer-chip[data-seconds]"));
+const wizardStepErrorEl = document.getElementById("wizard-step-error");
 const wizardSourceErrorEl = document.getElementById("wizard-source-error");
 const wizardSourceCtaEl = document.getElementById("wizard-source-cta");
 const wizardRetryUserBtn = document.getElementById("wizard-retry-user-btn");
@@ -127,6 +128,7 @@ const MIN_TURN_TIME_SECONDS = 5;
 const MAX_TURN_TIME_SECONDS = 360;
 const RATING_MOVE_TIME_MS = 5000;
 const RATING_DEPTH = 18;
+const LOCAL_FALLBACK_MAX_DEPTH = 3;
 const MIN_ROUND_EVAL_VISIBLE_MS = 5000;
 const ROUND_EVAL_MAX_TOTAL_MS = 7000;
 const ROUND_EVAL_MIN_TOTAL_MS = 2200;
@@ -135,6 +137,11 @@ const ROUND_THINKING_MESSAGE_INTERVAL_MS = 1700;
 const CLOCK_TICK_MS = 100;
 const LANGUAGE_STORAGE_KEY = "ludus.language";
 const SETUP_STORAGE_KEY = "ludus.setup.v1";
+const REMOTE_PGN_CACHE_DB = "ludus.remotePgnCache.v1";
+const REMOTE_PGN_CACHE_STORE = "pgn";
+const REMOTE_PGN_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const REMOTE_FETCH_TIMEOUT_MS = 15000;
+const REMOTE_FETCH_RETRIES = 2;
 const SUPPORTED_LANGUAGES = ["es", "en"];
 const TRANSLATIONS = {
   es: {
@@ -157,6 +164,7 @@ const TRANSLATIONS = {
     "buttons.backToMenu": "Volver al menú",
     "buttons.skipMove": "Omitir jugada (0 pts)",
     "buttons.restartMenu": "Volver al menú",
+    "confirm.restartToSetup": "¿Seguro que querés volver al menú? Se perderá el progreso de la sesión actual.",
     "wizard.title": "Configuración guiada",
     "wizard.heading": "Armemos tu sesión en 3 pasos",
     "wizard.stepIndicator": "Paso {step} de {total}",
@@ -235,8 +243,34 @@ const TRANSLATIONS = {
     "common.playersUnavailable": "Jugadores no disponibles",
     "common.white": "Blancas",
     "common.black": "Negras",
+    "board.ariaLabel": "Tablero de ajedrez",
+    "board.squareLabel": "{square}: {piece}{state}",
+    "board.empty": "vacía",
+    "board.selected": ", seleccionada",
+    "board.legalTarget": ", destino legal",
+    "board.captureTarget": ", captura legal",
+    "board.disabled": ", no interactiva",
+    "piece.whitePawn": "peón blanco",
+    "piece.whiteKnight": "caballo blanco",
+    "piece.whiteBishop": "alfil blanco",
+    "piece.whiteRook": "torre blanca",
+    "piece.whiteQueen": "dama blanca",
+    "piece.whiteKing": "rey blanco",
+    "piece.blackPawn": "peón negro",
+    "piece.blackKnight": "caballo negro",
+    "piece.blackBishop": "alfil negro",
+    "piece.blackRook": "torre negra",
+    "piece.blackQueen": "dama negra",
+    "piece.blackKing": "rey negro",
     "common.sourceError": "No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma.",
     "common.sourceErrorWithDetail": "No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma. ({error})",
+    "network.timeout": "La conexión tardó demasiado. Probá de nuevo en unos segundos.",
+    "network.failed": "No se pudo conectar con el proveedor. Probá de nuevo o usá la última base guardada si existe.",
+    "network.rateLimited": "El proveedor limitó las consultas. Esperá un momento antes de reintentar.",
+    "privacy.remoteFetchConfirm": "Vamos a consultar partidas públicas de {user} en {provider}. La consulta sale desde tu navegador hacia ese proveedor; esta app no usa backend propio. ¿Continuar?",
+    "privacy.remoteFetchCancelled": "Consulta cancelada. No se enviaron datos al proveedor.",
+    "provider.usingCachedBase": "Usando base guardada de {provider} para {user}: {games} partida(s).",
+    "provider.usingStaleCachedBase": "No pudimos actualizar la base. Usando la última base guardada de {provider} para {user}: {games} partida(s).",
     "time.classical": "Clásico",
     "time.rapid": "Rápido",
     "time.daily": "Diario",
@@ -385,6 +419,7 @@ const TRANSLATIONS = {
     "buttons.backToMenu": "Back to menu",
     "buttons.skipMove": "Skip move (0 pts)",
     "buttons.restartMenu": "Back to menu",
+    "confirm.restartToSetup": "Are you sure you want to go back to the menu? Your current session progress will be lost.",
     "wizard.title": "Guided setup",
     "wizard.heading": "Let's build your session in 3 steps",
     "wizard.stepIndicator": "Step {step} of {total}",
@@ -463,8 +498,34 @@ const TRANSLATIONS = {
     "common.playersUnavailable": "Players unavailable",
     "common.white": "White",
     "common.black": "Black",
+    "board.ariaLabel": "Chess board",
+    "board.squareLabel": "{square}: {piece}{state}",
+    "board.empty": "empty",
+    "board.selected": ", selected",
+    "board.legalTarget": ", legal target",
+    "board.captureTarget": ", legal capture",
+    "board.disabled": ", not interactive",
+    "piece.whitePawn": "white pawn",
+    "piece.whiteKnight": "white knight",
+    "piece.whiteBishop": "white bishop",
+    "piece.whiteRook": "white rook",
+    "piece.whiteQueen": "white queen",
+    "piece.whiteKing": "white king",
+    "piece.blackPawn": "black pawn",
+    "piece.blackKnight": "black knight",
+    "piece.blackBishop": "black bishop",
+    "piece.blackRook": "black rook",
+    "piece.blackQueen": "black queen",
+    "piece.blackKing": "black king",
     "common.sourceError": "We couldn't fetch games for that user. Check the username or switch platform.",
     "common.sourceErrorWithDetail": "We couldn't fetch games for that user. Check the username or switch platform. ({error})",
+    "network.timeout": "The connection took too long. Try again in a few seconds.",
+    "network.failed": "Could not connect to the provider. Try again or use the last saved base if available.",
+    "network.rateLimited": "The provider rate-limited the request. Wait a moment before retrying.",
+    "privacy.remoteFetchConfirm": "We will request public games for {user} from {provider}. The request goes from your browser to that provider; this app has no backend. Continue?",
+    "privacy.remoteFetchCancelled": "Request cancelled. No data was sent to the provider.",
+    "provider.usingCachedBase": "Using saved {provider} base for {user}: {games} game(s).",
+    "provider.usingStaleCachedBase": "Could not refresh the base. Using the last saved {provider} base for {user}: {games} game(s).",
     "time.classical": "Classical",
     "time.rapid": "Rapid",
     "time.daily": "Daily",
@@ -815,6 +876,7 @@ const STATE = {
   score: 0,
   engine: { mode: "local", worker: null, ready: false, evalCache: new Map() },
   boardPerspective: "w",
+  keyboardFocusSquare: null,
   revealed: { best: null, game: null, user: null, userAlt: null },
   historyEntries: [],
   historySelectedIdx: -1,
@@ -825,6 +887,7 @@ const STATE = {
   targetPositions: 10,
   sessionPlayed: 0,
   sessionHits: 0,
+  sessionToken: 0,
   language: INITIAL_LANGUAGE,
   scoringSystem: DEFAULT_SCORING_SYSTEM,
   sourceMode: "lichess",
@@ -993,8 +1056,10 @@ class Chess {
     this.turn = parts[1];
     this.castling = parts[2];
     this.enPassant = parts[3] === "-" ? -1 : Chess.squareToIndex(parts[3]);
-    this.halfmove = Number(parts[4]);
-    this.fullmove = Number(parts[5]);
+    const halfmove = Number(parts[4]);
+    const fullmove = Number(parts[5]);
+    this.halfmove = Number.isFinite(halfmove) ? halfmove : 0;
+    this.fullmove = Number.isFinite(fullmove) && fullmove > 0 ? fullmove : 1;
   }
 
   fen() {
@@ -1192,6 +1257,8 @@ class Chess {
   makeMove(move) {
     const movingPiece = this.board[move.from];
     const captured = this.board[move.to];
+    const wasBlackMove = this.turn === "b";
+    const resetsHalfmove = Boolean(movingPiece && movingPiece.toUpperCase() === "P") || Boolean(captured) || Boolean(move.enPassant);
     this.board[move.from] = null;
 
     if (move.enPassant) {
@@ -1219,6 +1286,10 @@ class Chess {
       this.enPassant = -1;
     }
 
+    this.halfmove = resetsHalfmove ? 0 : (Number.isFinite(this.halfmove) ? this.halfmove + 1 : 1);
+    if (wasBlackMove) {
+      this.fullmove = Number.isFinite(this.fullmove) ? this.fullmove + 1 : 1;
+    }
     this.turn = this.turn === "w" ? "b" : "w";
   }
 
@@ -1400,6 +1471,15 @@ function setSourceMode(mode) {
 
 function clearRemotePgnSources() {
   STATE.remotePgnSources = [];
+}
+
+function beginSessionWork() {
+  STATE.sessionToken += 1;
+  return STATE.sessionToken;
+}
+
+function isCurrentSessionWork(token) {
+  return token === STATE.sessionToken;
 }
 
 function showSourceNeedsRedownloadMessage(message) {
@@ -1705,7 +1785,7 @@ function renderResultViewContext() {
       evaluationToText(decodeEvaluation(context.bestMover)),
       context.gameSan,
       Number.isFinite(context.gameMover) ? evaluationToText(decodeEvaluation(context.gameMover)) : t("common.notAvailable"),
-      context.player2.userSan || "",
+      context.player2.san || "",
       evaluationToText(decodeEvaluation(context.currentUserMover)),
       context.bestMover,
       context.gameMover,
@@ -1733,7 +1813,7 @@ function renderResultViewContext() {
 
   if (context.kind === "session_summary") {
     if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
-    if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = `${formatPoints(STATE.score)} pts`;
+    if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = sessionSummaryScoreText();
     const noMoreText = context.noMorePositions ? ` ${t("game.noMorePositions")}` : "";
     if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText() + noMoreText;
     if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
@@ -1771,6 +1851,14 @@ function soloSessionTarget() {
 
 function soloScoreText() {
   return `${formatPoints(STATE.score || 0)} pts`;
+}
+
+function duelMatchScoreText() {
+  return `${duelPlayerName(0)} ${formatPoints(STATE.duel.scores[0] || 0)} - ${formatPoints(STATE.duel.scores[1] || 0)} ${duelPlayerName(1)}`;
+}
+
+function sessionSummaryScoreText() {
+  return isDuelMode() ? duelMatchScoreText() : soloScoreText();
 }
 
 function renderProgressPips(played, total) {
@@ -1897,7 +1985,9 @@ function applyGameFormat(format) {
 function updateWizardTimerChipSelection(seconds = STATE.setupWizard.turnTimeSeconds) {
   wizardTimerChipEls.forEach((chipEl) => {
     const chipSeconds = Number(chipEl.getAttribute("data-seconds")) || 0;
-    chipEl.classList.toggle("is-selected", chipSeconds === seconds);
+    const selected = chipSeconds === seconds;
+    chipEl.classList.toggle("is-selected", selected);
+    chipEl.setAttribute("aria-pressed", selected ? "true" : "false");
   });
 }
 
@@ -1975,7 +2065,7 @@ function updateRoundTimerUi(remainingMs = STATE.timer.deadlineMs - Date.now()) {
     soloClockRailEl.classList.toggle("hidden", !showSoloClock);
     if (showSoloClock) {
       soloClockValueEl.textContent = formatClock(safeRemaining);
-      soloClockBarEl.style.height = `${Math.round(ratio * 100)}%`;
+      soloClockBarEl.style.setProperty("--clock-ratio", `${Math.round(ratio * 100)}%`);
       soloClockRailEl.classList.remove("urgency-mid", "urgency-high");
       if (ratio <= 0.2) {
         soloClockRailEl.classList.add("urgency-high");
@@ -2173,6 +2263,46 @@ function showWizardSourceError(key = "common.sourceError", params = {}) {
   if (wizardSourceCtaEl) wizardSourceCtaEl.classList.remove("hidden");
 }
 
+function clearWizardStepError() {
+  if (wizardStepErrorEl) {
+    wizardStepErrorEl.textContent = "";
+    wizardStepErrorEl.classList.add("hidden");
+  }
+  [duelPlayerAEl, duelPlayerBEl].forEach((inputEl) => {
+    if (inputEl) inputEl.removeAttribute("aria-describedby");
+  });
+}
+
+function showWizardStepError(message = "") {
+  if (!wizardStepErrorEl) return;
+  const text = String(message || "").trim();
+  wizardStepErrorEl.textContent = text;
+  wizardStepErrorEl.classList.toggle("hidden", !text);
+  [duelPlayerAEl, duelPlayerBEl].forEach((inputEl) => {
+    if (!inputEl) return;
+    if (text) inputEl.setAttribute("aria-describedby", "wizard-step-error");
+    else inputEl.removeAttribute("aria-describedby");
+  });
+}
+
+function focusFirstInvalidWizardControl(step, validation = {}) {
+  if (step === 1 && validation.reason === t("wizard.validation.fillDuelNames")) {
+    const firstEmpty = [duelPlayerAEl, duelPlayerBEl].find((inputEl) => !String(inputEl?.value || "").trim());
+    if (firstEmpty) firstEmpty.focus();
+    return;
+  }
+  if (step === 1 && validation.reason === t("wizard.validation.duelNameMax")) {
+    const firstLong = [duelPlayerAEl, duelPlayerBEl].find((inputEl) => String(inputEl?.value || "").trim().length > 20);
+    if (firstLong) firstLong.focus();
+    return;
+  }
+  if (step === 2 && onlineUserInputEl) {
+    onlineUserInputEl.focus();
+    return;
+  }
+  if (step === 3 && sessionSizeEl) sessionSizeEl.focus();
+}
+
 function renderWizardSummary() {
   if (!wizardSummaryEl) return;
   const config = collectWizardConfig();
@@ -2204,16 +2334,34 @@ function renderWizardStep() {
   if (wizardStepIndicatorEl) wizardStepIndicatorEl.textContent = t("wizard.stepIndicator", { step, total: 3 });
   if (wizardProgressBarEl) wizardProgressBarEl.style.width = `${Math.round((step / 3) * 100)}%`;
 
-  if (wizardModeSoloBtn) wizardModeSoloBtn.classList.toggle("is-selected", config.mode === "solo");
-  if (wizardModeDuelBtn) wizardModeDuelBtn.classList.toggle("is-selected", config.mode === "duel");
+  if (wizardModeSoloBtn) {
+    const selected = config.mode === "solo";
+    wizardModeSoloBtn.classList.toggle("is-selected", selected);
+    wizardModeSoloBtn.setAttribute("aria-pressed", selected ? "true" : "false");
+  }
+  if (wizardModeDuelBtn) {
+    const selected = config.mode === "duel";
+    wizardModeDuelBtn.classList.toggle("is-selected", selected);
+    wizardModeDuelBtn.setAttribute("aria-pressed", selected ? "true" : "false");
+  }
   if (duelConfigEl) duelConfigEl.classList.toggle("hidden", config.mode !== "duel");
 
-  if (wizardProviderLichessBtn) wizardProviderLichessBtn.classList.toggle("is-selected", config.platform === "lichess");
-  if (wizardProviderChessComBtn) wizardProviderChessComBtn.classList.toggle("is-selected", config.platform === "chesscom");
+  if (wizardProviderLichessBtn) {
+    const selected = config.platform === "lichess";
+    wizardProviderLichessBtn.classList.toggle("is-selected", selected);
+    wizardProviderLichessBtn.setAttribute("aria-pressed", selected ? "true" : "false");
+  }
+  if (wizardProviderChessComBtn) {
+    const selected = config.platform === "chesscom";
+    wizardProviderChessComBtn.classList.toggle("is-selected", selected);
+    wizardProviderChessComBtn.setAttribute("aria-pressed", selected ? "true" : "false");
+  }
 
   wizardSizeChipEls.forEach((chipEl) => {
     const chipSize = Number(chipEl.getAttribute("data-size")) || 0;
-    chipEl.classList.toggle("is-selected", chipSize === config.sessionSize);
+    const selected = chipSize === config.sessionSize;
+    chipEl.classList.toggle("is-selected", selected);
+    chipEl.setAttribute("aria-pressed", selected ? "true" : "false");
   });
   updateWizardTimerChipSelection(config.turnTimeSeconds);
 
@@ -2221,6 +2369,7 @@ function renderWizardStep() {
   if (wizardNextBtn) wizardNextBtn.classList.toggle("hidden", step >= 3);
   if (analyzeBtn) analyzeBtn.classList.toggle("hidden", step !== 3);
 
+  if (step !== 1) clearWizardStepError();
   if (step !== 2) clearWizardSourceError();
   if (step === 3) renderWizardSummary();
 
@@ -2287,6 +2436,7 @@ function resetSetupWizard({ mode = null, statusMessage = "" } = {}) {
     { fallback: STATE.setupWizard.turnTimeSeconds },
   );
   STATE.setupWizard.sourceError = null;
+  clearWizardStepError();
   clearWizardSourceError();
   syncWizardToLegacyInputs();
   if (analysisStatusEl && statusMessage) analysisStatusEl.textContent = statusMessage;
@@ -2408,6 +2558,152 @@ async function yieldToUi() {
   await sleepMs(0);
 }
 
+function retryAfterMs(response) {
+  const raw = response?.headers?.get ? response.headers.get("Retry-After") : "";
+  if (!raw) return 0;
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric)) return clamp(numeric * 1000, 0, 60000);
+  const dateMs = Date.parse(raw);
+  return Number.isFinite(dateMs) ? clamp(dateMs - Date.now(), 0, 60000) : 0;
+}
+
+async function fetchWithTimeout(url, options = {}) {
+  const timeoutMs = clamp(Number(options.timeoutMs) || REMOTE_FETCH_TIMEOUT_MS, 1000, 60000);
+  const retries = clamp(Number(options.retries) || 0, 0, 4);
+  const { timeoutMs: _timeoutMs, retries: _retries, ...fetchOptions } = options;
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timeout = controller
+      ? setTimeout(() => controller.abort(), timeoutMs)
+      : null;
+    try {
+      const response = await fetch(url, {
+        ...fetchOptions,
+        signal: controller ? controller.signal : options.signal,
+      });
+      if (timeout) clearTimeout(timeout);
+      const shouldRetryStatus = response.status === 429 || response.status >= 500;
+      if (shouldRetryStatus && attempt < retries) {
+        const delayMs = retryAfterMs(response) || (500 * (attempt + 1));
+        await sleepMs(delayMs);
+        continue;
+      }
+      return response;
+    } catch (error) {
+      if (timeout) clearTimeout(timeout);
+      lastError = error;
+      if (attempt < retries) {
+        await sleepMs(500 * (attempt + 1));
+        continue;
+      }
+    }
+  }
+
+  if (lastError?.name === "AbortError") {
+    throw new Error(t("network.timeout"));
+  }
+  throw new Error(t("network.failed"));
+}
+
+function remotePgnCacheAvailable() {
+  return typeof indexedDB !== "undefined";
+}
+
+function openRemotePgnCacheDb() {
+  if (!remotePgnCacheAvailable()) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const request = indexedDB.open(REMOTE_PGN_CACHE_DB, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(REMOTE_PGN_CACHE_STORE)) {
+        db.createObjectStore(REMOTE_PGN_CACHE_STORE, { keyPath: "key" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => resolve(null);
+    request.onblocked = () => resolve(null);
+  });
+}
+
+function remotePgnCacheKey(provider, username, signature) {
+  const safeProvider = String(provider || "").toLowerCase();
+  const safeUser = String(username || "").trim().toLowerCase();
+  return `${safeProvider}|${safeUser}|${signature}`;
+}
+
+function cacheSignature(settings) {
+  return JSON.stringify(settings, Object.keys(settings || {}).sort());
+}
+
+async function readCachedRemotePgn(cacheKey, options = {}) {
+  const db = await openRemotePgnCacheDb();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    const tx = db.transaction(REMOTE_PGN_CACHE_STORE, "readonly");
+    const request = tx.objectStore(REMOTE_PGN_CACHE_STORE).get(cacheKey);
+    request.onsuccess = () => {
+      const entry = request.result;
+      if (!entry || !entry.source || !entry.source.text) {
+        resolve(null);
+        return;
+      }
+      const ageMs = Date.now() - Number(entry.fetchedAt || 0);
+      if (!options.allowStale && ageMs > REMOTE_PGN_CACHE_TTL_MS) {
+        resolve(null);
+        return;
+      }
+      resolve(entry);
+    };
+    request.onerror = () => resolve(null);
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => db.close();
+  });
+}
+
+async function writeCachedRemotePgn(cacheKey, source) {
+  const db = await openRemotePgnCacheDb();
+  if (!db || !source?.text) return;
+  await new Promise((resolve) => {
+    const tx = db.transaction(REMOTE_PGN_CACHE_STORE, "readwrite");
+    tx.objectStore(REMOTE_PGN_CACHE_STORE).put({
+      key: cacheKey,
+      fetchedAt: Date.now(),
+      source,
+    });
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      resolve();
+    };
+  });
+}
+
+function installRemotePgnSource(source, options = {}) {
+  STATE.remotePgnSources = [{ ...source }];
+  setSourceMode(source.provider);
+  updatePgnSelectionUi();
+  if (onlineStatusEl && options.messageKey) {
+    onlineStatusEl.textContent = t(options.messageKey, {
+      provider: providerLabel(source.provider),
+      user: source.username,
+      games: source.games || countPgnGames(source.text),
+    });
+  }
+}
+
+function confirmRemoteFetchConsent(provider, username) {
+  if (typeof window.confirm !== "function") return true;
+  return window.confirm(t("privacy.remoteFetchConfirm", {
+    provider: providerLabel(provider),
+    user: username,
+  }));
+}
+
 function moveToUci(move) {
   if (!move) return "";
   return `${Chess.indexToSquare(move.from)}${Chess.indexToSquare(move.to)}${move.promotion ? move.promotion.toLowerCase() : ""}`;
@@ -2430,17 +2726,44 @@ function uciToMove(uci, board) {
 
 function moveToSan(board, move) {
   if (!move) return "-";
-  if (move.castle === "K") return "O-O";
-  if (move.castle === "Q") return "O-O-O";
+  const after = board.clone();
+  after.makeMove(move);
+  const opponentTurn = after.turn;
+  const suffix = after.inCheck(opponentTurn)
+    ? (after.generateMoves().length === 0 ? "#" : "+")
+    : "";
+  if (move.castle === "K") return `O-O${suffix}`;
+  if (move.castle === "Q") return `O-O-O${suffix}`;
   const piece = move.piece.toUpperCase();
   const destination = Chess.indexToSquare(move.to);
   const capture = move.capture || move.enPassant ? "x" : "";
   const promo = move.promotion ? `=${move.promotion.toUpperCase()}` : "";
   if (piece === "P") {
     const file = files[move.from % 8];
-    return `${capture ? file : ""}${capture}${destination}${promo}`;
+    return `${capture ? file : ""}${capture}${destination}${promo}${suffix}`;
   }
-  return `${piece}${capture}${destination}${promo}`;
+
+  const ambiguousMoves = board.generateMoves().filter((candidate) => (
+    candidate !== move
+    && candidate.to === move.to
+    && candidate.from !== move.from
+    && candidate.piece.toUpperCase() === piece
+  ));
+  let disambiguation = "";
+  if (ambiguousMoves.length > 0) {
+    const file = files[move.from % 8];
+    const rank = String(8 - Math.floor(move.from / 8));
+    const sameFile = ambiguousMoves.some((candidate) => files[candidate.from % 8] === file);
+    const sameRank = ambiguousMoves.some((candidate) => String(8 - Math.floor(candidate.from / 8)) === rank);
+    if (!sameFile) {
+      disambiguation = file;
+    } else if (!sameRank) {
+      disambiguation = rank;
+    } else {
+      disambiguation = `${file}${rank}`;
+    }
+  }
+  return `${piece}${disambiguation}${capture}${destination}${promo}${suffix}`;
 }
 
 function toMoverScore(whiteScore, moverTurn) {
@@ -2790,6 +3113,10 @@ function resetEngineToLocal() {
   STATE.engine = { mode: "local", worker: null, ready: false, evalCache: new Map() };
 }
 
+function localFallbackDepth(depth) {
+  return clamp(Number(depth) || LOCAL_FALLBACK_MAX_DEPTH, 1, LOCAL_FALLBACK_MAX_DEPTH);
+}
+
 function cacheGet(key) {
   return STATE.engine.evalCache.get(key);
 }
@@ -2947,33 +3274,41 @@ async function stockfishEvaluate(fen, depth, moveTimeMs, options = {}) {
 
 async function getBestMoveWithEngine(board, depth, moveTimeMs, options = {}) {
   const effectiveMoveTime = adaptiveMoveTime(moveTimeMs, board, options);
-  const cacheKey = `best|${STATE.engine.mode}|${board.fen()}|d${depth}|t${effectiveMoveTime}`;
-  const cached = cacheGet(cacheKey);
-  if (cached) {
-    if (typeof options.onProgress === "function") {
-      options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, cached: true });
-    }
-    return { move: uciToMove(cached.bestMove, board), score: cached.score };
-  }
-
   if (STATE.engine.mode === "stockfish") {
+    const stockfishCacheKey = `best|stockfish|${board.fen()}|d${depth}|t${effectiveMoveTime}`;
+    const cached = cacheGet(stockfishCacheKey);
+    if (cached) {
+      if (typeof options.onProgress === "function") {
+        options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, cached: true });
+      }
+      return { move: uciToMove(cached.bestMove, board), score: cached.score };
+    }
     try {
       const result = await stockfishEvaluate(board.fen(), depth, effectiveMoveTime, {
         onProgress: options.onProgress,
       });
       const normalized = normalizeScore(result.score, board.turn);
-      cacheSet(cacheKey, { bestMove: result.bestMove, score: normalized });
+      cacheSet(stockfishCacheKey, { bestMove: result.bestMove, score: normalized });
       return { move: uciToMove(result.bestMove, board), score: normalized };
     } catch (error) {
       resetEngineToLocal();
     }
   }
 
-  const local = searchBestMove(board, depth);
-  if (typeof options.onProgress === "function") {
-    options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, fallback: true });
+  const depthForLocal = localFallbackDepth(depth);
+  const localCacheKey = `best|local|${board.fen()}|d${depthForLocal}`;
+  const cached = cacheGet(localCacheKey);
+  if (cached) {
+    if (typeof options.onProgress === "function") {
+      options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, cached: true, fallback: true });
+    }
+    return { move: uciToMove(cached.bestMove, board), score: cached.score };
   }
-  cacheSet(cacheKey, { bestMove: moveToUci(local.move), score: local.score });
+  const local = searchBestMove(board, depthForLocal);
+  if (typeof options.onProgress === "function") {
+    options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, fallback: true, depth: depthForLocal });
+  }
+  cacheSet(localCacheKey, { bestMove: moveToUci(local.move), score: local.score });
   return local;
 }
 
@@ -2981,33 +3316,41 @@ async function evaluateMoveWithEngine(board, move, depth, moveTimeMs, options = 
   const clone = board.clone();
   clone.makeMove(move);
   const effectiveMoveTime = adaptiveMoveTime(moveTimeMs, board, options);
-  const cacheKey = `eval|${STATE.engine.mode}|${clone.fen()}|d${depth}|t${effectiveMoveTime}`;
-  const cached = cacheGet(cacheKey);
-  if (Number.isFinite(cached)) {
-    if (typeof options.onProgress === "function") {
-      options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, cached: true });
-    }
-    return cached;
-  }
-
   if (STATE.engine.mode === "stockfish") {
+    const stockfishCacheKey = `eval|stockfish|${clone.fen()}|d${depth}|t${effectiveMoveTime}`;
+    const cached = cacheGet(stockfishCacheKey);
+    if (Number.isFinite(cached)) {
+      if (typeof options.onProgress === "function") {
+        options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, cached: true });
+      }
+      return cached;
+    }
     try {
       const result = await stockfishEvaluate(clone.fen(), depth, effectiveMoveTime, {
         onProgress: options.onProgress,
       });
       const normalized = normalizeScore(result.score, clone.turn);
-      cacheSet(cacheKey, normalized);
+      cacheSet(stockfishCacheKey, normalized);
       return normalized;
     } catch (error) {
       resetEngineToLocal();
     }
   }
 
-  const localScore = evaluatePosition(clone, depth);
-  if (typeof options.onProgress === "function") {
-    options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, fallback: true });
+  const depthForLocal = localFallbackDepth(depth);
+  const localCacheKey = `eval|local|${clone.fen()}|d${depthForLocal}`;
+  const cached = cacheGet(localCacheKey);
+  if (Number.isFinite(cached)) {
+    if (typeof options.onProgress === "function") {
+      options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, cached: true, fallback: true });
+    }
+    return cached;
   }
-  cacheSet(cacheKey, localScore);
+  const localScore = evaluatePosition(clone, depthForLocal);
+  if (typeof options.onProgress === "function") {
+    options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, fallback: true, depth: depthForLocal });
+  }
+  cacheSet(localCacheKey, localScore);
   return localScore;
 }
 
@@ -3079,7 +3422,9 @@ function splitGamesFromText(text) {
 }
 
 function sanToMove(san, chess) {
-  let clean = san.replace(/[+#!?]/g, "");
+  let clean = String(san || "")
+    .replace(/\s*e\.p\.$/i, "")
+    .replace(/[+#!?]/g, "");
   if (clean === "O-O" || clean === "0-0") return chess.generateMoves().find((m) => m.castle === "K");
   if (clean === "O-O-O" || clean === "0-0-0") return chess.generateMoves().find((m) => m.castle === "Q");
 
@@ -3367,24 +3712,118 @@ function setBoardPerspective(turn) {
   const perspective = turn === "b" ? "b" : "w";
   if (STATE.boardPerspective !== perspective) {
     STATE.boardPerspective = perspective;
+    STATE.keyboardFocusSquare = null;
     buildBoard();
   }
 }
 
+function boardInputAcceptsMoves() {
+  if (STATE.ui.blockBoardInput) return false;
+  if (!STATE.board || !STATE.positions.length) return false;
+  const isAnalysisMode = STATE.ui.phase === "result_analysis";
+  if (!isAnalysisMode && nextBtn.disabled === false) return false;
+  if (!isAnalysisMode && (STATE.roundSubmitted || STATE.isResolvingRound)) return false;
+  return true;
+}
+
+function pieceAriaName(piece) {
+  const keyByPiece = {
+    P: "piece.whitePawn",
+    N: "piece.whiteKnight",
+    B: "piece.whiteBishop",
+    R: "piece.whiteRook",
+    Q: "piece.whiteQueen",
+    K: "piece.whiteKing",
+    p: "piece.blackPawn",
+    n: "piece.blackKnight",
+    b: "piece.blackBishop",
+    r: "piece.blackRook",
+    q: "piece.blackQueen",
+    k: "piece.blackKing",
+  };
+  return keyByPiece[piece] ? t(keyByPiece[piece]) : t("board.empty");
+}
+
+function boardSquareAriaLabel(squareName, piece, stateParts = []) {
+  const state = stateParts.filter(Boolean).join("");
+  return t("board.squareLabel", {
+    square: squareName,
+    piece: piece ? pieceAriaName(piece) : t("board.empty"),
+    state,
+  });
+}
+
+function setBoardKeyboardFocusSquare(squareName, options = {}) {
+  if (!boardEl || !squareName) return;
+  const target = boardEl.querySelector(`[data-square="${squareName}"]`);
+  if (!target) return;
+  boardEl.querySelectorAll(".square").forEach((square) => {
+    square.tabIndex = square === target ? 0 : -1;
+  });
+  STATE.keyboardFocusSquare = squareName;
+  if (options.focus) target.focus();
+}
+
+function visibleBoardStartSquare() {
+  const firstSquare = boardEl ? boardEl.querySelector(".square") : null;
+  return firstSquare?.dataset?.square || null;
+}
+
+function nextKeyboardSquare(squareName, key) {
+  if (!squareName || !/^([a-h])([1-8])$/.test(squareName)) return null;
+  const fileIndex = files.indexOf(squareName[0]);
+  const rank = Number(squareName[1]);
+  const perspectiveMultiplier = STATE.boardPerspective === "b" ? -1 : 1;
+  let nextFileIndex = fileIndex;
+  let nextRank = rank;
+
+  if (key === "ArrowRight") nextFileIndex += perspectiveMultiplier;
+  if (key === "ArrowLeft") nextFileIndex -= perspectiveMultiplier;
+  if (key === "ArrowUp") nextRank += perspectiveMultiplier;
+  if (key === "ArrowDown") nextRank -= perspectiveMultiplier;
+
+  if (nextFileIndex < 0 || nextFileIndex > 7 || nextRank < 1 || nextRank > 8) return null;
+  return `${files[nextFileIndex]}${nextRank}`;
+}
+
+function onSquareKeyDown(event, squareName) {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    onSquareClick(squareName);
+    return;
+  }
+  if (!["ArrowUp", "ArrowRight", "ArrowDown", "ArrowLeft"].includes(event.key)) return;
+  const nextSquare = nextKeyboardSquare(squareName, event.key);
+  if (!nextSquare) return;
+  event.preventDefault();
+  setBoardKeyboardFocusSquare(nextSquare, { focus: true });
+}
+
 function buildBoard() {
+  if (!boardEl) return;
   boardEl.innerHTML = "";
+  boardEl.setAttribute("role", "grid");
+  boardEl.setAttribute("aria-label", t("board.ariaLabel"));
   const ranks = STATE.boardPerspective === "b" ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
   const orderedFiles = STATE.boardPerspective === "b" ? [...files].reverse() : files;
   const leftEdgeFile = STATE.boardPerspective === "b" ? "h" : "a";
   const bottomEdgeRank = STATE.boardPerspective === "b" ? 8 : 1;
 
-  for (const rank of ranks) {
-    for (const fileLetter of orderedFiles) {
+  ranks.forEach((rank, rowIndex) => {
+    orderedFiles.forEach((fileLetter, colIndex) => {
       const fileNum = files.indexOf(fileLetter) + 1;
       const square = document.createElement("div");
       square.className = `square ${(rank + fileNum) % 2 === 0 ? "light" : "dark"}`;
       square.dataset.square = `${fileLetter}${rank}`;
+      square.setAttribute("role", "gridcell");
+      square.setAttribute("aria-rowindex", String(rowIndex + 1));
+      square.setAttribute("aria-colindex", String(colIndex + 1));
+      square.tabIndex = -1;
       square.addEventListener("click", () => onSquareClick(square.dataset.square));
+      square.addEventListener("focus", () => {
+        STATE.keyboardFocusSquare = square.dataset.square;
+      });
+      square.addEventListener("keydown", (event) => onSquareKeyDown(event, square.dataset.square));
 
       if (fileLetter === leftEdgeFile) {
         const rankCoord = document.createElement("span");
@@ -3400,8 +3839,8 @@ function buildBoard() {
       }
 
       boardEl.appendChild(square);
-    }
-  }
+    });
+  });
 }
 
 function squareCenterOnBoard(squareName) {
@@ -3496,6 +3935,9 @@ function renderBoardArrows() {
 }
 
 function renderBoard() {
+  if (!boardEl) return;
+  boardEl.setAttribute("aria-label", t("board.ariaLabel"));
+  const acceptsInput = boardInputAcceptsMoves();
   boardEl.querySelectorAll(".square").forEach((square) => {
     square.classList.remove(
       "selected", "legal", "capture",
@@ -3511,7 +3953,8 @@ function renderBoard() {
       const image = document.createElement("img");
       image.className = "piece-img";
       image.src = PIECE_IMAGES[piece];
-      image.alt = piece;
+      image.alt = "";
+      image.setAttribute("aria-hidden", "true");
       image.draggable = false;
       square.appendChild(image);
     }
@@ -3540,6 +3983,27 @@ function renderBoard() {
   paint(STATE.revealed.game, "game-from", "game-to");
   paint(STATE.revealed.user, "user-from", "user-to");
   paint(STATE.revealed.userAlt, "user-alt-from", "user-alt-to");
+
+  const startSquare = visibleBoardStartSquare();
+  const focusSquare = STATE.keyboardFocusSquare && boardEl.querySelector(`[data-square="${STATE.keyboardFocusSquare}"]`)
+    ? STATE.keyboardFocusSquare
+    : (STATE.selection || startSquare);
+
+  boardEl.querySelectorAll(".square").forEach((square) => {
+    const squareName = square.dataset.square;
+    const piece = STATE.board ? STATE.board.pieceAt(Chess.squareToIndex(squareName)) : null;
+    const stateParts = [];
+    if (square.classList.contains("selected")) stateParts.push(t("board.selected"));
+    if (square.classList.contains("capture")) stateParts.push(t("board.captureTarget"));
+    else if (square.classList.contains("legal")) stateParts.push(t("board.legalTarget"));
+    if (!acceptsInput) stateParts.push(t("board.disabled"));
+
+    square.setAttribute("aria-label", STATE.board ? boardSquareAriaLabel(squareName, piece, stateParts) : squareName);
+    square.setAttribute("aria-selected", square.classList.contains("selected") ? "true" : "false");
+    square.setAttribute("aria-disabled", acceptsInput ? "false" : "true");
+    square.tabIndex = STATE.board && squareName === focusSquare ? 0 : -1;
+  });
+  if (focusSquare) STATE.keyboardFocusSquare = focusSquare;
   renderBoardArrows();
 }
 
@@ -3738,6 +4202,7 @@ function startRound(options = {}) {
 }
 
 function onSquareClick(square) {
+  STATE.keyboardFocusSquare = square;
   if (STATE.ui.blockBoardInput) return;
   if (!STATE.board || !STATE.positions.length) return;
   const isAnalysisMode = STATE.ui.phase === "result_analysis";
@@ -4137,6 +4602,7 @@ async function evaluateRoundMovesForPosition(base, position, moves, ratingDepth,
 
 async function resolveRound(move, options = {}) {
   if (STATE.roundSubmitted || STATE.isResolvingRound) return;
+  const sessionToken = STATE.sessionToken;
   stopRoundTimer();
   STATE.roundSubmitted = true;
   STATE.isResolvingRound = true;
@@ -4251,10 +4717,12 @@ async function resolveRound(move, options = {}) {
         },
       },
     );
+    if (!isCurrentSessionWork(sessionToken)) return;
     const evaluationVisibleElapsedMs = Date.now() - evaluationVisibleStartedAt;
     if (evaluationVisibleElapsedMs < MIN_ROUND_EVAL_VISIBLE_MS) {
       await sleepMs(MIN_ROUND_EVAL_VISIBLE_MS - evaluationVisibleElapsedMs);
     }
+    if (!isCurrentSessionWork(sessionToken)) return;
     const baseResult = evaluation.evaluatedMoves[0] || {
       move: null,
       noMoveReason: "no_move",
@@ -4474,6 +4942,7 @@ async function resolveRound(move, options = {}) {
     updateCompetitiveStatus();
     setScoringInfoVisible(true);
   } catch (error) {
+    if (!isCurrentSessionWork(sessionToken)) return;
     hidePositionSearchOverlay();
     hideHandoffOverlay();
     hideResultOverlay();
@@ -4511,7 +4980,7 @@ async function nextPosition() {
 
     if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
     STATE.resultView.context = { kind: "session_summary", noMorePositions: false };
-    if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = `${formatPoints(STATE.score)} pts`;
+    if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = sessionSummaryScoreText();
     if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText();
     if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
 
@@ -4542,7 +5011,7 @@ async function nextPosition() {
 
       if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
       STATE.resultView.context = { kind: "session_summary", noMorePositions: false };
-      if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = `${formatPoints(STATE.score)} pts`;
+      if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = sessionSummaryScoreText();
       if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText();
       if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
 
@@ -4569,7 +5038,9 @@ async function nextPosition() {
     roundStatusEl.textContent = "";
     showPositionSearchOverlay(t("overlay.searchingNext"));
     setUiPhase("loading_next_position", true);
+    const sessionToken = STATE.sessionToken;
     const nextMistake = await findNextMistake(ctx, "Siguiente: ");
+    if (!isCurrentSessionWork(sessionToken)) return;
     if (!nextMistake) {
       hidePositionSearchOverlay();
       if (roundResultEl) roundResultEl.classList.add("hidden");
@@ -4578,7 +5049,7 @@ async function nextPosition() {
 
       if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
       STATE.resultView.context = { kind: "session_summary", noMorePositions: true };
-      if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = `${formatPoints(STATE.score)} pts`;
+      if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = sessionSummaryScoreText();
       if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = `${finalSessionSummaryText()} ${t("game.noMorePositions")}`;
       if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
 
@@ -4623,6 +5094,7 @@ function revealDuelSecondTurn() {
 }
 
 function restartToSetup() {
+  beginSessionWork();
   stopRoundTimer();
   STATE.ui.setupAnalyzing = false;
   setThinkingMode(false);
@@ -4648,6 +5120,8 @@ function restartToSetup() {
   STATE.legalMoves = [];
   STATE.userMove = null;
   STATE.board = null;
+  STATE.roundSubmitted = false;
+  STATE.isResolvingRound = false;
   STATE.revealed = { best: false, game: false, user: true, userAlt: true };
   if (revealBestBtn) revealBestBtn.classList.remove("revealed-state");
   if (revealGameBtn) revealGameBtn.classList.remove("revealed-state");
@@ -4673,6 +5147,21 @@ function restartToSetup() {
   showLandingScreen();
   buildBoard();
   renderBoard();
+}
+
+function hasActiveSessionProgress() {
+  return STATE.ui.setupAnalyzing
+    || STATE.isResolvingRound
+    || STATE.positions.length > 0
+    || STATE.sessionPlayed > 0
+    || STATE.sessionHits > 0
+    || STATE.duel.roundResults.some(Boolean);
+}
+
+function confirmRestartToSetup() {
+  if (!hasActiveSessionProgress()) return true;
+  if (typeof window.confirm !== "function") return true;
+  return window.confirm(t("confirm.restartToSetup"));
 }
 
 function refreshLocalizedUi() {
@@ -4702,6 +5191,7 @@ function refreshLocalizedUi() {
   if (STATE.positions[STATE.index]) {
     renderGameInfo(STATE.positions[STATE.index]);
   }
+  if (STATE.board) renderBoard();
 
   if (STATE.historySelectedIdx >= 0 && STATE.historyEntries[STATE.historySelectedIdx]) {
     renderHistoryPreview(STATE.historyEntries[STATE.historySelectedIdx]);
@@ -4799,6 +5289,26 @@ async function fetchLichessPgn() {
   const oneYearMs = 365 * 24 * 60 * 60 * 1000;
   const sinceMs = nowMs - oneYearMs;
   const preferredLabel = joinPreferredTimeClasses(settings.preferredPerf);
+  const cacheKey = remotePgnCacheKey("lichess", rawUser, cacheSignature({
+    provider: "lichess",
+    maxGames: settings.maxGames,
+    preferredPerf: settings.preferredPerf,
+    minSlowGames: settings.minSlowGames,
+    fallbackBlitz: settings.fallbackBlitz,
+    fallbackBullet: settings.fallbackBullet,
+  }));
+
+  const cached = await readCachedRemotePgn(cacheKey);
+  if (cached) {
+    installRemotePgnSource(cached.source, { messageKey: "provider.usingCachedBase" });
+    return true;
+  }
+
+  if (!confirmRemoteFetchConsent("lichess", rawUser)) {
+    if (onlineStatusEl) onlineStatusEl.textContent = t("privacy.remoteFetchCancelled");
+    showWizardSourceError("privacy.remoteFetchCancelled");
+    return false;
+  }
 
   if (onlineStatusEl) {
     if (STATE.userMode === "citizen") {
@@ -4814,11 +5324,14 @@ async function fetchLichessPgn() {
     params.set("since", String(sinceMs));
     params.set("perfType", perfTypes.join(","));
     const url = `https://lichess.org/api/games/user/${encodeURIComponent(rawUser)}?${params.toString()}`;
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method: "GET",
       headers: { Accept: "application/x-chess-pgn" },
+      timeoutMs: REMOTE_FETCH_TIMEOUT_MS,
+      retries: REMOTE_FETCH_RETRIES,
     });
     if (!response.ok) {
+      if (response.status === 429) throw new Error(t("network.rateLimited"));
       throw new Error(t("provider.lichessResponse", { status: response.status }));
     }
     const text = await response.text();
@@ -4873,7 +5386,7 @@ async function fetchLichessPgn() {
 
     const safeUser = rawUser.replace(/[^a-z0-9_-]+/gi, "") || "user";
     const today = new Date().toISOString().slice(0, 10);
-    STATE.remotePgnSources = [{
+    const source = {
       name: `lichess_${safeUser}_${today}.pgn`,
       text: finalText,
       provider: "lichess",
@@ -4886,10 +5399,10 @@ async function fetchLichessPgn() {
         bullet: bulletGames,
         preferred: settings.preferredPerf.join(","),
       },
-    }];
+    };
 
-    setSourceMode("lichess");
-    updatePgnSelectionUi();
+    installRemotePgnSource(source);
+    void writeCachedRemotePgn(cacheKey, source);
     if (onlineStatusEl) {
       if (bulletGames > 0) {
         onlineStatusEl.textContent = t("provider.readyBullet", {
@@ -4915,6 +5428,11 @@ async function fetchLichessPgn() {
     }
     return true;
   } catch (error) {
+    const stale = await readCachedRemotePgn(cacheKey, { allowStale: true });
+    if (stale) {
+      installRemotePgnSource(stale.source, { messageKey: "provider.usingStaleCachedBase" });
+      return true;
+    }
     const message = t("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
     if (onlineStatusEl) onlineStatusEl.textContent = message;
     showWizardSourceError("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
@@ -4950,6 +5468,27 @@ async function fetchChessComPgn() {
 
   const settings = getChessComFetchSettings();
   const preferredLabel = joinPreferredTimeClasses(settings.preferredSlowClasses);
+  const cacheKey = remotePgnCacheKey("chesscom", rawUser, cacheSignature({
+    provider: "chesscom",
+    maxGames: settings.maxGames,
+    preferredSlowClasses: settings.preferredSlowClasses,
+    minSlowGames: settings.minSlowGames,
+    fallbackBlitz: settings.fallbackBlitz,
+    fallbackBullet: settings.fallbackBullet,
+  }));
+
+  const cached = await readCachedRemotePgn(cacheKey);
+  if (cached) {
+    installRemotePgnSource(cached.source, { messageKey: "provider.usingCachedBase" });
+    return true;
+  }
+
+  if (!confirmRemoteFetchConsent("chesscom", rawUser)) {
+    if (onlineStatusEl) onlineStatusEl.textContent = t("privacy.remoteFetchCancelled");
+    showWizardSourceError("privacy.remoteFetchCancelled");
+    return false;
+  }
+
   if (onlineStatusEl) {
     if (STATE.userMode === "citizen") {
       onlineStatusEl.textContent = t("provider.downloadingFor", { user: rawUser, protocol: describeChessComNormalProtocol(settings) });
@@ -4964,8 +5503,12 @@ async function fetchChessComPgn() {
 
   const loadArchiveGames = async (archiveUrl) => {
     if (monthGamesCache.has(archiveUrl)) return monthGamesCache.get(archiveUrl);
-    const response = await fetch(archiveUrl);
+    const response = await fetchWithTimeout(archiveUrl, {
+      timeoutMs: REMOTE_FETCH_TIMEOUT_MS,
+      retries: REMOTE_FETCH_RETRIES,
+    });
     if (!response.ok) {
+      if (response.status === 429) throw new Error(t("network.rateLimited"));
       throw new Error(t("provider.chesscomReadArchiveError", { status: response.status, url: archiveUrl }));
     }
     const payload = await response.json();
@@ -4997,8 +5540,14 @@ async function fetchChessComPgn() {
 
   try {
     const archivesUrl = `https://api.chess.com/pub/player/${encodeURIComponent(rawUser.toLowerCase())}/games/archives`;
-    const archivesResponse = await fetch(archivesUrl);
+    const archivesResponse = await fetchWithTimeout(archivesUrl, {
+      timeoutMs: REMOTE_FETCH_TIMEOUT_MS,
+      retries: REMOTE_FETCH_RETRIES,
+    });
     if (!archivesResponse.ok) {
+      if (archivesResponse.status === 429) {
+        throw new Error(t("network.rateLimited"));
+      }
       if (archivesResponse.status === 404) {
         throw new Error(t("provider.userNotFoundOrPrivate"));
       }
@@ -5074,7 +5623,7 @@ async function fetchChessComPgn() {
 
     const safeUser = rawUser.replace(/[^a-z0-9_-]+/gi, "") || "user";
     const today = new Date().toISOString().slice(0, 10);
-    STATE.remotePgnSources = [{
+    const source = {
       name: `chesscom_${safeUser}_${today}.pgn`,
       text: `${selectedPgn.join("\n\n")}\n`,
       provider: "chesscom",
@@ -5087,10 +5636,10 @@ async function fetchChessComPgn() {
         bullet: bulletGames,
         preferred: settings.preferredSlowClasses.join(","),
       },
-    }];
+    };
 
-    setSourceMode("chesscom");
-    updatePgnSelectionUi();
+    installRemotePgnSource(source);
+    void writeCachedRemotePgn(cacheKey, source);
     if (onlineStatusEl) {
       if (bulletGames > 0) {
         onlineStatusEl.textContent = t("provider.readyBullet", {
@@ -5116,6 +5665,11 @@ async function fetchChessComPgn() {
     }
     return true;
   } catch (error) {
+    const stale = await readCachedRemotePgn(cacheKey, { allowStale: true });
+    if (stale) {
+      installRemotePgnSource(stale.source, { messageKey: "provider.usingStaleCachedBase" });
+      return true;
+    }
     const message = t("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
     if (onlineStatusEl) onlineStatusEl.textContent = message;
     showWizardSourceError("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
@@ -5134,6 +5688,7 @@ async function startSessionPipeline() {
   }
 
   clearWizardSourceError();
+  const sessionToken = beginSessionWork();
   STATE.ui.setupAnalyzing = true;
   if (analyzeBtn) analyzeBtn.disabled = true;
   resetAnalysisProgress();
@@ -5178,6 +5733,7 @@ async function startSessionPipeline() {
       const downloaded = STATE.sourceMode === "chesscom"
         ? await fetchChessComPgn()
         : await fetchLichessPgn();
+      if (!isCurrentSessionWork(sessionToken)) return;
       if (!downloaded || !hasAnyPgnSource(true)) {
         sendWizardBackToSourceStep("common.sourceError");
         return;
@@ -5234,6 +5790,7 @@ async function startSessionPipeline() {
     STATE.analysisContext = ctx;
 
     const firstMistake = await findNextMistake(ctx, "Inicio: ");
+    if (!isCurrentSessionWork(sessionToken)) return;
     if (!firstMistake) {
       sendWizardBackToSourceStep("provider.noUsefulMistakes", { analyzed: ctx.analyzed, total: ctx.total });
       return;
@@ -5258,14 +5815,17 @@ async function startSessionPipeline() {
     gameLayoutEl.classList.remove("hidden");
     startRound();
   } catch (error) {
+    if (!isCurrentSessionWork(sessionToken)) return;
     const message = t("analysis.status.error", { error: error.message || t("common.unknown") });
     analysisStatusEl.textContent = message;
     analysisProgressWrapEl.classList.add("hidden");
     analysisMetricsEl.classList.add("hidden");
     sendWizardBackToSourceStep("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
   } finally {
-    STATE.ui.setupAnalyzing = false;
-    updateAnalyzeButtonState();
+    if (isCurrentSessionWork(sessionToken)) {
+      STATE.ui.setupAnalyzing = false;
+      updateAnalyzeButtonState();
+    }
   }
 }
 
@@ -5300,10 +5860,13 @@ if (wizardNextBtn) {
     const current = clamp(Number(STATE.setupWizard.step) || 1, 1, 3);
     const validation = validateWizardStep(current);
     if (!validation.valid) {
-      if (analysisStatusEl) analysisStatusEl.textContent = validation.reason;
+      if (current === 1) showWizardStepError(validation.reason);
       if (current === 2) showWizardSourceError(validation.reason);
+      if (analysisStatusEl && current === 3) analysisStatusEl.textContent = validation.reason;
+      focusFirstInvalidWizardControl(current, validation);
       return;
     }
+    clearWizardStepError();
     clearWizardSourceError();
     goToWizardStep(current + 1);
     if (analysisStatusEl) analysisStatusEl.textContent = t("wizard.status.nextStep");
@@ -5320,6 +5883,7 @@ if (wizardModeSoloBtn) {
   wizardModeSoloBtn.addEventListener("click", () => {
     STATE.setupWizard.mode = "solo";
     if (gameFormatEl) gameFormatEl.value = "solo";
+    clearWizardStepError();
     renderWizardStep();
     if (STATE.setupWizard.step === 1) {
       clearWizardSourceError();
@@ -5333,6 +5897,7 @@ if (wizardModeDuelBtn) {
   wizardModeDuelBtn.addEventListener("click", () => {
     STATE.setupWizard.mode = "duel";
     if (gameFormatEl) gameFormatEl.value = "duel";
+    clearWizardStepError();
     renderWizardStep();
   });
 }
@@ -5528,7 +6093,9 @@ if (skipBtn) {
     void submitNoMove("manual_skip");
   });
 }
-if (restartBtn) restartBtn.addEventListener("click", () => restartToSetup());
+if (restartBtn) restartBtn.addEventListener("click", () => {
+  if (confirmRestartToSetup()) restartToSetup();
+});
 if (handoffOverlayEl) {
   handoffOverlayEl.addEventListener("click", () => {
     revealDuelSecondTurn();
@@ -5538,6 +6105,16 @@ if (handoffOverlayEl) {
 window.addEventListener("resize", () => {
   renderBoardArrows();
 });
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  if (window.location.protocol === "file:") return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch((error) => {
+      console.info("Service worker registration skipped:", error);
+    });
+  });
+}
 
 skipBtn.disabled = true;
 updateDocumentLanguage();
@@ -5564,7 +6141,16 @@ updateScoreDisplay();
 updateCompetitiveStatus();
 renderHistoryList();
 showLandingScreen();
-void setupStockfish();
+if (typeof window.requestIdleCallback === "function") {
+  window.requestIdleCallback(() => {
+    void setupStockfish();
+  }, { timeout: 3000 });
+} else {
+  setTimeout(() => {
+    void setupStockfish();
+  }, 0);
+}
 buildBoard();
 renderBoard();
 refreshLocalizedUi();
+registerServiceWorker();

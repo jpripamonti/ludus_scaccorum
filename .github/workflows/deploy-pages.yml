@@ -26,17 +26,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run smoke checks
+        run: npm test
+
       - name: Prepare static site artifact
         run: |
           rm -rf _site
           mkdir -p _site
-          rsync -av --delete \
-            --exclude '.git/' \
-            --exclude '.github/' \
-            --exclude 'node_modules/' \
-            --exclude 'output/' \
-            --exclude '_site/' \
-            ./ _site/
+          cp index.html app.js styles.css sw.js LICENSE THIRD_PARTY_NOTICES.md _site/
+          mkdir -p _site/assets _site/vendor
+          rsync -av --delete --exclude '.DS_Store' assets/ _site/assets/
+          rsync -av --delete vendor/ _site/vendor/
+          find _site -name '.DS_Store' -delete
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

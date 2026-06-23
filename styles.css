@@ -44,9 +44,9 @@
   --color-board-hl-user-to:   rgba(70,150,230,0.60);
 
   /* ── Typography ── */
-  --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
-  --font-ui:      'DM Sans', 'Helvetica Neue', Arial, sans-serif;
-  --font-mono:    'DM Mono', 'Fira Code', 'Courier New', monospace;
+  --font-display: Georgia, 'Times New Roman', serif;
+  --font-ui:      system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono:    ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', monospace;
 
   /* ── Type Scale ── */
   --text-xs:   10px;
@@ -116,7 +116,10 @@
   --btn-w-wizard-nav: 180px;
   --shadow-soft:    var(--shadow-panel);
   --shadow-strong:  var(--shadow-board);
-  --landing-bg-image: url("assets/landing/maestro.png");
+  --landing-bg-image: image-set(
+    url("assets/landing/maestro.webp") type("image/webp"),
+    url("assets/landing/maestro.png") type("image/png")
+  );
 }
 
 * {
@@ -745,6 +748,12 @@ body.playing-mode .board { max-width: min(76vh, 780px); }
 .square.dark  { background: var(--board-dark); }
 
 .square.selected { background: oklch(68% 0.12 82); }
+
+.square:focus-visible {
+  outline: 3px solid var(--color-info);
+  outline-offset: -5px;
+  z-index: 7;
+}
 
 .piece-img {
   width: 80%;
@@ -1403,9 +1412,10 @@ body.result-visible .solo-clock-rail { display: none; }
 .solo-clock-bar {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  height: 100%;
+  width: 100%;
+  height: var(--clock-ratio, 100%);
   background: var(--color-gold);
-  transition: height 100ms linear, background var(--dur-base) ease;
+  transition: width 100ms linear, height 100ms linear, background var(--dur-base) ease;
 }
 
 .solo-clock-rail.urgency-mid .solo-clock-bar  { background: var(--color-dubious); }
@@ -1748,17 +1758,17 @@ body.playing-mode #landing-screen { display: none !important; }
   .board-wrap { width: min(100%, 760px); }
   body.solo-mode .board-wrap,
   body.result-visible .board-wrap {
-    width: min(60vw, 760px);
+    width: min(100%, 760px);
   }
   body.solo-mode:not(.result-visible) .board-wrap {
-    width: min(60vw, 760px);
-    justify-self: start;
+    width: min(100%, 760px);
+    justify-self: center;
   }
   #game-layout .board { max-width: 100%; }
 
   body.solo-mode:not(.result-visible) .board-stage-main {
     grid-template-columns: minmax(0, 1fr);
-    justify-items: start;
+    justify-items: center;
     gap: 10px;
     align-items: center;
   }
@@ -1780,6 +1790,53 @@ body.playing-mode #landing-screen { display: none !important; }
 
   #shared-actions button,
   .result-overlay-actions button { width: 100%; }
+}
+
+@media (max-width: 600px) {
+  body.playing-mode .app {
+    padding-inline: 8px;
+  }
+
+  .board-stage {
+    padding-inline: 0;
+  }
+
+  .board-stage-main,
+  body.solo-mode:not(.result-visible) .board-stage-main {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 8px;
+  }
+
+  .board-wrap,
+  body.solo-mode .board-wrap,
+  body.solo-mode:not(.result-visible) .board-wrap,
+  body.result-visible .board-wrap {
+    width: min(100%, calc(100vw - 16px));
+    justify-self: center;
+  }
+
+  .solo-clock-rail {
+    width: min(100%, calc(100vw - 16px));
+    min-height: 38px;
+    padding: 6px 8px;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    justify-self: center;
+  }
+
+  .solo-clock-track {
+    width: 100%;
+    height: 10px;
+  }
+
+  .solo-clock-bar {
+    top: 0;
+    bottom: 0;
+    right: auto;
+    width: var(--clock-ratio, 100%);
+    height: 100%;
+  }
 }
 
 /* ============================================================
