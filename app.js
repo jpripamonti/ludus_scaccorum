@@ -930,6 +930,7 @@ const STATE = {
     setupAnalyzing: false,
     positionSearchState: null,
     handoffState: null,
+    handoffReturnFocusEl: null,
     searchCancelRequested: false,
     thinkingMessages: {
       level: "medium",
@@ -1564,15 +1565,24 @@ function showHandoffOverlay(title, subtitle) {
     title: title || t("game.handoff.genericTitle"),
     subtitle: subtitle || t("game.handoff.genericSubtitle"),
   };
+  STATE.ui.handoffReturnFocusEl = document.activeElement || null;
   if (handoffOverlayTitleEl) handoffOverlayTitleEl.textContent = STATE.ui.handoffState.title;
   if (handoffOverlaySubtitleEl) handoffOverlaySubtitleEl.textContent = STATE.ui.handoffState.subtitle;
   handoffOverlayEl.classList.remove("hidden");
+  requestAnimationFrame(() => {
+    handoffOverlayEl.focus();
+  });
 }
 
 function hideHandoffOverlay() {
   if (!handoffOverlayEl) return;
   STATE.ui.handoffState = null;
   handoffOverlayEl.classList.add("hidden");
+  const returnFocusEl = STATE.ui.handoffReturnFocusEl;
+  STATE.ui.handoffReturnFocusEl = null;
+  if (returnFocusEl && document.contains(returnFocusEl) && typeof returnFocusEl.focus === "function") {
+    returnFocusEl.focus();
+  }
 }
 
 function setPositionSearchProgress(ratio = null, label = "") {
