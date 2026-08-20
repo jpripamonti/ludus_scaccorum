@@ -5096,6 +5096,7 @@ function revealDuelSecondTurn() {
 function restartToSetup() {
   beginSessionWork();
   stopRoundTimer();
+  resetEngineToLocal();
   STATE.ui.setupAnalyzing = false;
   setThinkingMode(false);
   setScoringInfoVisible(false);
