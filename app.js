@@ -4437,7 +4437,7 @@ function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, 
         meta: qualityLabel(scored.qualityCode),
         qualityCode: scored.qualityCode,
         diff: Number.isFinite(scored.diff) ? scored.diff : null,
-        authorClass: "node-p1", // You are Player 1 (Blue)
+        authorClass: qualityToVerdictClass(scored.qualityCode) || "node-p1",
         noMove: false
       });
     }

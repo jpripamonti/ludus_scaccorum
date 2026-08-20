@@ -2262,6 +2262,30 @@ body.playing-mode #landing-screen { display: none !important; }
 }
 .infographic-node.node-p2::before { background-color: var(--color-dubious); }
 
+.infographic-node.verdict-perfect {
+  border-color: var(--color-perfect-bd);
+  background: var(--color-perfect-bg);
+}
+.infographic-node.verdict-perfect::before { background-color: var(--color-perfect); }
+
+.infographic-node.verdict-good {
+  border-color: var(--color-good-bd);
+  background: var(--color-good-bg);
+}
+.infographic-node.verdict-good::before { background-color: var(--color-good); }
+
+.infographic-node.verdict-dubious {
+  border-color: var(--color-dubious-bd);
+  background: var(--color-dubious-bg);
+}
+.infographic-node.verdict-dubious::before { background-color: var(--color-dubious); }
+
+.infographic-node.verdict-blunder {
+  border-color: var(--color-blunder-bd);
+  background: var(--color-blunder-bg);
+}
+.infographic-node.verdict-blunder::before { background-color: var(--color-blunder); }
+
 .node-label {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -2279,6 +2303,18 @@ body.playing-mode #landing-screen { display: none !important; }
 
 .node-p2 .node-label,
 .node-p2.node-author-block .node-label { color: var(--color-dubious); }
+
+.verdict-perfect .node-label,
+.verdict-perfect.node-author-block .node-label { color: var(--color-perfect); }
+
+.verdict-good .node-label,
+.verdict-good.node-author-block .node-label { color: var(--color-good); }
+
+.verdict-dubious .node-label,
+.verdict-dubious.node-author-block .node-label { color: var(--color-dubious); }
+
+.verdict-blunder .node-label,
+.verdict-blunder.node-author-block .node-label { color: var(--color-blunder); }
 
 .node-authors-list {
   display: flex;
