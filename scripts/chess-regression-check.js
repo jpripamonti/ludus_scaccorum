@@ -179,4 +179,75 @@ assert.strictEqual(sessionSummaryScoreText(), "Alice 1 - 0.5 Bob");
 
 assert(!appSource.includes("player2.userSan"), "duel result re-render should use player2.san");
 
+// ---------- Castling ----------
+
+const whiteKingsideCastle = new Chess("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1");
+assert.strictEqual(
+  play(whiteKingsideCastle, "e1g1"),
+  "r3k2r/8/8/8/8/8/8/R4RK1 b kq - 1 1",
+  "white kingside castling should move king to g1 and rook to f1"
+);
+
+const blackQueensideCastle = new Chess("r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1");
+assert.strictEqual(
+  play(blackQueensideCastle, "e8c8"),
+  "2kr3r/8/8/8/8/8/8/R3K2R w KQ - 1 2",
+  "black queenside castling should move king to c8 and rook to d8"
+);
+
+const castleWhileInCheck = new Chess("4k3/8/8/8/8/8/4r3/R3K2R w KQ - 0 1");
+assert.strictEqual(castleWhileInCheck.inCheck("w"), true, "setup should have white king in check");
+assert.strictEqual(uciToMove("e1g1", castleWhileInCheck), null, "castling kingside must be illegal while in check");
+assert.strictEqual(uciToMove("e1c1", castleWhileInCheck), null, "castling queenside must be illegal while in check");
+assert.strictEqual(
+  castleWhileInCheck.generateMoves().some((move) => move.castle),
+  false,
+  "no castling move should be legal while the king is in check"
+);
+
+const castleThroughAttackedSquare = new Chess("4k3/8/8/8/8/5r2/8/4K2R w K - 0 1");
+assert.strictEqual(castleThroughAttackedSquare.inCheck("w"), false, "king itself should not be in check in this setup");
+assert.strictEqual(
+  uciToMove("e1g1", castleThroughAttackedSquare),
+  null,
+  "castling must be illegal when the king passes through an attacked square (f1)"
+);
+
+// ---------- En passant ----------
+
+const enPassantGame = new Chess("rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3");
+assert.strictEqual(
+  play(enPassantGame, "e5d6"),
+  "rnbqkbnr/ppp1pppp/3P4/8/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 3",
+  "en passant capture should remove the black pawn on d5 and land the white pawn on d6"
+);
+
+// ---------- Pawn promotion ----------
+
+const whiteRookPromotion = new Chess("7k/P7/8/8/8/8/8/7K w - - 0 1");
+assert.strictEqual(
+  play(whiteRookPromotion, "a7a8r"),
+  "R6k/8/8/8/8/8/8/7K b - - 0 1",
+  "white pawn should be able to underpromote to a rook"
+);
+
+const blackKnightPromotion = new Chess("7k/8/8/8/8/8/6p1/K7 b - - 0 1");
+assert.strictEqual(
+  play(blackKnightPromotion, "g2g1n"),
+  "7k/8/8/8/8/8/8/K5n1 w - - 0 2",
+  "black pawn should be able to underpromote to a knight"
+);
+
+// ---------- Checkmate detection ----------
+
+const foolsMate = new Chess("rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3");
+assert.strictEqual(foolsMate.inCheck("w"), true, "fool's mate position should have white in check");
+assert.strictEqual(foolsMate.generateMoves().length, 0, "fool's mate position should have no legal moves (checkmate)");
+
+// ---------- Stalemate detection ----------
+
+const stalemate = new Chess("k7/2K5/1Q6/8/8/8/8/8 b - - 0 1");
+assert.strictEqual(stalemate.inCheck("b"), false, "stalemate position should not have black in check");
+assert.strictEqual(stalemate.generateMoves().length, 0, "stalemate position should have no legal moves");
+
 console.log("chess-regression-check passed");
