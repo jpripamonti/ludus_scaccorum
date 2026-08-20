@@ -133,6 +133,7 @@ const MIN_TURN_TIME_SECONDS = 5;
 const MAX_TURN_TIME_SECONDS = 360;
 const RATING_MOVE_TIME_MS = 5000;
 const RATING_DEPTH = 18;
+const MIN_LEGAL_MOVES_FOR_CANDIDATE = 3;
 const LOCAL_FALLBACK_MAX_DEPTH = 3;
 const MIN_ROUND_EVAL_VISIBLE_MS = 5000;
 const ROUND_EVAL_MAX_TOTAL_MS = 7000;
@@ -3616,6 +3617,9 @@ async function evaluateCandidateForMistake(candidate, ctx) {
 
       const before = chess.clone();
       const moveNumber = Math.floor(ply / 2) + 1;
+
+      if (before.generateMoves().length < MIN_LEGAL_MOVES_FOR_CANDIDATE) return null;
+
       const adaptive = adaptiveThreshold(ctx.thresholdCp, before);
 
       const best = await getBestMoveWithEngine(before, ctx.depth, ctx.moveTimeMs);
