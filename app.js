@@ -5571,10 +5571,17 @@ async function fetchChessComPgn() {
     let bulletGames = 0;
     let totalGames = 0;
     let qualityWarning = "";
+    let failedMonths = 0;
 
     for (const archive of archives) {
       if (totalGames >= settings.maxGames) break;
-      const games = await loadArchiveGames(archive.url);
+      let games;
+      try {
+        games = await loadArchiveGames(archive.url);
+      } catch (archiveError) {
+        failedMonths += 1;
+        continue;
+      }
       const added = takeGamesFromArchive(games, slowClasses, settings.maxGames - totalGames);
       slowGames += added;
       totalGames += added;
@@ -5589,7 +5596,13 @@ async function fetchChessComPgn() {
       const blitzClass = new Set(["blitz"]);
       for (const archive of archives) {
         if (totalGames >= settings.maxGames) break;
-        const games = await loadArchiveGames(archive.url);
+        let games;
+        try {
+          games = await loadArchiveGames(archive.url);
+        } catch (archiveError) {
+          failedMonths += 1;
+          continue;
+        }
         const added = takeGamesFromArchive(games, blitzClass, settings.maxGames - totalGames);
         blitzGames += added;
         totalGames += added;
@@ -5608,7 +5621,13 @@ async function fetchChessComPgn() {
       const bulletClass = new Set(["bullet"]);
       for (const archive of archives) {
         if (totalGames >= settings.maxGames) break;
-        const games = await loadArchiveGames(archive.url);
+        let games;
+        try {
+          games = await loadArchiveGames(archive.url);
+        } catch (archiveError) {
+          failedMonths += 1;
+          continue;
+        }
         const added = takeGamesFromArchive(games, bulletClass, settings.maxGames - totalGames);
         bulletGames += added;
         totalGames += added;
