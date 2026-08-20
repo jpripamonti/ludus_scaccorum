@@ -140,9 +140,9 @@ const context = {
 context.globalThis = context;
 
 const appSource = fs.readFileSync(path.join(root, "app.js"), "utf8");
-vm.runInNewContext(`${appSource}\nglobalThis.__ludusTest = { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText };`, context);
+vm.runInNewContext(`${appSource}\nglobalThis.__ludusTest = { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode };`, context);
 
-const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText } = context.__ludusTest;
+const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode } = context.__ludusTest;
 
 function play(game, uci) {
   const move = uciToMove(uci, game);
@@ -249,5 +249,74 @@ assert.strictEqual(foolsMate.generateMoves().length, 0, "fool's mate position sh
 const stalemate = new Chess("k7/2K5/1Q6/8/8/8/8/8 b - - 0 1");
 assert.strictEqual(stalemate.inCheck("b"), false, "stalemate position should not have black in check");
 assert.strictEqual(stalemate.generateMoves().length, 0, "stalemate position should have no legal moves");
+
+// ---------- Centipawn-loss quality thresholds ----------
+
+assert.strictEqual(cpQualityCode(10), "perfect", "loss=10 should be perfect");
+assert.strictEqual(cpQualityCode(11), "very_good", "loss=11 should be very_good");
+assert.strictEqual(cpQualityCode(35), "very_good", "loss=35 should be very_good");
+assert.strictEqual(cpQualityCode(36), "good", "loss=36 should be good");
+assert.strictEqual(cpQualityCode(70), "good", "loss=70 should be good");
+assert.strictEqual(cpQualityCode(71), "interesting", "loss=71 should be interesting");
+assert.strictEqual(cpQualityCode(115), "interesting", "loss=115 should be interesting");
+assert.strictEqual(cpQualityCode(116), "dubious", "loss=116 should be dubious");
+assert.strictEqual(cpQualityCode(165), "dubious", "loss=165 should be dubious");
+assert.strictEqual(cpQualityCode(166), "bad", "loss=166 should be bad");
+assert.strictEqual(cpQualityCode(240), "bad", "loss=240 should be bad");
+assert.strictEqual(cpQualityCode(241), "blunder", "loss=241 should be blunder");
+
+// near-perfect via expected-points loss: only kicks in when loss is also <=18
+assert.strictEqual(
+  cpQualityCode(18, false, 0.008),
+  "perfect",
+  "loss=18 with expectedLoss=0.008 should be perfect (near-perfect by expected points)"
+);
+assert.strictEqual(
+  cpQualityCode(19, false, 0.008),
+  "very_good",
+  "loss=19 with expectedLoss=0.008 should not qualify as near-perfect (loss above 18 cutoff)"
+);
+assert.strictEqual(
+  cpQualityCode(18, false, 0.009),
+  "very_good",
+  "loss=18 with expectedLoss=0.009 should not qualify as near-perfect (expectedLoss above 0.008 cutoff)"
+);
+
+// exactBest always wins regardless of loss
+assert.strictEqual(cpQualityCode(500, true), "perfect", "exactBest=true should always yield perfect");
+
+// non-finite loss with no special reasonCode/exactBest
+assert.strictEqual(cpQualityCode(NaN), "no_move", "non-finite loss should be treated as no_move");
+assert.strictEqual(cpQualityCode(Infinity), "no_move", "infinite loss should be treated as no_move");
+
+// special reasonCode overrides
+assert.strictEqual(cpQualityCode(0, false, null, "no_move"), "no_move", "reasonCode=no_move should force no_move");
+assert.strictEqual(
+  cpQualityCode(0, false, null, "allows_mate"),
+  "blunder",
+  "reasonCode=allows_mate should force blunder even with zero loss"
+);
+assert.strictEqual(
+  cpQualityCode(0, false, null, "missed_forced_mate"),
+  "blunder",
+  "reasonCode=missed_forced_mate should force blunder even with zero loss"
+);
+assert.strictEqual(
+  cpQualityCode(500, false, null, "optimal_mate"),
+  "perfect",
+  "reasonCode=optimal_mate should force perfect even with high loss"
+);
+
+// ---------- Points awarded per quality code ----------
+
+assert.strictEqual(pointsFromQualityCode("perfect"), 1);
+assert.strictEqual(pointsFromQualityCode("very_good"), 0.75);
+assert.strictEqual(pointsFromQualityCode("good"), 0.5);
+assert.strictEqual(pointsFromQualityCode("interesting"), 0.25);
+assert.strictEqual(pointsFromQualityCode("dubious"), 0);
+assert.strictEqual(pointsFromQualityCode("bad"), -0.5);
+assert.strictEqual(pointsFromQualityCode("blunder"), -1);
+assert.strictEqual(pointsFromQualityCode("no_move"), 0);
+assert.strictEqual(pointsFromQualityCode("unknown_code"), 0, "unrecognized codes should default to 0 points");
 
 console.log("chess-regression-check passed");
