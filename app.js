@@ -4486,6 +4486,7 @@ function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, 
 
     roundResultEl.innerHTML = `<p class="result-summary-line">${escapeHtml(extra.duel.summary || duelSummary)}</p>`;
   } else {
+    const infographicEl = document.getElementById("vertical-infographic");
     if (!noMove) {
       userNodes.push({
         label: t("evaluation.yourMove"),
@@ -4496,9 +4497,16 @@ function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, 
         authorClass: qualityToVerdictClass(scored.qualityCode) || "node-p1",
         noMove: false
       });
-    }
 
-    roundResultEl.innerHTML = ""; // No extra summary line for solo mode, as header handles points
+      roundResultEl.innerHTML = ""; // No extra summary line for solo mode, as header handles points
+      if (infographicEl) infographicEl.classList.remove("hidden");
+    } else {
+      const soloNoMoveNote = noMoveByTimeout
+        ? t("evaluation.timeoutZeroPoints")
+        : t("evaluation.noMoveZeroPoints");
+      roundResultEl.innerHTML = `<p class="result-summary-line">${escapeHtml(soloNoMoveNote)}</p>`;
+      if (infographicEl) infographicEl.classList.add("hidden");
+    }
   }
   // Re-enable and reset the reveal buttons
   if (revealBestBtn) {
@@ -4510,7 +4518,9 @@ function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, 
     revealGameBtn.textContent = revealGameButtonLabel();
   }
 
-  renderVerticalInfographic({ bestNode: null, gameNode: null, userNodes });
+  if (!(extra.mode !== "duel" && noMove)) {
+    renderVerticalInfographic({ bestNode: null, gameNode: null, userNodes });
+  }
 }
 
 function finalSessionSummaryText() {
