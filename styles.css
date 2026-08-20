@@ -1542,6 +1542,11 @@ body.result-visible .solo-clock-rail { display: none; }
   letter-spacing: 0.02em;
 }
 
+.position-search-cancel-btn {
+  pointer-events: auto;
+  margin-top: 10px;
+}
+
 /* ── Result overlay ── */
 .result-overlay {
   position: relative;

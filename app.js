@@ -80,6 +80,7 @@ const positionSearchMetaEl = document.getElementById("position-search-meta");
 const positionSearchProgressEl = document.getElementById("position-search-progress");
 const positionSearchProgressBarEl = document.getElementById("position-search-progress-bar");
 const positionSearchProgressLabelEl = document.getElementById("position-search-progress-label");
+const positionSearchCancelBtnEl = document.getElementById("position-search-cancel-btn");
 const soloClockRailEl = document.getElementById("solo-clock-rail");
 const soloClockValueEl = document.getElementById("solo-clock-value");
 const soloClockBarEl = document.getElementById("solo-clock-bar");
@@ -140,6 +141,8 @@ const ROUND_EVAL_MAX_TOTAL_MS = 7000;
 const ROUND_EVAL_MIN_TOTAL_MS = 2200;
 const ROUND_EVAL_MIN_TASK_MS = 350;
 const ROUND_THINKING_MESSAGE_INTERVAL_MS = 1700;
+const MISTAKE_SEARCH_TIME_BUDGET_MS = 25000;
+const MISTAKE_SEARCH_CANDIDATE_BUDGET = 400;
 const CLOCK_TICK_MS = 100;
 const LANGUAGE_STORAGE_KEY = "ludus.language";
 const SETUP_STORAGE_KEY = "ludus.setup.v1";
@@ -170,6 +173,7 @@ const TRANSLATIONS = {
     "buttons.backToMenu": "Volver al menú",
     "buttons.skipMove": "Omitir jugada (0 pts)",
     "buttons.restartMenu": "Volver al menú",
+    "buttons.cancelSearch": "Cancelar búsqueda",
     "confirm.restartToSetup": "¿Seguro que querés volver al menú? Se perderá el progreso de la sesión actual.",
     "wizard.title": "Configuración guiada",
     "wizard.heading": "Armemos tu sesión en 3 pasos",
@@ -428,6 +432,7 @@ const TRANSLATIONS = {
     "buttons.backToMenu": "Back to menu",
     "buttons.skipMove": "Skip move (0 pts)",
     "buttons.restartMenu": "Back to menu",
+    "buttons.cancelSearch": "Cancel search",
     "confirm.restartToSetup": "Are you sure you want to go back to the menu? Your current session progress will be lost.",
     "wizard.title": "Guided setup",
     "wizard.heading": "Let's build your session in 3 steps",
@@ -925,6 +930,7 @@ const STATE = {
     setupAnalyzing: false,
     positionSearchState: null,
     handoffState: null,
+    searchCancelRequested: false,
     thinkingMessages: {
       level: "medium",
       queue: [],
@@ -3656,6 +3662,9 @@ async function evaluateCandidateForMistake(candidate, ctx) {
 async function findNextMistake(ctx, extraStatusPrefix = "") {
   if (!ctx || STATE.analysisInProgress) return null;
   STATE.analysisInProgress = true;
+  STATE.ui.searchCancelRequested = false;
+  const searchStartedAt = Date.now();
+  let evaluatedInThisSearch = 0;
   const isNextSearch = String(extraStatusPrefix || "").trim().toLowerCase().startsWith("siguiente");
   try {
     if (!Array.isArray(ctx.repeatMistakes)) ctx.repeatMistakes = [];
@@ -3672,7 +3681,12 @@ async function findNextMistake(ctx, extraStatusPrefix = "") {
 
     let scannedThisCall = 0;
     const maxScanPerCall = 140;
-    while (ctx.cursor < ctx.candidates.length) {
+    while (
+      ctx.cursor < ctx.candidates.length &&
+      !STATE.ui.searchCancelRequested &&
+      Date.now() - searchStartedAt < MISTAKE_SEARCH_TIME_BUDGET_MS &&
+      evaluatedInThisSearch < MISTAKE_SEARCH_CANDIDATE_BUDGET
+    ) {
       const candidate = ctx.candidates[ctx.cursor];
       const ordinal = ctx.cursor + 1;
       analysisStatusEl.textContent = t("analysis.status.candidate", {
@@ -3709,6 +3723,7 @@ async function findNextMistake(ctx, extraStatusPrefix = "") {
       }
 
       scannedThisCall += 1;
+      evaluatedInThisSearch += 1;
       if (scannedThisCall >= maxScanPerCall && ctx.repeatMistakes.length > 0) {
         const fallback = ctx.repeatMistakes.shift();
         const usedGames = ctx.usedGameIndices instanceof Set ? ctx.usedGameIndices : null;
@@ -6160,6 +6175,11 @@ if (restartBtn) restartBtn.addEventListener("click", () => {
 if (handoffOverlayEl) {
   handoffOverlayEl.addEventListener("click", () => {
     revealDuelSecondTurn();
+  });
+}
+if (positionSearchCancelBtnEl) {
+  positionSearchCancelBtnEl.addEventListener("click", () => {
+    STATE.ui.searchCancelRequested = true;
   });
 }
 
