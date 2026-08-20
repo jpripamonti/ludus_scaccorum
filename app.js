@@ -3165,7 +3165,7 @@ async function waitForWorkerReady(worker, timeoutMs = 7000) {
 async function setupStockfish() {
   resetEngineToLocal();
   try {
-    const response = await fetch("vendor/stockfish-18-lite-single.js", { method: "HEAD" });
+    const response = await fetch("vendor/stockfish-18-lite-single.js");
     if (!response.ok) return;
     const worker = new Worker("vendor/stockfish-18-lite-single.js");
     worker.onerror = () => resetEngineToLocal();
