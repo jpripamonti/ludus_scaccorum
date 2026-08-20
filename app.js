@@ -94,6 +94,8 @@ const consentOverlayTitleEl = document.getElementById("consent-overlay-title");
 const consentOverlayBodyEl = document.getElementById("consent-overlay-body");
 const consentOverlayAcceptBtn = document.getElementById("consent-overlay-accept");
 const consentOverlayCancelBtn = document.getElementById("consent-overlay-cancel");
+const consentOverlayUsernameInputEl = document.getElementById("consent-overlay-username-input");
+const consentOverlayErrorEl = document.getElementById("consent-overlay-error");
 const revealBestBtn = document.getElementById("reveal-best-btn");
 const revealGameBtn = document.getElementById("reveal-game-btn");
 const resultAnalysisBtn = document.getElementById("result-analysis-btn");
@@ -284,6 +286,8 @@ const TRANSLATIONS = {
     "privacy.remoteFetchTitle": "Consultar partidas públicas",
     "privacy.remoteFetchAccept": "Aceptar",
     "privacy.remoteFetchCancel": "Cancelar",
+    "privacy.remoteFetchUsernameLabel": "Volvé a escribir el usuario para confirmar",
+    "privacy.remoteFetchUsernameMismatch": "El usuario no coincide. Escribilo exactamente igual para confirmar.",
     "provider.usingCachedBase": "Usando base guardada de {provider} para {user}: {games} partida(s).",
     "provider.usingStaleCachedBase": "No pudimos actualizar la base. Usando la última base guardada de {provider} para {user}: {games} partida(s).",
     "time.classical": "Clásico",
@@ -545,6 +549,8 @@ const TRANSLATIONS = {
     "privacy.remoteFetchTitle": "Fetch public games",
     "privacy.remoteFetchAccept": "Accept",
     "privacy.remoteFetchCancel": "Cancel",
+    "privacy.remoteFetchUsernameLabel": "Retype the username to confirm",
+    "privacy.remoteFetchUsernameMismatch": "The username doesn't match. Type it exactly to confirm.",
     "provider.usingCachedBase": "Using saved {provider} base for {user}: {games} game(s).",
     "provider.usingStaleCachedBase": "Could not refresh the base. Using the last saved {provider} base for {user}: {games} game(s).",
     "time.classical": "Classical",
@@ -2744,6 +2750,11 @@ function confirmRemoteFetchConsent(provider, username) {
   }
   consentOverlayAcceptBtn.textContent = t("privacy.remoteFetchAccept");
   consentOverlayCancelBtn.textContent = t("privacy.remoteFetchCancel");
+  if (consentOverlayUsernameInputEl) consentOverlayUsernameInputEl.value = "";
+  if (consentOverlayErrorEl) {
+    consentOverlayErrorEl.textContent = "";
+    consentOverlayErrorEl.classList.add("hidden");
+  }
 
   consentOverlayEl.classList.remove("hidden");
 
@@ -2755,7 +2766,18 @@ function confirmRemoteFetchConsent(provider, username) {
       if (accepted) STATE.remoteConsent[provider] = true;
       resolve(accepted);
     };
-    const onAccept = () => cleanup(true);
+    const onAccept = () => {
+      const typed = (consentOverlayUsernameInputEl?.value || "").trim().toLowerCase();
+      const expected = String(username || "").trim().toLowerCase();
+      if (typed !== expected) {
+        if (consentOverlayErrorEl) {
+          consentOverlayErrorEl.textContent = t("privacy.remoteFetchUsernameMismatch");
+          consentOverlayErrorEl.classList.remove("hidden");
+        }
+        return;
+      }
+      cleanup(true);
+    };
     const onCancel = () => cleanup(false);
     consentOverlayAcceptBtn.addEventListener("click", onAccept);
     consentOverlayCancelBtn.addEventListener("click", onCancel);
