@@ -45,9 +45,14 @@
             <h3 id="wizard-step-1-title" class="wizard-question" data-i18n="wizard.step1.question">¿Cómo querés jugar?</h3>
             <div class="wizard-card-grid" role="group" data-i18n-aria-label="wizard.step1.ariaLabel" aria-label="Modo de juego">
               <button id="wizard-mode-solo" type="button" class="wizard-choice-card" data-i18n="wizard.step1.solo">Jugar solo/a</button>
-              <button id="wizard-mode-duel" type="button" class="wizard-choice-card" data-i18n="wizard.step1.duel">Jugar contra alguien</button>
+              <button id="wizard-mode-duel" type="button" class="wizard-choice-card">
+                <span data-i18n="wizard.step1.duel">Jugar contra alguien</span>
+                <span class="wizard-choice-hint" data-i18n="wizard.step1.duelHint">Se turnan en este mismo dispositivo</span>
+              </button>
             </div>
             <div id="duel-config" class="wizard-inline-form hidden">
+              <p class="wizard-help" data-i18n="wizard.step1.duelExplainer">Van a compartir este dispositivo: cada uno juega su turno y comparan el
+                puntaje al final.</p>
               <label for="duel-player-a" data-i18n="wizard.step1.player1Label">Nombre Jugador 1</label>
               <input id="duel-player-a" type="text" value="Jugador 1" maxlength="20" autocomplete="off" data-player-default="0" />
               <label for="duel-player-b" data-i18n="wizard.step1.player2Label">Nombre Jugador 2</label>
