@@ -2063,7 +2063,6 @@ body.playing-mode #landing-screen { display: none !important; }
   min-height: 44px;
   font-size: var(--text-md);
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
   background: var(--color-surface-3);
   color: var(--color-text);
   padding: 8px 12px;
