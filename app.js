@@ -4664,91 +4664,19 @@ async function resolveRound(move, options = {}) {
   STATE.isResolvingRound = true;
   const duelFirstTurn = isDuelMode() && STATE.duel.currentPlayer === 0;
   try {
-    const { depth: ratingDepth, moveTimeMs: ratingMoveTimeMs } = getRatingConfig();
-    const position = STATE.positions[STATE.index];
-    const base = new Chess(position.fen);
-    const noMove = !move;
-    const noMoveReason = noMove ? (options.noMoveReason || "no_move") : "";
-    const playerIdx = STATE.duel.currentPlayer;
-    const playerName = duelPlayerName(playerIdx);
-
-    STATE.userMove = move || null;
-    STATE.selection = null;
-    STATE.legalMoves = [];
-    skipBtn.disabled = true;
-    setUiPhase(duelFirstTurn ? "handoff_wait_eval" : "playing", true);
+    const { ratingDepth, ratingMoveTimeMs, position, base, noMove, noMoveReason } =
+      prepareRoundResolutionContext(move, options, duelFirstTurn);
 
     if (duelFirstTurn) {
-      STATE.duel.roundResults[0] = {
-        pendingMove: move ? { ...move } : null,
-        noMoveReason,
-        userMove: snapshotMove(move),
-      };
-      STATE.board = new Chess(position.fen);
-      setBoardPerspective(base.turn);
-      STATE.selection = null;
-      STATE.legalMoves = [];
-      STATE.userMove = null;
-      STATE.revealed = { best: null, game: null, user: null, userAlt: null };
-      renderBoard();
-      roundResultEl.innerHTML = "";
-      showHandoffOverlay(t("game.handoff.title", { player: duelPlayerName(1) }), t("game.handoff.subtitle"));
-      STATE.duel.handoffReady = true;
-      setUiPhase("handoff_ready", true);
-      nextBtn.textContent = t("buttons.nextPosition");
-      nextBtn.disabled = true;
-      skipBtn.disabled = true;
-      setThinkingMode(false);
-      renderSessionProgress();
-      updateScoreDisplay();
-      setPanelActiveState(1);
-      updateCompetitiveStatus();
-      setScoringInfoVisible(false);
+      handleDuelFirstTurnHandoff(base, position, move, noMoveReason);
       return;
     }
 
-    roundResultEl.textContent = noMoveReason === "timeout"
-      ? t("overlay.timeoutEvaluating")
-      : (noMove ? t("overlay.closingWithoutMove") : t("overlay.evaluatingMove"));
+    showEvaluatingMoveOnBoard(move, noMove, noMoveReason);
 
-    if (move) {
-      STATE.board.makeMove(move);
-      STATE.revealed = { ...STATE.revealed, user: move };
-      renderBoard();
-    }
+    const movesToEvaluate = buildMovesToEvaluate(move, noMoveReason);
 
-    const evaluationTitle = isDuelMode()
-      ? t("overlay.evaluatingBoth")
-      : t("overlay.evaluatingYours");
-
-    const movesToEvaluate = [];
-    if (!isDuelMode()) {
-      movesToEvaluate.push({ move, noMoveReason });
-    } else {
-      const p1Pending = STATE.duel.roundResults[0];
-      const p1Move = p1Pending && p1Pending.pendingMove ? { ...p1Pending.pendingMove } : null;
-      const p1NoMoveReason = p1Move ? "" : (p1Pending?.noMoveReason || "no_move");
-      movesToEvaluate.push({ move: p1Move, noMoveReason: p1NoMoveReason });
-      movesToEvaluate.push({ move, noMoveReason });
-    }
-
-    const roundPlan = getRoundEvaluationPlan(base, position, ratingMoveTimeMs);
-    const budgetLabel = `${(roundPlan.totalBudgetMs / 1000).toFixed(1)}s max`;
-    showPositionSearchOverlay(
-      evaluationTitle,
-      t("overlay.difficultyBudget", { label: t(`difficulty.${roundPlan.label}`), budget: budgetLabel }),
-      {
-        showProgress: true,
-        progressRatio: 0,
-        progressLabel: t("overlay.progressLabel", {
-          pct: 0,
-          elapsed: "0.0",
-          total: (roundPlan.totalBudgetMs / 1000).toFixed(1),
-        }),
-      },
-    );
-    startRoundThinkingMessages(roundPlan.level);
-    const evaluationVisibleStartedAt = Date.now();
+    const { roundPlan, evaluationVisibleStartedAt } = beginRoundEvaluationOverlay(base, position, ratingMoveTimeMs);
 
     const evaluation = await evaluateRoundMovesForPosition(
       base,
@@ -4773,230 +4701,16 @@ async function resolveRound(move, options = {}) {
         },
       },
     );
-    if (!isCurrentSessionWork(sessionToken)) return;
-    const evaluationVisibleElapsedMs = Date.now() - evaluationVisibleStartedAt;
-    if (evaluationVisibleElapsedMs < MIN_ROUND_EVAL_VISIBLE_MS) {
-      await sleepMs(MIN_ROUND_EVAL_VISIBLE_MS - evaluationVisibleElapsedMs);
-    }
-    if (!isCurrentSessionWork(sessionToken)) return;
-    const baseResult = evaluation.evaluatedMoves[0] || {
-      move: null,
-      noMoveReason: "no_move",
-      userMover: NaN,
-      scored: scoreMoveAgainstBest(evaluation.bestMover, NaN, STATE.scoringSystem),
-      hit: false,
-      userSan: "",
-      userEvalText: t("common.notAvailable"),
-    };
 
-    hidePositionSearchOverlay();
-    setThinkingMode(false);
+    const baseResult = await settleRoundEvaluationVisibility(sessionToken, evaluation, evaluationVisibleStartedAt);
+    if (!baseResult) return;
 
     if (!isDuelMode()) {
-      STATE.board = new Chess(position.fen);
-      setBoardPerspective(base.turn);
-      STATE.selection = null;
-      STATE.legalMoves = [];
-      STATE.revealed = { best: null, game: null, user: move || null, userAlt: null };
-      captureResultSnapshot(position.fen);
-      renderBoard();
-      renderRoundFeedbackTable(
-        evaluation.bestSan,
-        evaluation.bestEvalText,
-        evaluation.gameSan,
-        evaluation.gameEvalText,
-        baseResult.userSan,
-        baseResult.userEvalText,
-        evaluation.bestMover,
-        evaluation.gameMover,
-        baseResult.userMover,
-        baseResult.scored,
-        baseResult.noMoveReason,
-        { mode: "solo", hitThreshold: evaluation.hitThreshold },
-      );
-      STATE.resultView.context = {
-        kind: "round_solo",
-        bestSan: evaluation.bestSan,
-        gameSan: evaluation.gameSan,
-        bestMover: evaluation.bestMover,
-        gameMover: evaluation.gameMover,
-        userMover: baseResult.userMover,
-        scored: baseResult.scored,
-        noMoveReason: baseResult.noMoveReason,
-        userSan: baseResult.userSan || "",
-        userMove: snapshotMove(move),
-        hitThreshold: evaluation.hitThreshold,
-      };
-      const soloRoundSummary = noMove
-        ? (noMoveReason === "timeout" ? t("evaluation.timeoutZeroPts") : t("evaluation.noMoveMadeZeroPts"))
-        : t("evaluation.wonPoints", { points: formatSigned(baseResult.scored.points) });
-      showResultOverlay(t("game.result.yourMove"), soloRoundSummary, baseResult.scored?.qualityCode);
-      setUiPhase("result", true);
-      STATE.score = Math.round((STATE.score + baseResult.scored.points) * 100) / 100;
-      STATE.sessionPlayed += 1;
-      if (baseResult.hit) STATE.sessionHits += 1;
-      pushHistoryEntry({
-        round: STATE.index + 1,
-        mode: "solo",
-        fen: position.fen,
-        meta: position.meta,
-        bestSan: evaluation.bestSan,
-        gameSan: evaluation.gameSan,
-        userSan: baseResult.userSan || "",
-        bestMove: snapshotMove(evaluation.best),
-        gameMove: snapshotMove(evaluation.game),
-        userMove: snapshotMove(move),
-      });
-      nextBtn.textContent = t("buttons.nextPosition");
-      nextBtn.disabled = false;
-      skipBtn.disabled = true;
-      if (roundResultPanelEl) roundResultPanelEl.classList.remove("hidden");
-      renderSessionProgress();
-      updateScoreDisplay();
-      updateCompetitiveStatus();
-      setScoringInfoVisible(true);
+      renderSoloRoundOutcome(move, noMove, noMoveReason, base, position, evaluation, baseResult);
       return;
     }
 
-    const secondResult = evaluation.evaluatedMoves[1] || baseResult;
-    const p1 = duelPlayerName(0);
-    const p2 = duelPlayerName(1);
-    const r1 = {
-      points: baseResult.scored.points,
-      diff: baseResult.scored.diff,
-      qualityCode: baseResult.scored.qualityCode,
-      bestSan: evaluation.bestSan,
-      userSan: baseResult.userSan,
-      userMove: snapshotMove(baseResult.move),
-      hit: baseResult.hit,
-    };
-    const r2 = {
-      points: secondResult.scored.points,
-      diff: secondResult.scored.diff,
-      qualityCode: secondResult.scored.qualityCode,
-      bestSan: evaluation.bestSan,
-      userSan: secondResult.userSan,
-      userMove: snapshotMove(secondResult.move),
-      hit: secondResult.hit,
-    };
-    STATE.duel.roundResults = [r1, r2];
-    STATE.duel.scores[0] = Math.round((STATE.duel.scores[0] + (r1.points || 0)) * 100) / 100;
-    STATE.duel.scores[1] = Math.round((STATE.duel.scores[1] + (r2.points || 0)) * 100) / 100;
-    if (r1.hit) STATE.duel.hits[0] += 1;
-    if (r2.hit) STATE.duel.hits[1] += 1;
-
-    STATE.board = new Chess(position.fen);
-    setBoardPerspective(base.turn);
-    STATE.selection = null;
-    STATE.legalMoves = [];
-    STATE.revealed = {
-      best: null,
-      game: null,
-      user: secondResult.move || null,
-      userAlt: r1.userMove || null,
-    };
-    captureResultSnapshot(position.fen);
-    renderBoard();
-    hideHandoffOverlay();
-    renderRoundFeedbackTable(
-      evaluation.bestSan,
-      evaluation.bestEvalText,
-      evaluation.gameSan,
-      evaluation.gameEvalText,
-      secondResult.userSan,
-      secondResult.userEvalText,
-      evaluation.bestMover,
-      evaluation.gameMover,
-      secondResult.userMover,
-      secondResult.scored,
-      secondResult.noMoveReason,
-      {
-        mode: "duel",
-        duel: {
-          player1: {
-            name: p1,
-            san: r1.userSan,
-            qualityCode: r1.qualityCode,
-            points: r1.points,
-            diff: r1.diff,
-            hit: r1.hit,
-          },
-          player2: {
-            name: p2,
-            san: r2.userSan,
-            qualityCode: r2.qualityCode,
-            points: r2.points,
-            diff: r2.diff,
-            hit: r2.hit,
-          },
-        },
-      },
-    );
-    STATE.resultView.context = {
-      kind: "round_duel",
-      round: STATE.index + 1,
-      bestSan: evaluation.bestSan,
-      gameSan: evaluation.gameSan,
-      bestMover: evaluation.bestMover,
-      gameMover: evaluation.gameMover,
-      currentUserMover: secondResult.userMover,
-      currentScored: secondResult.scored,
-      currentNoMoveReason: secondResult.noMoveReason,
-      player1: {
-        name: p1,
-        san: r1.userSan,
-        qualityCode: r1.qualityCode,
-        points: r1.points,
-        diff: r1.diff,
-        hit: r1.hit,
-      },
-      player2: {
-        name: p2,
-        san: r2.userSan,
-        qualityCode: r2.qualityCode,
-        points: r2.points,
-        diff: r2.diff,
-        hit: r2.hit,
-      },
-    };
-    const duelBestQuality = r1.points >= r2.points ? r1.qualityCode : r2.qualityCode;
-    showResultOverlay(
-      t("game.result.positionSolved"),
-      `R${STATE.index + 1}: ${p1} ${formatSigned(r1.points)} · ${p2} ${formatSigned(r2.points)}`,
-      duelBestQuality
-    );
-    if (roundResultPanelEl) roundResultPanelEl.classList.remove("hidden");
-
-    let winnerText = t("game.comparison.tie");
-    if (r1.points > r2.points) winnerText = t("game.comparison.advantage", { player: p1 });
-    if (r2.points > r1.points) winnerText = t("game.comparison.advantage", { player: p2 });
-    roundResultEl.insertAdjacentHTML("afterbegin", `<p class="result-summary-line">${escapeHtml(winnerText)}</p>`);
-    STATE.sessionPlayed += 1;
-    pushHistoryEntry({
-      round: STATE.index + 1,
-      mode: "duel",
-      fen: position.fen,
-      meta: position.meta,
-      bestSan: evaluation.bestSan,
-      gameSan: evaluation.gameSan,
-      bestMove: snapshotMove(evaluation.best),
-      gameMove: snapshotMove(evaluation.game),
-      player1Name: p1,
-      player2Name: p2,
-      player1San: r1.userSan,
-      player2San: r2.userSan,
-      player1Move: r1.userMove,
-      player2Move: r2.userMove,
-    });
-    nextBtn.textContent = t("buttons.nextPosition");
-    nextBtn.disabled = false;
-    skipBtn.disabled = true;
-    STATE.duel.handoffReady = false;
-    setUiPhase("result", true);
-    renderSessionProgress();
-    updateScoreDisplay();
-    updateCompetitiveStatus();
-    setScoringInfoVisible(true);
+    renderDuelRoundOutcome(base, position, evaluation, baseResult);
   } catch (error) {
     if (!isCurrentSessionWork(sessionToken)) return;
     hidePositionSearchOverlay();
@@ -5011,6 +4725,350 @@ async function resolveRound(move, options = {}) {
   } finally {
     STATE.isResolvingRound = false;
   }
+}
+
+// Computes per-round config, snapshots the starting position, and resets
+// selection/legal-move UI state before a round is evaluated.
+function prepareRoundResolutionContext(move, options, duelFirstTurn) {
+  const { depth: ratingDepth, moveTimeMs: ratingMoveTimeMs } = getRatingConfig();
+  const position = STATE.positions[STATE.index];
+  const base = new Chess(position.fen);
+  const noMove = !move;
+  const noMoveReason = noMove ? (options.noMoveReason || "no_move") : "";
+  const playerIdx = STATE.duel.currentPlayer;
+  const playerName = duelPlayerName(playerIdx);
+
+  STATE.userMove = move || null;
+  STATE.selection = null;
+  STATE.legalMoves = [];
+  skipBtn.disabled = true;
+  setUiPhase(duelFirstTurn ? "handoff_wait_eval" : "playing", true);
+
+  return { ratingDepth, ratingMoveTimeMs, position, base, noMove, noMoveReason };
+}
+
+// Duel mode, player 1's turn: stash their pending move without evaluating it
+// yet, and hand the board off to player 2 to play their reply.
+function handleDuelFirstTurnHandoff(base, position, move, noMoveReason) {
+  STATE.duel.roundResults[0] = {
+    pendingMove: move ? { ...move } : null,
+    noMoveReason,
+    userMove: snapshotMove(move),
+  };
+  STATE.board = new Chess(position.fen);
+  setBoardPerspective(base.turn);
+  STATE.selection = null;
+  STATE.legalMoves = [];
+  STATE.userMove = null;
+  STATE.revealed = { best: null, game: null, user: null, userAlt: null };
+  renderBoard();
+  roundResultEl.innerHTML = "";
+  showHandoffOverlay(t("game.handoff.title", { player: duelPlayerName(1) }), t("game.handoff.subtitle"));
+  STATE.duel.handoffReady = true;
+  setUiPhase("handoff_ready", true);
+  nextBtn.textContent = t("buttons.nextPosition");
+  nextBtn.disabled = true;
+  skipBtn.disabled = true;
+  setThinkingMode(false);
+  renderSessionProgress();
+  updateScoreDisplay();
+  setPanelActiveState(1);
+  updateCompetitiveStatus();
+  setScoringInfoVisible(false);
+}
+
+// Shows the "evaluating" placeholder text and, if the user made a move,
+// applies it to the visible board right away (before the engine runs).
+function showEvaluatingMoveOnBoard(move, noMove, noMoveReason) {
+  roundResultEl.textContent = noMoveReason === "timeout"
+    ? t("overlay.timeoutEvaluating")
+    : (noMove ? t("overlay.closingWithoutMove") : t("overlay.evaluatingMove"));
+
+  if (move) {
+    STATE.board.makeMove(move);
+    STATE.revealed = { ...STATE.revealed, user: move };
+    renderBoard();
+  }
+}
+
+// Builds the list of moves the engine needs to score for this round: one
+// move in solo mode, or both players' moves in duel mode.
+function buildMovesToEvaluate(move, noMoveReason) {
+  const movesToEvaluate = [];
+  if (!isDuelMode()) {
+    movesToEvaluate.push({ move, noMoveReason });
+  } else {
+    const p1Pending = STATE.duel.roundResults[0];
+    const p1Move = p1Pending && p1Pending.pendingMove ? { ...p1Pending.pendingMove } : null;
+    const p1NoMoveReason = p1Move ? "" : (p1Pending?.noMoveReason || "no_move");
+    movesToEvaluate.push({ move: p1Move, noMoveReason: p1NoMoveReason });
+    movesToEvaluate.push({ move, noMoveReason });
+  }
+  return movesToEvaluate;
+}
+
+// Works out the search-difficulty plan for this round and shows the
+// "searching" overlay with its progress bar before the engine call starts.
+function beginRoundEvaluationOverlay(base, position, ratingMoveTimeMs) {
+  const evaluationTitle = isDuelMode()
+    ? t("overlay.evaluatingBoth")
+    : t("overlay.evaluatingYours");
+  const roundPlan = getRoundEvaluationPlan(base, position, ratingMoveTimeMs);
+  const budgetLabel = `${(roundPlan.totalBudgetMs / 1000).toFixed(1)}s max`;
+  showPositionSearchOverlay(
+    evaluationTitle,
+    t("overlay.difficultyBudget", { label: t(`difficulty.${roundPlan.label}`), budget: budgetLabel }),
+    {
+      showProgress: true,
+      progressRatio: 0,
+      progressLabel: t("overlay.progressLabel", {
+        pct: 0,
+        elapsed: "0.0",
+        total: (roundPlan.totalBudgetMs / 1000).toFixed(1),
+      }),
+    },
+  );
+  startRoundThinkingMessages(roundPlan.level);
+  const evaluationVisibleStartedAt = Date.now();
+  return { roundPlan, evaluationVisibleStartedAt };
+}
+
+// After the engine call resolves: bail out silently if a newer session has
+// since started, otherwise wait out the minimum "visible thinking" time,
+// compute the fallback base result, and hide the search overlay.
+// Returns null when the caller should stop (stale session work).
+async function settleRoundEvaluationVisibility(sessionToken, evaluation, evaluationVisibleStartedAt) {
+  if (!isCurrentSessionWork(sessionToken)) return null;
+  const evaluationVisibleElapsedMs = Date.now() - evaluationVisibleStartedAt;
+  if (evaluationVisibleElapsedMs < MIN_ROUND_EVAL_VISIBLE_MS) {
+    await sleepMs(MIN_ROUND_EVAL_VISIBLE_MS - evaluationVisibleElapsedMs);
+  }
+  if (!isCurrentSessionWork(sessionToken)) return null;
+  const baseResult = evaluation.evaluatedMoves[0] || {
+    move: null,
+    noMoveReason: "no_move",
+    userMover: NaN,
+    scored: scoreMoveAgainstBest(evaluation.bestMover, NaN, STATE.scoringSystem),
+    hit: false,
+    userSan: "",
+    userEvalText: t("common.notAvailable"),
+  };
+
+  hidePositionSearchOverlay();
+  setThinkingMode(false);
+
+  return baseResult;
+}
+
+// Solo mode: renders the result board/feedback table, updates the score and
+// history, and leaves the UI ready for the next position.
+function renderSoloRoundOutcome(move, noMove, noMoveReason, base, position, evaluation, baseResult) {
+  STATE.board = new Chess(position.fen);
+  setBoardPerspective(base.turn);
+  STATE.selection = null;
+  STATE.legalMoves = [];
+  STATE.revealed = { best: null, game: null, user: move || null, userAlt: null };
+  captureResultSnapshot(position.fen);
+  renderBoard();
+  renderRoundFeedbackTable(
+    evaluation.bestSan,
+    evaluation.bestEvalText,
+    evaluation.gameSan,
+    evaluation.gameEvalText,
+    baseResult.userSan,
+    baseResult.userEvalText,
+    evaluation.bestMover,
+    evaluation.gameMover,
+    baseResult.userMover,
+    baseResult.scored,
+    baseResult.noMoveReason,
+    { mode: "solo", hitThreshold: evaluation.hitThreshold },
+  );
+  STATE.resultView.context = {
+    kind: "round_solo",
+    bestSan: evaluation.bestSan,
+    gameSan: evaluation.gameSan,
+    bestMover: evaluation.bestMover,
+    gameMover: evaluation.gameMover,
+    userMover: baseResult.userMover,
+    scored: baseResult.scored,
+    noMoveReason: baseResult.noMoveReason,
+    userSan: baseResult.userSan || "",
+    userMove: snapshotMove(move),
+    hitThreshold: evaluation.hitThreshold,
+  };
+  const soloRoundSummary = noMove
+    ? (noMoveReason === "timeout" ? t("evaluation.timeoutZeroPts") : t("evaluation.noMoveMadeZeroPts"))
+    : t("evaluation.wonPoints", { points: formatSigned(baseResult.scored.points) });
+  showResultOverlay(t("game.result.yourMove"), soloRoundSummary, baseResult.scored?.qualityCode);
+  setUiPhase("result", true);
+  STATE.score = Math.round((STATE.score + baseResult.scored.points) * 100) / 100;
+  STATE.sessionPlayed += 1;
+  if (baseResult.hit) STATE.sessionHits += 1;
+  pushHistoryEntry({
+    round: STATE.index + 1,
+    mode: "solo",
+    fen: position.fen,
+    meta: position.meta,
+    bestSan: evaluation.bestSan,
+    gameSan: evaluation.gameSan,
+    userSan: baseResult.userSan || "",
+    bestMove: snapshotMove(evaluation.best),
+    gameMove: snapshotMove(evaluation.game),
+    userMove: snapshotMove(move),
+  });
+  nextBtn.textContent = t("buttons.nextPosition");
+  nextBtn.disabled = false;
+  skipBtn.disabled = true;
+  if (roundResultPanelEl) roundResultPanelEl.classList.remove("hidden");
+  renderSessionProgress();
+  updateScoreDisplay();
+  updateCompetitiveStatus();
+  setScoringInfoVisible(true);
+}
+
+// Duel mode: builds both players' results, updates duel scores/hits, renders
+// the comparison feedback table, and leaves the UI ready for the next position.
+function renderDuelRoundOutcome(base, position, evaluation, baseResult) {
+  const secondResult = evaluation.evaluatedMoves[1] || baseResult;
+  const p1 = duelPlayerName(0);
+  const p2 = duelPlayerName(1);
+  const r1 = {
+    points: baseResult.scored.points,
+    diff: baseResult.scored.diff,
+    qualityCode: baseResult.scored.qualityCode,
+    bestSan: evaluation.bestSan,
+    userSan: baseResult.userSan,
+    userMove: snapshotMove(baseResult.move),
+    hit: baseResult.hit,
+  };
+  const r2 = {
+    points: secondResult.scored.points,
+    diff: secondResult.scored.diff,
+    qualityCode: secondResult.scored.qualityCode,
+    bestSan: evaluation.bestSan,
+    userSan: secondResult.userSan,
+    userMove: snapshotMove(secondResult.move),
+    hit: secondResult.hit,
+  };
+  STATE.duel.roundResults = [r1, r2];
+  STATE.duel.scores[0] = Math.round((STATE.duel.scores[0] + (r1.points || 0)) * 100) / 100;
+  STATE.duel.scores[1] = Math.round((STATE.duel.scores[1] + (r2.points || 0)) * 100) / 100;
+  if (r1.hit) STATE.duel.hits[0] += 1;
+  if (r2.hit) STATE.duel.hits[1] += 1;
+
+  STATE.board = new Chess(position.fen);
+  setBoardPerspective(base.turn);
+  STATE.selection = null;
+  STATE.legalMoves = [];
+  STATE.revealed = {
+    best: null,
+    game: null,
+    user: secondResult.move || null,
+    userAlt: r1.userMove || null,
+  };
+  captureResultSnapshot(position.fen);
+  renderBoard();
+  hideHandoffOverlay();
+  renderRoundFeedbackTable(
+    evaluation.bestSan,
+    evaluation.bestEvalText,
+    evaluation.gameSan,
+    evaluation.gameEvalText,
+    secondResult.userSan,
+    secondResult.userEvalText,
+    evaluation.bestMover,
+    evaluation.gameMover,
+    secondResult.userMover,
+    secondResult.scored,
+    secondResult.noMoveReason,
+    {
+      mode: "duel",
+      duel: {
+        player1: {
+          name: p1,
+          san: r1.userSan,
+          qualityCode: r1.qualityCode,
+          points: r1.points,
+          diff: r1.diff,
+          hit: r1.hit,
+        },
+        player2: {
+          name: p2,
+          san: r2.userSan,
+          qualityCode: r2.qualityCode,
+          points: r2.points,
+          diff: r2.diff,
+          hit: r2.hit,
+        },
+      },
+    },
+  );
+  STATE.resultView.context = {
+    kind: "round_duel",
+    round: STATE.index + 1,
+    bestSan: evaluation.bestSan,
+    gameSan: evaluation.gameSan,
+    bestMover: evaluation.bestMover,
+    gameMover: evaluation.gameMover,
+    currentUserMover: secondResult.userMover,
+    currentScored: secondResult.scored,
+    currentNoMoveReason: secondResult.noMoveReason,
+    player1: {
+      name: p1,
+      san: r1.userSan,
+      qualityCode: r1.qualityCode,
+      points: r1.points,
+      diff: r1.diff,
+      hit: r1.hit,
+    },
+    player2: {
+      name: p2,
+      san: r2.userSan,
+      qualityCode: r2.qualityCode,
+      points: r2.points,
+      diff: r2.diff,
+      hit: r2.hit,
+    },
+  };
+  const duelBestQuality = r1.points >= r2.points ? r1.qualityCode : r2.qualityCode;
+  showResultOverlay(
+    t("game.result.positionSolved"),
+    `R${STATE.index + 1}: ${p1} ${formatSigned(r1.points)} · ${p2} ${formatSigned(r2.points)}`,
+    duelBestQuality
+  );
+  if (roundResultPanelEl) roundResultPanelEl.classList.remove("hidden");
+
+  let winnerText = t("game.comparison.tie");
+  if (r1.points > r2.points) winnerText = t("game.comparison.advantage", { player: p1 });
+  if (r2.points > r1.points) winnerText = t("game.comparison.advantage", { player: p2 });
+  roundResultEl.insertAdjacentHTML("afterbegin", `<p class="result-summary-line">${escapeHtml(winnerText)}</p>`);
+  STATE.sessionPlayed += 1;
+  pushHistoryEntry({
+    round: STATE.index + 1,
+    mode: "duel",
+    fen: position.fen,
+    meta: position.meta,
+    bestSan: evaluation.bestSan,
+    gameSan: evaluation.gameSan,
+    bestMove: snapshotMove(evaluation.best),
+    gameMove: snapshotMove(evaluation.game),
+    player1Name: p1,
+    player2Name: p2,
+    player1San: r1.userSan,
+    player2San: r2.userSan,
+    player1Move: r1.userMove,
+    player2Move: r2.userMove,
+  });
+  nextBtn.textContent = t("buttons.nextPosition");
+  nextBtn.disabled = false;
+  skipBtn.disabled = true;
+  STATE.duel.handoffReady = false;
+  setUiPhase("result", true);
+  renderSessionProgress();
+  updateScoreDisplay();
+  updateCompetitiveStatus();
+  setScoringInfoVisible(true);
 }
 
 async function nextPosition() {
@@ -5763,6 +5821,43 @@ async function startSessionPipeline() {
     return;
   }
 
+  const sessionToken = resetSessionStateForNewPipeline();
+  const effectiveConfig = getEffectiveAnalysisConfig();
+  STATE.scoringSystem = effectiveConfig.scoringSystem;
+  updateCompetitiveStatus();
+
+  try {
+    if (!(await ensurePgnSourceAvailable(sessionToken))) return;
+
+    const ctx = await loadCandidateAnalysisContext(effectiveConfig);
+    if (!ctx) return;
+
+    const firstMistake = await findNextMistake(ctx, "Inicio: ");
+    if (!isCurrentSessionWork(sessionToken)) return;
+    if (!firstMistake) {
+      sendWizardBackToSourceStep("provider.noUsefulMistakes", { analyzed: ctx.analyzed, total: ctx.total });
+      return;
+    }
+
+    enterPlayModeWithFirstPosition(firstMistake, ctx);
+  } catch (error) {
+    if (!isCurrentSessionWork(sessionToken)) return;
+    const message = t("analysis.status.error", { error: error.message || t("common.unknown") });
+    analysisStatusEl.textContent = message;
+    analysisProgressWrapEl.classList.add("hidden");
+    analysisMetricsEl.classList.add("hidden");
+    sendWizardBackToSourceStep("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
+  } finally {
+    if (isCurrentSessionWork(sessionToken)) {
+      STATE.ui.setupAnalyzing = false;
+      updateAnalyzeButtonState();
+    }
+  }
+}
+
+// Resets session counters, wizard config, and the game/history UI for a
+// fresh analysis run, and opens a new session token for staleness checks.
+function resetSessionStateForNewPipeline() {
   clearWizardSourceError();
   const sessionToken = beginSessionWork();
   STATE.ui.setupAnalyzing = true;
@@ -5799,110 +5894,102 @@ async function startSessionPipeline() {
   nextBtn.disabled = true;
   skipBtn.disabled = true;
   STATE.targetPositions = setupConfig.sessionSize;
-  const effectiveConfig = getEffectiveAnalysisConfig();
-  STATE.scoringSystem = effectiveConfig.scoringSystem;
-  updateCompetitiveStatus();
+  return sessionToken;
+}
 
-  try {
-  if (!hasAnyPgnSource(true)) {
-      analysisStatusEl.textContent = t("analysis.status.prepareBase", { provider: providerLabel(STATE.sourceMode) });
-      const downloaded = STATE.sourceMode === "chesscom"
-        ? await fetchChessComPgn()
-        : await fetchLichessPgn();
-      if (!isCurrentSessionWork(sessionToken)) return;
-      if (!downloaded || !hasAnyPgnSource(true)) {
-        sendWizardBackToSourceStep("common.sourceError");
-        return;
-      }
-    }
-
-    const sources = await getActivePgnTextSources();
-    const allGames = sources.flatMap(({ text }) => splitGamesFromText(text).map((gameText) => ({
-      tags: parseTags(gameText),
-      sanMoves: tokenizeSanMoves(gameText),
-    })));
-
-    if (allGames.length === 0) {
-      sendWizardBackToSourceStep("provider.noPublicValidGames");
-      return;
-    }
-
-    const playerName = inferPlayerName(allGames);
-    playerNameDetectedEl.textContent = playerName || t("players.notDetected");
-
-    if (!playerName) {
-      sendWizardBackToSourceStep("provider.playerNotDetected");
-      return;
-    }
-
-    const depth = INTERNAL_ANALYSIS_DEPTH;
-    const moveTimeMs = effectiveConfig.moveTimeMs;
-    const threshold = effectiveConfig.thresholdCp;
-    const candidates = buildRandomCandidateQueue(allGames, playerName);
-    const uniqueGameCount = new Set(candidates.map((c) => c.gameIdx)).size;
-    if (candidates.length === 0) {
-      sendWizardBackToSourceStep("provider.noAnalyzablePositions");
-      return;
-    }
-
-    updateAnalysisProgress(0, candidates.length, 0, t("game.searchingNext"));
-    analysisStatusEl.textContent = t("analysis.status.shuffle", { games: allGames.length, player: playerName });
-
-    const ctx = {
-      games: allGames,
-      targetName: playerName,
-      depth,
-      moveTimeMs,
-      thresholdCp: threshold,
-      candidates,
-      total: candidates.length,
-      analyzed: 0,
-      detected: 0,
-      cursor: 0,
-      usedGameIndices: new Set(),
-      uniqueGameCount,
-      repeatMistakes: [],
-    };
-    STATE.analysisContext = ctx;
-
-    const firstMistake = await findNextMistake(ctx, "Inicio: ");
-    if (!isCurrentSessionWork(sessionToken)) return;
-    if (!firstMistake) {
-      sendWizardBackToSourceStep("provider.noUsefulMistakes", { analyzed: ctx.analyzed, total: ctx.total });
-      return;
-    }
-
-    STATE.allMistakes = [firstMistake];
-    STATE.positions = [firstMistake];
-    if (STATE.userMode === "engineer") {
-      sessionHintEl.textContent = t("game.sessionHintEngineer", {
-        target: STATE.targetPositions,
-        system: scoringSystemLabel(STATE.scoringSystem),
-        detected: ctx.detected,
-        analyzed: ctx.analyzed,
-        total: ctx.total,
-      });
-    } else {
-      sessionHintEl.textContent = t("game.sessionHintCitizen", { target: STATE.targetPositions, detected: ctx.detected });
-    }
-    analysisStatusEl.textContent = t("analysis.status.firstReady");
-    setupPanelEl.classList.add("hidden");
-    document.body.classList.add("playing-mode");
-    gameLayoutEl.classList.remove("hidden");
-    startRound();
-  } catch (error) {
-    if (!isCurrentSessionWork(sessionToken)) return;
-    const message = t("analysis.status.error", { error: error.message || t("common.unknown") });
-    analysisStatusEl.textContent = message;
-    analysisProgressWrapEl.classList.add("hidden");
-    analysisMetricsEl.classList.add("hidden");
-    sendWizardBackToSourceStep("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
-  } finally {
-    if (isCurrentSessionWork(sessionToken)) {
-      STATE.ui.setupAnalyzing = false;
-      updateAnalyzeButtonState();
-    }
+// Makes sure a PGN source is loaded, downloading one from the configured
+// provider if needed. Returns false (after already reporting the error or
+// bailing out silently on a stale session) when the pipeline should stop.
+async function ensurePgnSourceAvailable(sessionToken) {
+  if (hasAnyPgnSource(true)) return true;
+  analysisStatusEl.textContent = t("analysis.status.prepareBase", { provider: providerLabel(STATE.sourceMode) });
+  const downloaded = STATE.sourceMode === "chesscom"
+    ? await fetchChessComPgn()
+    : await fetchLichessPgn();
+  if (!isCurrentSessionWork(sessionToken)) return false;
+  if (!downloaded || !hasAnyPgnSource(true)) {
+    sendWizardBackToSourceStep("common.sourceError");
+    return false;
   }
+  return true;
+}
+
+// Parses the active PGN sources into games, detects the target player, and
+// builds the candidate-mistake search context. Returns null (after already
+// sending the wizard back to the source step) when nothing usable was found.
+async function loadCandidateAnalysisContext(effectiveConfig) {
+  const sources = await getActivePgnTextSources();
+  const allGames = sources.flatMap(({ text }) => splitGamesFromText(text).map((gameText) => ({
+    tags: parseTags(gameText),
+    sanMoves: tokenizeSanMoves(gameText),
+  })));
+
+  if (allGames.length === 0) {
+    sendWizardBackToSourceStep("provider.noPublicValidGames");
+    return null;
+  }
+
+  const playerName = inferPlayerName(allGames);
+  playerNameDetectedEl.textContent = playerName || t("players.notDetected");
+
+  if (!playerName) {
+    sendWizardBackToSourceStep("provider.playerNotDetected");
+    return null;
+  }
+
+  const depth = INTERNAL_ANALYSIS_DEPTH;
+  const moveTimeMs = effectiveConfig.moveTimeMs;
+  const threshold = effectiveConfig.thresholdCp;
+  const candidates = buildRandomCandidateQueue(allGames, playerName);
+  const uniqueGameCount = new Set(candidates.map((c) => c.gameIdx)).size;
+  if (candidates.length === 0) {
+    sendWizardBackToSourceStep("provider.noAnalyzablePositions");
+    return null;
+  }
+
+  updateAnalysisProgress(0, candidates.length, 0, t("game.searchingNext"));
+  analysisStatusEl.textContent = t("analysis.status.shuffle", { games: allGames.length, player: playerName });
+
+  const ctx = {
+    games: allGames,
+    targetName: playerName,
+    depth,
+    moveTimeMs,
+    thresholdCp: threshold,
+    candidates,
+    total: candidates.length,
+    analyzed: 0,
+    detected: 0,
+    cursor: 0,
+    usedGameIndices: new Set(),
+    uniqueGameCount,
+    repeatMistakes: [],
+  };
+  STATE.analysisContext = ctx;
+  return ctx;
+}
+
+// Stores the first found mistake as the session's starting position, updates
+// the session-hint text, and switches the UI from setup into play mode.
+function enterPlayModeWithFirstPosition(firstMistake, ctx) {
+  STATE.allMistakes = [firstMistake];
+  STATE.positions = [firstMistake];
+  if (STATE.userMode === "engineer") {
+    sessionHintEl.textContent = t("game.sessionHintEngineer", {
+      target: STATE.targetPositions,
+      system: scoringSystemLabel(STATE.scoringSystem),
+      detected: ctx.detected,
+      analyzed: ctx.analyzed,
+      total: ctx.total,
+    });
+  } else {
+    sessionHintEl.textContent = t("game.sessionHintCitizen", { target: STATE.targetPositions, detected: ctx.detected });
+  }
+  analysisStatusEl.textContent = t("analysis.status.firstReady");
+  setupPanelEl.classList.add("hidden");
+  document.body.classList.add("playing-mode");
+  gameLayoutEl.classList.remove("hidden");
+  startRound();
 }
 
 // ---------- Events ----------
