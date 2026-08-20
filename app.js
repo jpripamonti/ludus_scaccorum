@@ -47,6 +47,8 @@ const wizardSourceErrorEl = document.getElementById("wizard-source-error");
 const wizardSourceCtaEl = document.getElementById("wizard-source-cta");
 const wizardRetryUserBtn = document.getElementById("wizard-retry-user-btn");
 const wizardSwitchPlatformBtn = document.getElementById("wizard-switch-platform-btn");
+const wizardClearCacheBtn = document.getElementById("wizard-clear-cache-btn");
+const wizardClearCacheStatusEl = document.getElementById("wizard-clear-cache-status");
 const wizardSummaryEl = document.getElementById("wizard-summary");
 
 const gameLayoutEl = document.getElementById("game-layout");
@@ -197,6 +199,8 @@ const TRANSLATIONS = {
     "wizard.step2.chesscom": "Chess.com",
     "wizard.step2.usernameLabel": "Nombre de usuario",
     "wizard.step2.enterUsername": "Ingresá tu usuario para continuar.",
+    "wizard.step2.clearCache": "Borrar datos guardados de partidas",
+    "wizard.step2.clearCacheDone": "Se borraron las partidas guardadas en este navegador.",
     "wizard.step3.question": "¿Cuántas posiciones querés jugar hoy?",
     "wizard.step3.ariaLabel": "Cantidad de posiciones",
     "wizard.step3.positions5": "5 posiciones",
@@ -460,6 +464,8 @@ const TRANSLATIONS = {
     "wizard.step2.chesscom": "Chess.com",
     "wizard.step2.usernameLabel": "Username",
     "wizard.step2.enterUsername": "Enter your username to continue.",
+    "wizard.step2.clearCache": "Clear saved game data",
+    "wizard.step2.clearCacheDone": "Saved games were cleared from this browser.",
     "wizard.step3.question": "How many positions do you want to play today?",
     "wizard.step3.ariaLabel": "Number of positions",
     "wizard.step3.positions5": "5 positions",
@@ -2711,6 +2717,52 @@ async function writeCachedRemotePgn(cacheKey, source) {
       fetchedAt: Date.now(),
       source,
     });
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      resolve();
+    };
+  });
+}
+
+async function purgeExpiredRemotePgnCache() {
+  const db = await openRemotePgnCacheDb();
+  if (!db) return;
+  await new Promise((resolve) => {
+    const tx = db.transaction(REMOTE_PGN_CACHE_STORE, "readwrite");
+    const store = tx.objectStore(REMOTE_PGN_CACHE_STORE);
+    const cursorRequest = store.openCursor();
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) return;
+      const entry = cursor.value;
+      const ageMs = Date.now() - Number(entry?.fetchedAt || 0);
+      if (ageMs > REMOTE_PGN_CACHE_TTL_MS) {
+        cursor.delete();
+      }
+      cursor.continue();
+    };
+    cursorRequest.onerror = () => resolve();
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      resolve();
+    };
+  });
+}
+
+async function clearAllRemotePgnCache() {
+  const db = await openRemotePgnCacheDb();
+  if (!db) return;
+  await new Promise((resolve) => {
+    const tx = db.transaction(REMOTE_PGN_CACHE_STORE, "readwrite");
+    tx.objectStore(REMOTE_PGN_CACHE_STORE).clear();
     tx.oncomplete = () => {
       db.close();
       resolve();
@@ -6219,6 +6271,17 @@ if (wizardSwitchPlatformBtn) {
   });
 }
 
+if (wizardClearCacheBtn) {
+  wizardClearCacheBtn.addEventListener("click", () => {
+    void clearAllRemotePgnCache().then(() => {
+      if (wizardClearCacheStatusEl) {
+        wizardClearCacheStatusEl.textContent = t("wizard.step2.clearCacheDone");
+        wizardClearCacheStatusEl.classList.remove("hidden");
+      }
+    });
+  });
+}
+
 if (scoringSystemEl) {
   scoringSystemEl.addEventListener("change", () => {
     STATE.scoringSystem = normalizeScoringSystem(scoringSystemEl.value);
@@ -6368,3 +6431,4 @@ buildBoard();
 renderBoard();
 refreshLocalizedUi();
 registerServiceWorker();
+void purgeExpiredRemotePgnCache();
