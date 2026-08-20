@@ -1374,6 +1374,67 @@ body.solo-mode #game-layout .board { max-width: min(80vh, 1120px); }
   color: var(--color-text-muted);
 }
 
+/* ── Consent overlay ── */
+.consent-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(10,12,18,0.72);
+}
+
+.consent-overlay-panel {
+  width: min(420px, 100%);
+  border-radius: var(--radius-2xl);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+  padding: clamp(16px, 2vw, 24px);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.consent-overlay-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(19px, 1.7vw, 24px);
+  line-height: 1.15;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.consent-overlay-body {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.consent-overlay-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.consent-overlay-actions button {
+  min-height: var(--btn-h-base);
+  width: 100%;
+}
+
+.consent-overlay-accept-btn {
+  border-color: var(--color-gold-dim);
+  background: var(--color-gold-bg);
+  color: var(--color-gold);
+  font-weight: 700;
+}
+
+@media (max-width: 520px) {
+  .consent-overlay-actions { grid-template-columns: 1fr; }
+}
+
 /* ── Solo clock rail ── */
 .solo-clock-rail {
   display: none;

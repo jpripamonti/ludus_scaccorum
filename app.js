@@ -88,6 +88,11 @@ const resultOverlayInnerEl = document.getElementById("result-overlay-inner");
 const resultOverlayTitleEl = document.getElementById("result-overlay-title");
 const resultOverlayHeaderEl = document.querySelector(".result-overlay-header");
 const resultOverlayPointsEl = document.getElementById("result-overlay-points");
+const consentOverlayEl = document.getElementById("consent-overlay");
+const consentOverlayTitleEl = document.getElementById("consent-overlay-title");
+const consentOverlayBodyEl = document.getElementById("consent-overlay-body");
+const consentOverlayAcceptBtn = document.getElementById("consent-overlay-accept");
+const consentOverlayCancelBtn = document.getElementById("consent-overlay-cancel");
 const revealBestBtn = document.getElementById("reveal-best-btn");
 const revealGameBtn = document.getElementById("reveal-game-btn");
 const resultAnalysisBtn = document.getElementById("result-analysis-btn");
@@ -269,6 +274,9 @@ const TRANSLATIONS = {
     "network.rateLimited": "El proveedor limitó las consultas. Esperá un momento antes de reintentar.",
     "privacy.remoteFetchConfirm": "Vamos a consultar partidas públicas de {user} en {provider}. La consulta sale desde tu navegador hacia ese proveedor; esta app no usa backend propio. ¿Continuar?",
     "privacy.remoteFetchCancelled": "Consulta cancelada. No se enviaron datos al proveedor.",
+    "privacy.remoteFetchTitle": "Consultar partidas públicas",
+    "privacy.remoteFetchAccept": "Aceptar",
+    "privacy.remoteFetchCancel": "Cancelar",
     "provider.usingCachedBase": "Usando base guardada de {provider} para {user}: {games} partida(s).",
     "provider.usingStaleCachedBase": "No pudimos actualizar la base. Usando la última base guardada de {provider} para {user}: {games} partida(s).",
     "time.classical": "Clásico",
@@ -524,6 +532,9 @@ const TRANSLATIONS = {
     "network.rateLimited": "The provider rate-limited the request. Wait a moment before retrying.",
     "privacy.remoteFetchConfirm": "We will request public games for {user} from {provider}. The request goes from your browser to that provider; this app has no backend. Continue?",
     "privacy.remoteFetchCancelled": "Request cancelled. No data was sent to the provider.",
+    "privacy.remoteFetchTitle": "Fetch public games",
+    "privacy.remoteFetchAccept": "Accept",
+    "privacy.remoteFetchCancel": "Cancel",
     "provider.usingCachedBase": "Using saved {provider} base for {user}: {games} game(s).",
     "provider.usingStaleCachedBase": "Could not refresh the base. Using the last saved {provider} base for {user}: {games} game(s).",
     "time.classical": "Classical",
@@ -892,6 +903,7 @@ const STATE = {
   scoringSystem: DEFAULT_SCORING_SYSTEM,
   sourceMode: "lichess",
   remotePgnSources: [],
+  remoteConsent: { lichess: false, chesscom: false },
   userMode: "citizen",
   gameFormat: "solo",
   turnTimeSeconds: INITIAL_SETUP.turnTimeSeconds,
@@ -2697,11 +2709,36 @@ function installRemotePgnSource(source, options = {}) {
 }
 
 function confirmRemoteFetchConsent(provider, username) {
-  if (typeof window.confirm !== "function") return true;
-  return window.confirm(t("privacy.remoteFetchConfirm", {
-    provider: providerLabel(provider),
-    user: username,
-  }));
+  if (STATE.remoteConsent[provider]) return Promise.resolve(true);
+  if (!consentOverlayEl || !consentOverlayAcceptBtn || !consentOverlayCancelBtn) {
+    return Promise.resolve(true);
+  }
+
+  if (consentOverlayTitleEl) consentOverlayTitleEl.textContent = t("privacy.remoteFetchTitle");
+  if (consentOverlayBodyEl) {
+    consentOverlayBodyEl.textContent = t("privacy.remoteFetchConfirm", {
+      provider: providerLabel(provider),
+      user: username,
+    });
+  }
+  consentOverlayAcceptBtn.textContent = t("privacy.remoteFetchAccept");
+  consentOverlayCancelBtn.textContent = t("privacy.remoteFetchCancel");
+
+  consentOverlayEl.classList.remove("hidden");
+
+  return new Promise((resolve) => {
+    const cleanup = (accepted) => {
+      consentOverlayEl.classList.add("hidden");
+      consentOverlayAcceptBtn.removeEventListener("click", onAccept);
+      consentOverlayCancelBtn.removeEventListener("click", onCancel);
+      if (accepted) STATE.remoteConsent[provider] = true;
+      resolve(accepted);
+    };
+    const onAccept = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    consentOverlayAcceptBtn.addEventListener("click", onAccept);
+    consentOverlayCancelBtn.addEventListener("click", onCancel);
+  });
 }
 
 function moveToUci(move) {
@@ -5305,7 +5342,7 @@ async function fetchLichessPgn() {
     return true;
   }
 
-  if (!confirmRemoteFetchConsent("lichess", rawUser)) {
+  if (!(await confirmRemoteFetchConsent("lichess", rawUser))) {
     if (onlineStatusEl) onlineStatusEl.textContent = t("privacy.remoteFetchCancelled");
     showWizardSourceError("privacy.remoteFetchCancelled");
     return false;
@@ -5484,7 +5521,7 @@ async function fetchChessComPgn() {
     return true;
   }
 
-  if (!confirmRemoteFetchConsent("chesscom", rawUser)) {
+  if (!(await confirmRemoteFetchConsent("chesscom", rawUser))) {
     if (onlineStatusEl) onlineStatusEl.textContent = t("privacy.remoteFetchCancelled");
     showWizardSourceError("privacy.remoteFetchCancelled");
     return false;

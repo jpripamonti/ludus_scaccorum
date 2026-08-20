@@ -284,6 +284,17 @@
     <ul id="history" class="history hidden" aria-hidden="true"></ul>
   </div>
 
+  <div id="consent-overlay" class="consent-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="consent-overlay-title" aria-describedby="consent-overlay-body">
+    <div class="consent-overlay-panel">
+      <p id="consent-overlay-title" class="consent-overlay-title" data-i18n="privacy.remoteFetchTitle">Consultar partidas públicas</p>
+      <p id="consent-overlay-body" class="consent-overlay-body"></p>
+      <div class="consent-overlay-actions">
+        <button id="consent-overlay-cancel" type="button" class="wizard-secondary-btn" data-i18n="privacy.remoteFetchCancel">Cancelar</button>
+        <button id="consent-overlay-accept" type="button" class="consent-overlay-accept-btn" data-i18n="privacy.remoteFetchAccept">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js?v=maestro52"></script>
 </body>
 
