@@ -19,6 +19,14 @@ Nota: estos reportes quedaron generados despues del snapshot anterior. Es decir,
 | [04-performance-reliability.md](04-performance-reliability.md) | Singer | Performance, confiabilidad, red, worker y offline |
 | [05-maintainability-deploy-licensing.md](05-maintainability-deploy-licensing.md) | Sagan | Mantenibilidad, deploy, higiene de repo y licencias |
 
+## Auditoría posterior
+
+| Archivo | Snapshot | Óptica |
+| --- | --- | --- |
+| [06-diseno-adversarial.md](06-diseno-adversarial.md) | `cc5d3a3`, 2026-08-25 | Diseño visual, interacción, arquitectura de información, accesibilidad, redacción y experiencia en teléfono |
+
+Los 25 hallazgos del informe 06 y sus tres propuestas de rediseño (asistente, barra de la ronda y pantalla de resultado) quedaron implementados; la cuarta propuesta, elegir entre jugar con reloj o sin reloj, quedó fuera de alcance por decisión del dueño del proyecto.
+
 ## Lectura sugerida
 
 1. Empezar por los hallazgos altos repetidos: resumen de duelo, carreras async, fallback local del motor, deploy que publica archivos internos y riesgo GPL/Stockfish.
