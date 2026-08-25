@@ -2902,11 +2902,22 @@ function toMoverScore(whiteScore, moverTurn) {
   return moverTurn === "w" ? whiteScore : -whiteScore;
 }
 
+const MATE_SCORE_BASE = 100000;
+const MATE_SCORE_STEP = 1000;
+const MAX_ENCODABLE_MATE_DISTANCE = 50;
+const MATE_SCORE_THRESHOLD = MATE_SCORE_BASE - MAX_ENCODABLE_MATE_DISTANCE * MATE_SCORE_STEP;
+
+function encodeMateScore(mateInMoves) {
+  const distance = Math.min(Math.abs(mateInMoves), MAX_ENCODABLE_MATE_DISTANCE);
+  const magnitude = MATE_SCORE_BASE - distance * MATE_SCORE_STEP;
+  return mateInMoves > 0 ? magnitude : -magnitude;
+}
+
 function decodeEvaluation(moverScore) {
   if (!Number.isFinite(moverScore)) return null;
   const abs = Math.abs(moverScore);
-  if (abs >= 90000) {
-    const mateDistance = Math.max(1, Math.round((100000 - abs) / 1000));
+  if (abs >= MATE_SCORE_THRESHOLD) {
+    const mateDistance = Math.max(1, Math.round((MATE_SCORE_BASE - abs) / MATE_SCORE_STEP));
     return { kind: "mate", matePly: moverScore >= 0 ? mateDistance : -mateDistance, score: moverScore };
   }
   return { kind: "cp", cp: Math.round(moverScore), score: moverScore };
@@ -2968,8 +2979,8 @@ function formatSigned(value) {
 function scoreToWinningChance(score) {
   if (!Number.isFinite(score)) return null;
   const abs = Math.abs(score);
-  if (abs >= 90000) {
-    const mateDistance = Math.max(1, Math.round((100000 - abs) / 1000));
+  if (abs >= MATE_SCORE_THRESHOLD) {
+    const mateDistance = Math.max(1, Math.round((MATE_SCORE_BASE - abs) / MATE_SCORE_STEP));
     const cp = (21 - Math.min(10, mateDistance)) * 100;
     const signed = cp * (score >= 0 ? 1 : -1);
     return 2 / (1 + Math.exp(WIN_CHANCE_MULTIPLIER * signed)) - 1;
@@ -3379,7 +3390,7 @@ async function stockfishEvaluate(fen, depth, moveTimeMs, options = {}) {
         const match = line.match(/score mate (-?\d+)/);
         if (match) {
           const mate = Number(match[1]);
-          lastScore = mate > 0 ? 100000 - mate * 1000 : -100000 - mate * 1000;
+          lastScore = encodeMateScore(mate);
         }
       }
       if (line.startsWith("bestmove")) {

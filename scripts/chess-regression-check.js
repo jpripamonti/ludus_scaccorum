@@ -140,9 +140,9 @@ const context = {
 context.globalThis = context;
 
 const appSource = fs.readFileSync(path.join(root, "app.js"), "utf8");
-vm.runInNewContext(`${appSource}\nglobalThis.__ludusTest = { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode };`, context);
+vm.runInNewContext(`${appSource}\nglobalThis.__ludusTest = { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation };`, context);
 
-const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode } = context.__ludusTest;
+const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation } = context.__ludusTest;
 
 function play(game, uci) {
   const move = uciToMove(uci, game);
@@ -318,5 +318,31 @@ assert.strictEqual(pointsFromQualityCode("bad"), -0.5);
 assert.strictEqual(pointsFromQualityCode("blunder"), -1);
 assert.strictEqual(pointsFromQualityCode("no_move"), 0);
 assert.strictEqual(pointsFromQualityCode("unknown_code"), 0, "unrecognized codes should default to 0 points");
+
+// ---------- Mate scores survive the round trip, including long mates ----------
+
+for (const distance of [1, 5, 10, 11, 20, 49, 50]) {
+  const positive = decodeEvaluation(encodeMateScore(distance));
+  assert.strictEqual(positive.kind, "mate", `mate in ${distance} should decode as a mate, not centipawns`);
+  assert.strictEqual(positive.matePly, distance, `mate in ${distance} should keep its distance`);
+
+  const negative = decodeEvaluation(encodeMateScore(-distance));
+  assert.strictEqual(negative.kind, "mate", `getting mated in ${distance} should decode as a mate`);
+  assert.strictEqual(negative.matePly, -distance, `getting mated in ${distance} should keep its distance`);
+}
+
+// Mates further away than the encodable range are clamped, but still read as mates.
+assert.strictEqual(decodeEvaluation(encodeMateScore(80)).kind, "mate");
+assert.strictEqual(decodeEvaluation(encodeMateScore(80)).matePly, 50);
+assert.strictEqual(decodeEvaluation(encodeMateScore(-80)).matePly, -50);
+
+// "score mate 0" means the side to move is already mated.
+assert.strictEqual(decodeEvaluation(encodeMateScore(0)).kind, "mate");
+assert.strictEqual(decodeEvaluation(encodeMateScore(0)).matePly, -1);
+
+// Ordinary evaluations stay centipawn evaluations.
+assert.strictEqual(decodeEvaluation(0).kind, "cp");
+assert.strictEqual(decodeEvaluation(-450).kind, "cp");
+assert.strictEqual(decodeEvaluation(9000).kind, "cp");
 
 console.log("chess-regression-check passed");
