@@ -293,6 +293,8 @@ const TRANSLATIONS = {
     "privacy.remoteFetchUsernameLabel": "Volvé a escribir el usuario para confirmar",
     "privacy.remoteFetchUsernameMismatch": "El usuario no coincide. Escribilo exactamente igual para confirmar.",
     "provider.usingCachedBase": "Usando base guardada de {provider} para {user}: {games} partida(s).",
+    "provider.throttleWait": "Esperá {seconds} segundo(s) antes de descargar partidas de nuevo. Así no sobrecargamos el servicio.",
+    "provider.throttleHourly": "Ya se descargaron partidas {max} veces en la última hora. Probá de nuevo en unos {minutes} minuto(s).",
     "provider.usingStaleCachedBase": "No pudimos actualizar la base. Usando la última base guardada de {provider} para {user}: {games} partida(s).",
     "time.classical": "Clásico",
     "time.rapid": "Rápido",
@@ -558,6 +560,8 @@ const TRANSLATIONS = {
     "privacy.remoteFetchUsernameLabel": "Retype the username to confirm",
     "privacy.remoteFetchUsernameMismatch": "The username doesn't match. Type it exactly to confirm.",
     "provider.usingCachedBase": "Using saved {provider} base for {user}: {games} game(s).",
+    "provider.throttleWait": "Please wait {seconds} second(s) before downloading games again, so we do not overload the service.",
+    "provider.throttleHourly": "Games have already been downloaded {max} times in the last hour. Try again in about {minutes} minute(s).",
     "provider.usingStaleCachedBase": "Could not refresh the base. Using the last saved {provider} base for {user}: {games} game(s).",
     "time.classical": "Classical",
     "time.rapid": "Rapid",
@@ -2772,6 +2776,62 @@ async function clearAllRemotePgnCache() {
       resolve();
     };
   });
+}
+
+// Courtesy limit on how often this browser hits the Lichess / Chess.com public
+// APIs. It only counts downloads that actually reach the network: anything
+// answered from the local cache is free. Stored in localStorage so a page
+// reload does not hand out a fresh allowance.
+const REMOTE_FETCH_THROTTLE_KEY = "ludus.remoteFetchThrottle.v1";
+const REMOTE_FETCH_MIN_GAP_MS = 20 * 1000;
+const REMOTE_FETCH_WINDOW_MS = 60 * 60 * 1000;
+const REMOTE_FETCH_MAX_PER_WINDOW = 12;
+
+function readRemoteFetchLog() {
+  try {
+    const stored = window.localStorage.getItem(REMOTE_FETCH_THROTTLE_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((value) => Number.isFinite(value));
+  } catch (error) {
+    return [];
+  }
+}
+
+function writeRemoteFetchLog(timestamps) {
+  try {
+    window.localStorage.setItem(REMOTE_FETCH_THROTTLE_KEY, JSON.stringify(timestamps));
+  } catch (error) {
+    // Ignore storage failures; the throttle is a courtesy, not a guarantee.
+  }
+}
+
+// Returns null when a network download is allowed right now, or an object with
+// the translation key and params explaining how long the caller has to wait.
+function remoteFetchThrottleBlock() {
+  const now = Date.now();
+  const recent = readRemoteFetchLog().filter((at) => now - at < REMOTE_FETCH_WINDOW_MS && at <= now);
+  writeRemoteFetchLog(recent);
+
+  const lastAt = recent.length ? Math.max(...recent) : 0;
+  if (lastAt && now - lastAt < REMOTE_FETCH_MIN_GAP_MS) {
+    const seconds = Math.max(1, Math.ceil((REMOTE_FETCH_MIN_GAP_MS - (now - lastAt)) / 1000));
+    return { key: "provider.throttleWait", params: { seconds } };
+  }
+  if (recent.length >= REMOTE_FETCH_MAX_PER_WINDOW) {
+    const oldest = Math.min(...recent);
+    const minutes = Math.max(1, Math.ceil((REMOTE_FETCH_WINDOW_MS - (now - oldest)) / 60000));
+    return { key: "provider.throttleHourly", params: { minutes, max: REMOTE_FETCH_MAX_PER_WINDOW } };
+  }
+  return null;
+}
+
+function recordRemoteFetch() {
+  const now = Date.now();
+  const recent = readRemoteFetchLog().filter((at) => now - at < REMOTE_FETCH_WINDOW_MS && at <= now);
+  recent.push(now);
+  writeRemoteFetchLog(recent);
 }
 
 function installRemotePgnSource(source, options = {}) {
@@ -5528,11 +5588,20 @@ async function fetchLichessPgn() {
     return true;
   }
 
+  const lichessThrottle = remoteFetchThrottleBlock();
+  if (lichessThrottle) {
+    if (onlineStatusEl) onlineStatusEl.textContent = t(lichessThrottle.key, lichessThrottle.params);
+    showWizardSourceError(lichessThrottle.key, lichessThrottle.params);
+    return false;
+  }
+
   if (!(await confirmRemoteFetchConsent("lichess", rawUser))) {
     if (onlineStatusEl) onlineStatusEl.textContent = t("privacy.remoteFetchCancelled");
     showWizardSourceError("privacy.remoteFetchCancelled");
     return false;
   }
+
+  recordRemoteFetch();
 
   if (onlineStatusEl) {
     if (STATE.userMode === "citizen") {
@@ -5707,11 +5776,20 @@ async function fetchChessComPgn() {
     return true;
   }
 
+  const chesscomThrottle = remoteFetchThrottleBlock();
+  if (chesscomThrottle) {
+    if (onlineStatusEl) onlineStatusEl.textContent = t(chesscomThrottle.key, chesscomThrottle.params);
+    showWizardSourceError(chesscomThrottle.key, chesscomThrottle.params);
+    return false;
+  }
+
   if (!(await confirmRemoteFetchConsent("chesscom", rawUser))) {
     if (onlineStatusEl) onlineStatusEl.textContent = t("privacy.remoteFetchCancelled");
     showWizardSourceError("privacy.remoteFetchCancelled");
     return false;
   }
+
+  recordRemoteFetch();
 
   if (onlineStatusEl) {
     if (STATE.userMode === "citizen") {

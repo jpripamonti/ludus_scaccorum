@@ -140,9 +140,9 @@ const context = {
 context.globalThis = context;
 
 const appSource = fs.readFileSync(path.join(root, "app.js"), "utf8");
-vm.runInNewContext(`${appSource}\nglobalThis.__ludusTest = { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation };`, context);
+vm.runInNewContext(`${appSource}\nglobalThis.__ludusTest = { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog };`, context);
 
-const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation } = context.__ludusTest;
+const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog } = context.__ludusTest;
 
 function play(game, uci) {
   const move = uciToMove(uci, game);
@@ -344,5 +344,35 @@ assert.strictEqual(decodeEvaluation(encodeMateScore(0)).matePly, -1);
 assert.strictEqual(decodeEvaluation(0).kind, "cp");
 assert.strictEqual(decodeEvaluation(-450).kind, "cp");
 assert.strictEqual(decodeEvaluation(9000).kind, "cp");
+
+// ---------- Courtesy limit on downloads from the public chess services ----------
+
+writeRemoteFetchLog([]);
+assert.strictEqual(remoteFetchThrottleBlock(), null, "a fresh browser should be allowed to download");
+
+recordRemoteFetch();
+const rightAfter = remoteFetchThrottleBlock();
+assert.ok(rightAfter, "a second download immediately after the first should be held back");
+assert.strictEqual(rightAfter.key, "provider.throttleWait");
+assert.ok(rightAfter.params.seconds > 0 && rightAfter.params.seconds <= 20);
+
+// Twelve downloads spread over the last half hour: the hourly ceiling applies.
+const halfHourAgo = Date.now() - 30 * 60 * 1000;
+writeRemoteFetchLog(Array.from({ length: 12 }, (_, i) => halfHourAgo + i * 1000));
+const hourly = remoteFetchThrottleBlock();
+assert.ok(hourly, "the hourly ceiling should hold back the thirteenth download");
+assert.strictEqual(hourly.key, "provider.throttleHourly");
+assert.strictEqual(hourly.params.max, 12);
+assert.ok(hourly.params.minutes > 0 && hourly.params.minutes <= 60);
+
+// The same twelve downloads, but two hours old: the window has rolled over.
+const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+writeRemoteFetchLog(Array.from({ length: 12 }, (_, i) => twoHoursAgo + i * 1000));
+assert.strictEqual(remoteFetchThrottleBlock(), null, "downloads older than the window should not count");
+
+// Corrupted storage must not lock anyone out.
+context.window.localStorage.setItem("ludus.remoteFetchThrottle.v1", "not json");
+assert.strictEqual(remoteFetchThrottleBlock(), null, "unreadable storage should fail open");
+writeRemoteFetchLog([]);
 
 console.log("chess-regression-check passed");
