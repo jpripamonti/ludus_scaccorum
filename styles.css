@@ -1542,17 +1542,41 @@ body.result-visible .solo-clock-rail { display: none; }
   text-align: center;
   padding: 24px;
   pointer-events: none;
-  background: rgba(10,12,18,0.72);
+  background: rgba(10,12,18,0.55);
   color: var(--color-text);
+  /* Una sola columna del ancho del contenido y una fila explícita por hijo:
+     así la placa de fondo (::before) puede abarcar exactamente las cuatro filas. */
+  grid-template-columns: fit-content(100%);
+  grid-template-rows: repeat(4, auto);
+}
+
+/* Placa opaca detrás del texto: sin ella las palabras caen sobre casillas
+   claras y oscuras alternadas y el contraste cambia dentro de la misma frase. */
+.position-search-overlay::before {
+  content: "";
+  grid-area: 1 / 1 / -1 / -1;
+  z-index: 0;
+  margin: -18px -20px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-float);
+  pointer-events: none;
+}
+
+.position-search-overlay > * {
+  z-index: 1;
 }
 
 .position-search-title {
+  grid-area: 1 / 1;
   font-size: clamp(21px, 1.9vw, 32px);
   line-height: 1.06;
   font-weight: 700;
 }
 
 .position-search-meta {
+  grid-area: 2 / 1;
   font-size: clamp(13px, 1vw, 16px);
   color: var(--color-text-muted);
   font-weight: 600;
@@ -1560,6 +1584,7 @@ body.result-visible .solo-clock-rail { display: none; }
 }
 
 .position-search-progress {
+  grid-area: 3 / 1;
   width: min(360px, 90%);
   display: grid;
   gap: 8px;
@@ -1590,6 +1615,7 @@ body.result-visible .solo-clock-rail { display: none; }
 }
 
 .position-search-cancel-btn {
+  grid-area: 4 / 1;
   pointer-events: auto;
   margin-top: 10px;
 }
