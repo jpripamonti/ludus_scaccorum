@@ -1252,6 +1252,27 @@ body.solo-mode .player-score-value {
   font-size: var(--text-md);
 }
 
+/* En una columna estas acciones viven junto al tablero y no en la tarjeta del
+   jugador, que queda debajo de un tablero que ocupa toda la pantalla. */
+.board-actions-slot:empty { display: none; }
+
+.board-actions-slot {
+  width: var(--stage-width);
+  margin-inline: auto;
+}
+
+.board-actions-slot #shared-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr;
+}
+
+.board-actions-slot #shared-actions button {
+  height: var(--btn-h-base);
+  min-height: var(--btn-h-base);
+  font-size: var(--text-md);
+}
+
 /* ── Board stage ── */
 /* --stage-width es el ancho del tablero: la barra de ronda lo reusa para
    quedar exactamente del mismo ancho, apoyada encima del tablero. */

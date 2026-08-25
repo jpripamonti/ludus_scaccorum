@@ -9,7 +9,7 @@
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=()" />
   <title>Ludus Scaccorum - Entrenamiento de Errores</title>
-  <link rel="stylesheet" href="styles.css?v=maestro126" />
+  <link rel="stylesheet" href="styles.css?v=maestro127" />
 </head>
 
 <body class="mode-citizen">
@@ -231,7 +231,7 @@
               <div class="result-overlay-read">
                 <div id="result-overlay-inner">
                   <header class="result-overlay-header">
-                    <p id="result-overlay-title" class="result-overlay-title" data-i18n="result.title">Resultado</p>
+                    <p id="result-overlay-title" class="result-overlay-title" tabindex="-1" data-i18n="result.title">Resultado</p>
                     <p id="result-overlay-points" class="result-overlay-points" data-i18n="result.pending">Todavía no hay jugada evaluada.</p>
                   </header>
 
@@ -243,7 +243,7 @@
                   </div>
                 </div>
 
-                <div id="session-summary-result" class="session-summary-result hidden">
+                <div id="session-summary-result" class="session-summary-result hidden" tabindex="-1">
                   <div class="summary-score-display">-</div>
                   <p class="summary-details-text">-</p>
                 </div>
@@ -256,6 +256,8 @@
             </div>
           </aside>
         </div>
+
+        <div id="board-actions-slot" class="board-actions-slot"></div>
 
         <div id="game-details-mini" class="mini-details">-</div>
         <div id="competitive-status" class="status-line hidden">-</div>
@@ -305,7 +307,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=maestro57"></script>
+  <script src="app.js?v=maestro59"></script>
 </body>
 
 </html>

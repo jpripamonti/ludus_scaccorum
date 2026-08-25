@@ -1,10 +1,10 @@
-const CACHE_NAME = "ludus-scaccorum-static-maestro58";
+const CACHE_NAME = "ludus-scaccorum-static-maestro60";
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=maestro126",
-  "./app.js?v=maestro57",
+  "./styles.css?v=maestro127",
+  "./app.js?v=maestro59",
   "./assets/landing/maestro.webp",
   "./assets/pieces/cburnett/bB.svg",
   "./assets/pieces/cburnett/bK.svg",

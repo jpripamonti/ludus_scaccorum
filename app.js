@@ -57,6 +57,12 @@ const wizardWideScreenQuery = typeof window.matchMedia === "function"
   ? window.matchMedia("(min-width: 921px)")
   : null;
 
+// Bajo este ancho el tablero, las tarjetas de jugador y el resultado se apilan
+// en una sola columna.
+const oneColumnGameQuery = typeof window.matchMedia === "function"
+  ? window.matchMedia("(max-width: 1080px)")
+  : null;
+
 const gameLayoutEl = document.getElementById("game-layout");
 const leftPlayerPanelEl = document.getElementById("left-player-panel");
 const rightPlayerPanelEl = document.getElementById("right-player-panel");
@@ -70,6 +76,7 @@ const playerAScoreLabelEl = document.getElementById("player-a-score-label");
 const playerBScoreLabelEl = document.getElementById("player-b-score-label");
 const playerAScoreValueEl = document.getElementById("player-a-score-value");
 const playerBScoreValueEl = document.getElementById("player-b-score-value");
+const boardActionsSlotEl = document.getElementById("board-actions-slot");
 const playerAActionsSlotEl = document.getElementById("player-a-actions-slot");
 const playerBActionsSlotEl = document.getElementById("player-b-actions-slot");
 const sharedActionsEl = document.getElementById("shared-actions");
@@ -1834,12 +1841,61 @@ function showResultOverlay(title, pointsText, qualityCode) {
     const vc = qualityToVerdictClass(qualityCode);
     if (vc) resultOverlayHeaderEl.classList.add(vc);
   }
-  STATE.resultView.visible = true;
   STATE.resultView.analysisMode = false;
-  document.body.classList.add("result-visible");
-  resultOverlayEl.classList.remove("hidden");
+  revealResultOverlay();
   updateResultAnalysisControls();
   renderBoardArrows();
+}
+
+// Shows the result panel and takes the reader to it. Every path that opens the
+// result goes through here, so none of them can forget that last step.
+function revealResultOverlay() {
+  STATE.resultView.visible = true;
+  document.body.classList.add("result-visible");
+  if (resultOverlayEl) resultOverlayEl.classList.remove("hidden");
+  bringResultIntoView();
+}
+
+// Which part of the result takes the focus: the verdict of the round, or the
+// closing summary once the session is over.
+function resultFocusTarget() {
+  const innerVisible = resultOverlayInnerEl && !resultOverlayInnerEl.classList.contains("hidden");
+  if (innerVisible && resultOverlayTitleEl) return resultOverlayTitleEl;
+  if (sessionSummaryResultEl && !sessionSummaryResultEl.classList.contains("hidden")) return sessionSummaryResultEl;
+  return resultOverlayTitleEl || resultOverlayEl;
+}
+
+// In one column the result sits under a board that fills a phone screen, so the
+// verdict, the points and the way to continue all land below the fold and the
+// round looks like it went nowhere. Bring the panel into view and move the
+// focus onto it: the board has just stopped accepting moves, so a focus ring
+// left parked there strands anyone using a keyboard or a screen reader.
+function bringResultIntoView() {
+  if (!resultOverlayEl) return;
+  const reveal = () => {
+    if (!STATE.resultView.visible) return;
+    const panel = resultOverlayEl.querySelector(".result-overlay-panel") || resultOverlayEl;
+    const target = resultFocusTarget();
+    if (target && typeof target.focus === "function") target.focus({ preventScroll: true });
+    if (typeof panel.getBoundingClientRect !== "function" || typeof panel.scrollIntoView !== "function") return;
+    const rect = panel.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || 0;
+    if (!viewportHeight) return;
+    if (rect.top >= 0 && rect.bottom <= viewportHeight) return;
+    // Prefer resting the panel against the bottom edge: that keeps the board and
+    // its buttons on screen above it. Only a panel taller than the screen gets
+    // pinned to the top instead.
+    const block = rect.height <= viewportHeight - 24 ? "end" : "start";
+    // Jumps rather than glides: an animated scroll is silently ignored in some
+    // browsers and by anyone who asked for less motion, and a fix that only
+    // sometimes happens is the same problem over again.
+    panel.scrollIntoView({ block, behavior: "auto" });
+  };
+  // Deferred rather than run inline so it measures the panel after the browser
+  // has laid it out. A timer and not an animation frame: animation frames do not
+  // run in a hidden tab, and coming back to the tab would find the result parked
+  // off screen.
+  setTimeout(reveal, 0);
 }
 
 function hideResultOverlay() {
@@ -1882,10 +1938,8 @@ function restoreResultView(snapshot) {
     STATE.duel.currentPlayer = snapshot.duel.currentPlayer;
     STATE.duel.handoffReady = snapshot.duel.handoffReady;
   }
-  STATE.resultView.visible = true;
   STATE.resultView.analysisMode = false;
-  document.body.classList.add("result-visible");
-  resultOverlayEl.classList.remove("hidden");
+  revealResultOverlay();
   setUiPhase("result", true);
   if (roundStatusEl) roundStatusEl.textContent = t("game.searchCancelled");
   if (nextBtn) nextBtn.disabled = false;
@@ -1976,6 +2030,13 @@ function setPanelActiveState(activeIndex) {
 
 function mountSharedActionsToActivePanel() {
   if (!sharedActionsEl) return;
+  // In one column the player cards sit below a board that fills a phone screen,
+  // so leaving a timed round would mean scrolling away from it first. Keep
+  // these actions with the board instead.
+  if (oneColumnGameQuery && oneColumnGameQuery.matches && boardActionsSlotEl) {
+    boardActionsSlotEl.appendChild(sharedActionsEl);
+    return;
+  }
   if (!isDuelMode()) {
     if (playerAActionsSlotEl) playerAActionsSlotEl.appendChild(sharedActionsEl);
     return;
@@ -5556,9 +5617,7 @@ async function nextPosition() {
     setUiPhase("result", true);
 
     // Show only the summary card overlay
-    STATE.resultView.visible = true;
-    document.body.classList.add("result-visible");
-    if (resultOverlayEl) resultOverlayEl.classList.remove("hidden");
+    revealResultOverlay();
     if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden"); // Hide normal layout
     updateRoundTimerUi(0);
     renderBoardArrows();
@@ -5586,9 +5645,7 @@ async function nextPosition() {
       setUiPhase("result", true);
 
       // Show only the summary card overlay
-      STATE.resultView.visible = true;
-      document.body.classList.add("result-visible");
-      if (resultOverlayEl) resultOverlayEl.classList.remove("hidden");
+      revealResultOverlay();
       if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden"); // Hide normal layout
       updateRoundTimerUi(0);
       renderBoardArrows();
@@ -5630,9 +5687,7 @@ async function nextPosition() {
       setUiPhase("result", true);
 
       // Show only the summary card overlay
-      STATE.resultView.visible = true;
-      document.body.classList.add("result-visible");
-      if (resultOverlayEl) resultOverlayEl.classList.remove("hidden");
+      revealResultOverlay();
       if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden"); // Hide normal layout
       updateRoundTimerUi(0);
       renderBoardArrows();
@@ -6827,6 +6882,11 @@ if (positionSearchCancelBtnEl) {
   });
 }
 
+if (oneColumnGameQuery && typeof oneColumnGameQuery.addEventListener === "function") {
+  oneColumnGameQuery.addEventListener("change", () => {
+    mountSharedActionsToActivePanel();
+  });
+}
 if (wizardWideScreenQuery && typeof wizardWideScreenQuery.addEventListener === "function") {
   wizardWideScreenQuery.addEventListener("change", syncWizardSummaryDisclosure);
 }
@@ -6840,6 +6900,9 @@ if (wizardSummaryBoxEl) {
 
 window.addEventListener("resize", () => {
   renderBoardArrows();
+  // Rotating a phone or resizing a window changes which column layout is in
+  // use, and the round actions belong next to the board only in one of them.
+  mountSharedActionsToActivePanel();
 });
 
 function registerServiceWorker() {
