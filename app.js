@@ -139,6 +139,14 @@ const RATING_MOVE_TIME_MS = 5000;
 const RATING_DEPTH = 18;
 const MIN_LEGAL_MOVES_FOR_CANDIDATE = 3;
 const LOCAL_FALLBACK_MAX_DEPTH = 3;
+// The strong engine is a 7 MB download, so give it room on a slow connection
+// and retry rather than falling back to the shallow local one for good.
+const ENGINE_READY_TIMEOUT_MS = 30000;
+const ENGINE_LOAD_ATTEMPTS = 3;
+const ENGINE_RETRY_BASE_MS = 1500;
+// How long a starting session waits for it before playing on the local engine
+// while the download keeps going in the background.
+const ENGINE_SESSION_WAIT_MS = 25000;
 const MIN_ROUND_EVAL_VISIBLE_MS = 5000;
 const ROUND_EVAL_MAX_TOTAL_MS = 7000;
 const ROUND_EVAL_MIN_TOTAL_MS = 2200;
@@ -396,7 +404,7 @@ const TRANSLATIONS = {
     "analysis.status.noMore": "{prefix}No quedan más posiciones en el umbral.",
     "analysis.status.prepareBase": "Preparando base online de {provider}...",
     "analysis.status.prepareEngine": "Preparando el motor de análisis...",
-    "analysis.status.localEngineNotice": "El motor fuerte no está disponible: se usa el de respaldo, que analiza menos a fondo.",
+    "analysis.status.localEngineNotice": "El motor fuerte todavía no está listo: por ahora se usa el de respaldo, que analiza menos a fondo.",
     "analysis.status.shuffle": "Barajando {games} partidas y buscando primera posición para {player}...",
     "analysis.status.firstReady": "Primera posición detectada. Ya podés jugar.",
     "analysis.status.error": "Error durante el análisis: {error}",
@@ -677,7 +685,7 @@ const TRANSLATIONS = {
     "analysis.status.noMore": "{prefix}There are no more positions above the threshold.",
     "analysis.status.prepareBase": "Preparing online base from {provider}...",
     "analysis.status.prepareEngine": "Getting the analysis engine ready...",
-    "analysis.status.localEngineNotice": "The strong engine is unavailable: the backup one is being used, and it looks less deeply.",
+    "analysis.status.localEngineNotice": "The strong engine is not ready yet: the backup one is being used for now, and it looks less deeply.",
     "analysis.status.shuffle": "Shuffling {games} games and looking for the first position for {player}...",
     "analysis.status.firstReady": "First position found. You can start playing now.",
     "analysis.status.error": "Error during analysis: {error}",
@@ -2684,6 +2692,10 @@ function openSetupFromLanding({ format = null, statusMessage = "" } = {}) {
 }
 
 function startFromLanding() {
+  // Opening the wizard is the first sign of someone meaning to play, so the
+  // engine download starts here and usually finishes while they fill in the
+  // three steps. Whoever only looks at the landing page pays nothing.
+  void ensureStockfishLoading();
   openSetupFromLanding({
     statusMessage: t("wizard.status.modeSourceOptions"),
   });
@@ -3501,60 +3513,79 @@ function cacheSet(key, value) {
   STATE.engine.evalCache.set(key, value);
 }
 
-async function waitForWorkerReady(worker, timeoutMs = 7000) {
+async function waitForWorkerReady(worker, timeoutMs = ENGINE_READY_TIMEOUT_MS) {
   return new Promise((resolve) => {
     let done = false;
-    const timeout = setTimeout(() => {
+    const finish = (value) => {
       if (done) return;
       done = true;
+      clearTimeout(timeout);
       worker.removeEventListener("message", onMessage);
-      resolve(false);
-    }, timeoutMs);
+      worker.removeEventListener("error", onError);
+      resolve(value);
+    };
+    const timeout = setTimeout(() => finish(false), timeoutMs);
 
     const onMessage = (event) => {
       const line = typeof event.data === "string" ? event.data : "";
-      if (line === "readyok") {
-        if (done) return;
-        done = true;
-        clearTimeout(timeout);
-        worker.removeEventListener("message", onMessage);
-        resolve(true);
-      }
-      if (line.startsWith("engine-error")) {
-        if (done) return;
-        done = true;
-        clearTimeout(timeout);
-        worker.removeEventListener("message", onMessage);
-        resolve(false);
-      }
+      if (line === "readyok") finish(true);
+      else if (line.startsWith("engine-error")) finish(false);
     };
+    // A missing or broken engine file gives up here instead of burning the
+    // whole wait on an answer that is never coming.
+    const onError = () => finish(false);
 
     worker.addEventListener("message", onMessage);
+    worker.addEventListener("error", onError);
     worker.postMessage("uci");
     worker.postMessage("isready");
   });
 }
 
+// One attempt at starting the strong engine. The worker requests the engine
+// file itself, so the app no longer fetches it first just to check it is there.
 async function setupStockfish() {
   resetEngineToLocal();
   try {
-    const response = await fetch("vendor/stockfish-18-lite-single.js");
-    if (!response.ok) return;
     const worker = new Worker("vendor/stockfish-18-lite-single.js");
     worker.onerror = () => resetEngineToLocal();
-    const ready = await waitForWorkerReady(worker, 7000);
+    const ready = await waitForWorkerReady(worker);
     if (!ready) {
       try {
         worker.terminate();
       } catch (error) {
         // ignore
       }
-      return;
+      return false;
     }
     STATE.engine = { mode: "stockfish", worker, ready: true, evalCache: new Map() };
+    return true;
   } catch (error) {
     resetEngineToLocal();
+    return false;
   }
+}
+
+let engineLoad = null;
+
+// Loads the strong engine once however many places ask for it, retrying a few
+// times with a growing pause. A first attempt failing on a weak connection is
+// ordinary for a download this size and used to condemn the whole page load to
+// the shallow local engine.
+function ensureStockfishLoading() {
+  if (STATE.engine.mode === "stockfish" && STATE.engine.ready) return Promise.resolve(true);
+  if (!engineLoad) {
+    engineLoad = (async () => {
+      for (let attempt = 0; attempt < ENGINE_LOAD_ATTEMPTS; attempt += 1) {
+        if (attempt > 0) await sleepMs(ENGINE_RETRY_BASE_MS * attempt);
+        if (await setupStockfish()) return true;
+      }
+      return false;
+    })().finally(() => {
+      engineLoad = null;
+    });
+  }
+  return engineLoad;
 }
 
 async function stockfishEvaluate(fen, depth, moveTimeMs, options = {}) {
@@ -6280,7 +6311,7 @@ async function startSessionPipeline() {
   updateCompetitiveStatus();
 
   try {
-    await ensureEngineForSession(sessionToken);
+    await ensureEngineForSession();
     if (!isCurrentSessionWork(sessionToken)) return;
     if (!(await ensurePgnSourceAvailable(sessionToken))) return;
 
@@ -6355,10 +6386,13 @@ function resetSessionStateForNewPipeline() {
 // Brings the strong engine back before a session starts. Going back to the menu
 // terminates its worker, so without this every later session in the same tab
 // would be scored by the shallow local fallback without ever saying so.
-async function ensureEngineForSession(sessionToken) {
+async function ensureEngineForSession() {
   if (STATE.engine.mode === "stockfish" && STATE.engine.ready) return;
   analysisStatusEl.textContent = t("analysis.status.prepareEngine");
-  await setupStockfish();
+  // Do not hold the session hostage to a 7 MB download on a bad connection:
+  // after this wait the session starts on the local engine and the download
+  // carries on, so later rounds can still use the strong one.
+  await Promise.race([ensureStockfishLoading(), sleepMs(ENGINE_SESSION_WAIT_MS)]);
 }
 
 // True when this session is being scored by the shallow local fallback instead
@@ -6843,15 +6877,6 @@ updateScoreDisplay();
 updateCompetitiveStatus();
 renderHistoryList();
 showLandingScreen();
-if (typeof window.requestIdleCallback === "function") {
-  window.requestIdleCallback(() => {
-    void setupStockfish();
-  }, { timeout: 3000 });
-} else {
-  setTimeout(() => {
-    void setupStockfish();
-  }, 0);
-}
 buildBoard();
 renderBoard();
 refreshLocalizedUi();

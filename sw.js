@@ -1,10 +1,10 @@
-const CACHE_NAME = "ludus-scaccorum-static-maestro57";
+const CACHE_NAME = "ludus-scaccorum-static-maestro58";
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./styles.css?v=maestro126",
-  "./app.js?v=maestro56",
+  "./app.js?v=maestro57",
   "./assets/landing/maestro.webp",
   "./assets/pieces/cburnett/bB.svg",
   "./assets/pieces/cburnett/bK.svg",
@@ -18,9 +18,11 @@ const CORE_ASSETS = [
   "./assets/pieces/cburnett/wP.svg",
   "./assets/pieces/cburnett/wQ.svg",
   "./assets/pieces/cburnett/wR.svg",
-  "./vendor/stockfish-18-lite-single.js",
-  "./vendor/stockfish-18-lite-single.wasm",
 ];
+
+// The engine is deliberately absent from the list above: it is 7.3 MB and is
+// only needed once somebody actually plays. The fetch handler below stores it
+// the first time it is requested, so it is there offline from then on.
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
