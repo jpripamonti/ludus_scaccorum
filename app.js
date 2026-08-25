@@ -2470,6 +2470,13 @@ function goToWizardStep(step) {
   STATE.setupWizard.step = clamp(Number(step) || 1, 1, 3);
   renderWizardStep();
   window.scrollTo({ top: 0, behavior: "auto" });
+  const heading = document.getElementById(`wizard-step-${STATE.setupWizard.step}-title`);
+  // tabIndex = -1 lo hace enfocable por código sin agregarlo al recorrido del tabulador,
+  // y preventScroll evita que el enfoque vuelva a mover la página.
+  if (heading && heading.offsetParent !== null) {
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
+  }
 }
 
 function resetSetupWizard({ mode = null, statusMessage = "" } = {}) {
