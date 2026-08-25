@@ -1931,6 +1931,13 @@ body.result-visible .board-wrap {
   grid-row: 1;
 }
 
+/* Con el resultado a la vista aparece la fila de herramientas debajo del
+   tablero. Si el tablero sigue midiendo lo mismo, esa fila queda cortada por
+   el borde inferior de la ventana, así que hay que descontarle su alto. */
+body.result-visible #game-layout .board {
+  max-width: min(calc(72vh - 56px), 980px);
+}
+
 body.result-visible .result-overlay {
   grid-column: 2;
   grid-row: 1 / span 2;
