@@ -216,6 +216,14 @@
               <span id="handoff-overlay-subtitle" class="handoff-overlay-subtitle" data-i18n="game.handoff.genericSubtitle">Toca para revelar</span>
             </button>
           </div>
+          <div id="board-exploration-actions" class="board-exploration-actions" role="group"
+            data-i18n-aria-label="result.boardToolsLabel" aria-label="Herramientas del tablero">
+            <button id="reveal-best-btn" type="button" class="wizard-secondary-btn hidden" data-i18n="buttons.revealBest">Ver la mejor</button>
+            <button id="reveal-game-btn" type="button" class="wizard-secondary-btn hidden" data-i18n="buttons.revealGame">Ver la partida</button>
+            <button id="result-analysis-btn" type="button" class="wizard-secondary-btn" data-i18n="buttons.exploreBoard">Explorar tablero</button>
+            <button id="result-analysis-reset-btn" type="button" class="wizard-secondary-btn hidden" data-i18n="buttons.resetAnalysis">Reiniciar análisis</button>
+          </div>
+
           <aside id="solo-clock-rail" class="solo-clock-rail" aria-live="polite">
             <strong id="solo-clock-value" class="solo-clock-value">--:--</strong>
             <div id="solo-clock-track" class="solo-clock-track" aria-hidden="true">
@@ -225,30 +233,28 @@
 
           <aside id="result-overlay" class="result-overlay hidden" aria-live="polite">
             <div class="result-overlay-panel">
-              <div id="result-overlay-inner">
-                <header class="result-overlay-header">
-                  <p id="result-overlay-title" class="result-overlay-title" data-i18n="result.title">Resultado</p>
-                  <p id="result-overlay-points" class="result-overlay-points" data-i18n="result.pending">Todavía no hay jugada evaluada.</p>
-                </header>
+              <div class="result-overlay-read">
+                <div id="result-overlay-inner">
+                  <header class="result-overlay-header">
+                    <p id="result-overlay-title" class="result-overlay-title" data-i18n="result.title">Resultado</p>
+                    <p id="result-overlay-points" class="result-overlay-points" data-i18n="result.pending">Todavía no hay jugada evaluada.</p>
+                  </header>
 
-                <div id="round-result" class="result-overlay-grid"></div>
+                  <div id="round-result" class="result-overlay-grid"></div>
 
-                <div id="vertical-infographic" class="vertical-infographic hidden">
-                  <div class="infographic-track"></div>
-                  <div id="infographic-nodes" class="infographic-nodes"></div>
+                  <div id="vertical-infographic" class="vertical-infographic hidden">
+                    <div class="infographic-track"></div>
+                    <div id="infographic-nodes" class="infographic-nodes"></div>
+                  </div>
+                </div>
+
+                <div id="session-summary-result" class="session-summary-result hidden">
+                  <div class="summary-score-display">-</div>
+                  <p class="summary-details-text">-</p>
                 </div>
               </div>
 
-              <div id="session-summary-result" class="session-summary-result hidden">
-                <div class="summary-score-display">-</div>
-                <p class="summary-details-text">-</p>
-              </div>
-
               <div class="result-overlay-actions">
-                <button id="reveal-best-btn" type="button" class="wizard-secondary-btn hidden" data-i18n="buttons.revealBest">Ver la mejor</button>
-                <button id="reveal-game-btn" type="button" class="wizard-secondary-btn hidden" data-i18n="buttons.revealGame">Ver la partida</button>
-                <button id="result-analysis-btn" type="button" data-i18n="buttons.exploreBoard">Explorar tablero</button>
-                <button id="result-analysis-reset-btn" type="button" class="hidden" data-i18n="buttons.resetAnalysis">Reiniciar análisis</button>
                 <button id="next-btn" disabled data-i18n="buttons.nextPosition">Siguiente posición</button>
                 <button id="summary-menu-btn" type="button" class="hidden" data-i18n="buttons.backToMenu">Volver al menú</button>
               </div>

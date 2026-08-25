@@ -1675,14 +1675,42 @@ body.result-visible .result-overlay { justify-self: start; }
   width: 100%;
   height: 100%;
   max-height: min(72vh, 860px);
-  overflow: auto;
+  overflow: hidden;
   border-radius: var(--radius-2xl);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   box-shadow: var(--shadow-panel);
   padding: clamp(12px, 1.6vw, 20px);
   display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: var(--space-3);
+}
+
+/* Zona de lectura: veredicto, jugadas enfrentadas y árbol de jugadas.
+   Es la única parte que se desplaza; la fila de acción queda anclada al pie. */
+.result-overlay-read {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+}
+
+#result-overlay-inner {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+}
+
+/* Al cerrar la sesión sólo queda la tarjeta del resumen: se centra en vez de
+   quedar colgada arriba de un panel casi vacío. */
+.result-overlay-read:has(> #result-overlay-inner.hidden) { align-content: center; }
+
+/* En pantallas chicas el panel crece con la página (regla de arriba: sin
+   max-height ni recorte), así que no hace falta la zona de lectura aparte. */
+@media (max-width: 920px) {
+  .result-overlay-panel { grid-template-rows: auto auto; }
+  .result-overlay-read { overflow: visible; }
 }
 
 /* ── Verdict header ── */
@@ -1849,11 +1877,12 @@ body.result-visible .result-overlay { justify-self: start; }
   background: var(--color-surface-2);
 }
 
-/* ── Result actions ── */
+/* ── Result actions: una sola fila anclada al pie del panel ── */
 .result-overlay-actions {
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
+  align-content: end;
 }
 
 .result-overlay-actions button {
@@ -1862,17 +1891,57 @@ body.result-visible .result-overlay { justify-self: start; }
   width: 100%;
 }
 
-.result-overlay-actions #result-analysis-btn,
-.result-overlay-actions #result-analysis-reset-btn {
+/* ── Herramientas de exploración, debajo del tablero ── */
+.board-exploration-actions { display: none; }
+
+body.result-visible .board-exploration-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  grid-column: 1;
+  grid-row: 2;
+  width: min(100%, 72vh, 980px, calc(100vw - 32px));
+  justify-self: end;
+  min-width: 0;
+}
+
+body.solo-mode.result-visible .board-exploration-actions {
+  width: min(100%, 80vh, 1120px, calc(100vw - 32px));
+}
+
+/* Si el código escondió las cuatro fichas, la fila no deja un hueco. */
+body.result-visible .board-exploration-actions:not(:has(> button:not(.hidden))) {
+  display: none;
+}
+
+.board-exploration-actions button {
+  height: 36px;
+  min-height: 36px;
+  width: 100%;
+  padding: 0 10px;
+  font-size: var(--text-base);
   border-color: var(--color-border-mid);
   background: var(--color-surface-2);
   color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.result-overlay.analysis-mode #result-analysis-btn {
+.board-exploration-actions #result-analysis-btn[aria-pressed="true"] {
   border-color: var(--color-perfect-bd);
   background: var(--color-perfect-bg);
   color: var(--color-perfect);
+}
+
+body.result-visible .board-wrap {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+body.result-visible .result-overlay {
+  grid-column: 2;
+  grid-row: 1 / span 2;
 }
 
 .result-overlay-actions #next-btn {
@@ -1960,6 +2029,17 @@ body.playing-mode #landing-screen { display: none !important; }
   }
   body.result-visible .board-wrap { justify-self: start; }
 
+  body.result-visible .board-exploration-actions,
+  body.solo-mode.result-visible .board-exploration-actions {
+    width: min(100%, 760px);
+    justify-self: start;
+  }
+
+  body.result-visible .result-overlay {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
   .result-overlay {
     width: min(86vw, 760px);
     max-width: 100%;
@@ -1991,6 +2071,13 @@ body.playing-mode #landing-screen { display: none !important; }
   body.result-visible .board-wrap {
     width: min(100%, calc(100vw - 16px));
     justify-self: center;
+  }
+
+  body.result-visible .board-exploration-actions,
+  body.solo-mode.result-visible .board-exploration-actions {
+    width: min(100%, calc(100vw - 16px));
+    justify-self: center;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .solo-clock-rail {
