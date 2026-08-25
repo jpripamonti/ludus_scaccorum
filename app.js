@@ -368,6 +368,7 @@ const TRANSLATIONS = {
     "game.finalMatchScore": "Marcador final: {p1} {s1} - {s2} {p2}. {winner}",
     "game.sessionDone": "¡Sesión terminada!",
     "game.noMorePositions": "No se encontraron más posiciones.",
+    "game.searchCancelled": "Búsqueda cancelada. Podés volver a buscar la próxima posición cuando quieras.",
     "game.sessionHintCitizen": "Objetivo de sesión: {target} posiciones. Detectadas: {detected}.",
     "game.sessionHintEngineer": "Objetivo de sesión: {target} posiciones. Sistema: {system}. Detectadas por ahora: {detected}. Analizadas: {analyzed}/{total}.",
     "overlay.timeoutEvaluating": "Tiempo agotado. Evaluando posición...",
@@ -386,6 +387,7 @@ const TRANSLATIONS = {
     "analysis.extra.detected": "Posición detectada",
     "analysis.extra.searchingError": "Buscando error",
     "analysis.extra.finished": "Búsqueda finalizada",
+    "analysis.extra.cancelled": "Búsqueda cancelada",
     "analysis.status.reused": "{prefix}Posición detectada ({count}). Se reutiliza partida por falta de alternativas.",
     "analysis.status.candidate": "{prefix}Analizando candidata {ordinal}/{total}. Detectadas: {detected}.",
     "analysis.status.ready": "{prefix}Posición detectada ({count}). Podés jugar.",
@@ -393,6 +395,8 @@ const TRANSLATIONS = {
     "analysis.status.noFresh": "{prefix}Posición detectada ({count}). No hubo más partidas nuevas en el umbral.",
     "analysis.status.noMore": "{prefix}No quedan más posiciones en el umbral.",
     "analysis.status.prepareBase": "Preparando base online de {provider}...",
+    "analysis.status.prepareEngine": "Preparando el motor de análisis...",
+    "analysis.status.localEngineNotice": "El motor fuerte no está disponible: se usa el de respaldo, que analiza menos a fondo.",
     "analysis.status.shuffle": "Barajando {games} partidas y buscando primera posición para {player}...",
     "analysis.status.firstReady": "Primera posición detectada. Ya podés jugar.",
     "analysis.status.error": "Error durante el análisis: {error}",
@@ -645,6 +649,7 @@ const TRANSLATIONS = {
     "game.finalMatchScore": "Final score: {p1} {s1} - {s2} {p2}. {winner}",
     "game.sessionDone": "Session finished!",
     "game.noMorePositions": "No more positions were found.",
+    "game.searchCancelled": "Search cancelled. You can look for the next position whenever you want.",
     "game.sessionHintCitizen": "Session target: {target} positions. Found: {detected}.",
     "game.sessionHintEngineer": "Session target: {target} positions. System: {system}. Found so far: {detected}. Analyzed: {analyzed}/{total}.",
     "overlay.timeoutEvaluating": "Time ran out. Evaluating position...",
@@ -663,6 +668,7 @@ const TRANSLATIONS = {
     "analysis.extra.detected": "Position found",
     "analysis.extra.searchingError": "Looking for error",
     "analysis.extra.finished": "Search finished",
+    "analysis.extra.cancelled": "Search cancelled",
     "analysis.status.reused": "{prefix}Position found ({count}). Reusing a game due to lack of alternatives.",
     "analysis.status.candidate": "{prefix}Analyzing candidate {ordinal}/{total}. Found: {detected}.",
     "analysis.status.ready": "{prefix}Position found ({count}). You can play now.",
@@ -670,6 +676,8 @@ const TRANSLATIONS = {
     "analysis.status.noFresh": "{prefix}Position found ({count}). There were no more fresh games above the threshold.",
     "analysis.status.noMore": "{prefix}There are no more positions above the threshold.",
     "analysis.status.prepareBase": "Preparing online base from {provider}...",
+    "analysis.status.prepareEngine": "Getting the analysis engine ready...",
+    "analysis.status.localEngineNotice": "The strong engine is unavailable: the backup one is being used, and it looks less deeply.",
     "analysis.status.shuffle": "Shuffling {games} games and looking for the first position for {player}...",
     "analysis.status.firstReady": "First position found. You can start playing now.",
     "analysis.status.error": "Error during analysis: {error}",
@@ -1704,6 +1712,7 @@ function showPositionSearchOverlay(title, meta = "", options = {}) {
     showProgress: Boolean(opts.showProgress),
     progressRatio: opts.progressRatio,
     progressLabel: opts.progressLabel || "",
+    cancellable: Boolean(opts.cancellable),
   };
   if (positionSearchTitleEl) {
     positionSearchTitleEl.textContent = STATE.ui.positionSearchState.title || t("game.searchingNext");
@@ -1715,6 +1724,12 @@ function showPositionSearchOverlay(title, meta = "", options = {}) {
     setPositionSearchProgress(opts.progressRatio, opts.progressLabel);
   } else {
     setPositionSearchProgress(null);
+  }
+  // Only the search for the next position reads the cancel flag. Showing the
+  // button while a move is being evaluated promised something that could not
+  // happen.
+  if (positionSearchCancelBtnEl) {
+    positionSearchCancelBtnEl.classList.toggle("hidden", !opts.cancellable);
   }
   positionSearchOverlayEl.classList.remove("hidden");
 }
@@ -1828,6 +1843,45 @@ function hideResultOverlay() {
   STATE.resultView.context = null;
   document.body.classList.remove("result-visible");
   resultOverlayEl.classList.add("hidden");
+  updateResultAnalysisControls();
+  renderBoardArrows();
+}
+
+// Remembers what the result view is showing before a search for the next
+// position tears it down, so a cancelled search can put it back.
+function captureResultViewSnapshot() {
+  return {
+    context: STATE.resultView.context,
+    snapshotFen: STATE.resultView.snapshotFen,
+    snapshotRevealed: STATE.resultView.snapshotRevealed,
+    duel: isDuelMode() ? {
+      roundResults: STATE.duel.roundResults.slice(),
+      currentPlayer: STATE.duel.currentPlayer,
+      handoffReady: STATE.duel.handoffReady,
+    } : null,
+  };
+}
+
+// Puts the result back on screen after a cancelled search. Cancelling must not
+// cost the result that was being read, the score, or the session itself.
+function restoreResultView(snapshot) {
+  if (!snapshot || !resultOverlayEl) return;
+  STATE.resultView.context = snapshot.context;
+  STATE.resultView.snapshotFen = snapshot.snapshotFen;
+  STATE.resultView.snapshotRevealed = snapshot.snapshotRevealed;
+  if (snapshot.duel) {
+    STATE.duel.roundResults = snapshot.duel.roundResults;
+    STATE.duel.currentPlayer = snapshot.duel.currentPlayer;
+    STATE.duel.handoffReady = snapshot.duel.handoffReady;
+  }
+  STATE.resultView.visible = true;
+  STATE.resultView.analysisMode = false;
+  document.body.classList.add("result-visible");
+  resultOverlayEl.classList.remove("hidden");
+  setUiPhase("result", true);
+  if (roundStatusEl) roundStatusEl.textContent = t("game.searchCancelled");
+  if (nextBtn) nextBtn.disabled = false;
+  if (skipBtn) skipBtn.disabled = true;
   updateResultAnalysisControls();
   renderBoardArrows();
 }
@@ -3505,7 +3559,12 @@ async function setupStockfish() {
 
 async function stockfishEvaluate(fen, depth, moveTimeMs, options = {}) {
   return new Promise((resolve, reject) => {
-    if (!STATE.engine.worker) {
+    // Keep this worker in a local reference. When a worker fails mid-round the
+    // app switches to the local engine and the shared reference becomes null;
+    // the cleanup below used to throw on that null before rejecting, which left
+    // the promise pending and the screen stuck on "evaluating" with no way out.
+    const worker = STATE.engine.worker;
+    if (!worker) {
       reject(new Error("Worker no disponible"));
       return;
     }
@@ -3543,8 +3602,7 @@ async function stockfishEvaluate(fen, depth, moveTimeMs, options = {}) {
     const timeout = setTimeout(() => {
       if (finished) return;
       finished = true;
-      if (progressInterval) clearInterval(progressInterval);
-      STATE.engine.worker.removeEventListener("message", handler);
+      cleanup();
       reject(new Error("Timeout del motor"));
     }, timeoutMs);
 
@@ -3572,21 +3630,34 @@ async function stockfishEvaluate(fen, depth, moveTimeMs, options = {}) {
       if (line.startsWith("bestmove")) {
         if (finished) return;
         finished = true;
-        clearTimeout(timeout);
-        if (progressInterval) clearInterval(progressInterval);
+        cleanup();
         emitProgress(1);
         const bestMove = line.split(" ")[1];
-        STATE.engine.worker.removeEventListener("message", handler);
         resolve({ bestMove, score: lastScore });
       }
     };
 
-    STATE.engine.worker.addEventListener("message", handler);
-    STATE.engine.worker.postMessage(`position fen ${fen}`);
+    const onWorkerError = () => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      reject(new Error("Fallo del motor"));
+    };
+
+    function cleanup() {
+      if (progressInterval) clearInterval(progressInterval);
+      clearTimeout(timeout);
+      worker.removeEventListener("message", handler);
+      worker.removeEventListener("error", onWorkerError);
+    }
+
+    worker.addEventListener("message", handler);
+    worker.addEventListener("error", onWorkerError);
+    worker.postMessage(`position fen ${fen}`);
     if (safeMoveTime > 0) {
-      STATE.engine.worker.postMessage(`go movetime ${safeMoveTime}`);
+      worker.postMessage(`go movetime ${safeMoveTime}`);
     } else {
-      STATE.engine.worker.postMessage(`go depth ${depth}`);
+      worker.postMessage(`go depth ${depth}`);
     }
   });
 }
@@ -3952,7 +4023,16 @@ async function evaluateCandidateForMistake(candidate, ctx) {
   return null;
 }
 
+// Reports how the search ended, not only what it found. Cancelling and running
+// out of candidates both used to come back as nothing, so cancelling ended the
+// session as if there were no positions left.
 async function findNextMistake(ctx, extraStatusPrefix = "") {
+  const mistake = await searchNextMistake(ctx, extraStatusPrefix);
+  if (mistake) return { status: "found", mistake };
+  return { status: STATE.ui.searchCancelRequested ? "cancelled" : "exhausted", mistake: null };
+}
+
+async function searchNextMistake(ctx, extraStatusPrefix = "") {
   if (!ctx || STATE.analysisInProgress) return null;
   STATE.analysisInProgress = true;
   STATE.ui.searchCancelRequested = false;
@@ -3995,6 +4075,12 @@ async function findNextMistake(ctx, extraStatusPrefix = "") {
       ctx.cursor += 1;
       const mistake = await evaluateCandidateForMistake(candidate, ctx);
       ctx.analyzed += 1;
+      if (STATE.ui.searchCancelRequested) {
+        // Cancelling while a candidate was being evaluated has to stop here.
+        // Keep what the engine just found so the next search can reuse it.
+        if (mistake) ctx.repeatMistakes.push(mistake);
+        break;
+      }
       if (mistake) {
         const gameIdx = Number.isInteger(mistake.gameIdx) ? mistake.gameIdx : candidate.gameIdx;
         const usedGames = ctx.usedGameIndices instanceof Set ? ctx.usedGameIndices : null;
@@ -4035,7 +4121,7 @@ async function findNextMistake(ctx, extraStatusPrefix = "") {
       }
     }
 
-    if (ctx.repeatMistakes.length > 0) {
+    if (!STATE.ui.searchCancelRequested && ctx.repeatMistakes.length > 0) {
       const deferredRepeat = ctx.repeatMistakes.shift();
       const usedGames = ctx.usedGameIndices instanceof Set ? ctx.usedGameIndices : null;
       if (usedGames && Number.isInteger(deferredRepeat.gameIdx)) usedGames.add(deferredRepeat.gameIdx);
@@ -4044,6 +4130,12 @@ async function findNextMistake(ctx, extraStatusPrefix = "") {
       analysisStatusEl.textContent = t("analysis.status.noFresh", { prefix: extraStatusPrefix, count: ctx.detected });
       if (isNextSearch) updateNextSearchStatus(ctx, "Posición detectada (repetida)");
       return deferredRepeat;
+    }
+
+    if (STATE.ui.searchCancelRequested) {
+      updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.cancelled"));
+      if (isNextSearch) updateNextSearchStatus(ctx, "Búsqueda cancelada");
+      return null;
     }
 
     updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.finished"));
@@ -5022,6 +5114,8 @@ async function resolveRound(move, options = {}) {
     hidePositionSearchOverlay();
     hideHandoffOverlay();
     hideResultOverlay();
+    restoreBoardToRoundStart();
+    if (roundResultPanelEl) roundResultPanelEl.classList.remove("hidden");
     roundResultEl.textContent = t("analysis.status.roundError", { error: error.message || t("common.unknown") });
     STATE.roundSubmitted = false;
     skipBtn.disabled = false;
@@ -5031,6 +5125,22 @@ async function resolveRound(move, options = {}) {
   } finally {
     STATE.isResolvingRound = false;
   }
+}
+
+// Puts the board back to the position the round started from. The played move
+// is shown on the board before the engine runs, so a failed evaluation would
+// otherwise leave the screen one move ahead of the position that the next
+// attempt is scored against.
+function restoreBoardToRoundStart() {
+  const position = STATE.positions[STATE.index];
+  if (!position) return;
+  STATE.board = new Chess(position.fen);
+  STATE.userMove = null;
+  STATE.selection = null;
+  STATE.legalMoves = [];
+  STATE.revealed = { best: null, game: null, user: null, userAlt: null };
+  setBoardPerspective(STATE.board.turn);
+  renderBoard();
 }
 
 // Computes per-round config, snapshots the starting position, and resets
@@ -5385,6 +5495,7 @@ async function nextPosition() {
     STATE.resultView.analysisMode = false;
     updateResultAnalysisControls();
   }
+  const resultSnapshot = captureResultViewSnapshot();
   hideResultOverlay();
 
   if (isDuelMode()) {
@@ -5457,11 +5568,17 @@ async function nextPosition() {
     skipBtn.disabled = true;
     // Do not show a duplicate loading message on the top bar
     roundStatusEl.textContent = "";
-    showPositionSearchOverlay(t("overlay.searchingNext"));
+    showPositionSearchOverlay(t("overlay.searchingNext"), "", { cancellable: true });
     setUiPhase("loading_next_position", true);
     const sessionToken = STATE.sessionToken;
-    const nextMistake = await findNextMistake(ctx, "Siguiente: ");
+    const search = await findNextMistake(ctx, "Siguiente: ");
     if (!isCurrentSessionWork(sessionToken)) return;
+    if (search.status === "cancelled") {
+      hidePositionSearchOverlay();
+      restoreResultView(resultSnapshot);
+      return;
+    }
+    const nextMistake = search.mistake;
     if (!nextMistake) {
       hidePositionSearchOverlay();
       if (roundResultEl) roundResultEl.classList.add("hidden");
@@ -5492,6 +5609,10 @@ async function nextPosition() {
     }
     showPositionSearchOverlay(t("game.positionFound"), formatPositionSearchMeta(nextMistake));
     await sleepMs(1200);
+    // The session can be restarted during this pause. Without this check the
+    // finished search would open a round on top of the screen that was just
+    // reset, with a clock and a score belonging to a session that is gone.
+    if (!isCurrentSessionWork(sessionToken)) return;
     hidePositionSearchOverlay();
     STATE.positions.push(nextMistake);
     STATE.allMistakes.push(nextMistake);
@@ -5645,6 +5766,7 @@ function refreshLocalizedUi() {
       showProgress: overlayState.showProgress,
       progressRatio: overlayState.progressRatio,
       progressLabel: overlayState.progressLabel,
+      cancellable: overlayState.cancellable,
     });
   }
 
@@ -6158,19 +6280,21 @@ async function startSessionPipeline() {
   updateCompetitiveStatus();
 
   try {
+    await ensureEngineForSession(sessionToken);
+    if (!isCurrentSessionWork(sessionToken)) return;
     if (!(await ensurePgnSourceAvailable(sessionToken))) return;
 
     const ctx = await loadCandidateAnalysisContext(effectiveConfig);
     if (!ctx) return;
 
-    const firstMistake = await findNextMistake(ctx, "Inicio: ");
+    const firstSearch = await findNextMistake(ctx, "Inicio: ");
     if (!isCurrentSessionWork(sessionToken)) return;
-    if (!firstMistake) {
+    if (!firstSearch.mistake) {
       sendWizardBackToSourceStep("provider.noUsefulMistakes", { analyzed: ctx.analyzed, total: ctx.total });
       return;
     }
 
-    enterPlayModeWithFirstPosition(firstMistake, ctx);
+    enterPlayModeWithFirstPosition(firstSearch.mistake, ctx);
   } catch (error) {
     if (!isCurrentSessionWork(sessionToken)) return;
     const message = t("analysis.status.error", { error: error.message || t("common.unknown") });
@@ -6226,6 +6350,21 @@ function resetSessionStateForNewPipeline() {
   skipBtn.disabled = true;
   STATE.targetPositions = setupConfig.sessionSize;
   return sessionToken;
+}
+
+// Brings the strong engine back before a session starts. Going back to the menu
+// terminates its worker, so without this every later session in the same tab
+// would be scored by the shallow local fallback without ever saying so.
+async function ensureEngineForSession(sessionToken) {
+  if (STATE.engine.mode === "stockfish" && STATE.engine.ready) return;
+  analysisStatusEl.textContent = t("analysis.status.prepareEngine");
+  await setupStockfish();
+}
+
+// True when this session is being scored by the shallow local fallback instead
+// of the strong engine, which changes how demanding the scoring is.
+function isUsingFallbackEngine() {
+  return STATE.engine.mode !== "stockfish" || !STATE.engine.ready;
 }
 
 // Makes sure a PGN source is loaded, downloading one from the configured
@@ -6326,7 +6465,9 @@ function enterPlayModeWithFirstPosition(firstMistake, ctx) {
   } else {
     sessionHintEl.textContent = t("game.sessionHintCitizen", { target: STATE.targetPositions, detected: ctx.detected });
   }
-  analysisStatusEl.textContent = t("analysis.status.firstReady");
+  analysisStatusEl.textContent = isUsingFallbackEngine()
+    ? `${t("analysis.status.firstReady")} ${t("analysis.status.localEngineNotice")}`
+    : t("analysis.status.firstReady");
   setupPanelEl.classList.add("hidden");
   document.body.classList.add("playing-mode");
   gameLayoutEl.classList.remove("hidden");

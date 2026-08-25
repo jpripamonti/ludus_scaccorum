@@ -140,9 +140,9 @@ const context = {
 context.globalThis = context;
 
 const appSource = fs.readFileSync(path.join(root, "app.js"), "utf8");
-vm.runInNewContext(`${appSource}\nglobalThis.__ludusTest = { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource };`, context);
+vm.runInNewContext(`${appSource}\nglobalThis.__ludusTest = { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource, findNextMistake, restoreBoardToRoundStart };`, context);
 
-const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource } = context.__ludusTest;
+const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource, findNextMistake, restoreBoardToRoundStart } = context.__ludusTest;
 
 function play(game, uci) {
   const move = uciToMove(uci, game);
@@ -432,4 +432,103 @@ assert.strictEqual(installRemotePgnSource({ ...anaBase, provider: "chesscom" }),
 STATE.remotePgnSources = [];
 userField.value = "";
 
-console.log("chess-regression-check passed");
+// ---------- Recovering from a failed evaluation ----------
+
+// The move a person plays is shown on the board before the engine runs. If the
+// evaluation fails, the board has to go back to the position the round started
+// from: the next attempt is scored against that position, so leaving the played
+// move on screen would score one board while showing another.
+const roundStartFen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
+STATE.positions = [{ fen: roundStartFen }];
+STATE.index = 0;
+STATE.board = new Chess(roundStartFen);
+STATE.board.makeMove(uciToMove("f1b5", STATE.board));
+STATE.userMove = { from: 61, to: 33 };
+STATE.revealed = { best: null, game: null, user: { from: 61, to: 33 }, userAlt: null };
+assert.notStrictEqual(STATE.board.fen(), roundStartFen, "the played move should be on the board first");
+
+restoreBoardToRoundStart();
+assert.strictEqual(STATE.board.fen(), roundStartFen, "a failed evaluation must put the board back");
+assert.strictEqual(STATE.userMove, null);
+assert.strictEqual(STATE.revealed.user, null);
+STATE.positions = [];
+
+// ---------- Cancelling the search for the next position ----------
+
+function searchContext(candidates = []) {
+  return {
+    games: [],
+    targetName: "Ana",
+    depth: 1,
+    moveTimeMs: 1,
+    thresholdCp: 100,
+    candidates,
+    total: candidates.length,
+    analyzed: 0,
+    detected: 0,
+    cursor: 0,
+    usedGameIndices: new Set(),
+    uniqueGameCount: 0,
+    repeatMistakes: [],
+  };
+}
+
+const somePosition = { fen: "8/8/8/8/8/8/8/K6k w - - 0 1", gameIdx: 0 };
+
+async function searchChecks() {
+  // Nothing left to look at: the session really has run out of positions.
+  const exhausted = await findNextMistake(searchContext());
+  assert.strictEqual(exhausted.status, "exhausted");
+  assert.strictEqual(exhausted.mistake, null);
+
+  // A position was found and is handed over.
+  const withSpare = searchContext();
+  withSpare.repeatMistakes.push(somePosition);
+  const found = await findNextMistake(withSpare);
+  assert.strictEqual(found.status, "found");
+  assert.strictEqual(found.mistake, somePosition);
+
+  const realEvaluate = context.evaluateCandidateForMistake;
+
+  // Cancelling while a candidate is being evaluated stops the search there and
+  // is reported as a cancellation, never as "there are no more positions".
+  const cancelled = searchContext([{ gameIdx: 0 }, { gameIdx: 1 }, { gameIdx: 2 }]);
+  context.evaluateCandidateForMistake = async () => {
+    STATE.ui.searchCancelRequested = true;
+    return null;
+  };
+  const cancelledOutcome = await findNextMistake(cancelled);
+  assert.strictEqual(cancelledOutcome.status, "cancelled");
+  assert.strictEqual(cancelledOutcome.mistake, null);
+  assert.strictEqual(cancelled.cursor, 1, "the search should stop at the candidate that was running");
+
+  // A position found in the very tick the person cancels is kept for the next
+  // search instead of being handed over as if nothing had been cancelled.
+  const cancelledAfterFinding = searchContext([{ gameIdx: 0 }, { gameIdx: 1 }]);
+  context.evaluateCandidateForMistake = async () => {
+    STATE.ui.searchCancelRequested = true;
+    return somePosition;
+  };
+  const lateFind = await findNextMistake(cancelledAfterFinding);
+  assert.strictEqual(lateFind.status, "cancelled");
+  assert.strictEqual(lateFind.mistake, null);
+  assert.strictEqual(cancelledAfterFinding.repeatMistakes.length, 1, "work already done should be kept for the next search");
+
+  // Spare positions held back from an earlier search are not handed over during
+  // a cancelled one either.
+  const cancelledWithSpare = searchContext([{ gameIdx: 0 }]);
+  cancelledWithSpare.repeatMistakes.push(somePosition);
+  cancelledWithSpare.cursor = 0;
+  const spareOutcome = await findNextMistake(cancelledWithSpare);
+  assert.strictEqual(spareOutcome.status, "cancelled");
+
+  context.evaluateCandidateForMistake = realEvaluate;
+  STATE.ui.searchCancelRequested = false;
+}
+
+searchChecks().then(() => {
+  console.log("chess-regression-check passed");
+}, (error) => {
+  console.error(error);
+  process.exit(1);
+});
