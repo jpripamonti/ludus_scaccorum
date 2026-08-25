@@ -5,13 +5,19 @@
    ============================================================ */
 
 :root {
+  /* The whole interface is painted dark; declaring it lets the browser draw its
+     own controls (number spinners, scrollbars, text selection) to match. */
+  color-scheme: dark;
+
   /* ── Color: Neutrals (Dark Theme) ── */
   --color-bg:          oklch(13%   0.018 255);
   --color-surface:     oklch(17.5% 0.018 255);
   --color-surface-2:   oklch(21.5% 0.016 255);
   --color-surface-3:   oklch(27%   0.014 255);
-  --color-border:      oklch(30%   0.016 255);
-  --color-border-mid:  oklch(38%   0.016 255);
+  /* Borders are the only outline most controls have, so they need at least
+     3:1 against every surface they sit on (WCAG 1.4.11). */
+  --color-border:      oklch(52%   0.016 255);
+  --color-border-mid:  oklch(60%   0.016 255);
   --color-text:        oklch(93%   0.006 255);
   --color-text-muted:  oklch(60%   0.012 255);
   --color-text-dim:    oklch(40%   0.012 255);
@@ -31,9 +37,14 @@
   --color-dubious:     oklch(70%   0.160 55);
   --color-dubious-bg:  oklch(19%   0.080 55);
   --color-dubious-bd:  oklch(32%   0.100 55);
-  --color-blunder:     oklch(58%   0.210 22);
+  --color-blunder:     oklch(64%   0.190 22);
   --color-blunder-bg:  oklch(18%   0.090 22);
   --color-blunder-bd:  oklch(30%   0.120 22);
+
+  /* ── Color: Focus ring ── */
+  /* A blue that is not the brand gold and not any of the four verdict colours,
+     so a focus ring can never be mistaken for feedback about a move. */
+  --color-info:        oklch(80%   0.130 230);
 
   /* ── Color: Board ── */
   --color-board-light:        #f0d9b5;
