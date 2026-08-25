@@ -50,6 +50,12 @@ const wizardSwitchPlatformBtn = document.getElementById("wizard-switch-platform-
 const wizardClearCacheBtn = document.getElementById("wizard-clear-cache-btn");
 const wizardClearCacheStatusEl = document.getElementById("wizard-clear-cache-status");
 const wizardSummaryEl = document.getElementById("wizard-summary");
+const wizardSummaryBoxEl = document.getElementById("wizard-summary-box");
+// En pantallas anchas el resumen es una columna fija al costado, así que se
+// mantiene siempre desplegado; en teléfono es un bloque que se puede plegar.
+const wizardWideScreenQuery = typeof window.matchMedia === "function"
+  ? window.matchMedia("(min-width: 921px)")
+  : null;
 
 const gameLayoutEl = document.getElementById("game-layout");
 const leftPlayerPanelEl = document.getElementById("left-player-panel");
@@ -214,6 +220,7 @@ const TRANSLATIONS = {
     "wizard.step3.customCount": "Personalizado (1 a 200)",
     "wizard.step3.timerLabel": "Tiempo por ronda",
     "wizard.step3.timerAriaLabel": "Tiempo por ronda",
+    "wizard.step3.timerCustom": "Personalizado (5 a 360 segundos)",
     "wizard.step3.sessionSummary": "Resumen de la sesión",
     "wizard.step3.analysisPrompt": "Tocá “Comenzar sesión” para buscar errores.",
     "wizard.validation.chooseMode": "Elegí si querés jugar solo/a o contra alguien.",
@@ -485,6 +492,7 @@ const TRANSLATIONS = {
     "wizard.step3.customCount": "Custom (1 to 200)",
     "wizard.step3.timerLabel": "Time per round",
     "wizard.step3.timerAriaLabel": "Time per round",
+    "wizard.step3.timerCustom": "Custom (5 to 360 seconds)",
     "wizard.step3.sessionSummary": "Session summary",
     "wizard.step3.analysisPrompt": "Tap “Start session” to look for mistakes.",
     "wizard.validation.chooseMode": "Choose whether you want to play solo or against someone.",
@@ -2361,7 +2369,13 @@ function focusFirstInvalidWizardControl(step, validation = {}) {
   if (step === 3 && sessionSizeEl) sessionSizeEl.focus();
 }
 
+function syncWizardSummaryDisclosure() {
+  if (!wizardSummaryBoxEl) return;
+  if (!wizardWideScreenQuery || wizardWideScreenQuery.matches) wizardSummaryBoxEl.open = true;
+}
+
 function renderWizardSummary() {
+  syncWizardSummaryDisclosure();
   if (!wizardSummaryEl) return;
   const config = collectWizardConfig();
   const modeText = config.mode === "duel"
@@ -2429,7 +2443,9 @@ function renderWizardStep() {
 
   if (step !== 1) clearWizardStepError();
   if (step !== 2) clearWizardSourceError();
-  if (step === 3) renderWizardSummary();
+  // El resumen ya no vive dentro del paso 3: acompaña a los tres pasos, así que
+  // se repinta siempre para que refleje lo que se acaba de elegir.
+  renderWizardSummary();
 
   updateAnalyzeButtonState();
 }
@@ -6597,6 +6613,17 @@ if (handoffOverlayEl) {
 if (positionSearchCancelBtnEl) {
   positionSearchCancelBtnEl.addEventListener("click", () => {
     STATE.ui.searchCancelRequested = true;
+  });
+}
+
+if (wizardWideScreenQuery && typeof wizardWideScreenQuery.addEventListener === "function") {
+  wizardWideScreenQuery.addEventListener("change", syncWizardSummaryDisclosure);
+}
+if (wizardSummaryBoxEl) {
+  // En pantalla ancha la tarjeta de resumen no se pliega: si algo la cierra
+  // (por ejemplo el teclado sobre el título), vuelve a abrirse sola.
+  wizardSummaryBoxEl.addEventListener("toggle", () => {
+    if (!wizardSummaryBoxEl.open) syncWizardSummaryDisclosure();
   });
 }
 

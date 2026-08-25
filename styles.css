@@ -404,18 +404,21 @@ body.landing-active {
   color: var(--color-text);
 }
 
+/* El asistente usa un solo marco: el de .setup-wizard. El panel exterior es
+   apenas un contenedor sin fondo, sin borde y sin alto mínimo, para que la
+   altura la determine el contenido. */
 #setup-panel {
   position: relative;
-  overflow: hidden;
-  min-height: min(72vh, 780px);
+  overflow: visible;
+  min-height: 0;
   display: grid;
   align-content: start;
   justify-items: center;
   gap: var(--space-4);
-  padding: var(--space-4);
-  background: var(--color-bg);
-  border-color: var(--color-border);
-  box-shadow: var(--shadow-panel);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
   min-width: 0;
 }
 
@@ -1000,7 +1003,7 @@ body.duel-mode #next-btn { min-width: 176px; }
     padding: 0 12px;
   }
 
-  #setup-panel { padding: 12px; min-height: auto; }
+  #setup-panel { padding: 0; min-height: auto; }
   #setup-panel h2 { font-size: clamp(24px, 6vw, 32px); }
 
   .landing-screen { min-height: min(72vh, 620px); border-radius: 15px; }
@@ -2018,7 +2021,7 @@ body.playing-mode #landing-screen { display: none !important; }
    ============================================================ */
 
 .setup-wizard {
-  width: min(920px, 100%);
+  width: min(980px, 100%);
   margin: 0 auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-2xl);
@@ -2071,6 +2074,16 @@ body.playing-mode #landing-screen { display: none !important; }
   border-radius: var(--radius-pill);
   background: var(--color-gold);
   transition: width var(--dur-base) var(--ease-out);
+}
+
+/* Dos columnas dentro del mismo marco: a la izquierda la pregunta del paso,
+   a la derecha el resumen de lo ya decidido. */
+.wizard-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 264px;
+  gap: var(--space-5);
+  align-items: start;
+  min-width: 0;
 }
 
 .wizard-steps { display: grid; min-width: 0; }
@@ -2179,6 +2192,8 @@ body.playing-mode #landing-screen { display: none !important; }
   font-weight: 700;
 }
 
+/* Cada campo queda pegado a la izquierda, justo debajo de su etiqueta, y el
+   texto que se escribe no va centrado (si no, parece una ficha más). */
 .wizard-inline-form input,
 #wizard-step-2 input,
 #wizard-step-3 input {
@@ -2190,9 +2205,12 @@ body.playing-mode #landing-screen { display: none !important; }
   padding: 8px 12px;
   max-width: 320px;
   width: 100%;
-  margin: 0 auto;
-  text-align: center;
+  margin: 0;
+  text-align: left;
 }
+
+#session-size,
+#turn-time-seconds { max-width: 180px; }
 
 .wizard-status {
   margin: 0;
@@ -2259,7 +2277,17 @@ body.playing-mode #landing-screen { display: none !important; }
   gap: var(--space-2);
 }
 
-.wizard-step-group { margin-top: var(--space-4); display: grid; gap: var(--space-2); }
+.wizard-step-group { display: grid; gap: var(--space-2); }
+
+/* Rótulo del grupo de fichas: no es un <label for>, porque no describe un
+   campo concreto sino el conjunto de opciones. */
+.wizard-group-label {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  letter-spacing: 0.01em;
+}
 
 .wizard-size-chip {
   min-height: 52px;
@@ -2292,50 +2320,88 @@ body.playing-mode #landing-screen { display: none !important; }
   font-family: var(--font-mono);
 }
 
-.wizard-summary {
+/* Tarjeta de resumen: en escritorio acompaña a la columna de la pregunta y se
+   queda a la vista mientras se baja; en teléfono es un bloque plegable. */
+.wizard-summary-box {
+  position: sticky;
+  top: var(--space-4);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--color-surface-2);
   padding: var(--space-3);
+  min-width: 0;
+}
+
+.wizard-summary-title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--color-text);
+  list-style: none;
+  cursor: default;
+  pointer-events: none;
+}
+
+.wizard-summary-title::-webkit-details-marker { display: none; }
+
+.wizard-summary {
+  margin-top: 10px;
   display: grid;
   gap: var(--space-1);
+  min-width: 0;
 }
 
 .wizard-summary p {
   margin: 0;
   font-size: var(--text-base);
+  line-height: 1.4;
   color: var(--color-text-muted);
+  overflow-wrap: anywhere;
 }
 
-.wizard-summary-floating {
-  margin-top: var(--space-6);
-  border-top: 1px solid var(--color-border);
-  padding-top: var(--space-5);
-}
-
-.wizard-summary-title {
-  margin: 0 0 10px;
-  font-size: var(--text-base);
-  font-weight: 700;
-  color: var(--color-text);
-}
-
+/* Pie pegado al borde inferior del marco: la acción principal nunca se va de
+   la pantalla, por más que la columna de la izquierda crezca. */
 .wizard-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   display: flex;
   gap: 10px;
   align-items: center;
+  margin: 0 calc(var(--space-5) * -1) calc(var(--space-5) * -1);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--color-border);
+  border-radius: 0 0 var(--radius-2xl) var(--radius-2xl);
+  background: var(--color-surface);
 }
 
-.wizard-footer #source-back-btn,
 .wizard-footer #wizard-prev-btn,
 .wizard-footer #wizard-next-btn,
 .wizard-footer #analyze-btn {
   min-width: var(--btn-w-wizard-nav);
 }
 
+/* Salir del asistente es la acción menos importante del pie: texto discreto. */
+.wizard-footer #source-back-btn {
+  margin-right: auto;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 4px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 600;
+}
+
+.wizard-footer #source-back-btn:hover,
+.wizard-footer #source-back-btn:focus-visible {
+  color: var(--color-text);
+}
+
 .wizard-footer #wizard-next-btn,
 .wizard-footer #analyze-btn {
-  margin-left: auto;
   border-color: var(--color-gold-dim);
   background: var(--color-gold-bg);
   color: var(--color-gold);
@@ -2352,7 +2418,9 @@ body.playing-mode #landing-screen { display: none !important; }
 /* ── Responsive: wizard ── */
 @media (max-width: 920px) {
   body { overflow-x: hidden; }
-  #setup-panel { width: 100%; max-width: 100%; overflow-x: hidden; }
+  /* clip y no hidden: hidden convertiría al panel en un contenedor con scroll
+     propio y el pie del asistente dejaría de quedarse pegado abajo. */
+  #setup-panel { width: 100%; max-width: 100%; overflow-x: clip; }
   .setup-wizard { width: 100%; max-width: 100%; padding: var(--space-4); gap: var(--space-3); }
   .wizard-header { min-width: 0; }
   #setup-panel .wizard-header h2 {
@@ -2380,15 +2448,40 @@ body.playing-mode #landing-screen { display: none !important; }
     min-height: 44px;
   }
 
-  .wizard-footer { display: grid; grid-template-columns: 1fr 1fr; }
+  /* Una sola columna: la pregunta arriba y el resumen plegado al final. */
+  .wizard-body { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
 
+  .wizard-summary-box { position: static; }
+
+  .wizard-summary-title {
+    cursor: pointer;
+    pointer-events: auto;
+    list-style: revert;
+  }
+
+  .wizard-summary-title::-webkit-details-marker { display: revert; }
+
+  .wizard-footer {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    margin: 0 calc(var(--space-4) * -1) calc(var(--space-4) * -1);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  /* La navegación va primero; salir del asistente queda debajo, en chico. */
+  .wizard-footer #wizard-prev-btn,
   .wizard-footer #wizard-next-btn,
-  .wizard-footer #analyze-btn { margin-left: 0; }
+  .wizard-footer #analyze-btn { order: 1; }
 
-  .wizard-footer #source-back-btn,
+  .wizard-footer #source-back-btn {
+    order: 2;
+    grid-column: 1 / -1;
+    margin-right: 0;
+    justify-self: center;
+  }
+
   .wizard-footer #wizard-prev-btn.hidden + #wizard-next-btn { grid-column: 1 / -1; }
 
-  .wizard-footer #source-back-btn,
   .wizard-footer #wizard-prev-btn,
   .wizard-footer #wizard-next-btn,
   .wizard-footer #analyze-btn { min-width: 0; width: 100%; }
