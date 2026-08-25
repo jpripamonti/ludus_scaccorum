@@ -28,7 +28,7 @@ function sha256(file) {
   "sw.js",
   "LICENSE",
   "THIRD_PARTY_NOTICES.md",
-  "assets/landing/maestro.png",
+  "assets/landing/maestro.jpg",
   "assets/landing/maestro.webp",
   "vendor/stockfish-18-lite-single.js",
   "vendor/stockfish-18-lite-single.wasm",

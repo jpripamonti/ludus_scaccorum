@@ -127,10 +127,19 @@
   --btn-w-wizard-nav: 180px;
   --shadow-soft:    var(--shadow-panel);
   --shadow-strong:  var(--shadow-board);
-  --landing-bg-image: image-set(
-    url("assets/landing/maestro.webp") type("image/webp"),
-    url("assets/landing/maestro.png") type("image/png")
-  );
+  /* Plain JPEG by default so browsers without image-set() still get the
+     artwork: this value sits inside a background shorthand, and an unsupported
+     function there would drop the gradient and the colour with it. */
+  --landing-bg-image: url("assets/landing/maestro.jpg");
+}
+
+@supports (background-image: image-set(url("assets/landing/maestro.webp") type("image/webp"))) {
+  :root {
+    --landing-bg-image: image-set(
+      url("assets/landing/maestro.webp") type("image/webp"),
+      url("assets/landing/maestro.jpg") type("image/jpeg")
+    );
+  }
 }
 
 * {

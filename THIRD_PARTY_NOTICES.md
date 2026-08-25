@@ -30,13 +30,10 @@ Operational requirement: keep these files in the third-party inventory. Recommen
 
 ## Landing artwork
 
-- Files:
-  - `assets/landing/maestro.png`
-  - `assets/landing/maestro.webp`
-- Current sizes:
-  - `maestro.png`: approximately 6.9 MB
-  - `maestro.webp`: approximately 172 KB
-- Repository history: both files appear only in this repository's earliest commits (`Init`, 2026-02-25, and `Initial commit`, 2026-03-12) and only ever as newly-added binary files — `git log --all -- assets/landing/maestro.png assets/landing/maestro.webp` shows no later commit touching them, and neither commit message nor any commit in the surrounding history references an external source, stock-image site, or attribution for this image.
+- Files shipped:
+  - `assets/landing/maestro.webp` — approximately 170 KB, 2816x1504, used by every browser that supports WebP.
+  - `assets/landing/maestro.jpg` — approximately 383 KB, 2816x1504, fallback for browsers without WebP.
+- Original: the 7.2 MB PNG the image was delivered as (`assets/landing/maestro.png`, 2816x1504) was removed from the working tree on 2026-08-25 because shipping it cost every first visit roughly 7 MB for a fallback almost no browser used. It remains available in git history at commit `0d44645c730e3bec932b852a9c99c8540d0de8e2` (`git show 0d44645:assets/landing/maestro.png > maestro.png`) and is the source both shipped files were derived from.
 - Origin: created for this project. The project owner generated the image with Google Gemini; it was not taken from a stock library, another artist, or any other external source. Confirmed by the project owner on 2026-08-25.
 - License/source: no third-party license applies. Google's Generative AI Additional Terms state that Google does not claim ownership of content generated with its consumer AI tools, so redistributing this image as part of Ludus Scaccorum is permitted.
 - Caveat worth keeping on record: in several jurisdictions (the United States among them) an image produced entirely by an AI tool, with no substantial human authorship, may not attract copyright protection at all. That does not restrict this project's use of it, but the project should not assume exclusive rights over the image or license it to others as an original work.
