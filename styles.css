@@ -1264,7 +1264,10 @@ body.solo-mode .board-stage {
   width: var(--stage-width);
   margin-inline: auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  /* La posición y el reloj se miden por su contenido, y el turno se queda con
+     lo que sobra: así el texto del progreso no se parte en dos renglones
+     mientras al lado queda espacio libre. */
+  grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas:
     "info turn clock"
     "meta meta meta";
@@ -1305,6 +1308,7 @@ body.result-visible .round-bar { width: 100%; }
 .solo-progress-text {
   font-size: var(--text-base);
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 .solo-progress-track {
