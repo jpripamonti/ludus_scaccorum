@@ -96,6 +96,7 @@ const consentOverlayTitleEl = document.getElementById("consent-overlay-title");
 const consentOverlayBodyEl = document.getElementById("consent-overlay-body");
 const consentOverlayAcceptBtn = document.getElementById("consent-overlay-accept");
 const consentOverlayCancelBtn = document.getElementById("consent-overlay-cancel");
+const consentOverlayUsernameLabelEl = document.getElementById("consent-overlay-username-label");
 const consentOverlayUsernameInputEl = document.getElementById("consent-overlay-username-input");
 const consentOverlayErrorEl = document.getElementById("consent-overlay-error");
 const revealBestBtn = document.getElementById("reveal-best-btn");
@@ -178,7 +179,10 @@ const TRANSLATIONS = {
     "buttons.skipMove": "Omitir jugada (0 pts)",
     "buttons.restartMenu": "Volver al menú",
     "buttons.cancelSearch": "Cancelar búsqueda",
-    "confirm.restartToSetup": "¿Seguro que querés volver al menú? Se perderá el progreso de la sesión actual.",
+    "confirm.restartTitle": "¿Volver al menú?",
+    "confirm.restartToSetup": "Si volvés al menú se borran las posiciones de esta sesión y el puntaje acumulado. ¿Volver igual?",
+    "confirm.restartAccept": "Volver al menú",
+    "confirm.restartCancel": "Seguir jugando",
     "wizard.title": "Configuración guiada",
     "wizard.heading": "Armemos tu sesión en 3 pasos",
     "wizard.stepIndicator": "Paso {step} de {total}",
@@ -200,6 +204,7 @@ const TRANSLATIONS = {
     "wizard.step2.usernameLabel": "Nombre de usuario",
     "wizard.step2.enterUsername": "Ingresá tu usuario para continuar.",
     "wizard.step2.clearCache": "Borrar datos guardados de partidas",
+    "wizard.step2.clearCacheConfirm": "Tocá de nuevo para borrar",
     "wizard.step2.clearCacheDone": "Se borraron las partidas guardadas en este navegador.",
     "wizard.step3.question": "¿Cuántas posiciones querés jugar hoy?",
     "wizard.step3.ariaLabel": "Cantidad de posiciones",
@@ -445,7 +450,10 @@ const TRANSLATIONS = {
     "buttons.skipMove": "Skip move (0 pts)",
     "buttons.restartMenu": "Back to menu",
     "buttons.cancelSearch": "Cancel search",
-    "confirm.restartToSetup": "Are you sure you want to go back to the menu? Your current session progress will be lost.",
+    "confirm.restartTitle": "Go back to the menu?",
+    "confirm.restartToSetup": "Going back to the menu clears this session's positions and your running score. Go back anyway?",
+    "confirm.restartAccept": "Back to menu",
+    "confirm.restartCancel": "Keep playing",
     "wizard.title": "Guided setup",
     "wizard.heading": "Let's build your session in 3 steps",
     "wizard.stepIndicator": "Step {step} of {total}",
@@ -467,6 +475,7 @@ const TRANSLATIONS = {
     "wizard.step2.usernameLabel": "Username",
     "wizard.step2.enterUsername": "Enter your username to continue.",
     "wizard.step2.clearCache": "Clear saved game data",
+    "wizard.step2.clearCacheConfirm": "Tap again to delete",
     "wizard.step2.clearCacheDone": "Saved games were cleared from this browser.",
     "wizard.step3.question": "How many positions do you want to play today?",
     "wizard.step3.ariaLabel": "Number of positions",
@@ -2854,22 +2863,30 @@ function installRemotePgnSource(source, options = {}) {
   }
 }
 
-function confirmRemoteFetchConsent(provider, username) {
-  if (STATE.remoteConsent[provider]) return Promise.resolve(true);
+let consentModalOpen = false;
+
+function showConfirmModal(options = {}) {
   if (!consentOverlayEl || !consentOverlayAcceptBtn || !consentOverlayCancelBtn) {
     return Promise.resolve(true);
   }
+  if (consentModalOpen) return Promise.resolve(false);
+  consentModalOpen = true;
 
-  if (consentOverlayTitleEl) consentOverlayTitleEl.textContent = t("privacy.remoteFetchTitle");
-  if (consentOverlayBodyEl) {
-    consentOverlayBodyEl.textContent = t("privacy.remoteFetchConfirm", {
-      provider: providerLabel(provider),
-      user: username,
-    });
+  const retypeText = typeof options.retypeText === "string" ? options.retypeText.trim() : "";
+  const needsRetype = retypeText !== "";
+
+  if (consentOverlayTitleEl) consentOverlayTitleEl.textContent = options.title || "";
+  if (consentOverlayBodyEl) consentOverlayBodyEl.textContent = options.body || "";
+  consentOverlayAcceptBtn.textContent = options.acceptLabel || "";
+  consentOverlayCancelBtn.textContent = options.cancelLabel || "";
+  if (consentOverlayUsernameLabelEl) {
+    consentOverlayUsernameLabelEl.textContent = options.retypeLabel || "";
+    consentOverlayUsernameLabelEl.classList.toggle("hidden", !needsRetype);
   }
-  consentOverlayAcceptBtn.textContent = t("privacy.remoteFetchAccept");
-  consentOverlayCancelBtn.textContent = t("privacy.remoteFetchCancel");
-  if (consentOverlayUsernameInputEl) consentOverlayUsernameInputEl.value = "";
+  if (consentOverlayUsernameInputEl) {
+    consentOverlayUsernameInputEl.value = "";
+    consentOverlayUsernameInputEl.classList.toggle("hidden", !needsRetype);
+  }
   if (consentOverlayErrorEl) {
     consentOverlayErrorEl.textContent = "";
     consentOverlayErrorEl.classList.add("hidden");
@@ -2878,28 +2895,95 @@ function confirmRemoteFetchConsent(provider, username) {
   consentOverlayEl.classList.remove("hidden");
 
   return new Promise((resolve) => {
+    const previouslyFocusedEl = document.activeElement;
+    const focusables = () => [
+      needsRetype ? consentOverlayUsernameInputEl : null,
+      consentOverlayCancelBtn,
+      consentOverlayAcceptBtn,
+    ].filter((el) => el && typeof el.focus === "function");
+
     const cleanup = (accepted) => {
+      consentModalOpen = false;
       consentOverlayEl.classList.add("hidden");
       consentOverlayAcceptBtn.removeEventListener("click", onAccept);
       consentOverlayCancelBtn.removeEventListener("click", onCancel);
-      if (accepted) STATE.remoteConsent[provider] = true;
+      consentOverlayEl.removeEventListener("keydown", onKeyDown);
+      if (previouslyFocusedEl
+        && document.contains(previouslyFocusedEl)
+        && typeof previouslyFocusedEl.focus === "function") {
+        previouslyFocusedEl.focus();
+      }
       resolve(accepted);
     };
     const onAccept = () => {
-      const typed = (consentOverlayUsernameInputEl?.value || "").trim().toLowerCase();
-      const expected = String(username || "").trim().toLowerCase();
-      if (typed !== expected) {
-        if (consentOverlayErrorEl) {
-          consentOverlayErrorEl.textContent = t("privacy.remoteFetchUsernameMismatch");
-          consentOverlayErrorEl.classList.remove("hidden");
+      if (needsRetype) {
+        const typed = (consentOverlayUsernameInputEl?.value || "").trim().toLowerCase();
+        if (typed !== retypeText.toLowerCase()) {
+          if (consentOverlayErrorEl) {
+            consentOverlayErrorEl.textContent = options.mismatchMessage || "";
+            consentOverlayErrorEl.classList.remove("hidden");
+          }
+          if (consentOverlayUsernameInputEl) consentOverlayUsernameInputEl.focus();
+          return;
         }
-        return;
       }
       cleanup(true);
     };
     const onCancel = () => cleanup(false);
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCancel();
+        return;
+      }
+      if (event.key === "Enter" && needsRetype && event.target === consentOverlayUsernameInputEl) {
+        event.preventDefault();
+        onAccept();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusables();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
     consentOverlayAcceptBtn.addEventListener("click", onAccept);
     consentOverlayCancelBtn.addEventListener("click", onCancel);
+    consentOverlayEl.addEventListener("keydown", onKeyDown);
+
+    const initialFocusEl = needsRetype && consentOverlayUsernameInputEl
+      ? consentOverlayUsernameInputEl
+      : consentOverlayCancelBtn;
+    requestAnimationFrame(() => {
+      if (initialFocusEl && typeof initialFocusEl.focus === "function") initialFocusEl.focus();
+    });
+  });
+}
+
+function confirmRemoteFetchConsent(provider, username) {
+  if (STATE.remoteConsent[provider]) return Promise.resolve(true);
+  return showConfirmModal({
+    title: t("privacy.remoteFetchTitle"),
+    body: t("privacy.remoteFetchConfirm", {
+      provider: providerLabel(provider),
+      user: username,
+    }),
+    acceptLabel: t("privacy.remoteFetchAccept"),
+    cancelLabel: t("privacy.remoteFetchCancel"),
+    retypeText: String(username || ""),
+    retypeLabel: t("privacy.remoteFetchUsernameLabel"),
+    mismatchMessage: t("privacy.remoteFetchUsernameMismatch"),
+  }).then((accepted) => {
+    if (accepted) STATE.remoteConsent[provider] = true;
+    return accepted;
   });
 }
 
@@ -5456,10 +5540,14 @@ function hasActiveSessionProgress() {
     || STATE.duel.roundResults.some(Boolean);
 }
 
-function confirmRestartToSetup() {
+async function confirmRestartToSetup() {
   if (!hasActiveSessionProgress()) return true;
-  if (typeof window.confirm !== "function") return true;
-  return window.confirm(t("confirm.restartToSetup"));
+  return showConfirmModal({
+    title: t("confirm.restartTitle"),
+    body: t("confirm.restartToSetup"),
+    acceptLabel: t("confirm.restartAccept"),
+    cancelLabel: t("confirm.restartCancel"),
+  });
 }
 
 function refreshLocalizedUi() {
@@ -6375,7 +6463,35 @@ if (wizardSwitchPlatformBtn) {
 }
 
 if (wizardClearCacheBtn) {
+  let clearCacheArmed = false;
+  let clearCacheArmTimer = null;
+  const setClearCacheArmed = (armed) => {
+    clearCacheArmed = Boolean(armed);
+    const key = clearCacheArmed ? "wizard.step2.clearCacheConfirm" : "wizard.step2.clearCache";
+    wizardClearCacheBtn.setAttribute("data-i18n", key);
+    wizardClearCacheBtn.textContent = t(key);
+    wizardClearCacheBtn.classList.toggle("is-armed", clearCacheArmed);
+    if (clearCacheArmTimer) {
+      clearTimeout(clearCacheArmTimer);
+      clearCacheArmTimer = null;
+    }
+    if (clearCacheArmed) {
+      clearCacheArmTimer = window.setTimeout(() => {
+        clearCacheArmTimer = null;
+        setClearCacheArmed(false);
+      }, 5000);
+    }
+  };
   wizardClearCacheBtn.addEventListener("click", () => {
+    if (!clearCacheArmed) {
+      if (wizardClearCacheStatusEl) {
+        wizardClearCacheStatusEl.textContent = "";
+        wizardClearCacheStatusEl.classList.add("hidden");
+      }
+      setClearCacheArmed(true);
+      return;
+    }
+    setClearCacheArmed(false);
     void clearAllRemotePgnCache().then(() => {
       if (wizardClearCacheStatusEl) {
         wizardClearCacheStatusEl.textContent = t("wizard.step2.clearCacheDone");
@@ -6469,7 +6585,9 @@ if (skipBtn) {
   });
 }
 if (restartBtn) restartBtn.addEventListener("click", () => {
-  if (confirmRestartToSetup()) restartToSetup();
+  void confirmRestartToSetup().then((confirmed) => {
+    if (confirmed) restartToSetup();
+  });
 });
 if (handoffOverlayEl) {
   handoffOverlayEl.addEventListener("click", () => {
