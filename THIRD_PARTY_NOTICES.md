@@ -37,10 +37,12 @@ Operational requirement: keep these files in the third-party inventory. Recommen
   - `maestro.png`: approximately 6.9 MB
   - `maestro.webp`: approximately 172 KB
 - Repository history: both files appear only in this repository's earliest commits (`Init`, 2026-02-25, and `Initial commit`, 2026-03-12) and only ever as newly-added binary files — `git log --all -- assets/landing/maestro.png assets/landing/maestro.webp` shows no later commit touching them, and neither commit message nor any commit in the surrounding history references an external source, stock-image site, or attribution for this image.
-- License/source: unresolved. No external source is recorded anywhere in the repository's git history. This is consistent with (but does not prove) the image having been created specifically for Ludus Scaccorum — for instance, generated with an AI image tool for this project — in which case no third-party license would apply. It is equally consistent with the image having been sourced from elsewhere without that source being recorded at the time it was added.
-- Action needed from the project owner: confirm which of the two applies. If the image was created specifically for this project (including via an AI generation tool used for this project), state that here and this entry can be closed as "no third-party license applies." If it was sourced from somewhere else (a stock site, another artist, etc.), document that source and its license here before continuing to redistribute it via GitHub Pages.
+- Origin: created for this project. The project owner generated the image with Google Gemini; it was not taken from a stock library, another artist, or any other external source. Confirmed by the project owner on 2026-08-25.
+- License/source: no third-party license applies. Google's Generative AI Additional Terms state that Google does not claim ownership of content generated with its consumer AI tools, so redistributing this image as part of Ludus Scaccorum is permitted.
+- Caveat worth keeping on record: in several jurisdictions (the United States among them) an image produced entirely by an AI tool, with no substantial human authorship, may not attract copyright protection at all. That does not restrict this project's use of it, but the project should not assume exclusive rights over the image or license it to others as an original work.
+- Status: resolved. This asset is cleared for redistribution via GitHub Pages.
 
-Operational requirement: prefer the WebP asset in production CSS when browser support allows, and keep source/license metadata with the asset. Do not treat this asset as cleared for redistribution until the project owner resolves the question above.
+Operational requirement: prefer the WebP asset in production CSS when browser support allows, and keep source/license metadata with the asset. If the artwork is ever replaced, record the new origin here before shipping it.
 
 ## Google Fonts
 
