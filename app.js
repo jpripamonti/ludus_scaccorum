@@ -4032,6 +4032,11 @@ function buildBoard() {
   const bottomEdgeRank = STATE.boardPerspective === "b" ? 8 : 1;
 
   ranks.forEach((rank, rowIndex) => {
+    const row = document.createElement("div");
+    row.className = "board-row";
+    row.setAttribute("role", "row");
+    row.setAttribute("aria-rowindex", String(rowIndex + 1));
+
     orderedFiles.forEach((fileLetter, colIndex) => {
       const fileNum = files.indexOf(fileLetter) + 1;
       const square = document.createElement("div");
@@ -4060,8 +4065,10 @@ function buildBoard() {
         square.appendChild(fileCoord);
       }
 
-      boardEl.appendChild(square);
+      row.appendChild(square);
     });
+
+    boardEl.appendChild(row);
   });
 }
 

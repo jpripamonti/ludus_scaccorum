@@ -759,13 +759,20 @@ body.playing-mode .panel { box-shadow: var(--shadow-panel); }
   border-radius: var(--radius-xl);
   overflow: hidden;
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: repeat(8, 1fr);
   border: 1px solid rgba(78,58,37,0.54);
   box-shadow: var(--shadow-board);
 }
 
 body.playing-mode .board { max-width: min(76vh, 780px); }
+
+.board-row {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  min-width: 0;
+  min-height: 0;
+}
 
 .square {
   position: relative;
