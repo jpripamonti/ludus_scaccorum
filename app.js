@@ -426,6 +426,8 @@ const TRANSLATIONS = {
     "provider.noPublicValidGames": "No encontramos partidas públicas válidas para ese usuario. Probá otro usuario o plataforma.",
     "provider.playerNotDetected": "No pudimos detectar el jugador en las partidas descargadas. Probá con otro usuario.",
     "provider.noAnalyzablePositions": "No encontramos posiciones analizables para ese usuario. Probá con otro usuario o plataforma.",
+    "provider.requestedPlayerMissing": "Las partidas descargadas no incluyen a {user}. Revisá el nombre de usuario.",
+    "provider.configChangedDuringDownload": "Cambiaste el usuario o la plataforma mientras se descargaba. Volvé a preparar la base.",
     "provider.noUsefulMistakes": "No se detectaron errores útiles con este usuario. Candidatas analizadas: {analyzed}/{total}.",
     "difficulty.low": "baja",
     "difficulty.medium": "media",
@@ -701,6 +703,8 @@ const TRANSLATIONS = {
     "provider.noPublicValidGames": "We could not find valid public games for that user. Try another user or platform.",
     "provider.playerNotDetected": "We could not detect the player in the downloaded games. Try another user.",
     "provider.noAnalyzablePositions": "We could not find analyzable positions for that user. Try another user or platform.",
+    "provider.requestedPlayerMissing": "The downloaded games do not include {user}. Check the username.",
+    "provider.configChangedDuringDownload": "You changed the user or platform while downloading. Prepare the base again.",
     "provider.noUsefulMistakes": "No useful mistakes were detected for this user. Candidates analyzed: {analyzed}/{total}.",
     "difficulty.low": "low",
     "difficulty.medium": "medium",
@@ -1500,13 +1504,23 @@ function getConfiguredRemoteUsername() {
   return String(onlineUserInputEl ? onlineUserInputEl.value : "").trim();
 }
 
+// True when a downloaded base still belongs to the provider and the username
+// the wizard shows right now. A slow download that lands after the person
+// edited either field no longer matches, so it must not be used.
+function remoteSourceMatchesUi(entry) {
+  if (!entry) return false;
+  const uiProvider = onlineProviderSelectEl ? getRemoteProviderModeFromUi() : STATE.sourceMode;
+  if (getRemoteProvider(entry) !== uiProvider) return false;
+  const configured = normalizeName(getConfiguredRemoteUsername());
+  if (!configured) return false;
+  return normalizeName(entry.username) === configured;
+}
+
 function hasAnyPgnSource(requireDownloadedRemote = false) {
   if (!requireDownloadedRemote) {
     return getConfiguredRemoteUsername().length > 0;
   }
-  const remote = STATE.remotePgnSources[0];
-  if (!remote) return false;
-  return getRemoteProvider(remote) === STATE.sourceMode;
+  return remoteSourceMatchesUi(STATE.remotePgnSources[0]);
 }
 
 function setSourceMode(mode) {
@@ -2856,7 +2870,11 @@ function recordRemoteFetch() {
   writeRemoteFetchLog(recent);
 }
 
+// Installs a downloaded base as the active source. Refuses (and returns false)
+// when the wizard no longer points at that provider and username, so a late
+// download cannot make the session train somebody else's games.
 function installRemotePgnSource(source, options = {}) {
+  if (!remoteSourceMatchesUi(source)) return false;
   STATE.remotePgnSources = [{ ...source }];
   setSourceMode(source.provider);
   updatePgnSelectionUi();
@@ -2867,6 +2885,7 @@ function installRemotePgnSource(source, options = {}) {
       games: source.games || countPgnGames(source.text),
     });
   }
+  return true;
 }
 
 let consentModalOpen = false;
@@ -3759,6 +3778,24 @@ function inferPlayerName(games) {
   });
   const best = Array.from(map.entries()).sort((a, b) => b[1] - a[1])[0];
   return best ? best[0] : "";
+}
+
+// Picks whose mistakes the session trains. The username the person asked for
+// wins over counting names: with a single downloaded game, or when the same
+// opponent appears as often as the user, frequency picks the opponent. Returns
+// the spelling used in the game tags so the screen shows the real name.
+function resolveTargetPlayerName(games, requestedName) {
+  const requested = normalizeName(requestedName);
+  if (!requested) return { name: inferPlayerName(games), requestedMissing: false };
+  for (const game of games) {
+    for (const tag of [game.tags.White, game.tags.Black]) {
+      const clean = cleanTagValue(tag);
+      if (clean && normalizeName(clean) === requested) {
+        return { name: clean, requestedMissing: false };
+      }
+    }
+  }
+  return { name: "", requestedMissing: true };
 }
 
 function getPlayerColor(tags, targetName) {
@@ -5662,7 +5699,11 @@ function revealSpecificMove(type) {
 
 async function getActivePgnTextSources() {
   if (!hasAnyPgnSource(true)) return [];
-  return STATE.remotePgnSources.map((entry) => ({ name: entry.name, text: entry.text }));
+  return STATE.remotePgnSources.map((entry) => ({
+    name: entry.name,
+    text: entry.text,
+    username: entry.username || "",
+  }));
 }
 
 async function fetchLichessPgn() {
@@ -5689,8 +5730,7 @@ async function fetchLichessPgn() {
 
   const cached = await readCachedRemotePgn(cacheKey);
   if (cached) {
-    installRemotePgnSource(cached.source, { messageKey: "provider.usingCachedBase" });
-    return true;
+    return installRemotePgnSource(cached.source, { messageKey: "provider.usingCachedBase" });
   }
 
   const lichessThrottle = remoteFetchThrottleBlock();
@@ -5799,8 +5839,9 @@ async function fetchLichessPgn() {
       },
     };
 
-    installRemotePgnSource(source);
+    const installed = installRemotePgnSource(source);
     void writeCachedRemotePgn(cacheKey, source);
+    if (!installed) return false;
     if (onlineStatusEl) {
       if (bulletGames > 0) {
         onlineStatusEl.textContent = t("provider.readyBullet", {
@@ -5828,8 +5869,7 @@ async function fetchLichessPgn() {
   } catch (error) {
     const stale = await readCachedRemotePgn(cacheKey, { allowStale: true });
     if (stale) {
-      installRemotePgnSource(stale.source, { messageKey: "provider.usingStaleCachedBase" });
-      return true;
+      return installRemotePgnSource(stale.source, { messageKey: "provider.usingStaleCachedBase" });
     }
     const message = t("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
     if (onlineStatusEl) onlineStatusEl.textContent = message;
@@ -5877,8 +5917,7 @@ async function fetchChessComPgn() {
 
   const cached = await readCachedRemotePgn(cacheKey);
   if (cached) {
-    installRemotePgnSource(cached.source, { messageKey: "provider.usingCachedBase" });
-    return true;
+    return installRemotePgnSource(cached.source, { messageKey: "provider.usingCachedBase" });
   }
 
   const chesscomThrottle = remoteFetchThrottleBlock();
@@ -6064,8 +6103,9 @@ async function fetchChessComPgn() {
       },
     };
 
-    installRemotePgnSource(source);
+    const installed = installRemotePgnSource(source);
     void writeCachedRemotePgn(cacheKey, source);
+    if (!installed) return false;
     if (onlineStatusEl) {
       if (bulletGames > 0) {
         onlineStatusEl.textContent = t("provider.readyBullet", {
@@ -6093,8 +6133,7 @@ async function fetchChessComPgn() {
   } catch (error) {
     const stale = await readCachedRemotePgn(cacheKey, { allowStale: true });
     if (stale) {
-      installRemotePgnSource(stale.source, { messageKey: "provider.usingStaleCachedBase" });
-      return true;
+      return installRemotePgnSource(stale.source, { messageKey: "provider.usingStaleCachedBase" });
     }
     const message = t("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
     if (onlineStatusEl) onlineStatusEl.textContent = message;
@@ -6194,13 +6233,17 @@ function resetSessionStateForNewPipeline() {
 // bailing out silently on a stale session) when the pipeline should stop.
 async function ensurePgnSourceAvailable(sessionToken) {
   if (hasAnyPgnSource(true)) return true;
+  const requestedUser = getConfiguredRemoteUsername();
+  const requestedProvider = STATE.sourceMode;
   analysisStatusEl.textContent = t("analysis.status.prepareBase", { provider: providerLabel(STATE.sourceMode) });
   const downloaded = STATE.sourceMode === "chesscom"
     ? await fetchChessComPgn()
     : await fetchLichessPgn();
   if (!isCurrentSessionWork(sessionToken)) return false;
   if (!downloaded || !hasAnyPgnSource(true)) {
-    sendWizardBackToSourceStep("common.sourceError");
+    const configChanged = normalizeName(getConfiguredRemoteUsername()) !== normalizeName(requestedUser)
+      || getRemoteProviderModeFromUi() !== requestedProvider;
+    sendWizardBackToSourceStep(configChanged ? "provider.configChangedDuringDownload" : "common.sourceError");
     return false;
   }
   return true;
@@ -6221,11 +6264,17 @@ async function loadCandidateAnalysisContext(effectiveConfig) {
     return null;
   }
 
-  const playerName = inferPlayerName(allGames);
+  const requestedName = sources.map((entry) => entry.username).find(Boolean) || "";
+  const target = resolveTargetPlayerName(allGames, requestedName);
+  const playerName = target.name;
   playerNameDetectedEl.textContent = playerName || t("players.notDetected");
 
   if (!playerName) {
-    sendWizardBackToSourceStep("provider.playerNotDetected");
+    if (target.requestedMissing) {
+      sendWizardBackToSourceStep("provider.requestedPlayerMissing", { user: requestedName });
+    } else {
+      sendWizardBackToSourceStep("provider.playerNotDetected");
+    }
     return null;
   }
 

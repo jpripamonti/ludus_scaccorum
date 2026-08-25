@@ -140,9 +140,9 @@ const context = {
 context.globalThis = context;
 
 const appSource = fs.readFileSync(path.join(root, "app.js"), "utf8");
-vm.runInNewContext(`${appSource}\nglobalThis.__ludusTest = { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog };`, context);
+vm.runInNewContext(`${appSource}\nglobalThis.__ludusTest = { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource };`, context);
 
-const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog } = context.__ludusTest;
+const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource } = context.__ludusTest;
 
 function play(game, uci) {
   const move = uciToMove(uci, game);
@@ -374,5 +374,62 @@ assert.strictEqual(remoteFetchThrottleBlock(), null, "downloads older than the w
 context.window.localStorage.setItem("ludus.remoteFetchThrottle.v1", "not json");
 assert.strictEqual(remoteFetchThrottleBlock(), null, "unreadable storage should fail open");
 writeRemoteFetchLog([]);
+
+// ---------- Whose mistakes the session trains ----------
+
+function gameBetween(white, black) {
+  return { tags: { White: white, Black: black }, sanMoves: [] };
+}
+
+// One downloaded game: both names appear once, so counting names is a tie and
+// the tie-break used to pick White. The requested user must win instead.
+assert.strictEqual(resolveTargetPlayerName([gameBetween("Rival", "Ana")], "Ana").name, "Ana");
+assert.strictEqual(resolveTargetPlayerName([gameBetween("Ana", "Rival")], "Ana").name, "Ana");
+
+// A run of games against the same opponent never outvotes the requested user.
+const rematches = [gameBetween("Rival", "Ana"), gameBetween("Rival", "Ana"), gameBetween("Rival", "Ana")];
+assert.strictEqual(resolveTargetPlayerName(rematches, "Ana").name, "Ana");
+
+// Names match regardless of capitalisation, and the spelling from the game is
+// the one shown on screen.
+assert.strictEqual(resolveTargetPlayerName([gameBetween("Rival", "AnaGM")], "anagm").name, "AnaGM");
+
+// A base without the requested user is reported, never silently replaced by
+// whoever happens to appear most often.
+const missingUser = resolveTargetPlayerName([gameBetween("Rival", "Otro")], "Ana");
+assert.strictEqual(missingUser.name, "");
+assert.strictEqual(missingUser.requestedMissing, true);
+
+// With no username to go by, frequency remains the fallback.
+const noRequest = [gameBetween("Rival", "Ana"), gameBetween("Ana", "Otro")];
+assert.strictEqual(resolveTargetPlayerName(noRequest, "").name, "Ana");
+
+// ---------- A late download must not replace the base of another user ----------
+
+const userField = document.getElementById("online-user-input");
+const providerField = document.getElementById("online-provider-select");
+providerField.value = "lichess";
+userField.value = "Ana";
+STATE.sourceMode = "lichess";
+STATE.remotePgnSources = [];
+
+const anaBase = { name: "lichess_ana.pgn", text: "", provider: "lichess", username: "Ana", games: 1 };
+assert.strictEqual(installRemotePgnSource(anaBase), true, "a base for the name on screen should install");
+assert.strictEqual(hasAnyPgnSource(true), true);
+
+// The person edits the name while a second download is still in flight.
+userField.value = "Bruno";
+assert.strictEqual(hasAnyPgnSource(true), false, "the previous user's base must stop counting as ready");
+assert.strictEqual(installRemotePgnSource(anaBase), false, "a download for the previous user must be discarded");
+assert.strictEqual(STATE.remotePgnSources.length, 1);
+assert.strictEqual(STATE.remotePgnSources[0].username, "Ana", "the discarded download must not overwrite what is stored");
+
+// Same person, other platform: also a mismatch.
+userField.value = "Ana";
+assert.strictEqual(hasAnyPgnSource(true), true);
+assert.strictEqual(installRemotePgnSource({ ...anaBase, provider: "chesscom" }), false, "a base from the other platform must be discarded");
+
+STATE.remotePgnSources = [];
+userField.value = "";
 
 console.log("chess-regression-check passed");
