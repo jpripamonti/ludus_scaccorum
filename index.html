@@ -176,22 +176,24 @@
           <span id="player-a-score-label" class="player-score-label" data-i18n-title="labels.scoreTitle" title="Puntaje" data-i18n="labels.scoreTitle">Puntaje</span>
           <strong id="player-a-score-value" class="player-score-value">0</strong>
         </div>
-        <p id="solo-progress-line" class="solo-progress-line solo-only" data-i18n-title="labels.positionsEvaluatedTitle" title="Posiciones evaluadas"></p>
-        <div id="player-a-timer" class="player-timer">
-          <div class="player-timer-head">
-            <span data-i18n-title="labels.clockTitle" title="Reloj" data-i18n="labels.clockTitle">Reloj</span>
-            <strong id="player-a-timer-value">--:--</strong>
-          </div>
-          <div class="player-timer-track" aria-hidden="true">
-            <div id="player-a-timer-bar" class="player-timer-bar"></div>
-          </div>
-        </div>
         <div id="player-a-actions-slot" class="player-actions-slot"></div>
       </section>
 
       <section id="board-stage" class="board-stage">
-        <div class="board-stage-status">
-          <div id="round-status" class="round-status">-</div>
+        <div class="round-bar">
+          <div class="round-bar-info">
+            <div id="round-status" class="round-status">-</div>
+            <p id="solo-progress-line" class="solo-progress-line"></p>
+          </div>
+          <div class="round-bar-turn">
+            <span id="round-turn" class="round-turn"></span>
+          </div>
+          <div id="solo-clock-rail" class="round-clock" aria-live="polite" data-i18n-aria-label="labels.clockTitle" aria-label="Reloj">
+            <strong id="solo-clock-value" class="solo-clock-value">--:--</strong>
+            <div id="solo-clock-track" class="solo-clock-track" aria-hidden="true">
+              <div id="solo-clock-bar" class="solo-clock-bar"></div>
+            </div>
+          </div>
           <div id="session-progress" class="session-progress">Aciertos: 0 | Jugadas: 0 | Restantes: 0</div>
         </div>
 
@@ -223,13 +225,6 @@
             <button id="result-analysis-btn" type="button" class="wizard-secondary-btn" data-i18n="buttons.exploreBoard">Explorar tablero</button>
             <button id="result-analysis-reset-btn" type="button" class="wizard-secondary-btn hidden" data-i18n="buttons.resetAnalysis">Reiniciar análisis</button>
           </div>
-
-          <aside id="solo-clock-rail" class="solo-clock-rail" aria-live="polite">
-            <strong id="solo-clock-value" class="solo-clock-value">--:--</strong>
-            <div id="solo-clock-track" class="solo-clock-track" aria-hidden="true">
-              <div id="solo-clock-bar" class="solo-clock-bar"></div>
-            </div>
-          </aside>
 
           <aside id="result-overlay" class="result-overlay hidden" aria-live="polite">
             <div class="result-overlay-panel">
@@ -277,15 +272,6 @@
         <div class="player-score">
           <span id="player-b-score-label" class="player-score-label" data-i18n-title="labels.scoreTitle" title="Puntaje" data-i18n="labels.scoreTitle">Puntaje</span>
           <strong id="player-b-score-value" class="player-score-value">0</strong>
-        </div>
-        <div id="player-b-timer" class="player-timer">
-          <div class="player-timer-head">
-            <span data-i18n-title="labels.clockTitle" title="Reloj" data-i18n="labels.clockTitle">Reloj</span>
-            <strong id="player-b-timer-value">--:--</strong>
-          </div>
-          <div class="player-timer-track" aria-hidden="true">
-            <div id="player-b-timer-bar" class="player-timer-bar"></div>
-          </div>
         </div>
         <div id="player-b-actions-slot" class="player-actions-slot"></div>
       </section>

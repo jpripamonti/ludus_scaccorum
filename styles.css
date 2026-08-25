@@ -653,13 +653,6 @@ button:disabled {
   white-space: normal;
 }
 
-#round-status {
-  color: var(--color-text);
-  font-size: 20px;
-  line-height: 1.15;
-  font-weight: 800;
-}
-
 /* ── Timer (legacy duel timer, used in old layout) ── */
 .timer-line {
   display: grid;
@@ -1116,8 +1109,7 @@ body.solo-mode #game-layout.layout {
 body.solo-mode #right-player-panel { display: none; }
 
 body.solo-mode #player-a-avatar,
-body.solo-mode #player-a-kicker,
-body.solo-mode #player-a-timer { display: none; }
+body.solo-mode #player-a-kicker { display: none; }
 
 body.solo-mode #left-player-panel .player-identity { display: block; }
 
@@ -1127,8 +1119,11 @@ body.solo-mode #player-a-name {
 }
 
 /* ── Player panel ── */
+/* La tarjeta se ajusta a su contenido: antes se estiraba al alto del tablero y
+   dejaba media tarjeta vacía debajo del marcador. */
 .player-panel {
-  min-height: min(76vh, 860px);
+  min-height: 0;
+  align-self: start;
   border-radius: var(--radius-2xl);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -1232,73 +1227,6 @@ body.solo-mode .player-score-value {
   line-height: 1.02;
 }
 
-/* ── Progress pips ── */
-.solo-progress-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-  margin: -6px 0 0;
-  min-height: 12px;
-}
-
-/* ── Player timer ── */
-.player-timer {
-  display: grid;
-  gap: var(--space-2);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-2);
-  padding: 10px 11px;
-  transition: border-color var(--dur-base) ease, background var(--dur-base) ease;
-}
-
-.player-timer-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 10px;
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
-.player-timer-head strong {
-  color: var(--color-text);
-  font-family: var(--font-mono);
-  font-size: clamp(17px, 1.5vw, 24px);
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  transition: color var(--dur-base) ease;
-}
-
-.player-timer-track {
-  height: 5px;
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-  background: var(--color-surface-3);
-}
-
-.player-timer-bar {
-  width: 100%;
-  height: 100%;
-  background: var(--color-gold);
-  border-radius: var(--radius-pill);
-  transition: width 100ms linear, background var(--dur-base) ease;
-}
-
-.player-timer.urgency-mid { border-color: var(--color-dubious-bd); }
-.player-timer.urgency-mid .player-timer-bar { background: var(--color-dubious); }
-.player-timer.urgency-mid .player-timer-head strong { color: var(--color-dubious); }
-
-.player-timer.urgency-high { border-color: var(--color-blunder-bd); }
-.player-timer.urgency-high .player-timer-bar { background: var(--color-blunder); }
-.player-timer.urgency-high .player-timer-head strong { color: var(--color-blunder); }
-
-.player-timer.is-passive { opacity: 0.7; }
-
 .player-actions-slot { margin-top: auto; }
 
 #shared-actions { display: none; }
@@ -1316,7 +1244,10 @@ body.solo-mode .player-score-value {
 }
 
 /* ── Board stage ── */
+/* --stage-width es el ancho del tablero: la barra de ronda lo reusa para
+   quedar exactamente del mismo ancho, apoyada encima del tablero. */
 .board-stage {
+  --stage-width: min(100%, 72vh, 980px, calc(100vw - 32px));
   min-height: min(76vh, 860px);
   display: grid;
   grid-template-rows: auto 1fr auto auto;
@@ -1324,17 +1255,92 @@ body.solo-mode .player-score-value {
   min-width: 0;
 }
 
-.board-stage-status { display: grid; gap: 5px; }
+body.solo-mode .board-stage {
+  --stage-width: min(100%, 80vh, 1120px, calc(100vw - 32px));
+}
+
+/* ── Round bar: posición + progreso | turno | reloj ── */
+.round-bar {
+  width: var(--stage-width);
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas:
+    "info turn clock"
+    "meta meta meta";
+  align-items: center;
+  gap: 6px clamp(12px, 1.8vw, 24px);
+  padding: 10px clamp(12px, 1.4vw, 18px);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  min-width: 0;
+}
+
+body.result-visible .round-bar { width: 100%; }
+
+.round-bar-info {
+  grid-area: info;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
 
 .round-status {
   margin: 0;
-  font-size: clamp(17px, 1.6vw, 24px);
-  line-height: 1.05;
-  font-weight: 700;
+  font-size: clamp(15px, 1.3vw, 20px);
+  line-height: 1.15;
+  font-weight: 800;
   color: var(--color-text);
 }
 
+/* Barra de progreso de la sesión: reemplaza a los guiones sueltos. */
+.solo-progress-line {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  min-width: 0;
+}
+
+.solo-progress-text {
+  font-size: var(--text-base);
+  color: var(--color-text-muted);
+}
+
+.solo-progress-track {
+  display: block;
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-3);
+  overflow: hidden;
+}
+
+.solo-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-gold);
+  transition: width var(--dur-base) ease;
+}
+
+.round-bar-turn {
+  grid-area: turn;
+  min-width: 0;
+  text-align: center;
+}
+
+.round-turn {
+  font-size: clamp(13px, 1.1vw, 16px);
+  line-height: 1.15;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+body.result-visible .round-bar-turn { visibility: hidden; }
+
 .session-progress {
+  grid-area: meta;
   margin: 0;
   font-size: clamp(11px, 0.95vw, 13px);
   color: var(--color-text-muted);
@@ -1357,27 +1363,15 @@ body.result-visible .board-stage-main {
   justify-items: stretch;
 }
 
-body.solo-mode:not(.result-visible) .board-stage-main {
-  grid-template-columns: minmax(0, 1fr) auto;
-  justify-items: stretch;
-  align-items: center;
-  gap: 14px;
-}
-
 .board-wrap {
   position: relative;
-  width: min(100%, 72vh, 980px, calc(100vw - 32px));
+  width: var(--stage-width);
   display: grid;
   place-items: center;
   isolation: isolate;
   min-width: 0;
 }
 
-body.solo-mode .board-wrap { width: min(100%, 80vh, 1120px, calc(100vw - 32px)); }
-body.solo-mode:not(.result-visible) .board-wrap {
-  width: min(100%, 80vh, 1120px, calc(100vw - 90px));
-  justify-self: end;
-}
 body.result-visible .board-wrap { justify-self: end; }
 
 #game-layout .board {
@@ -1517,52 +1511,50 @@ body.solo-mode #game-layout .board { max-width: min(80vh, 1120px); }
   .consent-overlay-actions { grid-template-columns: 1fr; }
 }
 
-/* ── Solo clock rail ── */
-.solo-clock-rail {
-  display: none;
-  position: static;
-  align-self: center;
-  justify-self: start;
-  width: 58px;
-  padding: 8px 8px 10px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-2);
-  justify-items: center;
-  gap: 8px;
+/* ── Reloj de la ronda (individual y duelo) ── */
+.round-clock {
+  grid-area: clock;
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  min-width: 0;
 }
 
-body.solo-mode .solo-clock-rail { display: grid; }
-body.result-visible .solo-clock-rail { display: none; }
+body.result-visible .round-clock { display: none; }
 
 .solo-clock-value {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: clamp(20px, 2.2vw, 28px);
   line-height: 1;
   color: var(--color-text);
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  transition: color var(--dur-base) ease;
 }
 
 .solo-clock-track {
   position: relative;
-  width: 12px; height: 170px;
+  width: 100%;
+  min-width: 84px;
+  height: 8px;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--color-border);
   background: var(--color-surface-3);
   overflow: hidden;
 }
 
 .solo-clock-bar {
   position: absolute;
-  left: 0; right: 0; bottom: 0;
-  width: 100%;
-  height: var(--clock-ratio, 100%);
+  left: 0; top: 0; bottom: 0;
+  width: var(--clock-ratio, 100%);
+  border-radius: var(--radius-pill);
   background: var(--color-gold);
-  transition: width 100ms linear, height 100ms linear, background var(--dur-base) ease;
+  transition: width 100ms linear, background var(--dur-base) ease;
 }
 
-.solo-clock-rail.urgency-mid .solo-clock-bar  { background: var(--color-dubious); }
-.solo-clock-rail.urgency-high .solo-clock-bar { background: var(--color-blunder); }
+.round-clock.urgency-mid .solo-clock-bar    { background: var(--color-dubious); }
+.round-clock.urgency-mid .solo-clock-value  { color: var(--color-dubious); }
+.round-clock.urgency-high .solo-clock-bar   { background: var(--color-blunder); }
+.round-clock.urgency-high .solo-clock-value { color: var(--color-blunder); }
 
 /* ── Position search overlay ── */
 .position-search-overlay {
@@ -1969,7 +1961,6 @@ body.result-visible .result-overlay {
 }
 
 body.solo-mode #competitive-status  { display: none !important; }
-body.duel-mode .player-panel .solo-only { display: none; }
 
 body.playing-mode #setup-panel,
 body.playing-mode #landing-screen { display: none !important; }
@@ -1981,7 +1972,8 @@ body.playing-mode #landing-screen { display: none !important; }
     gap: 14px;
   }
   .player-panel { padding: 13px; }
-  .board-wrap { width: min(100%, min(70vh, 860px)); }
+  .board-stage,
+  body.solo-mode .board-stage { --stage-width: min(100%, 70vh, 860px); }
 }
 
 @media (max-width: 1080px) {
@@ -2001,27 +1993,9 @@ body.playing-mode #landing-screen { display: none !important; }
   #left-player-panel  { order: 2; min-height: auto; }
   #right-player-panel { order: 3; min-height: auto; }
 
-  .board-wrap { width: min(100%, 760px); }
-  body.solo-mode .board-wrap,
-  body.result-visible .board-wrap {
-    width: min(100%, 760px);
-  }
-  body.solo-mode:not(.result-visible) .board-wrap {
-    width: min(100%, 760px);
-    justify-self: center;
-  }
+  .board-stage,
+  body.solo-mode .board-stage { --stage-width: min(100%, 760px); }
   #game-layout .board { max-width: 100%; }
-
-  body.solo-mode:not(.result-visible) .board-stage-main {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
-    gap: 10px;
-    align-items: center;
-  }
-
-  .solo-clock-rail { width: 48px; padding: 6px 6px 8px; gap: 6px; justify-self: center; }
-  .solo-clock-value { font-size: 12px; }
-  .solo-clock-track { width: 10px; height: 126px; }
 
   body.result-visible .board-stage-main {
     grid-template-columns: 1fr;
@@ -2049,6 +2023,22 @@ body.playing-mode #landing-screen { display: none !important; }
   .result-overlay-actions button { width: 100%; }
 }
 
+/* Bajo 700 px la tira se parte en dos renglones: posición y reloj arriba,
+   el turno debajo, para que ninguna de las tres partes quede apretada. */
+@media (max-width: 700px) {
+  .round-bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "info clock"
+      "turn turn"
+      "meta meta";
+    gap: 8px 12px;
+    padding: 9px 11px;
+  }
+
+  .round-bar-turn { text-align: left; }
+}
+
 @media (max-width: 600px) {
   body.playing-mode .app {
     padding-inline: 8px;
@@ -2058,18 +2048,17 @@ body.playing-mode #landing-screen { display: none !important; }
     padding-inline: 0;
   }
 
-  .board-stage-main,
-  body.solo-mode:not(.result-visible) .board-stage-main {
+  .board-stage,
+  body.solo-mode .board-stage { --stage-width: min(100%, calc(100vw - 16px)); }
+
+  .board-stage-main {
     grid-template-columns: 1fr;
     justify-items: center;
     gap: 8px;
   }
 
   .board-wrap,
-  body.solo-mode .board-wrap,
-  body.solo-mode:not(.result-visible) .board-wrap,
   body.result-visible .board-wrap {
-    width: min(100%, calc(100vw - 16px));
     justify-self: center;
   }
 
@@ -2078,28 +2067,6 @@ body.playing-mode #landing-screen { display: none !important; }
     width: min(100%, calc(100vw - 16px));
     justify-self: center;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .solo-clock-rail {
-    width: min(100%, calc(100vw - 16px));
-    min-height: 38px;
-    padding: 6px 8px;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    justify-self: center;
-  }
-
-  .solo-clock-track {
-    width: 100%;
-    height: 10px;
-  }
-
-  .solo-clock-bar {
-    top: 0;
-    bottom: 0;
-    right: auto;
-    width: var(--clock-ratio, 100%);
-    height: 100%;
   }
 }
 

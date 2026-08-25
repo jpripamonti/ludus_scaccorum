@@ -70,12 +70,6 @@ const playerAScoreLabelEl = document.getElementById("player-a-score-label");
 const playerBScoreLabelEl = document.getElementById("player-b-score-label");
 const playerAScoreValueEl = document.getElementById("player-a-score-value");
 const playerBScoreValueEl = document.getElementById("player-b-score-value");
-const playerATimerEl = document.getElementById("player-a-timer");
-const playerBTimerEl = document.getElementById("player-b-timer");
-const playerATimerValueEl = document.getElementById("player-a-timer-value");
-const playerBTimerValueEl = document.getElementById("player-b-timer-value");
-const playerATimerBarEl = document.getElementById("player-a-timer-bar");
-const playerBTimerBarEl = document.getElementById("player-b-timer-bar");
 const playerAActionsSlotEl = document.getElementById("player-a-actions-slot");
 const playerBActionsSlotEl = document.getElementById("player-b-actions-slot");
 const sharedActionsEl = document.getElementById("shared-actions");
@@ -111,6 +105,7 @@ const resultAnalysisBtn = document.getElementById("result-analysis-btn");
 const resultAnalysisResetBtn = document.getElementById("result-analysis-reset-btn");
 const boardArrowsEl = document.getElementById("board-arrows");
 const roundStatusEl = document.getElementById("round-status");
+const roundTurnEl = document.getElementById("round-turn");
 const sessionProgressEl = document.getElementById("session-progress");
 const soloProgressLineEl = document.getElementById("solo-progress-line");
 const roundResultEl = document.getElementById("round-result");
@@ -124,9 +119,6 @@ const nextBtn = document.getElementById("next-btn");
 const skipBtn = document.getElementById("skip-btn");
 const restartBtn = document.getElementById("restart-btn");
 const gameDetailsMiniEl = document.getElementById("game-details-mini");
-const playerTimerEls = [playerATimerEl, playerBTimerEl];
-const playerTimerValueEls = [playerATimerValueEl, playerBTimerValueEl];
-const playerTimerBarEls = [playerATimerBarEl, playerBTimerBarEl];
 const sessionSummaryResultEl = document.getElementById("session-summary-result");
 const summaryScoreDisplayEl = document.querySelector(".summary-score-display");
 const summaryDetailsTextEl = document.querySelector(".summary-details-text");
@@ -352,8 +344,10 @@ const TRANSLATIONS = {
     "game.progressSolo": "Posiciones evaluadas: {played} / {target} · Restan: {remaining}",
     "game.progressDuel": "Ronda {round}/{target} · Restan: {remaining} · Aciertos: {p1} {p1Hits} - {p2Hits} {p2}",
     "game.roundSolo": "Posición {current}/{target}",
-    "game.roundDuel": "Posición {current}/{target} · Juega {player} ({turn}/2)",
     "game.roundReview": "Revisión · {label}",
+    "game.turnWhite": "Juegan las blancas",
+    "game.turnBlack": "Juegan las negras",
+    "game.turnPlayer": "Juega {player} ({turn}/2)",
     "game.duelCompetitive": "Duelo local · {seconds}s por turno · {system}",
     "game.duelHint": "Competitivo local: ambos jugadores reciben exactamente las mismas posiciones y tiempo.",
     "game.soloHint": "Entrenamiento individual con puntaje total acumulado.",
@@ -625,8 +619,10 @@ const TRANSLATIONS = {
     "game.progressSolo": "Evaluated positions: {played} / {target} · Remaining: {remaining}",
     "game.progressDuel": "Round {round}/{target} · Remaining: {remaining} · Hits: {p1} {p1Hits} - {p2Hits} {p2}",
     "game.roundSolo": "Position {current}/{target}",
-    "game.roundDuel": "Position {current}/{target} · {player} to move ({turn}/2)",
     "game.roundReview": "Review · {label}",
+    "game.turnWhite": "White to move",
+    "game.turnBlack": "Black to move",
+    "game.turnPlayer": "{player} to move ({turn}/2)",
     "game.duelCompetitive": "Local duel · {seconds}s per turn · {system}",
     "game.duelHint": "Competitive local mode: both players get exactly the same positions and time.",
     "game.soloHint": "Individual training with total accumulated score.",
@@ -1929,21 +1925,49 @@ function sessionSummaryScoreText() {
   return isDuelMode() ? duelMatchScoreText() : soloScoreText();
 }
 
-function renderProgressPips(played, total) {
-  let html = '';
-  for (let i = 0; i < total; i++) {
-    const done = i < played;
-    html += `<span style="display:inline-block;height:5px;width:${done ? 20 : 10}px;border-radius:999px;background:${done ? 'var(--color-gold)' : 'var(--color-surface-3)'};margin-right:4px;vertical-align:middle"></span>`;
-  }
-  return html;
+// Barra de progreso de la sesión: una sola barra proporcional con su texto al
+// lado, anunciada como progressbar. Antes eran N guiones con estilos en línea,
+// que con 200 posiciones llenaban más de una docena de renglones.
+function renderSessionProgressBar(played, total) {
+  const safeTotal = Math.max(0, Math.round(Number(total) || 0));
+  const safePlayed = clamp(Math.round(Number(played) || 0), 0, safeTotal);
+  const pct = safeTotal > 0 ? Math.round((safePlayed / safeTotal) * 100) : 0;
+  const label = escapeHtml(t("labels.positionsEvaluatedTitle"));
+  return `<span class="solo-progress-text">${escapeHtml(soloProgressText(safePlayed, safeTotal))}</span>`
+    + `<span class="solo-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="${safeTotal}"`
+    + ` aria-valuenow="${safePlayed}" aria-label="${label}">`
+    + `<span class="solo-progress-fill" style="width:${pct}%"></span></span>`;
 }
 
-function soloProgressText() {
-  return `${t("labels.positionsEvaluatedTitle")}: ${Math.max(0, STATE.sessionPlayed)} / ${soloSessionTarget()}`;
+function soloProgressText(played = Math.max(0, STATE.sessionPlayed), total = soloSessionTarget()) {
+  return `${t("labels.positionsEvaluatedTitle")}: ${played} / ${total}`;
+}
+
+// Centro de la barra de ronda: en duelo, el jugador al que le toca; en modo
+// individual, el color que mueve en la posición que se está viendo.
+function updateRoundTurn(playerIndex = currentUiPlayerIndex()) {
+  if (!roundTurnEl) return;
+  if (isDuelMode()) {
+    roundTurnEl.textContent = t("game.turnPlayer", {
+      player: duelPlayerName(playerIndex === 1 ? 1 : 0),
+      turn: playerIndex === 1 ? 2 : 1,
+    });
+    return;
+  }
+  const turn = STATE.board ? STATE.board.turn : "";
+  if (turn !== "w" && turn !== "b") {
+    roundTurnEl.textContent = "";
+    return;
+  }
+  roundTurnEl.textContent = turn === "b" ? t("game.turnBlack") : t("game.turnWhite");
 }
 
 function updatePlayerPanels() {
   const activeIdx = currentUiPlayerIndex();
+  updateRoundTurn(activeIdx);
+  if (soloProgressLineEl) {
+    soloProgressLineEl.innerHTML = renderSessionProgressBar(Math.max(0, STATE.sessionPlayed), soloSessionTarget());
+  }
   if (isDuelMode()) {
     const p1 = duelPlayerName(0);
     const p2 = duelPlayerName(1);
@@ -1966,8 +1990,6 @@ function updatePlayerPanels() {
   if (playerAKickerEl) playerAKickerEl.textContent = t("game.studyMode");
   if (playerAAvatarEl) playerAAvatarEl.textContent = initialsFromName(t("players.soloSession"), "S");
   if (playerAScoreValueEl) playerAScoreValueEl.textContent = soloScoreText();
-  if (soloProgressLineEl) soloProgressLineEl.innerHTML = renderProgressPips(Math.max(0, STATE.sessionPlayed), soloSessionTarget());
-
   if (playerBScoreValueEl) playerBScoreValueEl.textContent = `${Math.max(0, STATE.sessionPlayed)} / ${soloSessionTarget()}`;
   setPanelActiveState(0);
   mountSharedActionsToActivePanel();
@@ -2087,60 +2109,26 @@ function stopRoundTimer() {
   }
 }
 
+// Un solo reloj para los dos modos: el de la barra de ronda. En duelo muestra
+// el tiempo del jugador que está al turno, porque sólo uno juega a la vez.
 function updateRoundTimerUi(remainingMs = STATE.timer.deadlineMs - Date.now()) {
+  if (!soloClockRailEl || !soloClockValueEl || !soloClockBarEl) return;
+
   const duration = Math.max(1, STATE.timer.durationMs || Math.round(STATE.turnTimeSeconds * 1000));
   const safeRemaining = Math.max(0, remainingMs);
   const ratio = clamp(safeRemaining / duration, 0, 1);
 
-  const activePlayer = currentUiPlayerIndex();
-  playerTimerEls.forEach((timerEl, idx) => {
-    const valueEl = playerTimerValueEls[idx];
-    const barEl = playerTimerBarEls[idx];
-    if (!timerEl || !valueEl || !barEl) return;
+  const showClock = document.body.classList.contains("playing-mode") && !STATE.resultView.visible;
+  soloClockRailEl.classList.toggle("hidden", !showClock);
+  if (!showClock) return;
 
-    const isActiveTimer = isDuelMode() ? idx === activePlayer : idx === 0;
-    const displayRatio = isActiveTimer ? ratio : 1;
-    const displayTime = isActiveTimer ? safeRemaining : duration;
-    valueEl.textContent = formatClock(displayTime);
-    barEl.style.width = `${Math.round(displayRatio * 100)}%`;
-    timerEl.classList.remove("is-passive");
-    timerEl.classList.remove("urgency-mid", "urgency-high");
-    if (isActiveTimer) {
-      if (ratio <= 0.2) {
-        timerEl.classList.add("urgency-high");
-      } else if (ratio <= 0.45) {
-        timerEl.classList.add("urgency-mid");
-      }
-    }
-  });
-
-  if (!isDuelMode()) {
-    const timerEl = playerTimerEls[1];
-    const valueEl = playerTimerValueEls[1];
-    const barEl = playerTimerBarEls[1];
-    if (timerEl && valueEl && barEl) {
-      valueEl.textContent = formatClock(duration);
-      barEl.style.width = "100%";
-      timerEl.classList.remove("urgency-mid", "urgency-high");
-      timerEl.classList.add("is-passive");
-    }
-  }
-
-  if (soloClockRailEl && soloClockValueEl && soloClockBarEl) {
-    const showSoloClock = !isDuelMode()
-      && document.body.classList.contains("playing-mode")
-      && !STATE.resultView.visible;
-    soloClockRailEl.classList.toggle("hidden", !showSoloClock);
-    if (showSoloClock) {
-      soloClockValueEl.textContent = formatClock(safeRemaining);
-      soloClockBarEl.style.setProperty("--clock-ratio", `${Math.round(ratio * 100)}%`);
-      soloClockRailEl.classList.remove("urgency-mid", "urgency-high");
-      if (ratio <= 0.2) {
-        soloClockRailEl.classList.add("urgency-high");
-      } else if (ratio <= 0.45) {
-        soloClockRailEl.classList.add("urgency-mid");
-      }
-    }
+  soloClockValueEl.textContent = formatClock(safeRemaining);
+  soloClockBarEl.style.setProperty("--clock-ratio", `${Math.round(ratio * 100)}%`);
+  soloClockRailEl.classList.remove("urgency-mid", "urgency-high");
+  if (ratio <= 0.2) {
+    soloClockRailEl.classList.add("urgency-high");
+  } else if (ratio <= 0.45) {
+    soloClockRailEl.classList.add("urgency-mid");
   }
 }
 
@@ -4464,7 +4452,7 @@ function renderSessionProgress() {
   const played = STATE.sessionPlayed;
   const target = soloSessionTarget();
   const remaining = Math.max(0, target - played);
-  if (soloProgressLineEl) soloProgressLineEl.innerHTML = renderProgressPips(played, target);
+  if (soloProgressLineEl) soloProgressLineEl.innerHTML = renderSessionProgressBar(played, target);
   if (!isDuelMode()) {
     sessionProgressEl.textContent = t("game.progressSolo", { played, target, remaining });
     return;
@@ -4508,13 +4496,9 @@ function startRound(options = {}) {
 
   renderGameInfo(position);
   const totalTarget = Math.max(1, STATE.targetPositions || STATE.positions.length || 1);
-  if (isDuelMode()) {
-    const activePlayer = duelPlayerName(STATE.duel.currentPlayer);
-    const turnNumber = STATE.duel.currentPlayer + 1;
-    roundStatusEl.textContent = t("game.roundDuel", { current: STATE.index + 1, target: totalTarget, player: activePlayer, turn: turnNumber });
-  } else {
-    roundStatusEl.textContent = t("game.roundSolo", { current: STATE.index + 1, target: totalTarget });
-  }
+  // El rótulo dice sólo la posición; de quién es el turno lo dice el centro de
+  // la barra de ronda, así no se repite el mismo dato dos veces.
+  roundStatusEl.textContent = t("game.roundSolo", { current: STATE.index + 1, target: totalTarget });
   if (roundResultPanelEl) roundResultPanelEl.classList.add("hidden");
   roundResultEl.innerHTML = "";
   setScoringInfoVisible(false);
@@ -5058,6 +5042,7 @@ function handleDuelFirstTurnHandoff(base, position, move, noMoveReason) {
   renderSessionProgress();
   updateScoreDisplay();
   setPanelActiveState(1);
+  updateRoundTurn(1);
   updateCompetitiveStatus();
   setScoringInfoVisible(false);
 }
