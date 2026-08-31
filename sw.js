@@ -1,10 +1,10 @@
-const CACHE_NAME = "ludus-scaccorum-static-c462ab147f02";
+const CACHE_NAME = "ludus-scaccorum-static-d65726fe078d";
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=c462ab147f02",
-  "./app.js?v=c462ab147f02",
+  "./styles.css?v=d65726fe078d",
+  "./app.js?v=d65726fe078d",
   "./manifest.json",
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png",
