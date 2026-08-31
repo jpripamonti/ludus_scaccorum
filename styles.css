@@ -10,41 +10,45 @@
   color-scheme: dark;
 
   /* ── Color: Neutrals (Dark Theme) ── */
-  --color-bg:          oklch(13%   0.018 255);
-  --color-surface:     oklch(17.5% 0.018 255);
-  --color-surface-2:   oklch(21.5% 0.016 255);
-  --color-surface-3:   oklch(27%   0.014 255);
+  /* Hex fallbacks first: a browser without CSS Color 4 support treats an
+     oklch() value as invalid at paint time, which would otherwise drop
+     background, text, borders and every state colour at once (see the
+     @supports block below, which is the only place oklch() is applied). */
+  --color-bg:          #04080e;
+  --color-surface:     #0b1118;
+  --color-surface-2:   #151a21;
+  --color-surface-3:   #22272d;
   /* Borders are the only outline most controls have, so they need at least
      3:1 against every surface they sit on (WCAG 1.4.11). */
-  --color-border:      oklch(52%   0.016 255);
-  --color-border-mid:  oklch(60%   0.016 255);
-  --color-text:        oklch(93%   0.006 255);
-  --color-text-muted:  oklch(60%   0.012 255);
-  --color-text-dim:    oklch(40%   0.012 255);
+  --color-border:      #636a72;
+  --color-border-mid:  #7a818a;
+  --color-text:        #e5e8ec;
+  --color-text-muted:  #8a9097;
+  --color-text-dim:    #43484e;
 
   /* ── Color: Accent — Gold ── */
-  --color-gold:        oklch(76%   0.140 82);
-  --color-gold-dim:    oklch(56%   0.100 82);
-  --color-gold-bg:     oklch(21%   0.055 82);
+  --color-gold:        #dda734;
+  --color-gold-dim:    #926e24;
+  --color-gold-bg:     #251500;
 
   /* ── Color: Verdict semantic ── */
-  --color-perfect:     oklch(63%   0.170 150);
-  --color-perfect-bg:  oklch(18%   0.070 150);
-  --color-perfect-bd:  oklch(30%   0.100 150);
-  --color-good:        oklch(66%   0.180 255);
-  --color-good-bg:     oklch(18%   0.080 255);
-  --color-good-bd:     oklch(30%   0.110 255);
-  --color-dubious:     oklch(70%   0.160 55);
-  --color-dubious-bg:  oklch(19%   0.080 55);
-  --color-dubious-bd:  oklch(32%   0.100 55);
-  --color-blunder:     oklch(64%   0.190 22);
-  --color-blunder-bg:  oklch(18%   0.090 22);
-  --color-blunder-bd:  oklch(30%   0.120 22);
+  --color-perfect:     #0fa44d;
+  --color-perfect-bg:  #001901;
+  --color-perfect-bd:  #003b0e;
+  --color-good:        #3792fd;
+  --color-good-bg:     #000f33;
+  --color-good-bd:     #002c63;
+  --color-dubious:     #e87f25;
+  --color-dubious-bg:  #2c0400;
+  --color-dubious-bd:  #572000;
+  --color-blunder:     #e94f55;
+  --color-blunder-bg:  #2f0001;
+  --color-blunder-bd:  #5c010f;
 
   /* ── Color: Focus ring ── */
   /* A blue that is not the brand gold and not any of the four verdict colours,
      so a focus ring can never be mistaken for feedback about a move. */
-  --color-info:        oklch(80%   0.130 230);
+  --color-info:        #53cdff;
 
   /* ── Color: Board ── */
   --color-board-light:        #f0d9b5;
@@ -131,6 +135,44 @@
      artwork: this value sits inside a background shorthand, and an unsupported
      function there would drop the gradient and the colour with it. */
   --landing-bg-image: url("assets/landing/maestro.jpg");
+}
+
+/* The real palette: richer, more saturated colours than the hex fallbacks
+   above can reach in sRGB. Only applied where the browser can actually
+   parse and paint oklch(), so unsupported browsers keep the safe hex set. */
+@supports (color: oklch(50% 0.1 0)) {
+  :root {
+    --color-bg:          oklch(13%   0.018 255);
+    --color-surface:     oklch(17.5% 0.018 255);
+    --color-surface-2:   oklch(21.5% 0.016 255);
+    --color-surface-3:   oklch(27%   0.014 255);
+    --color-border:      oklch(52%   0.016 255);
+    --color-border-mid:  oklch(60%   0.016 255);
+    --color-text:        oklch(93%   0.006 255);
+    /* Lifted from 60% to 65% lightness so 13px summary text stays above a
+       4.5:1 contrast ratio against --color-surface-2 (was ~4.44:1). */
+    --color-text-muted:  oklch(65%   0.012 255);
+    --color-text-dim:    oklch(40%   0.012 255);
+
+    --color-gold:        oklch(76%   0.140 82);
+    --color-gold-dim:    oklch(56%   0.100 82);
+    --color-gold-bg:     oklch(21%   0.055 82);
+
+    --color-perfect:     oklch(63%   0.170 150);
+    --color-perfect-bg:  oklch(18%   0.070 150);
+    --color-perfect-bd:  oklch(30%   0.100 150);
+    --color-good:        oklch(66%   0.180 255);
+    --color-good-bg:     oklch(18%   0.080 255);
+    --color-good-bd:     oklch(30%   0.110 255);
+    --color-dubious:     oklch(70%   0.160 55);
+    --color-dubious-bg:  oklch(19%   0.080 55);
+    --color-dubious-bd:  oklch(32%   0.100 55);
+    --color-blunder:     oklch(64%   0.190 22);
+    --color-blunder-bg:  oklch(18%   0.090 22);
+    --color-blunder-bd:  oklch(30%   0.120 22);
+
+    --color-info:        oklch(80%   0.130 230);
+  }
 }
 
 @supports (background-image: image-set(url("assets/landing/maestro.webp") type("image/webp"))) {
@@ -631,93 +673,12 @@ button:disabled {
   gap: 14px;
 }
 
-.game-info {
-  grid-area: info;
-  padding: 10px 14px;
-  border-color: var(--color-border);
-  background: var(--color-surface);
-}
-
-.top-status-row {
-  display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(220px, 300px);
-  gap: 14px;
-  align-items: center;
-}
-
-.game-info .status-line {
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  border-radius: 0;
-  padding: 0;
-}
-
-.progress-stack { display: grid; gap: 4px; }
-
 .session-progress {
   font-size: var(--text-md);
   font-weight: 600;
   color: var(--color-text-muted);
   white-space: normal;
 }
-
-/* ── Timer (legacy duel timer, used in old layout) ── */
-.timer-line {
-  display: grid;
-  gap: 5px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 8px 10px;
-  background: var(--color-surface-2);
-  transition: border-color var(--dur-base) ease, background var(--dur-base) ease;
-}
-
-.timer-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: baseline;
-  font-size: var(--text-base);
-  font-weight: 600;
-  color: var(--color-text-muted);
-}
-
-#turn-timer-value {
-  font-family: var(--font-mono);
-  font-size: var(--text-2xl);
-  line-height: 1;
-  letter-spacing: -0.01em;
-  color: var(--color-text);
-  font-weight: 500;
-  transition: color var(--dur-base) ease;
-}
-
-.timer-track {
-  height: 5px;
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-  background: var(--color-surface-3);
-}
-
-.timer-bar {
-  width: 100%;
-  height: 100%;
-  background: var(--color-gold);
-  transition: width 90ms linear, background var(--dur-base) ease;
-}
-
-.timer-line.urgency-mid {
-  border-color: var(--color-dubious-bd);
-}
-.timer-line.urgency-mid .timer-bar { background: var(--color-dubious); }
-.timer-line.urgency-mid #turn-timer-value { color: var(--color-dubious); }
-
-.timer-line.urgency-high {
-  border-color: var(--color-blunder-bd);
-}
-.timer-line.urgency-high .timer-bar { background: var(--color-blunder); }
-.timer-line.urgency-high #turn-timer-value { color: var(--color-blunder); }
 
 #competitive-status {
   margin-top: 8px;
@@ -726,9 +687,6 @@ button:disabled {
   color: var(--color-text-muted);
   line-height: 1.35;
 }
-
-.board-panel { grid-area: board; display: grid; gap: 10px; align-content: start; }
-.side-panel  { grid-area: side;  display: grid; gap: 12px; align-content: start; }
 
 /* ── Playing mode ── */
 body.playing-mode {
@@ -1025,8 +983,6 @@ body.duel-mode #next-btn { min-width: 176px; }
     grid-template-columns: 1fr;
     grid-template-areas: "info" "board" "side";
   }
-
-  .top-status-row { display: grid; grid-template-columns: 1fr; gap: 10px; }
 
   body.playing-mode .side-panel {
     position: static;
@@ -1729,8 +1685,14 @@ body.result-visible .result-overlay { justify-self: start; }
 }
 
 /* Al cerrar la sesión sólo queda la tarjeta del resumen: se centra en vez de
-   quedar colgada arriba de un panel casi vacío. */
-.result-overlay-read:has(> #result-overlay-inner.hidden) { align-content: center; }
+   quedar colgada arriba de un panel casi vacío. Sin soporte de :has() el
+   resumen simplemente queda arriba en vez de centrado — un defecto visual
+   menor, no bloqueante; arreglarlo de raíz requeriría que app.js marque el
+   estado con una clase en vez de depender de :has(), fuera del alcance de
+   este cambio. */
+@supports selector(:has(*)) {
+  .result-overlay-read:has(> #result-overlay-inner.hidden) { align-content: center; }
+}
 
 /* En pantallas chicas el panel crece con la página (regla de arriba: sin
    max-height ni recorte), así que no hace falta la zona de lectura aparte. */
@@ -1935,9 +1897,15 @@ body.solo-mode.result-visible .board-exploration-actions {
   width: min(100%, 80vh, 1120px, calc(100vw - 32px));
 }
 
-/* Si el código escondió las cuatro fichas, la fila no deja un hueco. */
-body.result-visible .board-exploration-actions:not(:has(> button:not(.hidden))) {
-  display: none;
+/* Si el código escondió las cuatro fichas, la fila no deja un hueco. Sin
+   soporte de :has() queda un hueco vacío bajo el tablero — un defecto
+   visual menor, no bloqueante; arreglarlo de raíz requeriría que app.js
+   marque el estado con una clase en vez de depender de :has(), fuera del
+   alcance de este cambio. */
+@supports selector(:has(*)) {
+  body.result-visible .board-exploration-actions:not(:has(> button:not(.hidden))) {
+    display: none;
+  }
 }
 
 .board-exploration-actions button {
@@ -2557,6 +2525,10 @@ body.playing-mode #landing-screen { display: none !important; }
   .wizard-summary-title::-webkit-details-marker { display: revert; }
 
   .wizard-footer {
+    /* En pantallas chicas el pie ocupa dos filas más la salida del asistente:
+       si queda pegado abajo (regla de escritorio, más arriba) tapa el
+       resumen del paso 3. Se deja fluir en el orden normal de la página. */
+    position: static;
     display: grid;
     grid-template-columns: 1fr 1fr;
     margin: 0 calc(var(--space-4) * -1) calc(var(--space-4) * -1);
