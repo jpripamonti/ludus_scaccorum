@@ -13,8 +13,19 @@ This repository is distributed as a static web application. The inventory below 
 - Declared license in file header: GPLv3.
 - Neural network declared in file header: `nn-9067e33176e`, by Linmiao Xu.
 - Current checksums are tracked in `vendor/SHA256SUMS`.
+- Verified provenance: `vendor/PROVENANCE.md` records what was independently confirmed
+  (as of 2026-08-31) about these exact files — the two vendored files were downloaded
+  fresh from `nmrugg/stockfish.js` release `v18.0.0` ("Stockfish 18") and are byte-for-byte
+  identical to that release's published `stockfish-18-lite-single.js`/`.wasm` assets, whose
+  declared upstream Stockfish commit (`cb3d4ee9b47d0c5aae855b12379378ea1439675c`, tagged
+  `sf_18`) and required Emscripten version (`3.1.7`) were also confirmed to be real. That
+  file also lists what is still open: no from-source rebuild was performed, and there is no
+  public CI log for the exact release asset. Read it before assuming more than "verified
+  official release asset" has been established.
+- Standing offer of source: see the GPLv3 written offer at the end of
+  `vendor/PROVENANCE.md`.
 
-Operational requirement: when replacing these files, update `vendor/SHA256SUMS` and record the exact upstream version, source commit or release, build command, and corresponding source archive used to produce the new artifacts.
+Operational requirement: when replacing these files, update `vendor/SHA256SUMS` and `vendor/PROVENANCE.md` with the exact upstream version, source commit or release, build command, and corresponding source archive used to produce the new artifacts.
 
 ## Chess piece SVGs
 
