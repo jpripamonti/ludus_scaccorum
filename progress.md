@@ -1,3 +1,19 @@
+# Registro de trabajo (archivo histórico)
+
+Este archivo es un log cronológico de lo que se fue implementando y validando en cada
+iteración. **No es una especificación del comportamiento actual de la app.** Las entradas
+describen decisiones tomadas en un momento dado del desarrollo, y algunas de esas
+decisiones fueron modificadas o revertidas más adelante sin que la entrada vieja se
+corrija (por ejemplo, la entrada del 2026-02-26 describe un wizard de 4 pasos; el wizard
+actual tiene 3 pasos — ver `index.html`). Las entradas no se reescriben ni se borran
+porque son un registro legítimo de qué se probó y por qué, pero no hay que asumir que algo
+sigue siendo así sólo porque está escrito acá.
+
+Para saber cómo se comporta la app hoy, verificar siempre el código (`app.js`,
+`index.html`, `styles.css`) o probarlo en vivo — nunca este archivo.
+
+---
+
 Original prompt: Quiero modificar las pantallas de este juego. La pantalla inicial tiene que tener la imagen de fondo un poco más clara. El título del juego en la posición en la que está ahora. Abajo del título una descripción breve del juego. Y abajo de la descripción un botón que dice "Comenzar".  Eso es todo para la pantalla inicial. Puedes hacerlo?
 
 ## 2026-02-26
