@@ -188,13 +188,13 @@ const TRANSLATIONS = {
     "buttons.analysisActive": "Exploración activa",
     "buttons.resetAnalysis": "Reiniciar análisis",
     "buttons.nextPosition": "Siguiente posición",
-    "buttons.backToMenu": "Volver al menú",
+    "buttons.backToMenu": "Volver al inicio",
     "buttons.skipMove": "Omitir jugada (0 pts)",
-    "buttons.restartMenu": "Volver al menú",
+    "buttons.restartMenu": "Volver al inicio",
     "buttons.cancelSearch": "Cancelar búsqueda",
-    "confirm.restartTitle": "¿Volver al menú?",
-    "confirm.restartToSetup": "Si volvés al menú se borran las posiciones de esta sesión y el puntaje acumulado. ¿Volver igual?",
-    "confirm.restartAccept": "Volver al menú",
+    "confirm.restartTitle": "¿Volver al inicio?",
+    "confirm.restartToSetup": "Si volvés al inicio se borran las posiciones de esta sesión y el puntaje acumulado. ¿Volver igual?",
+    "confirm.restartAccept": "Volver al inicio",
     "confirm.restartCancel": "Seguir jugando",
     "wizard.title": "Configuración guiada",
     "wizard.heading": "Armemos tu sesión en 3 pasos",
@@ -469,13 +469,13 @@ const TRANSLATIONS = {
     "buttons.analysisActive": "Exploration active",
     "buttons.resetAnalysis": "Reset analysis",
     "buttons.nextPosition": "Next position",
-    "buttons.backToMenu": "Back to menu",
+    "buttons.backToMenu": "Back to start",
     "buttons.skipMove": "Skip move (0 pts)",
-    "buttons.restartMenu": "Back to menu",
+    "buttons.restartMenu": "Back to start",
     "buttons.cancelSearch": "Cancel search",
-    "confirm.restartTitle": "Go back to the menu?",
-    "confirm.restartToSetup": "Going back to the menu clears this session's positions and your running score. Go back anyway?",
-    "confirm.restartAccept": "Back to menu",
+    "confirm.restartTitle": "Go back to the start?",
+    "confirm.restartToSetup": "Going back to the start clears this session's positions and your running score. Go back anyway?",
+    "confirm.restartAccept": "Back to start",
     "confirm.restartCancel": "Keep playing",
     "wizard.title": "Guided setup",
     "wizard.heading": "Let's build your session in 3 steps",
@@ -2654,9 +2654,39 @@ function resetSetupWizard({ mode = null, statusMessage = "" } = {}) {
 function sendWizardBackToSourceStep(key = "common.sourceError", params = {}) {
   showWizardSourceError(key, params);
   STATE.ui.setupAnalyzing = false;
+  setWizardFormControlsDisabled(false);
   if (analyzeBtn) analyzeBtn.disabled = false;
   goToWizardStep(2);
   if (onlineUserInputEl) onlineUserInputEl.focus();
+}
+
+// Inputs the user could still edit while a download/analysis is in flight.
+// The session-token checks elsewhere already stop a stale download from being
+// installed under the wrong identity, so this only closes a UI affordance gap
+// (editing fields mid-analysis is confusing, not unsafe). Navigation controls
+// like the wizard's prev/next and the exit-to-start button are intentionally
+// left out so the user can still bail out while analysis runs.
+const wizardFormControlEls = [
+  wizardModeSoloBtn,
+  wizardModeDuelBtn,
+  duelPlayerAEl,
+  duelPlayerBEl,
+  wizardProviderLichessBtn,
+  wizardProviderChessComBtn,
+  onlineUserInputEl,
+  wizardRetryUserBtn,
+  wizardSwitchPlatformBtn,
+  wizardClearCacheBtn,
+  ...wizardSizeChipEls,
+  ...wizardTimerChipEls,
+  sessionSizeEl,
+  turnTimeSecondsEl,
+];
+
+function setWizardFormControlsDisabled(disabled) {
+  wizardFormControlEls.forEach((el) => {
+    if (el) el.disabled = disabled;
+  });
 }
 
 function getSetupReadiness() {
@@ -5726,6 +5756,7 @@ function restartToSetup() {
   stopRoundTimer();
   resetEngineToLocal();
   STATE.ui.setupAnalyzing = false;
+  setWizardFormControlsDisabled(false);
   setThinkingMode(false);
   setScoringInfoVisible(false);
   hideHandoffOverlay();
@@ -6391,6 +6422,7 @@ async function startSessionPipeline() {
   } finally {
     if (isCurrentSessionWork(sessionToken)) {
       STATE.ui.setupAnalyzing = false;
+      setWizardFormControlsDisabled(false);
       updateAnalyzeButtonState();
     }
   }
@@ -6402,6 +6434,7 @@ function resetSessionStateForNewPipeline() {
   clearWizardSourceError();
   const sessionToken = beginSessionWork();
   STATE.ui.setupAnalyzing = true;
+  setWizardFormControlsDisabled(true);
   if (analyzeBtn) analyzeBtn.disabled = true;
   resetAnalysisProgress();
   analysisProgressWrapEl.classList.remove("hidden");
@@ -6438,7 +6471,7 @@ function resetSessionStateForNewPipeline() {
   return sessionToken;
 }
 
-// Brings the strong engine back before a session starts. Going back to the menu
+// Brings the strong engine back before a session starts. Going back to the start
 // terminates its worker, so without this every later session in the same tab
 // would be scored by the shallow local fallback without ever saying so.
 async function ensureEngineForSession() {
@@ -6619,11 +6652,6 @@ if (wizardModeSoloBtn) {
     if (gameFormatEl) gameFormatEl.value = "solo";
     clearWizardStepError();
     renderWizardStep();
-    if (STATE.setupWizard.step === 1) {
-      clearWizardSourceError();
-      goToWizardStep(2);
-      if (analysisStatusEl) analysisStatusEl.textContent = t("wizard.status.sourceStep");
-    }
   });
 }
 
