@@ -17,9 +17,9 @@
 <body class="mode-citizen">
   <div class="app">
     <div class="app-toolbar">
-      <div id="language-switch" class="language-switch" role="group" aria-label="Language / Idioma">
-        <button id="language-btn-es" type="button" class="language-switch-btn" aria-pressed="true">ES</button>
-        <button id="language-btn-en" type="button" class="language-switch-btn" aria-pressed="false">EN</button>
+      <div id="language-switch" class="language-switch" role="radiogroup" aria-label="Language / Idioma">
+        <button id="language-btn-es" type="button" class="language-switch-btn" role="radio" aria-checked="true" tabindex="0">ES</button>
+        <button id="language-btn-en" type="button" class="language-switch-btn" role="radio" aria-checked="false" tabindex="-1">EN</button>
       </div>
     </div>
 
@@ -47,9 +47,9 @@
           <div class="wizard-steps">
             <section id="wizard-step-1" class="wizard-step is-active" aria-labelledby="wizard-step-1-title">
               <h3 id="wizard-step-1-title" class="wizard-question" data-i18n="wizard.step1.question">¿Cómo querés jugar?</h3>
-              <div class="wizard-card-grid" role="group" data-i18n-aria-label="wizard.step1.ariaLabel" aria-label="Modo de juego">
-                <button id="wizard-mode-solo" type="button" class="wizard-choice-card" data-i18n="wizard.step1.solo">Jugar solo/a</button>
-                <button id="wizard-mode-duel" type="button" class="wizard-choice-card">
+              <div id="wizard-mode-group" class="wizard-card-grid" role="radiogroup" data-i18n-aria-label="wizard.step1.ariaLabel" aria-label="Modo de juego">
+                <button id="wizard-mode-solo" type="button" class="wizard-choice-card" role="radio" data-i18n="wizard.step1.solo">Jugar solo/a</button>
+                <button id="wizard-mode-duel" type="button" class="wizard-choice-card" role="radio">
                   <span data-i18n="wizard.step1.duel">Jugar contra alguien</span>
                   <span class="wizard-choice-hint" data-i18n="wizard.step1.duelHint">Se turnan en este mismo dispositivo</span>
                 </button>
@@ -75,9 +75,9 @@
                   suficientes, puede usar partidas Blitz como respaldo. Se descargan hasta la cantidad necesaria para
                   generar tus posiciones de entrenamiento.</p>
               </details>
-              <div class="wizard-card-grid" role="group" data-i18n-aria-label="wizard.step2.platformAriaLabel" aria-label="Plataforma">
-                <button id="wizard-provider-lichess" type="button" class="wizard-choice-card" data-i18n="wizard.step2.lichess">Lichess</button>
-                <button id="wizard-provider-chesscom" type="button" class="wizard-choice-card" data-i18n="wizard.step2.chesscom">Chess.com</button>
+              <div id="wizard-platform-group" class="wizard-card-grid" role="radiogroup" data-i18n-aria-label="wizard.step2.platformAriaLabel" aria-label="Plataforma">
+                <button id="wizard-provider-lichess" type="button" class="wizard-choice-card" role="radio" data-i18n="wizard.step2.lichess">Lichess</button>
+                <button id="wizard-provider-chesscom" type="button" class="wizard-choice-card" role="radio" data-i18n="wizard.step2.chesscom">Chess.com</button>
               </div>
               <label for="online-user-input" data-i18n="wizard.step2.usernameLabel">Nombre de usuario</label>
               <input id="online-user-input" type="text" placeholder="Ej: MagnusCarlsen" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="text" aria-describedby="online-status" />
@@ -95,10 +95,10 @@
             <section id="wizard-step-3" class="wizard-step hidden" aria-labelledby="wizard-step-3-title">
               <h3 id="wizard-step-3-title" class="wizard-question" data-i18n="wizard.step3.question">¿Cuántas posiciones querés jugar hoy?</h3>
               <div class="wizard-step-group">
-                <div class="wizard-size-grid" role="group" data-i18n-aria-label="wizard.step3.ariaLabel" aria-label="Cantidad de posiciones">
-                  <button type="button" class="wizard-size-chip" data-size="5" data-i18n="wizard.step3.positions5">5 posiciones</button>
-                  <button type="button" class="wizard-size-chip" data-size="10" data-i18n="wizard.step3.positions10">10 posiciones</button>
-                  <button type="button" class="wizard-size-chip" data-size="20" data-i18n="wizard.step3.positions20">20 posiciones</button>
+                <div class="wizard-size-grid" role="radiogroup" data-i18n-aria-label="wizard.step3.ariaLabel" aria-label="Cantidad de posiciones">
+                  <button type="button" class="wizard-size-chip" role="radio" data-size="5" data-i18n="wizard.step3.positions5">5 posiciones</button>
+                  <button type="button" class="wizard-size-chip" role="radio" data-size="10" data-i18n="wizard.step3.positions10">10 posiciones</button>
+                  <button type="button" class="wizard-size-chip" role="radio" data-size="20" data-i18n="wizard.step3.positions20">20 posiciones</button>
                 </div>
                 <label for="session-size" data-i18n="wizard.step3.customCount">Personalizado (1 a 200)</label>
                 <input id="session-size" type="number" min="1" max="200" value="10" />
@@ -106,10 +106,10 @@
 
               <div class="wizard-step-group">
                 <p class="wizard-group-label" data-i18n="wizard.step3.timerLabel">Tiempo por ronda</p>
-                <div class="wizard-size-grid wizard-timer-grid" role="group" data-i18n-aria-label="wizard.step3.timerAriaLabel" aria-label="Tiempo por ronda">
-                  <button type="button" class="wizard-size-chip wizard-timer-chip" data-seconds="90">90s</button>
-                  <button type="button" class="wizard-size-chip wizard-timer-chip" data-seconds="180">180s</button>
-                  <button type="button" class="wizard-size-chip wizard-timer-chip" data-seconds="360">360s</button>
+                <div class="wizard-size-grid wizard-timer-grid" role="radiogroup" data-i18n-aria-label="wizard.step3.timerAriaLabel" aria-label="Tiempo por ronda">
+                  <button type="button" class="wizard-size-chip wizard-timer-chip" role="radio" data-seconds="90">90s</button>
+                  <button type="button" class="wizard-size-chip wizard-timer-chip" role="radio" data-seconds="180">180s</button>
+                  <button type="button" class="wizard-size-chip wizard-timer-chip" role="radio" data-seconds="360">360s</button>
                 </div>
                 <label for="turn-time-seconds" data-i18n="wizard.step3.timerCustom">Personalizado (5 a 360 segundos)</label>
                 <input id="turn-time-seconds" type="number" min="5" max="360" value="90" />
@@ -190,11 +190,12 @@
           <div class="round-bar-turn">
             <span id="round-turn" class="round-turn"></span>
           </div>
-          <div id="solo-clock-rail" class="round-clock" aria-live="polite" data-i18n-aria-label="labels.clockTitle" aria-label="Reloj">
-            <strong id="solo-clock-value" class="solo-clock-value">--:--</strong>
+          <div id="solo-clock-rail" class="round-clock" role="status" data-i18n-aria-label="labels.clockTitle" aria-label="Reloj">
+            <strong id="solo-clock-value" class="solo-clock-value" aria-live="off">--:--</strong>
             <div id="solo-clock-track" class="solo-clock-track" aria-hidden="true">
               <div id="solo-clock-bar" class="solo-clock-bar"></div>
             </div>
+            <span id="solo-clock-announce" class="sr-only"></span>
           </div>
           <div id="session-progress" class="session-progress">Aciertos: 0 | Jugadas: 0 | Restantes: 0</div>
         </div>
@@ -206,12 +207,13 @@
             <aside id="position-search-overlay" class="position-search-overlay hidden" aria-live="polite">
               <strong id="position-search-title" class="position-search-title" data-i18n="game.searchingNext">Buscando próxima posición...</strong>
               <span id="position-search-meta" class="position-search-meta"></span>
-              <div id="position-search-progress" class="position-search-progress hidden" aria-hidden="true">
-                <div class="position-search-progress-track">
+              <div id="position-search-progress" class="position-search-progress hidden" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-labelledby="position-search-title" aria-live="off">
+                <div class="position-search-progress-track" aria-hidden="true">
                   <div id="position-search-progress-bar" class="position-search-progress-bar"></div>
                 </div>
                 <span id="position-search-progress-label" class="position-search-progress-label"></span>
               </div>
+              <span id="position-search-progress-announce" class="sr-only"></span>
               <button id="position-search-cancel-btn" type="button" class="wizard-secondary-btn position-search-cancel-btn" data-i18n="buttons.cancelSearch">Cancelar búsqueda</button>
             </aside>
 

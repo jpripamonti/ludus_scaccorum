@@ -52,10 +52,14 @@ const wizardStep3El = document.getElementById("wizard-step-3");
 const wizardStepEls = [wizardStep1El, wizardStep2El, wizardStep3El];
 const wizardPrevBtn = document.getElementById("wizard-prev-btn");
 const wizardNextBtn = document.getElementById("wizard-next-btn");
+const wizardModeGroupEl = document.getElementById("wizard-mode-group");
 const wizardModeSoloBtn = document.getElementById("wizard-mode-solo");
 const wizardModeDuelBtn = document.getElementById("wizard-mode-duel");
+const wizardModeGroupEls = [wizardModeSoloBtn, wizardModeDuelBtn].filter(Boolean);
+const wizardPlatformGroupEl = document.getElementById("wizard-platform-group");
 const wizardProviderLichessBtn = document.getElementById("wizard-provider-lichess");
 const wizardProviderChessComBtn = document.getElementById("wizard-provider-chesscom");
+const wizardPlatformGroupEls = [wizardProviderLichessBtn, wizardProviderChessComBtn].filter(Boolean);
 const wizardSizeChipEls = Array.from(document.querySelectorAll(".wizard-size-chip[data-size]"));
 const wizardTimerChipEls = Array.from(document.querySelectorAll(".wizard-timer-chip[data-seconds]"));
 const wizardStepErrorEl = document.getElementById("wizard-step-error");
@@ -105,12 +109,14 @@ const positionSearchMetaEl = document.getElementById("position-search-meta");
 const positionSearchProgressEl = document.getElementById("position-search-progress");
 const positionSearchProgressBarEl = document.getElementById("position-search-progress-bar");
 const positionSearchProgressLabelEl = document.getElementById("position-search-progress-label");
+const positionSearchProgressAnnounceEl = document.getElementById("position-search-progress-announce");
 const positionSearchCancelBtnEl = document.getElementById("position-search-cancel-btn");
 const promotionPickerEl = document.getElementById("promotion-picker");
 const promotionChoiceEls = ["q", "r", "b", "n"].map((code) => document.getElementById(`promotion-choice-${code}`));
 const soloClockRailEl = document.getElementById("solo-clock-rail");
 const soloClockValueEl = document.getElementById("solo-clock-value");
 const soloClockBarEl = document.getElementById("solo-clock-bar");
+const soloClockAnnounceEl = document.getElementById("solo-clock-announce");
 const resultOverlayEl = document.getElementById("result-overlay");
 const resultOverlayInnerEl = document.getElementById("result-overlay-inner");
 const resultOverlayTitleEl = document.getElementById("result-overlay-title");
@@ -151,6 +157,7 @@ const summaryMenuBtn = document.getElementById("summary-menu-btn");
 const languageSwitchEl = document.getElementById("language-switch");
 const languageBtnEs = document.getElementById("language-btn-es");
 const languageBtnEn = document.getElementById("language-btn-en");
+const languageGroupEls = [languageBtnEs, languageBtnEn].filter(Boolean);
 
 const INTERNAL_ANALYSIS_DEPTH = 3;
 const DEFAULT_SCORING_SYSTEM = "simple_labels_v1";
@@ -296,6 +303,8 @@ const TRANSLATIONS = {
     "players.genericUser": "usuario",
     "labels.scoreTitle": "Puntaje",
     "labels.clockTitle": "Reloj",
+    "labels.clockMilestone": "Quedan {seconds} segundos.",
+    "labels.clockTimeUp": "Se acabó el tiempo.",
     "labels.positionsEvaluatedTitle": "Posiciones evaluadas",
     "result.title": "Resultado",
     "result.pending": "Todavía no hay jugada evaluada.",
@@ -583,6 +592,8 @@ const TRANSLATIONS = {
     "players.genericUser": "user",
     "labels.scoreTitle": "Score",
     "labels.clockTitle": "Clock",
+    "labels.clockMilestone": "{seconds} seconds remaining.",
+    "labels.clockTimeUp": "Time's up.",
     "labels.positionsEvaluatedTitle": "Evaluated positions",
     "result.title": "Result",
     "result.pending": "There is no evaluated move yet.",
@@ -1056,7 +1067,7 @@ const STATE = {
     turnTimeSeconds: INITIAL_SETUP.turnTimeSeconds,
     sourceError: null,
   },
-  timer: { intervalId: null, deadlineMs: 0, durationMs: 0 },
+  timer: { intervalId: null, deadlineMs: 0, durationMs: 0, lastAnnouncedSeconds: null },
   ui: {
     phase: "playing",
     blockBoardInput: false,
@@ -1140,8 +1151,9 @@ function updateDocumentLanguage() {
 
 function updateLanguageToggleUi() {
   const current = preferredLocale();
-  if (languageBtnEs) languageBtnEs.setAttribute("aria-pressed", current === "es" ? "true" : "false");
-  if (languageBtnEn) languageBtnEn.setAttribute("aria-pressed", current === "en" ? "true" : "false");
+  if (languageBtnEs) languageBtnEs.setAttribute("aria-checked", current === "es" ? "true" : "false");
+  if (languageBtnEn) languageBtnEn.setAttribute("aria-checked", current === "en" ? "true" : "false");
+  setRadioGroupTabIndex(languageGroupEls, current === "en" ? languageBtnEn : languageBtnEs);
 }
 
 function applyStaticTranslations() {
@@ -1627,6 +1639,59 @@ function shuffle(array) {
   return copy;
 }
 
+// Roving tabindex for the exclusive-choice button groups (mode, platform,
+// position count, turn time, language): only the checked radio is in the
+// Tab order, matching the WAI-ARIA radiogroup pattern.
+function setRadioGroupTabIndex(groupEls, checkedEl) {
+  const target = checkedEl && groupEls.includes(checkedEl) ? checkedEl : groupEls[0];
+  groupEls.forEach((el) => el.setAttribute("tabindex", el === target ? "0" : "-1"));
+}
+
+// Left/Right and Up/Down move focus to the previous/next radio in the group
+// and select it, wrapping at the ends. Enter/Space already work because
+// these options stay real <button> elements.
+function wireRadioGroupKeyboardNav(groupEls) {
+  groupEls.forEach((el) => {
+    el.addEventListener("keydown", (event) => {
+      const forward = event.key === "ArrowRight" || event.key === "ArrowDown";
+      const backward = event.key === "ArrowLeft" || event.key === "ArrowUp";
+      if (!forward && !backward) return;
+      event.preventDefault();
+      const currentIndex = groupEls.indexOf(event.currentTarget);
+      if (currentIndex === -1) return;
+      const nextIndex = forward
+        ? (currentIndex + 1) % groupEls.length
+        : (currentIndex - 1 + groupEls.length) % groupEls.length;
+      const nextEl = groupEls[nextIndex];
+      if (!nextEl) return;
+      nextEl.focus();
+      nextEl.click();
+    });
+  });
+}
+
+// Links a form control to an error message: sets aria-invalid and appends
+// the error paragraph's id to aria-describedby without clobbering any other
+// id already there (e.g. the username field's static help text).
+function setFieldInvalid(el, errorId) {
+  if (!el || !errorId) return;
+  el.setAttribute("aria-invalid", "true");
+  const ids = (el.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
+  if (!ids.includes(errorId)) {
+    ids.push(errorId);
+    el.setAttribute("aria-describedby", ids.join(" "));
+  }
+}
+
+function clearFieldInvalid(el, errorId) {
+  if (!el) return;
+  el.removeAttribute("aria-invalid");
+  if (!errorId) return;
+  const ids = (el.getAttribute("aria-describedby") || "").split(/\s+/).filter((id) => id && id !== errorId);
+  if (ids.length) el.setAttribute("aria-describedby", ids.join(" "));
+  else el.removeAttribute("aria-describedby");
+}
+
 function countPgnGames(pgnText) {
   if (!pgnText) return 0;
   const matches = pgnText.match(/(^|\n)\[Event\s+"/g);
@@ -1805,26 +1870,50 @@ function hideHandoffOverlay() {
   }
 }
 
+const POSITION_SEARCH_PROGRESS_MILESTONE_STEP = 25;
+
+// Mirrors the clock's approach (announceClockMilestone): the visible bar and
+// percentage update on every tick, but the live region only speaks up every
+// 25%, once per step, so it doesn't bury the board in ARIA chatter while
+// input is blocked.
+function announcePositionSearchProgressMilestone(pct, text) {
+  if (!positionSearchProgressAnnounceEl) return;
+  const step = Math.min(4, Math.floor(pct / POSITION_SEARCH_PROGRESS_MILESTONE_STEP));
+  const state = STATE.ui.positionSearchState;
+  if (state) {
+    if (state.announcedProgressStep === step) return;
+    state.announcedProgressStep = step;
+  }
+  positionSearchProgressAnnounceEl.textContent = text;
+}
+
 function setPositionSearchProgress(ratio = null, label = "") {
   if (!positionSearchProgressEl || !positionSearchProgressBarEl || !positionSearchProgressLabelEl) return;
   if (!Number.isFinite(ratio)) {
     if (STATE.ui.positionSearchState) {
       STATE.ui.positionSearchState.progressRatio = null;
       STATE.ui.positionSearchState.progressLabel = "";
+      STATE.ui.positionSearchState.announcedProgressStep = null;
     }
     positionSearchProgressEl.classList.add("hidden");
+    positionSearchProgressEl.setAttribute("aria-valuenow", "0");
     positionSearchProgressBarEl.style.width = "0%";
     positionSearchProgressLabelEl.textContent = "";
+    if (positionSearchProgressAnnounceEl) positionSearchProgressAnnounceEl.textContent = "";
     return;
   }
   const safeRatio = clamp(Number(ratio) || 0, 0, 1);
+  const pct = Math.round(safeRatio * 100);
+  const text = String(label || `${pct}%`);
   if (STATE.ui.positionSearchState) {
     STATE.ui.positionSearchState.progressRatio = safeRatio;
-    STATE.ui.positionSearchState.progressLabel = String(label || `${Math.round(safeRatio * 100)}%`);
+    STATE.ui.positionSearchState.progressLabel = text;
   }
   positionSearchProgressEl.classList.remove("hidden");
-  positionSearchProgressBarEl.style.width = `${Math.round(safeRatio * 100)}%`;
-  positionSearchProgressLabelEl.textContent = String(label || `${Math.round(safeRatio * 100)}%`);
+  positionSearchProgressEl.setAttribute("aria-valuenow", String(pct));
+  positionSearchProgressBarEl.style.width = `${pct}%`;
+  positionSearchProgressLabelEl.textContent = text;
+  announcePositionSearchProgressMilestone(pct, text);
 }
 
 function normalizeThinkingLevel(level) {
@@ -2358,12 +2447,15 @@ function applyGameFormat(format) {
 }
 
 function updateWizardTimerChipSelection(seconds = STATE.setupWizard.turnTimeSeconds) {
+  let selectedChip = null;
   wizardTimerChipEls.forEach((chipEl) => {
     const chipSeconds = Number(chipEl.getAttribute("data-seconds")) || 0;
     const selected = chipSeconds === seconds;
     chipEl.classList.toggle("is-selected", selected);
-    chipEl.setAttribute("aria-pressed", selected ? "true" : "false");
+    chipEl.setAttribute("aria-checked", selected ? "true" : "false");
+    if (selected) selectedChip = chipEl;
   });
+  setRadioGroupTabIndex(wizardTimerChipEls, selectedChip);
 }
 
 function setWizardTurnTimeSeconds(value, options = {}) {
@@ -2394,6 +2486,21 @@ function stopRoundTimer() {
   }
 }
 
+const CLOCK_ANNOUNCE_MILESTONES_SEC = [60, 30, 10, 0];
+
+// The clock's visible text updates every tick (CLOCK_TICK_MS), but announcing
+// that on every tick would drown out board/turn/result announcements. Only
+// these milestones reach the live region, and each one only once.
+function announceClockMilestone(totalSeconds) {
+  if (!soloClockAnnounceEl) return;
+  if (!CLOCK_ANNOUNCE_MILESTONES_SEC.includes(totalSeconds)) return;
+  if (STATE.timer.lastAnnouncedSeconds === totalSeconds) return;
+  STATE.timer.lastAnnouncedSeconds = totalSeconds;
+  soloClockAnnounceEl.textContent = totalSeconds > 0
+    ? t("labels.clockMilestone", { seconds: totalSeconds })
+    : t("labels.clockTimeUp");
+}
+
 // Un solo reloj para los dos modos: el de la barra de ronda. En duelo muestra
 // el tiempo del jugador que está al turno, porque sólo uno juega a la vez.
 function updateRoundTimerUi(remainingMs = STATE.timer.deadlineMs - Date.now()) {
@@ -2409,6 +2516,7 @@ function updateRoundTimerUi(remainingMs = STATE.timer.deadlineMs - Date.now()) {
 
   soloClockValueEl.textContent = formatClock(safeRemaining);
   soloClockBarEl.style.setProperty("--clock-ratio", `${Math.round(ratio * 100)}%`);
+  announceClockMilestone(Math.ceil(safeRemaining / 1000));
   soloClockRailEl.classList.remove("urgency-mid", "urgency-high");
   if (ratio <= 0.2) {
     soloClockRailEl.classList.add("urgency-high");
@@ -2422,6 +2530,8 @@ function startRoundTimer() {
   const durationMs = Math.round(normalizeTurnTimeSeconds(STATE.turnTimeSeconds) * 1000);
   STATE.timer.durationMs = durationMs;
   STATE.timer.deadlineMs = Date.now() + durationMs;
+  STATE.timer.lastAnnouncedSeconds = null;
+  if (soloClockAnnounceEl) soloClockAnnounceEl.textContent = "";
   updateRoundTimerUi(durationMs);
   STATE.timer.intervalId = setInterval(() => {
     const remainingMs = STATE.timer.deadlineMs - Date.now();
@@ -2590,9 +2700,14 @@ function clearWizardSourceError() {
     wizardSourceErrorEl.classList.add("hidden");
   }
   if (wizardSourceCtaEl) wizardSourceCtaEl.classList.add("hidden");
+  clearFieldInvalid(onlineUserInputEl, "wizard-source-error");
+  clearFieldInvalid(wizardPlatformGroupEl, "wizard-source-error");
 }
 
-function showWizardSourceError(key = "common.sourceError", params = {}) {
+// field identifies which step-2 control the error is actually about
+// ("platform" or "username"), so only that control gets flagged invalid —
+// network/throttle errors (called without a field) just show the text.
+function showWizardSourceError(key = "common.sourceError", params = {}, field = null) {
   const hasTranslation = Object.prototype.hasOwnProperty.call(TRANSLATIONS[preferredLocale()] || {}, key)
     || Object.prototype.hasOwnProperty.call(TRANSLATIONS.es || {}, key);
   const text = hasTranslation ? t(key, params) : String(key || "").trim();
@@ -2602,6 +2717,10 @@ function showWizardSourceError(key = "common.sourceError", params = {}) {
     wizardSourceErrorEl.classList.remove("hidden");
   }
   if (wizardSourceCtaEl) wizardSourceCtaEl.classList.remove("hidden");
+  if (field === "username") setFieldInvalid(onlineUserInputEl, "wizard-source-error");
+  else clearFieldInvalid(onlineUserInputEl, "wizard-source-error");
+  if (field === "platform") setFieldInvalid(wizardPlatformGroupEl, "wizard-source-error");
+  else clearFieldInvalid(wizardPlatformGroupEl, "wizard-source-error");
 }
 
 function clearWizardStepError() {
@@ -2609,21 +2728,25 @@ function clearWizardStepError() {
     wizardStepErrorEl.textContent = "";
     wizardStepErrorEl.classList.add("hidden");
   }
-  [duelPlayerAEl, duelPlayerBEl].forEach((inputEl) => {
-    if (inputEl) inputEl.removeAttribute("aria-describedby");
-  });
+  [duelPlayerAEl, duelPlayerBEl].forEach((inputEl) => clearFieldInvalid(inputEl, "wizard-step-error"));
+  clearFieldInvalid(wizardModeGroupEl, "wizard-step-error");
 }
 
-function showWizardStepError(message = "") {
+// field identifies which step-1 control the error is about ("mode" or
+// "duelNames"); only that control gets aria-invalid + aria-describedby.
+function showWizardStepError(message = "", field = null) {
   if (!wizardStepErrorEl) return;
   const text = String(message || "").trim();
   wizardStepErrorEl.textContent = text;
   wizardStepErrorEl.classList.toggle("hidden", !text);
+  const duelNamesInvalid = Boolean(text) && field === "duelNames";
   [duelPlayerAEl, duelPlayerBEl].forEach((inputEl) => {
-    if (!inputEl) return;
-    if (text) inputEl.setAttribute("aria-describedby", "wizard-step-error");
-    else inputEl.removeAttribute("aria-describedby");
+    if (duelNamesInvalid) setFieldInvalid(inputEl, "wizard-step-error");
+    else clearFieldInvalid(inputEl, "wizard-step-error");
   });
+  const modeInvalid = Boolean(text) && field === "mode";
+  if (modeInvalid) setFieldInvalid(wizardModeGroupEl, "wizard-step-error");
+  else clearFieldInvalid(wizardModeGroupEl, "wizard-step-error");
 }
 
 function focusFirstInvalidWizardControl(step, validation = {}) {
@@ -2684,32 +2807,40 @@ function renderWizardStep() {
   if (wizardModeSoloBtn) {
     const selected = config.mode === "solo";
     wizardModeSoloBtn.classList.toggle("is-selected", selected);
-    wizardModeSoloBtn.setAttribute("aria-pressed", selected ? "true" : "false");
+    wizardModeSoloBtn.setAttribute("aria-checked", selected ? "true" : "false");
   }
   if (wizardModeDuelBtn) {
     const selected = config.mode === "duel";
     wizardModeDuelBtn.classList.toggle("is-selected", selected);
-    wizardModeDuelBtn.setAttribute("aria-pressed", selected ? "true" : "false");
+    wizardModeDuelBtn.setAttribute("aria-checked", selected ? "true" : "false");
   }
+  setRadioGroupTabIndex(wizardModeGroupEls, config.mode === "duel" ? wizardModeDuelBtn : wizardModeSoloBtn);
   if (duelConfigEl) duelConfigEl.classList.toggle("hidden", config.mode !== "duel");
 
   if (wizardProviderLichessBtn) {
     const selected = config.platform === "lichess";
     wizardProviderLichessBtn.classList.toggle("is-selected", selected);
-    wizardProviderLichessBtn.setAttribute("aria-pressed", selected ? "true" : "false");
+    wizardProviderLichessBtn.setAttribute("aria-checked", selected ? "true" : "false");
   }
   if (wizardProviderChessComBtn) {
     const selected = config.platform === "chesscom";
     wizardProviderChessComBtn.classList.toggle("is-selected", selected);
-    wizardProviderChessComBtn.setAttribute("aria-pressed", selected ? "true" : "false");
+    wizardProviderChessComBtn.setAttribute("aria-checked", selected ? "true" : "false");
   }
+  setRadioGroupTabIndex(
+    wizardPlatformGroupEls,
+    config.platform === "chesscom" ? wizardProviderChessComBtn : wizardProviderLichessBtn,
+  );
 
+  let selectedSizeChip = null;
   wizardSizeChipEls.forEach((chipEl) => {
     const chipSize = Number(chipEl.getAttribute("data-size")) || 0;
     const selected = chipSize === config.sessionSize;
     chipEl.classList.toggle("is-selected", selected);
-    chipEl.setAttribute("aria-pressed", selected ? "true" : "false");
+    chipEl.setAttribute("aria-checked", selected ? "true" : "false");
+    if (selected) selectedSizeChip = chipEl;
   });
+  setRadioGroupTabIndex(wizardSizeChipEls, selectedSizeChip);
   updateWizardTimerChipSelection(config.turnTimeSeconds);
 
   if (wizardPrevBtn) wizardPrevBtn.classList.toggle("hidden", step <= 1);
@@ -2732,34 +2863,34 @@ function validateWizardStep(step = STATE.setupWizard.step) {
 
   if (safeStep >= 1) {
     if (config.mode !== "solo" && config.mode !== "duel") {
-      return { valid: false, reason: t("wizard.validation.chooseMode") };
+      return { valid: false, reason: t("wizard.validation.chooseMode"), field: "mode" };
     }
     if (config.mode === "duel") {
       const [a, b] = config.duelNames;
       if (!a || !b) {
-        return { valid: false, reason: t("wizard.validation.fillDuelNames") };
+        return { valid: false, reason: t("wizard.validation.fillDuelNames"), field: "duelNames" };
       }
       if (a.length > 20 || b.length > 20) {
-        return { valid: false, reason: t("wizard.validation.duelNameMax") };
+        return { valid: false, reason: t("wizard.validation.duelNameMax"), field: "duelNames" };
       }
     }
   }
 
   if (safeStep >= 2) {
     if (!isRemoteSourceMode(config.platform)) {
-      return { valid: false, reason: t("wizard.validation.choosePlatform") };
+      return { valid: false, reason: t("wizard.validation.choosePlatform"), field: "platform" };
     }
     if (!config.username) {
-      return { valid: false, reason: t("wizard.validation.enterUsername") };
+      return { valid: false, reason: t("wizard.validation.enterUsername"), field: "username" };
     }
     if (!usernamePattern.test(config.username)) {
-      return { valid: false, reason: t("wizard.validation.invalidUsername") };
+      return { valid: false, reason: t("wizard.validation.invalidUsername"), field: "username" };
     }
   }
 
   if (safeStep >= 3) {
     if (!Number.isInteger(config.sessionSize) || config.sessionSize < 1 || config.sessionSize > 200) {
-      return { valid: false, reason: t("wizard.validation.chooseCount") };
+      return { valid: false, reason: t("wizard.validation.chooseCount"), field: "count" };
     }
   }
 
@@ -2849,8 +2980,16 @@ function updateAnalyzeButtonState() {
     const isSummaryStep = STATE.setupWizard.step === 3;
     analyzeBtn.disabled = blockedByAnalysis || !readiness.valid || !isSummaryStep;
   }
-  if (analysisStatusEl && !blockedByAnalysis && STATE.setupWizard.step !== 2 && !readiness.valid) {
+  const showsReadinessIssue = !blockedByAnalysis && STATE.setupWizard.step !== 2 && !readiness.valid;
+  if (analysisStatusEl && showsReadinessIssue) {
     analysisStatusEl.textContent = readiness.reason;
+  }
+  // Keeps the count field's invalid state live: it clears itself the moment
+  // the value becomes valid again, not only on the next "Siguiente" click.
+  if (showsReadinessIssue && readiness.field === "count") {
+    setFieldInvalid(sessionSizeEl, "analysis-status");
+  } else {
+    clearFieldInvalid(sessionSizeEl, "analysis-status");
   }
   return readiness;
 }
@@ -6300,7 +6439,7 @@ async function fetchLichessPgn() {
   const rawUser = getConfiguredRemoteUsername();
   if (!rawUser) {
     if (onlineStatusEl) onlineStatusEl.textContent = t("provider.enterLichessUser");
-    showWizardSourceError("provider.enterLichessContinue");
+    showWizardSourceError("provider.enterLichessContinue", {}, "username");
     return false;
   }
 
@@ -6495,7 +6634,7 @@ async function fetchChessComPgn() {
   const rawUser = getConfiguredRemoteUsername();
   if (!rawUser) {
     if (onlineStatusEl) onlineStatusEl.textContent = t("provider.enterChesscomUser");
-    showWizardSourceError("provider.enterChesscomContinue");
+    showWizardSourceError("provider.enterChesscomContinue", {}, "username");
     return false;
   }
 
@@ -7016,6 +7155,15 @@ function enterPlayModeWithFirstPosition(firstMistake, ctx) {
 
 // ---------- Events ----------
 
+// Arrow-key navigation for the five exclusive-choice button groups (mode,
+// platform, position count, turn time, language); see setRadioGroupTabIndex
+// for the roving tabindex that keeps them a single Tab stop each.
+wireRadioGroupKeyboardNav(languageGroupEls);
+wireRadioGroupKeyboardNav(wizardModeGroupEls);
+wireRadioGroupKeyboardNav(wizardPlatformGroupEls);
+wireRadioGroupKeyboardNav(wizardSizeChipEls);
+wireRadioGroupKeyboardNav(wizardTimerChipEls);
+
 if (languageBtnEs) {
   languageBtnEs.addEventListener("click", () => {
     setLanguage("es");
@@ -7045,14 +7193,18 @@ if (wizardNextBtn) {
     const current = clamp(Number(STATE.setupWizard.step) || 1, 1, 3);
     const validation = validateWizardStep(current);
     if (!validation.valid) {
-      if (current === 1) showWizardStepError(validation.reason);
-      if (current === 2) showWizardSourceError(validation.reason);
-      if (analysisStatusEl && current === 3) analysisStatusEl.textContent = validation.reason;
+      if (current === 1) showWizardStepError(validation.reason, validation.field);
+      if (current === 2) showWizardSourceError(validation.reason, {}, validation.field);
+      if (current === 3) {
+        if (analysisStatusEl) analysisStatusEl.textContent = validation.reason;
+        if (validation.field === "count") setFieldInvalid(sessionSizeEl, "analysis-status");
+      }
       focusFirstInvalidWizardControl(current, validation);
       return;
     }
     clearWizardStepError();
     clearWizardSourceError();
+    clearFieldInvalid(sessionSizeEl, "analysis-status");
     goToWizardStep(current + 1);
     if (analysisStatusEl) analysisStatusEl.textContent = t("wizard.status.nextStep");
   });
