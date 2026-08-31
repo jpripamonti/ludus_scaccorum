@@ -1,0 +1,33 @@
+name: CI
+
+# Runs the test suite before a change lands on main, not only after — the
+# deploy workflow (deploy-pages.yml) holds Pages-deploy permissions and stays
+# separate on purpose so this one can run with no special permissions at all.
+# This job deliberately does NOT run scripts/generate-version.js first: a
+# pull request should already contain a checked-in index.html/sw.js that
+# agrees with the current app.js/styles.css, and failing here when it
+# doesn't is the point (see scripts/smoke-check.js's version-coherence
+# check). The deploy workflow regenerates unconditionally as a safety net.
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Run tests
+        run: npm test
