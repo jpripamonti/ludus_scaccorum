@@ -209,7 +209,7 @@ body {
   color: var(--color-text);
 }
 
-.language-switch-btn[aria-pressed="true"] {
+.language-switch-btn[aria-checked="true"] {
   background: var(--color-gold-bg);
   color: var(--color-gold);
   border: 1px solid var(--color-gold-dim);
@@ -217,6 +217,21 @@ body {
 
 .hidden {
   display: none !important;
+}
+
+/* Visually hidden but still reachable by assistive tech: used for text that
+   only exists to feed a live region (clock/progress milestone announcements)
+   without duplicating what is already shown on screen. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ── Landing ── */
