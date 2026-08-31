@@ -90,6 +90,8 @@ const positionSearchProgressEl = document.getElementById("position-search-progre
 const positionSearchProgressBarEl = document.getElementById("position-search-progress-bar");
 const positionSearchProgressLabelEl = document.getElementById("position-search-progress-label");
 const positionSearchCancelBtnEl = document.getElementById("position-search-cancel-btn");
+const promotionPickerEl = document.getElementById("promotion-picker");
+const promotionChoiceEls = ["q", "r", "b", "n"].map((code) => document.getElementById(`promotion-choice-${code}`));
 const soloClockRailEl = document.getElementById("solo-clock-rail");
 const soloClockValueEl = document.getElementById("solo-clock-value");
 const soloClockBarEl = document.getElementById("solo-clock-bar");
@@ -300,6 +302,7 @@ const TRANSLATIONS = {
     "piece.blackRook": "torre negra",
     "piece.blackQueen": "dama negra",
     "piece.blackKing": "rey negro",
+    "promotion.chooseTitle": "Elegí a qué pieza coronar",
     "common.sourceError": "No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma.",
     "common.sourceErrorWithDetail": "No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma. ({error})",
     "network.timeout": "La conexión tardó demasiado. Probá de nuevo en unos segundos.",
@@ -581,6 +584,7 @@ const TRANSLATIONS = {
     "piece.blackRook": "black rook",
     "piece.blackQueen": "black queen",
     "piece.blackKing": "black king",
+    "promotion.chooseTitle": "Choose the promotion piece",
     "common.sourceError": "We couldn't fetch games for that user. Check the username or switch platform.",
     "common.sourceErrorWithDetail": "We couldn't fetch games for that user. Check the username or switch platform. ({error})",
     "network.timeout": "The connection took too long. Try again in a few seconds.",
@@ -951,6 +955,7 @@ const STATE = {
   board: null,
   selection: null,
   legalMoves: [],
+  pendingPromotion: null,
   userMove: null,
   score: 0,
   engine: { mode: "local", worker: null, ready: false, evalCache: new Map() },
@@ -1312,16 +1317,22 @@ class Chess {
     const rank = color === "w" ? 7 : 0;
     if (index !== rank * 8 + 4) return moves;
     const rights = this.castling;
+    // The castling rights string can outlive the rook it describes (a FEN can
+    // simply claim a right that doesn't match the board). Require the actual
+    // rook on its corner square, or makeMove below would "castle" with nothing.
+    const rook = color === "w" ? "R" : "r";
 
     if ((color === "w" && rights.includes("K")) || (color === "b" && rights.includes("k"))) {
-      if (!this.board[rank * 8 + 5] && !this.board[rank * 8 + 6]
+      if (this.board[rank * 8 + 7] === rook
+        && !this.board[rank * 8 + 5] && !this.board[rank * 8 + 6]
         && !this.isSquareAttacked(rank * 8 + 5, color) && !this.isSquareAttacked(rank * 8 + 6, color)) {
         moves.push({ from: index, to: rank * 8 + 6, piece: color === "w" ? "K" : "k", castle: "K" });
       }
     }
 
     if ((color === "w" && rights.includes("Q")) || (color === "b" && rights.includes("q"))) {
-      if (!this.board[rank * 8 + 3] && !this.board[rank * 8 + 2] && !this.board[rank * 8 + 1]
+      if (this.board[rank * 8 + 0] === rook
+        && !this.board[rank * 8 + 3] && !this.board[rank * 8 + 2] && !this.board[rank * 8 + 1]
         && !this.isSquareAttacked(rank * 8 + 3, color) && !this.isSquareAttacked(rank * 8 + 2, color)) {
         moves.push({ from: index, to: rank * 8 + 2, piece: color === "w" ? "K" : "k", castle: "Q" });
       }
@@ -1466,6 +1477,60 @@ class Chess {
 }
 
 Chess.START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+// Structural FEN validation for FEN strings coming from outside the app (e.g.
+// a PGN "FEN" tag). loadFen() itself stays permissive, since every other
+// caller only ever feeds it FEN strings the app generated itself; this is the
+// gate untrusted input goes through before it is trusted enough to load.
+Chess.isValidFen = function isValidFen(fen) {
+  if (typeof fen !== "string") return false;
+  const parts = fen.trim().split(/\s+/);
+  if (parts.length !== 6) return false;
+  const [placement, turn, castling, enPassant, halfmove, fullmove] = parts;
+
+  const rows = placement.split("/");
+  if (rows.length !== 8) return false;
+  const board = Array(64).fill(null);
+  let whiteKings = 0;
+  let blackKings = 0;
+  for (let rankIdx = 0; rankIdx < 8; rankIdx += 1) {
+    let file = 0;
+    for (const char of rows[rankIdx]) {
+      if (/[1-8]/.test(char)) {
+        file += Number(char);
+      } else if (/[pnbrqkPNBRQK]/.test(char)) {
+        if (file > 7) return false;
+        board[rankIdx * 8 + file] = char;
+        if (char === "K") whiteKings += 1;
+        if (char === "k") blackKings += 1;
+        file += 1;
+      } else {
+        return false;
+      }
+    }
+    if (file !== 8) return false;
+  }
+  if (whiteKings !== 1 || blackKings !== 1) return false;
+
+  if (turn !== "w" && turn !== "b") return false;
+
+  if (castling !== "-") {
+    if (!castling || !/^K?Q?k?q?$/.test(castling)) return false;
+    // A castling right is only meaningful with its rook still on the corner;
+    // a FEN claiming otherwise is exactly the inconsistency generateCastlingMoves
+    // guards against, so it is rejected here too rather than loaded.
+    if (castling.includes("K") && board[63] !== "R") return false;
+    if (castling.includes("Q") && board[56] !== "R") return false;
+    if (castling.includes("k") && board[7] !== "r") return false;
+    if (castling.includes("q") && board[0] !== "r") return false;
+  }
+
+  if (enPassant !== "-" && !/^[a-h][36]$/.test(enPassant)) return false;
+  if (!/^\d+$/.test(halfmove)) return false;
+  if (!/^\d+$/.test(fullmove) || Number(fullmove) < 1) return false;
+
+  return true;
+};
 
 // ---------- Utility ----------
 
@@ -3871,6 +3936,23 @@ function parseTags(gameText) {
   return tags;
 }
 
+// Standard PGN semantics: a game that starts from a composed or resumed
+// position (not the initial one) carries SetUp "1" together with a FEN tag.
+// Replaying such a game's SAN moves from the initial position instead would
+// either fail to resolve them or, worse, resolve them against the wrong
+// position if the same move text happens to also be legal from move 1. A game
+// whose SetUp/FEN pair is missing half or names an invalid FEN is reported as
+// invalid so the caller can skip it explicitly instead of guessing.
+function resolveGameStartFen(tags) {
+  const hasSetUp = String(tags.SetUp || "").trim() === "1";
+  const hasFen = typeof tags.FEN === "string" && tags.FEN.trim().length > 0;
+  if (!hasSetUp && !hasFen) return { fen: Chess.START_FEN, valid: true };
+  if (hasSetUp !== hasFen) return { fen: null, valid: false };
+  const fen = tags.FEN.trim();
+  if (!Chess.isValidFen(fen)) return { fen: null, valid: false };
+  return { fen, valid: true };
+}
+
 function cleanTagValue(v) {
   const trimmed = String(v || "").trim();
   if (!trimmed || trimmed === "?" || trimmed === "????.??.??") return "";
@@ -4067,7 +4149,7 @@ async function evaluateCandidateForMistake(candidate, ctx) {
   if (!game) return null;
   const { tags, sanMoves } = game;
 
-  const chess = new Chess(Chess.START_FEN);
+  const chess = new Chess(game.startFen || Chess.START_FEN);
   for (let ply = 0; ply <= candidate.ply; ply += 1) {
     const san = sanMoves[ply];
     const move = sanToMove(san, chess);
@@ -4749,7 +4831,15 @@ function onSquareClick(square) {
   const piece = STATE.board.pieceAt(index);
 
   if (STATE.selection) {
-    const move = STATE.legalMoves.find((candidate) => candidate.to === index);
+    const matches = STATE.legalMoves.filter((candidate) => candidate.to === index);
+    // Several legal moves share the same from/to only when a pawn can
+    // under-promote: queen, rook, bishop and knight are all reachable by the
+    // same click. Ask which one instead of silently taking the first (queen).
+    if (matches.length > 1) {
+      openPromotionPicker(matches, isAnalysisMode);
+      return;
+    }
+    const move = matches[0];
     if (move) {
       if (isAnalysisMode) {
         STATE.board.makeMove(move);
@@ -4785,6 +4875,86 @@ function onSquareClick(square) {
 
 async function submitUserMove(move) {
   await resolveRound(move);
+}
+
+// Opens the piece-choice picker instead of committing a move outright. Used
+// only when a click's destination is ambiguous between under-promotions.
+function openPromotionPicker(matches, isAnalysisMode) {
+  if (!promotionPickerEl || !matches.length) return;
+  const isWhitePromotion = matches[0].promotion === matches[0].promotion.toUpperCase();
+  promotionChoiceEls.forEach((btn, i) => {
+    if (!btn) return;
+    const code = ["Q", "R", "B", "N"][i];
+    const pieceChar = isWhitePromotion ? code : code.toLowerCase();
+    const img = btn.querySelector("img");
+    if (img) {
+      img.src = PIECE_IMAGES[pieceChar];
+      img.alt = pieceAriaName(pieceChar);
+    }
+    btn.setAttribute("aria-label", pieceAriaName(pieceChar));
+  });
+  STATE.pendingPromotion = {
+    matches,
+    isAnalysisMode,
+    returnFocusEl: document.activeElement || null,
+  };
+  promotionPickerEl.classList.remove("hidden");
+  // Deferred so the browser has laid out the now-visible buttons before one
+  // of them is asked to take focus.
+  setTimeout(() => {
+    if (promotionChoiceEls[0]) promotionChoiceEls[0].focus();
+  }, 0);
+}
+
+// Closes the picker without committing anything and returns focus to wherever
+// it was before the picker opened (Escape, or a choice already handled).
+function closePromotionPicker(options = {}) {
+  if (!promotionPickerEl) return;
+  const pending = STATE.pendingPromotion;
+  STATE.pendingPromotion = null;
+  promotionPickerEl.classList.add("hidden");
+  const returnFocusEl = pending?.returnFocusEl;
+  if (!options.skipFocusReturn && returnFocusEl && typeof returnFocusEl.focus === "function") {
+    returnFocusEl.focus();
+  }
+}
+
+function choosePromotion(promotionLetter) {
+  const pending = STATE.pendingPromotion;
+  if (!pending) return;
+  const chosen = pending.matches.find(
+    (m) => (m.promotion || "").toUpperCase() === String(promotionLetter).toUpperCase(),
+  );
+  closePromotionPicker({ skipFocusReturn: true });
+  if (!chosen) return;
+  if (pending.isAnalysisMode) {
+    STATE.board.makeMove(chosen);
+    STATE.selection = null;
+    STATE.legalMoves = [];
+    renderBoard();
+    return;
+  }
+  submitUserMove(chosen);
+}
+
+function onPromotionPickerKeyDown(event) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closePromotionPicker();
+    return;
+  }
+  if (event.key !== "Tab") return;
+  // Trap focus among the four choices instead of letting Tab leave the picker.
+  const currentIndex = promotionChoiceEls.indexOf(document.activeElement);
+  if (currentIndex === -1) return;
+  const lastIndex = promotionChoiceEls.length - 1;
+  if (!event.shiftKey && currentIndex === lastIndex) {
+    event.preventDefault();
+    promotionChoiceEls[0].focus();
+  } else if (event.shiftKey && currentIndex === 0) {
+    event.preventDefault();
+    promotionChoiceEls[lastIndex].focus();
+  }
 }
 
 async function submitNoMove(reason = "no_move") {
@@ -6482,10 +6652,26 @@ async function ensurePgnSourceAvailable(sessionToken) {
 // sending the wizard back to the source step) when nothing usable was found.
 async function loadCandidateAnalysisContext(effectiveConfig) {
   const sources = await getActivePgnTextSources();
-  const allGames = sources.flatMap(({ text }) => splitGamesFromText(text).map((gameText) => ({
-    tags: parseTags(gameText),
-    sanMoves: tokenizeSanMoves(gameText),
-  })));
+  // Games that declare a custom starting FEN (SetUp "1" + FEN) but whose pair
+  // is invalid or inconsistent are skipped rather than replayed from the
+  // initial position, same spirit as failedMonths below for failed downloads.
+  let skippedInvalidStartFen = 0;
+  const allGames = sources
+    .flatMap(({ text }) => splitGamesFromText(text).map((gameText) => {
+      const tags = parseTags(gameText);
+      const start = resolveGameStartFen(tags);
+      return {
+        tags,
+        sanMoves: tokenizeSanMoves(gameText),
+        startFen: start.fen,
+        validStartFen: start.valid,
+      };
+    }))
+    .filter((game) => {
+      if (game.validStartFen) return true;
+      skippedInvalidStartFen += 1;
+      return false;
+    });
 
   if (allGames.length === 0) {
     sendWizardBackToSourceStep("provider.noPublicValidGames");
@@ -6881,6 +7067,13 @@ if (positionSearchCancelBtnEl) {
     STATE.ui.searchCancelRequested = true;
   });
 }
+if (promotionPickerEl) {
+  promotionPickerEl.addEventListener("keydown", onPromotionPickerKeyDown);
+}
+promotionChoiceEls.forEach((btn) => {
+  if (!btn) return;
+  btn.addEventListener("click", () => choosePromotion(btn.dataset.promotion));
+});
 
 if (oneColumnGameQuery && typeof oneColumnGameQuery.addEventListener === "function") {
   oneColumnGameQuery.addEventListener("change", () => {
