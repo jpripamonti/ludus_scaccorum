@@ -140,9 +140,9 @@ const context = {
 context.globalThis = context;
 
 const appSource = fs.readFileSync(path.join(root, "app.js"), "utf8");
-vm.runInNewContext(`${appSource}\nglobalThis.__ludusTest = { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource, findNextMistake, restoreBoardToRoundStart };`, context);
+vm.runInNewContext(`${appSource}\nglobalThis.__ludusTest = { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource, findNextMistake, restoreBoardToRoundStart, parseTags, resolveGameStartFen, tokenizeSanMoves, onSquareClick, choosePromotion };`, context);
 
-const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource, findNextMistake, restoreBoardToRoundStart } = context.__ludusTest;
+const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource, findNextMistake, restoreBoardToRoundStart, parseTags, resolveGameStartFen, tokenizeSanMoves, onSquareClick, choosePromotion } = context.__ludusTest;
 
 function play(game, uci) {
   const move = uciToMove(uci, game);
@@ -213,6 +213,40 @@ assert.strictEqual(
   "castling must be illegal when the king passes through an attacked square (f1)"
 );
 
+// A castling right in the FEN is not enough on its own: the rook it refers to
+// has to actually be on its corner square, or makeMove would move nothing.
+const castleWithoutRook = new Chess("4k3/8/8/8/8/8/8/4K3 w K - 0 1");
+assert.strictEqual(
+  uciToMove("e1g1", castleWithoutRook),
+  null,
+  "castling kingside must be illegal when there is no rook on h1, even if the FEN claims the K right"
+);
+assert.strictEqual(
+  castleWithoutRook.generateMoves().some((move) => move.castle),
+  false,
+  "no castling move should be generated when the rook is missing",
+);
+
+// Same shape, but an enemy piece (not even a rook) sits on the corner square.
+// A knight is used rather than a rook so the case is not accidentally caught
+// by the unrelated "castles through an attacked square" check instead (a
+// rook on a1 already attacks c1/d1 on its own and would pass either way).
+const castleWithEnemyOnCorner = new Chess("4k3/8/8/8/8/8/8/n3K3 w Q - 0 1");
+assert.strictEqual(
+  uciToMove("e1c1", castleWithEnemyOnCorner),
+  null,
+  "castling queenside must be illegal when a1 is occupied by something other than the white rook",
+);
+
+// The rook actually present is still allowed to castle: guards the fix above
+// against also breaking the ordinary case.
+const castleWithRookPresent = new Chess("4k3/8/8/8/8/8/8/R3K2R w KQ - 0 1");
+assert.strictEqual(
+  uciToMove("e1g1", castleWithRookPresent) !== null,
+  true,
+  "castling kingside must stay legal when the rook is actually on h1",
+);
+
 // ---------- En passant ----------
 
 const enPassantGame = new Chess("rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3");
@@ -238,6 +272,79 @@ assert.strictEqual(
   "black pawn should be able to underpromote to a knight"
 );
 
+// A single board with both an a7-a8 and a g2-g1 promotion pending: the move
+// generator must keep offering all four choices at each end, independent of
+// each other, which is what makes the UI ambiguity below possible in the
+// first place.
+// (White king on e1, not h1: a black pawn on g2 would otherwise have that
+// corner in check, which is beside the point of this fixture.)
+const doublePromotionSetup = "7k/P7/8/8/8/8/6p1/4K3 {turn} - 0 1";
+const doublePromotionWhite = new Chess(doublePromotionSetup.replace("{turn}", "w"));
+const a7Moves = doublePromotionWhite.generateMoves().filter((m) => m.from === Chess.squareToIndex("a7"));
+assert.strictEqual(
+  a7Moves.map((m) => m.promotion).sort().join(","),
+  "B,N,Q,R",
+  "a7-a8 should still offer all four promotions (queen, rook, bishop, knight)",
+);
+const doublePromotionBlack = new Chess(doublePromotionSetup.replace("{turn}", "b"));
+const g2Moves = doublePromotionBlack.generateMoves().filter((m) => m.from === Chess.squareToIndex("g2"));
+assert.strictEqual(
+  g2Moves.map((m) => m.promotion).sort().join(","),
+  "b,n,q,r",
+  "g2-g1 should still offer all four promotions (queen, rook, bishop, knight)",
+);
+
+// The board click handler must not silently pick the first (queen) promotion
+// when several legal moves share the same from/to square. Drive it exactly
+// like a person would: select the pawn, then click the destination.
+STATE.ui.phase = "result_analysis";
+STATE.ui.blockBoardInput = false;
+STATE.board = new Chess("7k/P7/8/8/8/8/8/K7 w - - 0 1");
+STATE.positions = [{ fen: STATE.board.fen() }];
+STATE.selection = null;
+STATE.legalMoves = [];
+STATE.pendingPromotion = null;
+
+onSquareClick("a7");
+assert.strictEqual(STATE.legalMoves.length, 4, "selecting the pawn should list all four promotion moves");
+
+const fenBeforeAmbiguousClick = STATE.board.fen();
+onSquareClick("a8");
+assert.strictEqual(
+  STATE.board.fen(),
+  fenBeforeAmbiguousClick,
+  "clicking a destination with several legal promotions must not commit a queen promotion on its own",
+);
+assert.ok(STATE.pendingPromotion, "an ambiguous destination should open the promotion picker instead");
+assert.strictEqual(
+  STATE.pendingPromotion.matches.map((m) => m.promotion).sort().join(","),
+  "B,N,Q,R",
+  "the picker should be holding all four candidate moves",
+);
+
+choosePromotion("N");
+assert.strictEqual(
+  STATE.board.fen(),
+  "N6k/8/8/8/8/8/8/K7 b - - 0 1",
+  "choosing knight from the picker should commit the knight promotion, not a queen",
+);
+assert.strictEqual(STATE.pendingPromotion, null, "the picker should close once a choice is made");
+
+// An ordinary, unambiguous move must still commit immediately on the same click.
+STATE.board = new Chess("7k/8/8/8/8/8/8/K7 b - - 0 1");
+STATE.positions = [{ fen: STATE.board.fen() }];
+STATE.selection = null;
+STATE.legalMoves = [];
+onSquareClick("h8");
+onSquareClick("h7");
+assert.strictEqual(
+  STATE.board.fen(),
+  "8/7k/8/8/8/8/8/K7 w - - 1 2",
+  "an unambiguous move must still commit on the destination click, unchanged from before",
+);
+STATE.ui.phase = "playing";
+STATE.positions = [];
+
 // ---------- Checkmate detection ----------
 
 const foolsMate = new Chess("rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3");
@@ -249,6 +356,78 @@ assert.strictEqual(foolsMate.generateMoves().length, 0, "fool's mate position sh
 const stalemate = new Chess("k7/2K5/1Q6/8/8/8/8/8 b - - 0 1");
 assert.strictEqual(stalemate.inCheck("b"), false, "stalemate position should not have black in check");
 assert.strictEqual(stalemate.generateMoves().length, 0, "stalemate position should have no legal moves");
+
+// ---------- PGN games that start from a custom FEN (SetUp/FEN tags) ----------
+
+// Standard PGN: SetUp "1" plus a FEN tag means the game does not start from
+// the initial position. The FEN below has castling rights on both sides and
+// an en-passant target; "exd6" is only a legal move from this exact position
+// (there is no such capture available from the initial position at all).
+const customStartPgn = [
+  '[Event "Test"]',
+  '[White "A"]',
+  '[Black "B"]',
+  '[SetUp "1"]',
+  '[FEN "r3k2r/8/8/3pP3/8/8/8/R3K2R w KQkq d6 0 1"]',
+  '[Result "*"]',
+  "",
+  "1. exd6 O-O *",
+].join("\n");
+
+const customStartTags = parseTags(customStartPgn);
+const customStart = resolveGameStartFen(customStartTags);
+assert.strictEqual(customStart.valid, true, "a well-formed SetUp/FEN pair should be accepted");
+assert.strictEqual(
+  customStart.fen,
+  "r3k2r/8/8/3pP3/8/8/8/R3K2R w KQkq d6 0 1",
+  "the resolved starting FEN should be exactly the one declared in the tags",
+);
+
+// Proof this is not merely accidentally legal from the initial position too:
+// replaying against Chess.START_FEN (what the app did before this fix) fails
+// to resolve the very first move, which is exactly why such games used to be
+// silently discarded instead of trained on.
+assert.strictEqual(
+  sanToMove(tokenizeSanMoves(customStartPgn)[0], new Chess(Chess.START_FEN)),
+  null,
+  "the game's first move must not be legal from the initial position (otherwise this fixture would prove nothing)",
+);
+
+const customStartBoard = new Chess(customStart.fen);
+for (const san of tokenizeSanMoves(customStartPgn)) {
+  const move = sanToMove(san, customStartBoard);
+  assert(move, `expected ${san} to be legal when replayed from the game's own starting FEN`);
+  customStartBoard.makeMove(move);
+}
+assert.strictEqual(
+  customStartBoard.fen(),
+  "r4rk1/8/3P4/8/8/8/8/R3K2R w KQ - 1 2",
+  "replaying the game from its declared FEN should land on the expected position",
+);
+
+// SetUp "1" without a matching FEN tag is an inconsistent pair, not a game
+// that quietly falls back to the initial position.
+const missingFenTags = parseTags('[SetUp "1"]\n');
+assert.strictEqual(
+  resolveGameStartFen(missingFenTags).valid,
+  false,
+  "SetUp without a FEN tag must be treated as an invalid pair, not silently defaulted",
+);
+
+// A FEN tag that is itself invalid (here: claims a castling right with no
+// rook on its corner, the same inconsistency fix #3 guards against in the
+// core) must cause the game to be skipped, never crash and never be loaded.
+const invalidFenTags = parseTags('[SetUp "1"]\n[FEN "4k3/8/8/8/8/8/8/4K3 w K - 0 1"]\n');
+const invalidStart = resolveGameStartFen(invalidFenTags);
+assert.strictEqual(invalidStart.valid, false, "an invalid declared FEN must be rejected");
+assert.strictEqual(invalidStart.fen, null, "a rejected game must not carry a starting FEN to fall back on");
+
+// An ordinary game (no SetUp/FEN tags at all) is unaffected and still starts
+// from the initial position.
+const ordinaryTags = parseTags('[White "A"]\n[Black "B"]\n');
+const ordinaryStart = resolveGameStartFen(ordinaryTags);
+assert.strictEqual(ordinaryStart.valid, true);
+assert.strictEqual(ordinaryStart.fen, Chess.START_FEN, "a game without SetUp/FEN should still start from the initial position");
 
 // ---------- Centipawn-loss quality thresholds ----------
 

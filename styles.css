@@ -1423,6 +1423,50 @@ body.solo-mode #game-layout .board { max-width: min(80vh, 1120px); }
   color: var(--color-text-muted);
 }
 
+/* ── Promotion picker ── */
+.promotion-picker {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  border-radius: var(--radius-xl);
+  background: rgba(10,12,18,0.72);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.promotion-picker-panel {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-float);
+}
+
+.promotion-choice {
+  width: clamp(48px, 8vw, 72px);
+  height: clamp(48px, 8vw, 72px);
+  padding: 6px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.promotion-choice:hover {
+  background: var(--color-gold-bg);
+}
+
+.promotion-choice-icon {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
 /* ── Consent overlay ── */
 .consent-overlay {
   position: fixed;
