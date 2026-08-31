@@ -1,3 +1,19 @@
+// Defense-in-depth only: the CSP ships as a <meta> tag (index.html), and
+// frame-ancestors is HTTP-header-only per spec, so this static host can't
+// send it. If a third party frames this page anyway, bounce the top frame
+// out of the frame. Wrapped because a cross-origin top denies reading/setting
+// window.top.location with a SecurityError, and that must not stop the rest
+// of the app from loading.
+(function bustFraming() {
+  try {
+    if (window.top !== window.self) {
+      window.top.location = window.self.location.href;
+    }
+  } catch (error) {
+    // Cross-origin top frame: can't navigate it directly, nothing else to do.
+  }
+})();
+
 const boardEl = document.getElementById("board");
 const playerNameDetectedEl = document.getElementById("player-name-detected");
 const landingScreenEl = document.getElementById("landing-screen");
@@ -164,11 +180,31 @@ const MISTAKE_SEARCH_CANDIDATE_BUDGET = 400;
 const CLOCK_TICK_MS = 100;
 const LANGUAGE_STORAGE_KEY = "ludus.language";
 const SETUP_STORAGE_KEY = "ludus.setup.v1";
+// Opt-out for keeping downloaded games in IndexedDB across visits (see
+// loadNoPersistDownloadsPreference). Defaults to off so existing behavior
+// (7-day cache) is unchanged unless a person explicitly turns it on.
+const NO_PERSIST_DOWNLOADS_STORAGE_KEY = "ludus.noPersistDownloads.v1";
 const REMOTE_PGN_CACHE_DB = "ludus.remotePgnCache.v1";
 const REMOTE_PGN_CACHE_STORE = "pgn";
 const REMOTE_PGN_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const REMOTE_FETCH_TIMEOUT_MS = 15000;
 const REMOTE_FETCH_RETRIES = 2;
+// A year of PGN (Lichess) or a month of JSON archives (Chess.com) for one
+// person is normally a few hundred KB to a few MB; 20 MB is generous enough
+// for a very active player while still bounding memory/CPU if a provider
+// response is corrupted, disproportionate, or hostile.
+const REMOTE_RESPONSE_MAX_BYTES = 20 * 1024 * 1024;
+// Per-game and per-annotation caps applied while parsing PGN text, so one
+// pathological game (huge, a giant single comment, absurd move count, or
+// absurdly nested variations) gets skipped instead of freezing the tab.
+const PGN_GAME_MAX_CHARS = 512 * 1024;
+const PGN_COMMENT_MAX_CHARS = 4000;
+const PGN_MAX_PLIES = 600;
+const PGN_MAX_VARIATION_DEPTH = 12;
+// Chess.com download session controls (see fetchChessComPgn): a hard wall
+// clock budget across every month/pass, and how long the whole browser
+// session gets before an in-flight download is aborted.
+const CHESSCOM_DOWNLOAD_BUDGET_MS = 75000;
 const SUPPORTED_LANGUAGES = ["es", "en"];
 const TRANSLATIONS = {
   es: {
@@ -305,7 +341,9 @@ const TRANSLATIONS = {
     "network.timeout": "La conexión tardó demasiado. Probá de nuevo en unos segundos.",
     "network.failed": "No se pudo conectar con el proveedor. Probá de nuevo o usá la última base guardada si existe.",
     "network.rateLimited": "El proveedor limitó las consultas. Esperá un momento antes de reintentar.",
-    "privacy.remoteFetchConfirm": "Vamos a pedirle a {provider} las partidas públicas de {user}. El pedido sale desde tu navegador directamente hacia ese sitio: esta app no tiene servidor propio, así que todo lo que se descargue queda guardado en tu navegador y en ningún otro lado. ¿Continuar?",
+    "network.responseTooLarge": "La respuesta del proveedor es demasiado grande y fue rechazada por seguridad. Probá de nuevo más tarde.",
+    "network.cancelled": "Descarga cancelada.",
+    "privacy.remoteFetchConfirm": "Vamos a pedirle a {provider} las partidas públicas de {user}. El pedido sale desde tu navegador directamente hacia ese sitio: esta app no tiene servidor propio. Vamos a guardar en este navegador el texto de esas partidas, tu nombre de usuario y algunos datos de cada partida (resultado, fecha) durante hasta 7 días, para no tener que volver a descargarlos la próxima vez; podés borrarlos cuando quieras con “Borrar datos guardados de partidas”. En una computadora compartida, cualquier otra persona que use este navegador podría ver esos datos durante esos 7 días. ¿Continuar?",
     "privacy.remoteFetchCancelled": "Consulta cancelada. No se enviaron datos al proveedor.",
     "privacy.remoteFetchTitle": "Consultar partidas públicas",
     "privacy.remoteFetchAccept": "Aceptar",
@@ -448,6 +486,9 @@ const TRANSLATIONS = {
     "provider.requestedPlayerMissing": "Las partidas descargadas no incluyen a {user}. Revisá el nombre de usuario.",
     "provider.configChangedDuringDownload": "Cambiaste el usuario o la plataforma mientras se descargaba. Volvé a preparar la base.",
     "provider.noUsefulMistakes": "No se detectaron errores útiles con este usuario. Candidatas analizadas: {analyzed}/{total}.",
+    "provider.monthProgress": "Chess.com: mes {year}-{month} ({pass})",
+    "provider.monthsSkipped": "No se pudieron descargar estos meses, se omitieron: {months}.",
+    "provider.downloadBudgetExceeded": "Se alcanzó el tiempo máximo de descarga; seguimos con las partidas ya obtenidas.",
     "difficulty.low": "baja",
     "difficulty.medium": "media",
     "difficulty.high": "alta",
@@ -586,7 +627,9 @@ const TRANSLATIONS = {
     "network.timeout": "The connection took too long. Try again in a few seconds.",
     "network.failed": "Could not connect to the provider. Try again or use the last saved base if available.",
     "network.rateLimited": "The provider rate-limited the request. Wait a moment before retrying.",
-    "privacy.remoteFetchConfirm": "We're going to ask {provider} for {user}'s public games. The request goes straight from your browser to that site: this app has no server of its own, so whatever it downloads is kept in your browser and nowhere else. Continue?",
+    "network.responseTooLarge": "The provider's response is too large and was rejected for safety. Try again later.",
+    "network.cancelled": "Download cancelled.",
+    "privacy.remoteFetchConfirm": "We're going to ask {provider} for {user}'s public games. The request goes straight from your browser to that site: this app has no server of its own. We'll store the text of those games, your username, and some per-game details (result, date) in this browser for up to 7 days, so we don't have to download them again next time; you can delete them anytime with “Clear saved game data”. On a shared computer, anyone else using this browser could see that data during those 7 days. Continue?",
     "privacy.remoteFetchCancelled": "Request cancelled. No data was sent to the provider.",
     "privacy.remoteFetchTitle": "Fetch public games",
     "privacy.remoteFetchAccept": "Accept",
@@ -729,6 +772,9 @@ const TRANSLATIONS = {
     "provider.requestedPlayerMissing": "The downloaded games do not include {user}. Check the username.",
     "provider.configChangedDuringDownload": "You changed the user or platform while downloading. Prepare the base again.",
     "provider.noUsefulMistakes": "No useful mistakes were detected for this user. Candidates analyzed: {analyzed}/{total}.",
+    "provider.monthProgress": "Chess.com: month {year}-{month} ({pass})",
+    "provider.monthsSkipped": "These months could not be downloaded and were skipped: {months}.",
+    "provider.downloadBudgetExceeded": "Reached the maximum download time; continuing with the games already fetched.",
     "difficulty.low": "low",
     "difficulty.medium": "medium",
     "difficulty.high": "high",
@@ -795,6 +841,26 @@ function saveSetupPreference(turnTimeSeconds) {
       turnTimeSeconds: normalizeTurnTimeSeconds(turnTimeSeconds),
     };
     window.localStorage.setItem(SETUP_STORAGE_KEY, JSON.stringify(payload));
+  } catch (error) {
+    // Ignore storage failures.
+  }
+}
+
+// When enabled, a downloaded PGN base is kept only in STATE for the current
+// session and never written to IndexedDB, so it does not outlive the tab.
+// No visible toggle wires into this yet (see FII-03 follow-up); it exists so
+// the behavior is ready once index.html grows a control for it.
+function loadNoPersistDownloadsPreference() {
+  try {
+    return window.localStorage.getItem(NO_PERSIST_DOWNLOADS_STORAGE_KEY) === "1";
+  } catch (error) {
+    return false;
+  }
+}
+
+function saveNoPersistDownloadsPreference(enabled) {
+  try {
+    window.localStorage.setItem(NO_PERSIST_DOWNLOADS_STORAGE_KEY, enabled ? "1" : "0");
   } catch (error) {
     // Ignore storage failures.
   }
@@ -1565,8 +1631,25 @@ function clearRemotePgnSources() {
   STATE.remotePgnSources = [];
 }
 
+// Set while a Chess.com download is in flight (see fetchChessComPgn) so a
+// new session can actually abort the underlying request instead of merely
+// discarding its result once it resolves.
+let activeRemoteDownloadController = null;
+
+function abortActiveRemoteDownload() {
+  if (activeRemoteDownloadController) {
+    try {
+      activeRemoteDownloadController.abort();
+    } catch (error) {
+      // ignore
+    }
+    activeRemoteDownloadController = null;
+  }
+}
+
 function beginSessionWork() {
   STATE.sessionToken += 1;
+  abortActiveRemoteDownload();
   return STATE.sessionToken;
 }
 
@@ -2812,18 +2895,24 @@ function retryAfterMs(response) {
 async function fetchWithTimeout(url, options = {}) {
   const timeoutMs = clamp(Number(options.timeoutMs) || REMOTE_FETCH_TIMEOUT_MS, 1000, 60000);
   const retries = clamp(Number(options.retries) || 0, 0, 4);
-  const { timeoutMs: _timeoutMs, retries: _retries, ...fetchOptions } = options;
+  const { timeoutMs: _timeoutMs, retries: _retries, signal: externalSignal, ...fetchOptions } = options;
   let lastError = null;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
+    if (externalSignal?.aborted) break;
     const controller = typeof AbortController === "function" ? new AbortController() : null;
     const timeout = controller
       ? setTimeout(() => controller.abort(), timeoutMs)
       : null;
+    // Bridges an external cancellation (session ended, download budget hit)
+    // into this attempt's own controller so the in-flight request actually
+    // stops, instead of only having its eventual result discarded.
+    const onExternalAbort = () => controller && controller.abort();
+    if (externalSignal && controller) externalSignal.addEventListener("abort", onExternalAbort);
     try {
       const response = await fetch(url, {
         ...fetchOptions,
-        signal: controller ? controller.signal : options.signal,
+        signal: controller ? controller.signal : externalSignal,
       });
       if (timeout) clearTimeout(timeout);
       const shouldRetryStatus = response.status === 429 || response.status >= 500;
@@ -2836,17 +2925,72 @@ async function fetchWithTimeout(url, options = {}) {
     } catch (error) {
       if (timeout) clearTimeout(timeout);
       lastError = error;
+      if (externalSignal?.aborted) break;
       if (attempt < retries) {
         await sleepMs(500 * (attempt + 1));
         continue;
       }
+    } finally {
+      if (externalSignal && controller) externalSignal.removeEventListener("abort", onExternalAbort);
     }
   }
 
+  if (externalSignal?.aborted) {
+    throw new Error(t("network.cancelled"));
+  }
   if (lastError?.name === "AbortError") {
     throw new Error(t("network.timeout"));
   }
   throw new Error(t("network.failed"));
+}
+
+// Rejects an oversized remote response before it is fully materialized in
+// memory. Content-Length is checked first when the server sends one;
+// otherwise the body is read incrementally via its stream reader so a
+// response that lies about (or omits) its length is still capped by bytes
+// actually received. See REMOTE_RESPONSE_MAX_BYTES for the size rationale.
+async function readResponseTextWithLimit(response, maxBytes = REMOTE_RESPONSE_MAX_BYTES) {
+  const declaredLength = Number(response.headers?.get?.("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    throw new Error(t("network.responseTooLarge"));
+  }
+  const hasStreamingBody = response.body && typeof response.body.getReader === "function"
+    && typeof TextDecoder === "function";
+  if (!hasStreamingBody) {
+    // Environment without a streaming body reader (older browser, or the
+    // stubbed test harness): the Content-Length check above still applies
+    // when the header is present; this is only reached without it.
+    const text = await response.text();
+    if (text.length > maxBytes) {
+      throw new Error(t("network.responseTooLarge"));
+    }
+    return text;
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let received = 0;
+  let result = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    received += value.byteLength;
+    if (received > maxBytes) {
+      try {
+        await reader.cancel();
+      } catch (error) {
+        // ignore cancel failures, we are already bailing out
+      }
+      throw new Error(t("network.responseTooLarge"));
+    }
+    result += decoder.decode(value, { stream: true });
+  }
+  result += decoder.decode();
+  return result;
+}
+
+async function readResponseJsonWithLimit(response, maxBytes = REMOTE_RESPONSE_MAX_BYTES) {
+  const text = await readResponseTextWithLimit(response, maxBytes);
+  return JSON.parse(text);
 }
 
 function remotePgnCacheAvailable() {
@@ -3868,15 +4012,33 @@ async function evaluateMoveWithEngine(board, move, depth, moveTimeMs, options = 
 
 // ---------- PGN parsing ----------
 
+// Strips (parenthesised variations). Bails out once nesting goes past
+// PGN_MAX_VARIATION_DEPTH so a single pathological game (accidental or
+// hostile) cannot force unbounded work here or in later parsing steps; the
+// caller treats an overflowed result as a malformed game and skips it.
 function removeVariations(text) {
   let out = "";
   let level = 0;
   for (const ch of text) {
-    if (ch === "(") level += 1;
-    else if (ch === ")") level = Math.max(0, level - 1);
-    else if (level === 0) out += ch;
+    if (ch === "(") {
+      level += 1;
+      if (level > PGN_MAX_VARIATION_DEPTH) return { text: out, overflowed: true };
+    } else if (ch === ")") {
+      level = Math.max(0, level - 1);
+    } else if (level === 0) {
+      out += ch;
+    }
   }
-  return out;
+  return { text: out, overflowed: false };
+}
+
+// True when any single {...} comment in the raw game text is longer than a
+// normal annotation. Used to skip the game outright rather than spend work
+// stripping it.
+function hasOversizedComment(gameText) {
+  const comments = gameText.match(/\{[^}]*\}/g);
+  if (!comments) return false;
+  return comments.some((comment) => comment.length > PGN_COMMENT_MAX_CHARS);
 }
 
 function parseTags(gameText) {
@@ -3907,23 +4069,30 @@ function cleanTagValue(v) {
   return trimmed;
 }
 
+// Returns the SAN move list, or null when the game is malformed/pathological
+// (variation nesting too deep, or more plies than any realistic game) so the
+// caller can skip just this game instead of crashing or hanging on it.
 function tokenizeSanMoves(gameText) {
   const movesText = gameText
     .split("\n")
     .filter((line) => !line.startsWith("["))
     .join(" ");
-  const normalized = removeVariations(
+  const stripped = removeVariations(
     movesText
       .replace(/\{[^}]*\}/g, " ")
       .replace(/;.*$/gm, " ")
       .replace(/\$\d+/g, " ")
       .replace(/\r/g, " "),
-  )
+  );
+  if (stripped.overflowed) return null;
+  const normalized = stripped.text
     .replace(/\d+\.(\.\.)?/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   const tokens = normalized.split(" ").filter(Boolean);
-  return tokens.filter((token) => !["1-0", "0-1", "1/2-1/2", "*"].includes(token));
+  const sanMoves = tokens.filter((token) => !["1-0", "0-1", "1/2-1/2", "*"].includes(token));
+  if (sanMoves.length > PGN_MAX_PLIES) return null;
+  return sanMoves;
 }
 
 function splitGamesFromText(text) {
@@ -3931,6 +4100,18 @@ function splitGamesFromText(text) {
     .replace(/\r/g, "")
     .split(/\n\n(?=\[Event|\[Site|\[Date|\[Round|\[White|\[Black|\[Result)/g)
     .filter((g) => g.trim().length > 0);
+}
+
+// Builds one game's parsed record, or null when it trips a parsing budget
+// (oversized text, an oversized single comment, too many plies, or variation
+// nesting too deep) - see PGN_GAME_MAX_CHARS and friends. A single hostile or
+// corrupted game degrades to "skipped", not a frozen tab.
+function buildGameFromText(gameText) {
+  if (gameText.length > PGN_GAME_MAX_CHARS) return null;
+  if (hasOversizedComment(gameText)) return null;
+  const sanMoves = tokenizeSanMoves(gameText);
+  if (!sanMoves) return null;
+  return { tags: parseTags(gameText), sanMoves };
 }
 
 function sanToMove(san, chess) {
@@ -6011,7 +6192,7 @@ async function fetchLichessPgn() {
       if (response.status === 429) throw new Error(t("network.rateLimited"));
       throw new Error(t("provider.lichessResponse", { status: response.status }));
     }
-    const text = await response.text();
+    const text = await readResponseTextWithLimit(response);
     return { text, games: countPgnGames(text) };
   };
 
@@ -6079,7 +6260,12 @@ async function fetchLichessPgn() {
     };
 
     const installed = installRemotePgnSource(source);
-    void writeCachedRemotePgn(cacheKey, source);
+    // Respects the "don't keep downloaded games after this session"
+    // preference: the base still lives in STATE for this session (via
+    // installRemotePgnSource above), it just never reaches IndexedDB.
+    if (!loadNoPersistDownloadsPreference()) {
+      void writeCachedRemotePgn(cacheKey, source);
+    }
     if (!installed) return false;
     if (onlineStatusEl) {
       if (bulletGames > 0) {
@@ -6185,18 +6371,31 @@ async function fetchChessComPgn() {
   const monthGamesCache = new Map();
   const seenGames = new Set();
   const selectedPgn = [];
+  // URLs that already failed once during this download are not retried in a
+  // later fallback pass (report 10: retrying the same failed month across
+  // three passes multiplies worst-case wait and provider rate-limit risk).
+  const failedArchiveUrls = new Set();
+  const failedMonthLabels = [];
+
+  // Threaded into every fetchWithTimeout call below so a new session
+  // (beginSessionWork -> abortActiveRemoteDownload) actually cancels an
+  // in-flight request instead of only discarding its result once it settles.
+  const downloadController = typeof AbortController === "function" ? new AbortController() : null;
+  activeRemoteDownloadController = downloadController;
+  const downloadSignal = downloadController ? downloadController.signal : undefined;
 
   const loadArchiveGames = async (archiveUrl) => {
     if (monthGamesCache.has(archiveUrl)) return monthGamesCache.get(archiveUrl);
     const response = await fetchWithTimeout(archiveUrl, {
       timeoutMs: REMOTE_FETCH_TIMEOUT_MS,
       retries: REMOTE_FETCH_RETRIES,
+      signal: downloadSignal,
     });
     if (!response.ok) {
       if (response.status === 429) throw new Error(t("network.rateLimited"));
       throw new Error(t("provider.chesscomReadArchiveError", { status: response.status, url: archiveUrl }));
     }
-    const payload = await response.json();
+    const payload = await readResponseJsonWithLimit(response);
     const games = Array.isArray(payload?.games) ? payload.games : [];
     monthGamesCache.set(archiveUrl, games);
     return games;
@@ -6223,11 +6422,27 @@ async function fetchChessComPgn() {
     return added;
   };
 
+  // Bounds the worst case from report 10 (twelve months x up to three
+  // fallback passes, each with its own 15s timeout and retries, could
+  // otherwise chain minutes of waiting): once this much wall-clock time has
+  // passed, the download stops walking further months and reports whatever
+  // games it already gathered instead of continuing to hang.
+  let downloadStartedAt = Date.now();
+  let budgetExceeded = false;
+  const withinBudget = () => {
+    if (Date.now() - downloadStartedAt > CHESSCOM_DOWNLOAD_BUDGET_MS) {
+      budgetExceeded = true;
+      return false;
+    }
+    return true;
+  };
+
   try {
     const archivesUrl = `https://api.chess.com/pub/player/${encodeURIComponent(rawUser.toLowerCase())}/games/archives`;
     const archivesResponse = await fetchWithTimeout(archivesUrl, {
       timeoutMs: REMOTE_FETCH_TIMEOUT_MS,
       retries: REMOTE_FETCH_RETRIES,
+      signal: downloadSignal,
     });
     if (!archivesResponse.ok) {
       if (archivesResponse.status === 429) {
@@ -6238,7 +6453,7 @@ async function fetchChessComPgn() {
       }
       throw new Error(t("provider.chesscomResponse", { status: archivesResponse.status }));
     }
-    const archivesPayload = await archivesResponse.json();
+    const archivesPayload = await readResponseJsonWithLimit(archivesResponse);
     const archives = (Array.isArray(archivesPayload?.archives) ? archivesPayload.archives : [])
       .map(parseChessComArchiveUrl)
       .filter(Boolean)
@@ -6249,73 +6464,66 @@ async function fetchChessComPgn() {
       throw new Error(t("provider.noMonthlyArchives"));
     }
 
+    downloadStartedAt = Date.now();
+
     const slowClasses = new Set(settings.preferredSlowClasses);
     let slowGames = 0;
     let blitzGames = 0;
     let bulletGames = 0;
     let totalGames = 0;
     let qualityWarning = "";
-    let failedMonths = 0;
 
-    for (const archive of archives) {
-      if (totalGames >= settings.maxGames) break;
-      let games;
-      try {
-        games = await loadArchiveGames(archive.url);
-      } catch (archiveError) {
-        failedMonths += 1;
-        continue;
+    // Walks every archive for one pass (preferred/slow, Blitz, or Bullet),
+    // reporting "month X/Y" on the shared analysis progress bar as it goes.
+    const runArchivePass = async (allowedClassesSet, passLabel) => {
+      let passAdded = 0;
+      for (let i = 0; i < archives.length; i += 1) {
+        if (totalGames >= settings.maxGames) break;
+        if (!withinBudget()) break;
+        const archive = archives[i];
+        updateAnalysisProgress(i + 1, archives.length, 0, t("provider.monthProgress", {
+          year: archive.year,
+          month: String(archive.month).padStart(2, "0"),
+          pass: passLabel,
+        }));
+        if (failedArchiveUrls.has(archive.url)) continue;
+        let games;
+        try {
+          games = await loadArchiveGames(archive.url);
+        } catch (archiveError) {
+          failedArchiveUrls.add(archive.url);
+          failedMonthLabels.push(`${archive.year}-${String(archive.month).padStart(2, "0")}`);
+          continue;
+        }
+        const added = takeGamesFromArchive(games, allowedClassesSet, settings.maxGames - totalGames);
+        passAdded += added;
+        totalGames += added;
       }
-      const added = takeGamesFromArchive(games, slowClasses, settings.maxGames - totalGames);
-      slowGames += added;
-      totalGames += added;
-    }
+      return passAdded;
+    };
 
-    if (settings.fallbackBlitz && totalGames < settings.minSlowGames && totalGames < settings.maxGames) {
+    slowGames = await runArchivePass(slowClasses, preferredLabel);
+
+    if (settings.fallbackBlitz && totalGames < settings.minSlowGames && totalGames < settings.maxGames && withinBudget()) {
       const remaining = settings.maxGames - totalGames;
       if (onlineStatusEl) {
         onlineStatusEl.textContent = t("provider.completingBlitz", { count: totalGames, preferred: preferredLabel, remaining });
       }
       await sleepMs(220);
-      const blitzClass = new Set(["blitz"]);
-      for (const archive of archives) {
-        if (totalGames >= settings.maxGames) break;
-        let games;
-        try {
-          games = await loadArchiveGames(archive.url);
-        } catch (archiveError) {
-          failedMonths += 1;
-          continue;
-        }
-        const added = takeGamesFromArchive(games, blitzClass, settings.maxGames - totalGames);
-        blitzGames += added;
-        totalGames += added;
-      }
+      blitzGames = await runArchivePass(new Set(["blitz"]), "Blitz");
     }
 
-    if (settings.fallbackBullet && totalGames < settings.minSlowGames && totalGames < settings.maxGames) {
+    let warningContext = "";
+    if (settings.fallbackBullet && totalGames < settings.minSlowGames && totalGames < settings.maxGames && withinBudget()) {
       const remaining = settings.maxGames - totalGames;
-      const warningContext = blitzGames > 0
+      warningContext = blitzGames > 0
         ? t("provider.bulletContextStillShort", { user: rawUser, preferred: preferredLabel })
         : t("provider.bulletContextNoBlitz", { user: rawUser, preferred: preferredLabel });
       if (onlineStatusEl) {
         onlineStatusEl.textContent = t("provider.bulletAttempt", { context: warningContext, remaining });
       }
       await sleepMs(220);
-      const bulletClass = new Set(["bullet"]);
-      for (const archive of archives) {
-        if (totalGames >= settings.maxGames) break;
-        let games;
-        try {
-          games = await loadArchiveGames(archive.url);
-        } catch (archiveError) {
-          failedMonths += 1;
-          continue;
-        }
-        const added = takeGamesFromArchive(games, bulletClass, settings.maxGames - totalGames);
-        bulletGames += added;
-        totalGames += added;
-      }
+      bulletGames = await runArchivePass(new Set(["bullet"]), "Bullet");
       if (bulletGames > 0) {
         qualityWarning = t("provider.bulletCompleted", { context: warningContext });
       }
@@ -6343,11 +6551,17 @@ async function fetchChessComPgn() {
     };
 
     const installed = installRemotePgnSource(source);
-    void writeCachedRemotePgn(cacheKey, source);
+    // Respects the "don't keep downloaded games after this session"
+    // preference: the base still lives in STATE for this session (via
+    // installRemotePgnSource above), it just never reaches IndexedDB.
+    if (!loadNoPersistDownloadsPreference()) {
+      void writeCachedRemotePgn(cacheKey, source);
+    }
     if (!installed) return false;
     if (onlineStatusEl) {
+      let readyMessage;
       if (bulletGames > 0) {
-        onlineStatusEl.textContent = t("provider.readyBullet", {
+        readyMessage = t("provider.readyBullet", {
           warning: `${qualityWarning} `,
           total: totalGames,
           user: rawUser,
@@ -6357,7 +6571,7 @@ async function fetchChessComPgn() {
           bullet: bulletGames,
         });
       } else if (blitzGames > 0) {
-        onlineStatusEl.textContent = t("provider.readyBlitz", {
+        readyMessage = t("provider.readyBlitz", {
           total: totalGames,
           user: rawUser,
           slow: slowGames,
@@ -6365,19 +6579,36 @@ async function fetchChessComPgn() {
           blitz: blitzGames,
         });
       } else {
-        onlineStatusEl.textContent = t("provider.readyPreferred", { total: totalGames, user: rawUser, preferred: preferredLabel });
+        readyMessage = t("provider.readyPreferred", { total: totalGames, user: rawUser, preferred: preferredLabel });
       }
+      if (failedMonthLabels.length > 0) {
+        readyMessage = `${readyMessage} ${t("provider.monthsSkipped", { months: failedMonthLabels.join(", ") })}`;
+      }
+      if (budgetExceeded) {
+        readyMessage = `${readyMessage} ${t("provider.downloadBudgetExceeded")}`;
+      }
+      onlineStatusEl.textContent = readyMessage;
     }
     return true;
   } catch (error) {
+    // The download was aborted because a new session started (see
+    // beginSessionWork), not because of a real failure: whatever screen the
+    // person is on now has already moved past this download, so there is
+    // nothing useful to show here.
+    if (downloadSignal?.aborted) return false;
     const stale = await readCachedRemotePgn(cacheKey, { allowStale: true });
     if (stale) {
       return installRemotePgnSource(stale.source, { messageKey: "provider.usingStaleCachedBase" });
     }
-    const message = t("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
+    let message = t("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
+    if (budgetExceeded) message = `${message} ${t("provider.downloadBudgetExceeded")}`;
     if (onlineStatusEl) onlineStatusEl.textContent = message;
     showWizardSourceError("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
     return false;
+  } finally {
+    if (activeRemoteDownloadController === downloadController) {
+      activeRemoteDownloadController = null;
+    }
   }
 }
 
@@ -6515,10 +6746,12 @@ async function ensurePgnSourceAvailable(sessionToken) {
 // sending the wizard back to the source step) when nothing usable was found.
 async function loadCandidateAnalysisContext(effectiveConfig) {
   const sources = await getActivePgnTextSources();
-  const allGames = sources.flatMap(({ text }) => splitGamesFromText(text).map((gameText) => ({
-    tags: parseTags(gameText),
-    sanMoves: tokenizeSanMoves(gameText),
-  })));
+  // buildGameFromText returns null for a game that trips a parsing budget
+  // (oversized, an oversized comment, too many plies, variation nesting too
+  // deep); that game is skipped instead of the whole batch failing.
+  const allGames = sources.flatMap(({ text }) => splitGamesFromText(text)
+    .map(buildGameFromText)
+    .filter(Boolean));
 
   if (allGames.length === 0) {
     sendWizardBackToSourceStep("provider.noPublicValidGames");
