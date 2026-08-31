@@ -104,5 +104,84 @@ for (const line of sums) {
   }
 }
 
+// index.html's ?v= query strings, sw.js's CACHE_NAME, and sw.js's own
+// versioned CORE_ASSETS entries must all agree with the current content hash
+// of app.js/styles.css (see scripts/generate-version.js). If someone edits
+// app.js/styles.css/sw.js without re-running that script, this catches it
+// instead of silently shipping a mismatched combination to installed clients.
+function checkVersionCoherence() {
+  const { computeVersionInfo, isVersionedAsset } = require("./generate-version.js");
+  let info;
+  try {
+    info = computeVersionInfo();
+  } catch (error) {
+    fail(`version-coherence check could not run: ${error.message}`);
+    return;
+  }
+
+  const cssMatch = html.match(/href="styles\.css\?v=([^"]*)"/);
+  const jsMatch = html.match(/src="app\.js\?v=([^"]*)"/);
+  if (!cssMatch || cssMatch[1] !== info.versionHash) {
+    fail(
+      `index.html styles.css version (${cssMatch ? cssMatch[1] : "missing"}) does not match ` +
+      `the current content hash (${info.versionHash}); run node scripts/generate-version.js`,
+    );
+  }
+  if (!jsMatch || jsMatch[1] !== info.versionHash) {
+    fail(
+      `index.html app.js version (${jsMatch ? jsMatch[1] : "missing"}) does not match ` +
+      `the current content hash (${info.versionHash}); run node scripts/generate-version.js`,
+    );
+  }
+
+  const cacheNameMatch = sw.match(/const CACHE_NAME = "([^"]*)";/);
+  if (!cacheNameMatch || cacheNameMatch[1] !== info.cacheName) {
+    fail(
+      `sw.js CACHE_NAME (${cacheNameMatch ? cacheNameMatch[1] : "missing"}) does not match ` +
+      `the current content hash (${info.cacheName}); run node scripts/generate-version.js`,
+    );
+  }
+
+  info.canonicalAssets.forEach((canonical, i) => {
+    if (!isVersionedAsset(canonical)) return;
+    const raw = info.rawAssets[i];
+    const expected = info.versionedAssets[i];
+    if (raw !== expected) {
+      fail(
+        `sw.js CORE_ASSETS entry for ${canonical} is out of date (found "${raw}", ` +
+        `expected "${expected}"); run node scripts/generate-version.js`,
+      );
+    }
+  });
+}
+
+checkVersionCoherence();
+
+// Every literal document.getElementById("...") string in app.js should name
+// an id that actually exists in index.html, so a renamed/removed id in the
+// markup can't silently leave a dead reference in the script. This is a
+// static string check, not a DOM parse, so a computed id (a template
+// literal, say) is skipped rather than flagged.
+function checkIdContract() {
+  const htmlIds = new Set();
+  for (const match of html.matchAll(/\bid=["']([^"']+)["']/g)) {
+    htmlIds.add(match[1]);
+  }
+
+  const appJs = fs.readFileSync(path.join(root, "app.js"), "utf8");
+  const referencedIds = new Set();
+  for (const match of appJs.matchAll(/getElementById\(\s*["']([^"']+)["']\s*\)/g)) {
+    referencedIds.add(match[1]);
+  }
+
+  for (const id of referencedIds) {
+    if (!htmlIds.has(id)) {
+      fail(`app.js calls getElementById("${id}") but index.html has no element with that id`);
+    }
+  }
+}
+
+checkIdContract();
+
 if (process.exitCode) process.exit(process.exitCode);
 console.log("smoke-check passed");

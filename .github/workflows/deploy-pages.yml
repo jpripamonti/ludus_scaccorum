@@ -24,12 +24,19 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
+
+      # Regenerates the content-hashed cache/version identifiers so the
+      # deployed artifact can never disagree with itself about which
+      # app.js/styles.css it points at, even if a contributor forgot to run
+      # this locally before merging.
+      - name: Generate content-hashed versions
+        run: node scripts/generate-version.js
 
       - name: Run smoke checks
         run: npm test
@@ -38,22 +45,22 @@ jobs:
         run: |
           rm -rf _site
           mkdir -p _site
-          cp index.html app.js styles.css sw.js LICENSE THIRD_PARTY_NOTICES.md _site/
+          cp index.html app.js styles.css sw.js manifest.json LICENSE THIRD_PARTY_NOTICES.md _site/
           mkdir -p _site/assets _site/vendor
           rsync -av --delete --exclude '.DS_Store' assets/ _site/assets/
           rsync -av --delete vendor/ _site/vendor/
           find _site -name '.DS_Store' -delete
 
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
         with:
           enablement: true
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: _site
 
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
