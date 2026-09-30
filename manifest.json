@@ -1,13 +1,17 @@
 {
+  "id": "./",
   "name": "Ludus Scaccorum",
   "short_name": "Scaccorum",
-  "description": "Entrenamiento de errores de ajedrez.",
+  "description": "Aprendé ajedrez de tus errores y de las partidas clásicas: cuanto más cerca de la mejor jugada, más puntos.",
   "lang": "es",
+  "dir": "ltr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "orientation": "any",
   "theme_color": "#0b1118",
-  "background_color": "#0b1118",
+  "background_color": "#04080e",
+  "categories": ["education", "games"],
   "icons": [
     {
       "src": "assets/icons/icon-192.png",
@@ -20,6 +24,41 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "assets/brand/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Partidas clásicas",
+      "short_name": "Clásicos",
+      "description": "Entrená con posiciones de las grandes partidas de la historia",
+      "url": "./#/classics",
+      "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Repasar mis errores",
+      "short_name": "Mis errores",
+      "description": "Volvé a las posiciones donde te equivocaste",
+      "url": "./#/notebook",
+      "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Desafío diario",
+      "short_name": "Desafío",
+      "description": "Una posición nueva cada día",
+      "url": "./#/daily",
+      "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

@@ -19,9 +19,10 @@
 // It asserts, for each viewport (1280x800 and 390x844): no console errors, no
 // uncaught page errors, no failed or 4xx/5xx requests (service worker requests
 // included); the landing screen is visible; Ludus.chess.Chess exists and every
-// script carries the build version; the start button opens the setup wizard,
-// which still steps forward/back and toggles duel mode; the ES/EN toggle
-// switches language. On the desktop run it also waits for the service worker
+// script carries the build version; the start button leads to the home hub;
+// the own-games wizard (opened through Ludus.game.openOwnGamesSetup) still
+// steps forward/back and toggles duel mode, and its back button goes home;
+// the ES/EN toggle switches language. On the desktop run it also waits for the service worker
 // and checks that the precache holds exactly the files sw.js lists.
 // Exits 0 on success, 1 on the first failed assertion, 2 if Playwright is
 // missing.
@@ -108,7 +109,7 @@ async function runViewport(browser, viewport) {
   assert.strictEqual(await isHidden(page, "#landing-start-btn"), false, "start button visible");
   assert.strictEqual(await isHidden(page, "#setup-panel"), true, "setup wizard is not shown yet");
   assert.strictEqual(await page.evaluate(() => document.documentElement.lang), "es", "es-AR browser starts in Spanish");
-  assert.strictEqual((await page.locator("#landing-start-btn").innerText()).trim(), "Comenzar");
+  assert.strictEqual((await page.locator("#landing-start-btn").innerText()).trim(), "Empezar a entrenar");
   await shot(page, `landing-${viewport.width}x${viewport.height}`);
 
   // ----- Modules and versioning -----
@@ -132,7 +133,7 @@ async function runViewport(browser, viewport) {
       }),
       screenApi: ["home", "classics", "notebook", "progress", "museum", "settings", "account"].every((name) => typeof Ludus.Screens[name].mount === "function"),
       namespaces: ["Engine", "Scoring", "Insights", "Concepts", "Settings", "Profile", "Facts", "Reader", "Audio", "Auth", "Classics"].filter((name) => !Ludus[name]),
-      iconHref: document.querySelector('link[rel="icon"]').getAttribute("href"),
+      iconHrefs: Array.from(document.querySelectorAll('link[rel="icon"]')).map((el) => el.getAttribute("href")),
     };
   });
   assert.strictEqual(info.hasChess, true, "Ludus.chess.Chess exists");
@@ -151,13 +152,20 @@ async function runViewport(browser, viewport) {
   });
   assert.strictEqual(info.scripts[0].split("?")[0], "config.js");
   assert.strictEqual(info.scripts[info.scripts.length - 1].split("?")[0], "app.js");
-  assert.strictEqual(info.iconHref, "assets/icons/icon-192.png");
+  assert.ok(info.iconHrefs.includes("assets/icons/icon-192.png"), "the PNG icon is declared");
+  assert.ok(info.iconHrefs.includes("assets/brand/favicon.svg"), "the SVG favicon is declared");
 
-  // ----- Start button opens the wizard -----
-  step("start button opens the setup wizard");
+  // ----- Start button leads home; the wizard is opened from there -----
+  step("start button goes to the home hub, not straight into the wizard");
   await page.locator("#landing-start-btn").click();
-  await page.locator("#setup-panel").waitFor({ state: "visible" });
+  await page.locator("#screen-home").waitFor({ state: "visible" });
+  assert.strictEqual(await page.evaluate(() => Ludus.router.current()), "home");
   assert.strictEqual(await isHidden(page, "#landing-screen"), true, "landing hides");
+  assert.strictEqual(await isHidden(page, "#setup-panel"), true, "the wizard is not shown yet");
+
+  step("the own-games wizard opens on step 1");
+  await page.evaluate(() => Ludus.game.openOwnGamesSetup());
+  await page.locator("#setup-panel").waitFor({ state: "visible" });
   assert.strictEqual(await isHidden(page, "#wizard-step-1"), false, "wizard step 1 shows");
   assert.strictEqual(await isHidden(page, "#wizard-step-2"), true);
   assert.match(await page.locator("#wizard-step-indicator").innerText(), /1/, "step indicator says step 1");
@@ -188,10 +196,11 @@ async function runViewport(browser, viewport) {
   await page.waitForFunction(() => document.documentElement.lang === "es");
   assert.match(await page.locator(".wizard-header h2").innerText(), /3 pasos/, "wizard heading is Spanish again");
 
-  // ----- Back to the landing screen -----
-  step("back button returns to the landing screen");
+  // ----- Back to the start -----
+  step("back button returns to the home hub (the landing page only stands in when home failed to mount)");
   await page.locator("#source-back-btn").click();
-  await page.locator("#landing-screen").waitFor({ state: "visible" });
+  await page.locator("#screen-home").waitFor({ state: "visible" });
+  assert.strictEqual(await page.evaluate(() => Ludus.router.current()), "home");
 
   // ----- Layout sanity -----
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

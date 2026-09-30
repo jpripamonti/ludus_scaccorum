@@ -1,1 +1,433 @@
-/* Styles for the shell. Prefix every class with .sh- to avoid collisions. */
+/* ==========================================================================
+   App shell: top bar, primary navigation, profile chip and popover, streak,
+   bottom tab bar on phones. Prefix .sh- (js/ui/shell.js builds the parts that
+   are not static in index.html).
+
+   Modes, driven by attributes the shell sets on <body>:
+     data-shell="on"       header (and, under 720px, the tab bar)
+     data-shell="minimal"  landing: transparent brand + language over the hero
+     data-shell="off"      hidden (the play screen has its own header)
+     data-screen="<id>"    the current router screen
+   ========================================================================== */
+
+.sh-header {
+  /* The width steps below are container queries in rem: they follow the reader's
+     text size (a11y.textScale), so bigger text drops the extras (wordmark,
+     streak, chip details) at a proportionally wider screen instead of
+     overlapping. The layout switch to the tab bar stays a media query. */
+  container: sh / inline-size;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  border-bottom: 1px solid var(--color-hairline);
+  background: rgba(9, 16, 25, 0.82);
+  -webkit-backdrop-filter: saturate(140%) blur(14px);
+  backdrop-filter: saturate(140%) blur(14px);
+}
+
+.sh-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: min(var(--page-max), calc(100% - 2 * var(--page-gutter)));
+  height: var(--header-h);
+  margin-inline: auto;
+}
+
+/* ── Brand ── */
+.sh-brand {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--hit);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  text-decoration: none;
+}
+.sh-brand-mark {
+  display: block;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 6px 14px -6px rgba(0, 0, 0, 0.7);
+}
+.sh-brand-word {
+  display: none;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.sh-brand-word span { color: var(--color-gold); }
+
+/* ── Primary navigation (desktop / tablet) ── */
+.sh-nav {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-left: var(--space-1);
+  min-width: 0;
+}
+.sh-nav-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--hit);
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--dur-1) ease, background-color var(--dur-1) ease;
+}
+.sh-nav-link:hover { background: rgba(255, 255, 255, 0.055); color: var(--color-text); }
+.sh-nav-link.is-active { color: var(--color-text); }
+.sh-nav-link::after {
+  content: "";
+  position: absolute;
+  inset: auto 8px 3px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--color-gold);
+  transform: scaleX(0);
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.sh-nav-link.is-active::after { transform: scaleX(1); }
+.sh-nav-icon { display: inline-grid; place-items: center; }
+.sh-nav .sh-nav-icon { display: none; }
+.sh-nav .sh-badge { margin-left: -2px; }
+
+/* ── Right cluster ── */
+.sh-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+  flex: none;
+}
+.sh-status { display: flex; align-items: center; gap: var(--space-1); }
+
+.sh-streak {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--hit);
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+.sh-streak:hover { background: rgba(255, 255, 255, 0.055); color: var(--color-text); }
+.sh-streak.is-lit { color: var(--color-gold); }
+.sh-streak.is-risk { box-shadow: inset 0 0 0 1px var(--color-dubious); }
+.sh-streak .ui-icon { flex: none; }
+.sh-streak.is-lit .ui-icon { fill: rgba(221, 167, 52, 0.22); }
+
+.sh-icon-btn {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--hit);
+  height: var(--hit);
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  transition: color var(--dur-1) ease, background-color var(--dur-1) ease;
+}
+.sh-icon-btn:hover { background: rgba(255, 255, 255, 0.07); color: var(--color-text); }
+.sh-icon-btn.is-active { color: var(--color-gold); }
+
+/* ── Profile chip and popover ── */
+.sh-profile { position: relative; }
+.sh-profile-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--hit);
+  max-width: 260px;
+  padding: 4px 6px 4px 4px;
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-1) ease, background-color var(--dur-1) ease;
+}
+.sh-profile-chip:hover { border-color: var(--color-gold-dim); background: var(--color-surface-3); }
+.sh-profile-chip[aria-expanded="true"] { border-color: var(--color-gold); }
+.sh-profile-text { display: none; min-width: 0; gap: 1px; }
+.sh-profile-name {
+  display: block;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  font-weight: 650;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sh-profile-level {
+  display: none;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sh-xp {
+  display: none;
+  width: 100%;
+  height: 3px;
+  margin-top: 3px;
+  border-radius: 3px;
+  background: var(--color-surface-4);
+  overflow: hidden;
+}
+.sh-xp-bar { display: block; height: 100%; border-radius: 3px; background: var(--gold-gradient); }
+.sh-profile-caret { display: none; color: var(--color-text-muted); padding-right: 4px; }
+
+.sh-pop {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: var(--z-popover);
+  width: min(340px, calc(100vw - 2 * var(--page-gutter)));
+  padding: var(--space-3);
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-2xl);
+  background: var(--color-surface-2);
+  box-shadow: var(--shadow-3);
+  animation: ui-pop var(--dur-2) var(--ease-out) both;
+}
+.sh-pop-title {
+  margin: 0 0 var(--space-2);
+  padding: 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.sh-pop-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.sh-pop-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-1) ease, border-color var(--dur-1) ease;
+}
+.sh-pop-row:hover { background: var(--color-surface-3); border-color: var(--color-hairline-strong); }
+.sh-pop-row.is-active { border-color: var(--color-gold-dim); background: var(--color-gold-bg); }
+.sh-pop-who { display: grid; flex: 1 1 auto; min-width: 0; }
+.sh-pop-name { overflow: hidden; font-size: var(--text-md); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.sh-pop-level { color: var(--color-text-muted); font-size: var(--text-sm); }
+.sh-pop-check { display: inline-flex; color: var(--color-gold); }
+.sh-pop-xp { margin: var(--space-3) var(--space-2) 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+.sh-pop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-hairline);
+}
+
+/* Settings lives in the popover only where the header has no room for the gear. */
+.sh-pop-settings { display: none; }
+@media (max-width: 819px) {
+  .sh-settings { display: none; }
+  .sh-pop-settings { display: inline-flex; }
+}
+
+/* ── More sheet ── */
+.sh-more-list { display: grid; gap: var(--space-2); padding-bottom: var(--space-2); }
+.sh-more-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 56px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--text-md);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.sh-more-item:hover { background: var(--color-surface-3); border-color: var(--color-border-mid); }
+.sh-more-icon { display: inline-grid; color: var(--color-gold); }
+.sh-more-label { flex: 1 1 auto; }
+.sh-more-go { display: inline-grid; color: var(--color-text-muted); }
+
+/* ── Tab bar (phones only) ── */
+.sh-tabbar { display: none; }
+
+/* ── Width steps: what the header shows as room grows ──
+   (rem = 16px at the default text size)
+   45rem+    labels only, avatar-only chip
+   56rem+    chip with the player's name and the streak pill
+   68rem+    the wordmark next to the brand mark
+   74rem+    the chip also shows level title and XP bar
+   80rem+    icons in front of the nav labels */
+@container sh (min-width: 56.25rem) {
+  .sh-streak { display: inline-flex; }
+  .sh-profile-text { display: grid; }
+  .sh-profile-caret { display: inline-grid; }
+  .sh-profile-chip { padding-right: 8px; }
+}
+@container sh (min-width: 68.75rem) {
+  .sh-brand-word { display: inline; }
+  .sh-nav-link { padding: 0 var(--space-3); }
+  .sh-nav-link::after { inset-inline: var(--space-3); }
+}
+@container sh (min-width: 73.75rem) {
+  .sh-profile-level { display: block; }
+  .sh-xp { display: block; }
+}
+@container sh (min-width: 80rem) {
+  .sh-nav .sh-nav-icon { display: inline-grid; }
+  .sh-inner { gap: var(--space-4); }
+}
+/* Last resort at extreme text sizes: the nav scrolls instead of overlapping. */
+.sh-nav { overflow-x: auto; scrollbar-width: none; }
+.sh-nav::-webkit-scrollbar { display: none; }
+
+/* ── Phones: brand + profile + language up top, tabs at the bottom ── */
+@media (max-width: 719px) {
+  :root { --header-h: 58px; }
+
+  .sh-nav,
+  .sh-streak,
+  .sh-settings { display: none; }
+  .sh-profile-text,
+  .sh-profile-caret { display: none; }
+  .sh-profile-chip { padding: 3px; }
+  .sh-inner { gap: var(--space-2); }
+  .sh-right { gap: var(--space-2); }
+
+  /* The popover becomes a card under the header, as wide as the screen allows. */
+  .sh-pop {
+    position: fixed;
+    top: calc(var(--header-h) + 8px);
+    right: var(--page-gutter);
+    left: var(--page-gutter);
+    width: auto;
+  }
+
+  .sh-tabbar {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: var(--z-tabbar);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 0 max(4px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(4px, env(safe-area-inset-left, 0px));
+    border-top: 1px solid var(--color-hairline-strong);
+    background: rgba(9, 16, 25, 0.94);
+    -webkit-backdrop-filter: saturate(140%) blur(16px);
+    backdrop-filter: saturate(140%) blur(16px);
+  }
+  .sh-tab {
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    min-height: var(--tabbar-h);
+    padding: 6px 2px 5px;
+    border-radius: 0;
+    font-size: var(--text-xs);
+    font-weight: 600;
+  }
+  .sh-tab::after { display: none; }
+  .sh-tab::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 28px;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--color-gold);
+    transform: translateX(-50%) scaleX(0);
+    transition: transform var(--dur-2) var(--ease-out);
+  }
+  .sh-tab.is-active { color: var(--color-gold); }
+  .sh-tab.is-active::before { transform: translateX(-50%) scaleX(1); }
+  .sh-tab:hover { background: transparent; }
+  .sh-tab .sh-nav-icon { position: relative; }
+  .sh-tab .sh-badge {
+    position: absolute;
+    top: -7px;
+    right: -12px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 0.6875rem;
+  }
+  .sh-tab .sh-nav-label { overflow: hidden; max-width: 100%; text-overflow: ellipsis; }
+
+  body[data-shell="on"] { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-5)); }
+  body[data-shell="on"] .toast-stack { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-3)); }
+}
+
+/* Phones show the wordmark when the header is at least 24rem wide (384px at the
+   default size, wider with bigger text); on the landing there is room for it at
+   any width from there up. */
+@media (max-width: 719px) {
+  @container sh (min-width: 24rem) {
+    .sh-brand-word { display: inline; font-size: 1.3rem; }
+  }
+}
+@container sh (min-width: 24rem) {
+  body[data-shell="minimal"] .sh-brand-word { display: inline; }
+}
+
+/* ── Landing: the header floats over the hero, only brand and language ── */
+body[data-shell="minimal"] .sh-header {
+  position: absolute;
+  inset: 0 0 auto;
+  border-bottom-color: transparent;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+body[data-shell="minimal"] .sh-nav,
+body[data-shell="minimal"] .sh-status { display: none; }
+body[data-shell="minimal"] .language-switch { background: rgba(9, 16, 25, 0.55); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+
+/* ── Hidden on the play screen ── */
+body[data-shell="off"] .sh-header,
+body[data-shell="off"] .sh-tabbar,
+body[data-screen="game"] .sh-header,
+body[data-screen="game"] .sh-tabbar { display: none; }
+
+/* The app column starts below the sticky header; the landing hero starts at 0. */
+body[data-shell="minimal"] .app { padding-top: 0; }

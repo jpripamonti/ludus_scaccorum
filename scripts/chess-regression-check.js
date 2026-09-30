@@ -13,8 +13,8 @@ const { context } = loaded;
 const { document } = loaded.dom;
 
 const appSource = fs.readFileSync(path.join(root, "app.js"), "utf8");
-const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource, findNextMistake, restoreBoardToRoundStart, parseTags, resolveGameStartFen, tokenizeSanMoves, onSquareClick, choosePromotion } = loaded.run(
-  "({ Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, cpQualityCode, pointsFromQualityCode, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource, findNextMistake, restoreBoardToRoundStart, parseTags, resolveGameStartFen, tokenizeSanMoves, onSquareClick, choosePromotion })",
+const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource, findNextMistake, restoreBoardToRoundStart, parseTags, resolveGameStartFen, tokenizeSanMoves, onSquareClick, choosePromotion } = loaded.run(
+  "({ Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource, findNextMistake, restoreBoardToRoundStart, parseTags, resolveGameStartFen, tokenizeSanMoves, onSquareClick, choosePromotion })",
 );
 
 function play(game, uci) {
@@ -302,74 +302,25 @@ const ordinaryStart = resolveGameStartFen(ordinaryTags);
 assert.strictEqual(ordinaryStart.valid, true);
 assert.strictEqual(ordinaryStart.fen, Chess.START_FEN, "a game without SetUp/FEN should still start from the initial position");
 
-// ---------- Centipawn-loss quality thresholds ----------
+// ---------- Points are Ludus.Scoring's now ----------
 
-assert.strictEqual(cpQualityCode(10), "perfect", "loss=10 should be perfect");
-assert.strictEqual(cpQualityCode(11), "very_good", "loss=11 should be very_good");
-assert.strictEqual(cpQualityCode(35), "very_good", "loss=35 should be very_good");
-assert.strictEqual(cpQualityCode(36), "good", "loss=36 should be good");
-assert.strictEqual(cpQualityCode(70), "good", "loss=70 should be good");
-assert.strictEqual(cpQualityCode(71), "interesting", "loss=71 should be interesting");
-assert.strictEqual(cpQualityCode(115), "interesting", "loss=115 should be interesting");
-assert.strictEqual(cpQualityCode(116), "dubious", "loss=116 should be dubious");
-assert.strictEqual(cpQualityCode(165), "dubious", "loss=165 should be dubious");
-assert.strictEqual(cpQualityCode(166), "bad", "loss=166 should be bad");
-assert.strictEqual(cpQualityCode(240), "bad", "loss=240 should be bad");
-assert.strictEqual(cpQualityCode(241), "blunder", "loss=241 should be blunder");
-
-// near-perfect via expected-points loss: only kicks in when loss is also <=18
-assert.strictEqual(
-  cpQualityCode(18, false, 0.008),
-  "perfect",
-  "loss=18 with expectedLoss=0.008 should be perfect (near-perfect by expected points)"
-);
-assert.strictEqual(
-  cpQualityCode(19, false, 0.008),
-  "very_good",
-  "loss=19 with expectedLoss=0.008 should not qualify as near-perfect (loss above 18 cutoff)"
-);
-assert.strictEqual(
-  cpQualityCode(18, false, 0.009),
-  "very_good",
-  "loss=18 with expectedLoss=0.009 should not qualify as near-perfect (expectedLoss above 0.008 cutoff)"
-);
-
-// exactBest always wins regardless of loss
-assert.strictEqual(cpQualityCode(500, true), "perfect", "exactBest=true should always yield perfect");
-
-// non-finite loss with no special reasonCode/exactBest
-assert.strictEqual(cpQualityCode(NaN), "no_move", "non-finite loss should be treated as no_move");
-assert.strictEqual(cpQualityCode(Infinity), "no_move", "infinite loss should be treated as no_move");
-
-// special reasonCode overrides
-assert.strictEqual(cpQualityCode(0, false, null, "no_move"), "no_move", "reasonCode=no_move should force no_move");
-assert.strictEqual(
-  cpQualityCode(0, false, null, "allows_mate"),
-  "blunder",
-  "reasonCode=allows_mate should force blunder even with zero loss"
-);
-assert.strictEqual(
-  cpQualityCode(0, false, null, "missed_forced_mate"),
-  "blunder",
-  "reasonCode=missed_forced_mate should force blunder even with zero loss"
-);
-assert.strictEqual(
-  cpQualityCode(500, false, null, "optimal_mate"),
-  "perfect",
-  "reasonCode=optimal_mate should force perfect even with high loss"
-);
-
-// ---------- Points awarded per quality code ----------
-
-assert.strictEqual(pointsFromQualityCode("perfect"), 1);
-assert.strictEqual(pointsFromQualityCode("very_good"), 0.75);
-assert.strictEqual(pointsFromQualityCode("good"), 0.5);
-assert.strictEqual(pointsFromQualityCode("interesting"), 0.25);
-assert.strictEqual(pointsFromQualityCode("dubious"), 0);
-assert.strictEqual(pointsFromQualityCode("bad"), -0.5);
-assert.strictEqual(pointsFromQualityCode("blunder"), -1);
-assert.strictEqual(pointsFromQualityCode("no_move"), 0);
-assert.strictEqual(pointsFromQualityCode("unknown_code"), 0, "unrecognized codes should default to 0 points");
+// The old -1..1.5 scale (cpQualityCode / pointsFromQualityCode) is gone: a round is
+// scored by Ludus.Scoring.assess() from the engine's lines, 0 to 10 points. Its
+// maths are tested in scripts/tests/scoring.test.js and the round flow in
+// scripts/tests/core.test.js. What is left here is the score text of the session.
+STATE.gameFormat = "solo";
+STATE.score = 72.4;
+STATE.sessionPlayed = 10;
+assert.strictEqual(sessionSummaryScoreText(), "72.4 / 100 pts", "a solo total is shown against the points that were possible");
+STATE.gameFormat = "duel";
+STATE.duel.players = ["Alice", "Bob"];
+STATE.duel.scores = [12.5, 9];
+STATE.sessionPlayed = 3;
+assert.strictEqual(sessionSummaryScoreText(), "Alice 12.5 - 9 Bob (max. 30 pts)", "a duel score names the maximum too");
+STATE.gameFormat = "solo";
+STATE.score = 0;
+STATE.sessionPlayed = 0;
+STATE.duel.scores = [0, 0];
 
 // ---------- Mate scores survive the round trip, including long mates ----------
 

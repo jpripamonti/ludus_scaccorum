@@ -5,26 +5,30 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#0b1118" />
-  <meta name="ludus-version" content="27895cceca83" />
+  <meta name="ludus-version" content="9f199e39ddde" />
   <link rel="manifest" href="./manifest.json" />
-  <link rel="apple-touch-icon" href="./assets/icons/icon-192.png" />
-  <link rel="icon" type="image/png" href="assets/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/svg+xml" href="assets/brand/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png" />
+  <!-- The two Latin font files are used above the fold on every screen: fetch them early. -->
+  <link rel="preload" href="assets/fonts/inter-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="assets/fonts/cormorant-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client; worker-src 'self'; connect-src 'self' https://lichess.org https://api.chess.com https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://accounts.google.com; img-src 'self' data: https://*.googleusercontent.com; font-src 'self'; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; object-src 'none'; base-uri 'none'; form-action 'none'" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=()" />
   <title>Ludus Scaccorum - Entrenamiento de Errores</title>
-  <link rel="stylesheet" href="styles.css?v=27895cceca83" />
-  <link rel="stylesheet" href="css/system.css?v=27895cceca83" />
-  <link rel="stylesheet" href="css/shell.css?v=27895cceca83" />
-  <link rel="stylesheet" href="css/board.css?v=27895cceca83" />
-  <link rel="stylesheet" href="css/coach.css?v=27895cceca83" />
-  <link rel="stylesheet" href="css/home.css?v=27895cceca83" />
-  <link rel="stylesheet" href="css/classics.css?v=27895cceca83" />
-  <link rel="stylesheet" href="css/notebook.css?v=27895cceca83" />
-  <link rel="stylesheet" href="css/progress.css?v=27895cceca83" />
-  <link rel="stylesheet" href="css/museum.css?v=27895cceca83" />
-  <link rel="stylesheet" href="css/settings.css?v=27895cceca83" />
-  <link rel="stylesheet" href="css/account.css?v=27895cceca83" />
+  <link rel="stylesheet" href="styles.css?v=9f199e39ddde" />
+  <link rel="stylesheet" href="css/system.css?v=9f199e39ddde" />
+  <link rel="stylesheet" href="css/shell.css?v=9f199e39ddde" />
+  <link rel="stylesheet" href="css/board.css?v=9f199e39ddde" />
+  <link rel="stylesheet" href="css/coach.css?v=9f199e39ddde" />
+  <link rel="stylesheet" href="css/home.css?v=9f199e39ddde" />
+  <link rel="stylesheet" href="css/classics.css?v=9f199e39ddde" />
+  <link rel="stylesheet" href="css/notebook.css?v=9f199e39ddde" />
+  <link rel="stylesheet" href="css/progress.css?v=9f199e39ddde" />
+  <link rel="stylesheet" href="css/museum.css?v=9f199e39ddde" />
+  <link rel="stylesheet" href="css/settings.css?v=9f199e39ddde" />
+  <link rel="stylesheet" href="css/account.css?v=9f199e39ddde" />
 </head>
 
 <body class="mode-citizen">
@@ -34,24 +38,47 @@
       <p lang="en">Ludus Scaccorum needs JavaScript to run. Enable it in your browser and reload the page.</p>
     </div>
   </noscript>
-  <div class="app">
-    <div class="app-toolbar">
-      <div id="language-switch" class="language-switch" role="radiogroup" aria-label="Language / Idioma">
-        <button id="language-btn-es" type="button" class="language-switch-btn" role="radio" aria-checked="true" tabindex="0">ES</button>
-        <button id="language-btn-en" type="button" class="language-switch-btn" role="radio" aria-checked="false" tabindex="-1">EN</button>
+  <a class="skip-link" href="#app-main">Saltar al contenido</a>
+
+  <!-- App shell (js/ui/shell.js fills the nav, the streak and the profile chip; the
+       ES/EN group stays here because app.js binds its buttons by id). -->
+  <header class="sh-header" id="shell-header">
+    <div class="sh-inner">
+      <a class="sh-brand" id="shell-brand" href="#/home" aria-label="Ludus Scaccorum, ir al inicio">
+        <img class="sh-brand-mark" src="assets/brand/logo.svg" alt="" width="36" height="36" decoding="async" />
+        <span class="sh-brand-word">Ludus <span>Scaccorum</span></span>
+      </a>
+      <nav class="sh-nav" id="shell-nav" aria-label="Principal"></nav>
+      <div class="sh-right">
+        <div class="sh-status" id="shell-status"></div>
+        <div id="language-switch" class="language-switch" role="radiogroup" aria-label="Language / Idioma">
+          <button id="language-btn-es" type="button" class="language-switch-btn" role="radio" aria-checked="true" tabindex="0">ES</button>
+          <button id="language-btn-en" type="button" class="language-switch-btn" role="radio" aria-checked="false" tabindex="-1">EN</button>
+        </div>
       </div>
     </div>
+  </header>
 
-    <section id="landing-screen" class="landing-screen">
-      <div class="landing-sheen" aria-hidden="true"></div>
-      <div class="landing-content">
-        <h1 class="landing-title">Ludus Scaccorum</h1>
-        <p class="landing-description" data-i18n="landing.description">Entrená cálculo, evaluación y toma de decisiones encontrando mejores jugadas en
-          posiciones reales.</p>
-        <button id="landing-start-btn" type="button" class="landing-btn landing-btn-start" data-i18n="buttons.start">Comenzar</button>
+  <!-- Landing: the hero is static so the first paint needs no script; the sections
+       below it and the footer are rendered by Ludus.Screens.landing (js/ui/home.js).
+       #landing-start-btn is bound by app.js. -->
+  <main id="landing-screen" class="landing-screen ld" aria-labelledby="ld-title">
+    <section class="ld-hero">
+      <div class="ld-hero-bg" aria-hidden="true"></div>
+      <div class="ld-hero-inner">
+        <p class="t-eyebrow ld-eyebrow">Entrenador de ajedrez</p>
+        <h1 class="ld-title" id="ld-title">Ludus Scaccorum</h1>
+        <p class="ld-lead">Aprendé ajedrez de tus errores y de las partidas clásicas: cuanto más cerca juegues de la mejor jugada, más puntos ganás.</p>
+        <div class="ld-actions">
+          <button id="landing-start-btn" type="button" class="btn btn-primary btn-lg ld-cta"><span class="btn-label">Empezar a entrenar</span></button>
+          <a class="btn btn-ghost btn-lg ld-how-link" href="#ld-how">Cómo funciona</a>
+        </div>
+        <p class="ld-assure">Sin registro. Tus datos quedan en tu dispositivo.</p>
       </div>
     </section>
+  </main>
 
+  <div class="app" id="app-main" tabindex="-1">
     <section class="panel hidden" id="setup-panel">
       <div id="setup-wizard" class="setup-wizard">
         <header class="wizard-header">
@@ -143,6 +170,7 @@
                 </div>
                 <p id="analysis-progress-label" class="progress-label">0%</p>
               </div>
+              <div id="analysis-facts" class="analysis-facts" aria-live="off"></div>
             </section>
           </div>
 
@@ -203,6 +231,7 @@
       <section id="board-stage" class="board-stage">
         <div class="round-bar">
           <div class="round-bar-info">
+            <div id="session-title" class="round-session-title"></div>
             <div id="round-status" class="round-status">-</div>
             <p id="solo-progress-line" class="solo-progress-line"></p>
           </div>
@@ -233,6 +262,7 @@
                 <span id="position-search-progress-label" class="position-search-progress-label"></span>
               </div>
               <span id="position-search-progress-announce" class="sr-only"></span>
+              <div id="position-search-facts" class="position-search-facts" aria-live="off"></div>
               <button id="position-search-cancel-btn" type="button" class="wizard-secondary-btn position-search-cancel-btn" data-i18n="buttons.cancelSearch">Cancelar búsqueda</button>
             </aside>
 
@@ -320,15 +350,17 @@
     </main>
 
     <!-- Screens rendered by js/ui/*.js (mounted lazily, shown through Ludus.router). -->
-    <section id="screen-home" class="screen hidden" aria-live="off"></section>
-    <section id="screen-classics" class="screen hidden" aria-live="off"></section>
-    <section id="screen-notebook" class="screen hidden" aria-live="off"></section>
-    <section id="screen-progress" class="screen hidden" aria-live="off"></section>
-    <section id="screen-museum" class="screen hidden" aria-live="off"></section>
-    <section id="screen-settings" class="screen hidden" aria-live="off"></section>
-    <section id="screen-account" class="screen hidden" aria-live="off"></section>
+    <!-- role="main": only the visible screen is exposed (the others are display:none), so the page always has one main landmark. -->
+    <section id="screen-home" class="screen hidden" role="main" aria-live="off"></section>
+    <section id="screen-classics" class="screen hidden" role="main" aria-live="off"></section>
+    <section id="screen-notebook" class="screen hidden" role="main" aria-live="off"></section>
+    <section id="screen-progress" class="screen hidden" role="main" aria-live="off"></section>
+    <section id="screen-museum" class="screen hidden" role="main" aria-live="off"></section>
+    <section id="screen-settings" class="screen hidden" role="main" aria-live="off"></section>
+    <section id="screen-account" class="screen hidden" role="main" aria-live="off"></section>
 
     <div id="shared-actions" class="board-actions-secondary">
+      <button id="hint-btn" type="button" disabled>Pista</button>
       <button id="skip-btn" data-i18n="buttons.skipMove">Omitir jugada (0 pts)</button>
       <button id="restart-btn" data-i18n="buttons.restartMenu">Volver al inicio</button>
     </div>
@@ -356,33 +388,33 @@
     </div>
   </div>
 
-  <script src="config.js?v=27895cceca83"></script>
-  <script src="js/ludus.js?v=27895cceca83"></script>
-  <script src="js/chess.js?v=27895cceca83"></script>
-  <script src="js/pgn.js?v=27895cceca83"></script>
-  <script src="js/engine.js?v=27895cceca83"></script>
-  <script src="js/scoring.js?v=27895cceca83"></script>
-  <script src="js/insights.js?v=27895cceca83"></script>
-  <script src="js/concepts.js?v=27895cceca83"></script>
-  <script src="js/settings.js?v=27895cceca83"></script>
-  <script src="js/profile.js?v=27895cceca83"></script>
-  <script src="js/facts.js?v=27895cceca83"></script>
-  <script src="js/reader.js?v=27895cceca83"></script>
-  <script src="js/audio.js?v=27895cceca83"></script>
-  <script src="js/auth.js?v=27895cceca83"></script>
-  <script src="js/classics.js?v=27895cceca83"></script>
-  <script src="js/ui/kit.js?v=27895cceca83"></script>
-  <script src="js/ui/shell.js?v=27895cceca83"></script>
-  <script src="js/ui/board.js?v=27895cceca83"></script>
-  <script src="js/ui/coach.js?v=27895cceca83"></script>
-  <script src="js/ui/home.js?v=27895cceca83"></script>
-  <script src="js/ui/classics.js?v=27895cceca83"></script>
-  <script src="js/ui/notebook.js?v=27895cceca83"></script>
-  <script src="js/ui/progress.js?v=27895cceca83"></script>
-  <script src="js/ui/museum.js?v=27895cceca83"></script>
-  <script src="js/ui/settings.js?v=27895cceca83"></script>
-  <script src="js/ui/account.js?v=27895cceca83"></script>
-  <script src="app.js?v=27895cceca83"></script>
+  <script src="config.js?v=9f199e39ddde"></script>
+  <script src="js/ludus.js?v=9f199e39ddde"></script>
+  <script src="js/chess.js?v=9f199e39ddde"></script>
+  <script src="js/pgn.js?v=9f199e39ddde"></script>
+  <script src="js/engine.js?v=9f199e39ddde"></script>
+  <script src="js/scoring.js?v=9f199e39ddde"></script>
+  <script src="js/insights.js?v=9f199e39ddde"></script>
+  <script src="js/concepts.js?v=9f199e39ddde"></script>
+  <script src="js/settings.js?v=9f199e39ddde"></script>
+  <script src="js/profile.js?v=9f199e39ddde"></script>
+  <script src="js/facts.js?v=9f199e39ddde"></script>
+  <script src="js/reader.js?v=9f199e39ddde"></script>
+  <script src="js/audio.js?v=9f199e39ddde"></script>
+  <script src="js/auth.js?v=9f199e39ddde"></script>
+  <script src="js/classics.js?v=9f199e39ddde"></script>
+  <script src="js/ui/kit.js?v=9f199e39ddde"></script>
+  <script src="js/ui/shell.js?v=9f199e39ddde"></script>
+  <script src="js/ui/board.js?v=9f199e39ddde"></script>
+  <script src="js/ui/coach.js?v=9f199e39ddde"></script>
+  <script src="js/ui/home.js?v=9f199e39ddde"></script>
+  <script src="js/ui/classics.js?v=9f199e39ddde"></script>
+  <script src="js/ui/notebook.js?v=9f199e39ddde"></script>
+  <script src="js/ui/progress.js?v=9f199e39ddde"></script>
+  <script src="js/ui/museum.js?v=9f199e39ddde"></script>
+  <script src="js/ui/settings.js?v=9f199e39ddde"></script>
+  <script src="js/ui/account.js?v=9f199e39ddde"></script>
+  <script src="app.js?v=9f199e39ddde"></script>
 </body>
 
 </html>

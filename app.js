@@ -16,8 +16,6 @@
 
 const boardEl = document.getElementById("board");
 const playerNameDetectedEl = document.getElementById("player-name-detected");
-const landingScreenEl = document.getElementById("landing-screen");
-const landingStartBtn = document.getElementById("landing-start-btn");
 const sourceBackBtn = document.getElementById("source-back-btn");
 const onlineProviderSelectEl = document.getElementById("online-provider-select");
 const onlineUserInputEl = document.getElementById("online-user-input");
@@ -110,6 +108,10 @@ const positionSearchProgressEl = document.getElementById("position-search-progre
 const positionSearchProgressBarEl = document.getElementById("position-search-progress-bar");
 const positionSearchProgressLabelEl = document.getElementById("position-search-progress-label");
 const positionSearchProgressAnnounceEl = document.getElementById("position-search-progress-announce");
+const positionSearchFactsEl = document.getElementById("position-search-facts");
+const analysisFactsEl = document.getElementById("analysis-facts");
+const hintBtn = document.getElementById("hint-btn");
+const sessionTitleEl = document.getElementById("session-title");
 const positionSearchCancelBtnEl = document.getElementById("position-search-cancel-btn");
 const promotionPickerEl = document.getElementById("promotion-picker");
 const promotionChoiceEls = ["q", "r", "b", "n"].map((code) => document.getElementById(`promotion-choice-${code}`));
@@ -167,8 +169,6 @@ const DEFAULT_CITIZEN_SESSION_SIZE = 10;
 const DEFAULT_TURN_TIME_SECONDS = 90;
 const MIN_TURN_TIME_SECONDS = 5;
 const MAX_TURN_TIME_SECONDS = 360;
-const RATING_MOVE_TIME_MS = 5000;
-const RATING_DEPTH = 18;
 const MIN_LEGAL_MOVES_FOR_CANDIDATE = 3;
 const LOCAL_FALLBACK_MAX_DEPTH = 3;
 // The strong engine is a 7 MB download, so give it room on a slow connection
@@ -179,16 +179,34 @@ const ENGINE_RETRY_BASE_MS = 1500;
 // How long a starting session waits for it before playing on the local engine
 // while the download keeps going in the background.
 const ENGINE_SESSION_WAIT_MS = 25000;
-const MIN_ROUND_EVAL_VISIBLE_MS = 5000;
-const ROUND_EVAL_MAX_TOTAL_MS = 7000;
-const ROUND_EVAL_MIN_TOTAL_MS = 2200;
-const ROUND_EVAL_MIN_TASK_MS = 350;
-const ROUND_THINKING_MESSAGE_INTERVAL_MS = 1700;
+// Scoring a round (docs/SCORING.md): the wait for the engine is kept short. The
+// overlay stays up long enough not to flash, and never longer than that just to
+// give someone something to read (the round's curiosity waits in the result).
+const MIN_ROUND_EVAL_VISIBLE_MS = 1200;
+// One search per position is `Settings.engineBudget().movetimeMs` scaled by how
+// hard the position is; the whole evaluation of a round (reference search + the
+// answers + the game move) is capped so a "deep" preset cannot make it endless.
+const ROUND_EVAL_HARD_CAP_MS = 10000;
+const ROUND_EVAL_MIN_SEARCH_MS = 300;
+const ROUND_EVAL_MAX_SEARCH_MS = 3500;
+const ROUND_EVAL_MULTIPLIER_MIN = 0.8;
+const ROUND_EVAL_MULTIPLIER_MAX = 1.6;
+const DEFAULT_ANALYSIS_MS = 1000;
+const ANALYSIS_CACHE_MAX = 300;
+// Points are 0..10 per position (Ludus.Scoring). A "hit" is an answer that is the
+// engine's best move (or equivalent) or has accuracy >= HIT_ACCURACY, the same
+// bar Profile uses to pass a notebook review; a revealed answer is never a hit.
+const POINTS_PER_POSITION = 10;
+const HIT_ACCURACY = 70;
+const RECENT_FACTS_MAX = 12;
+// A short evaluation must not flash a carousel; only a wait that really drags on gets one.
+const OVERLAY_FACTS_DELAY_MS = 900;
 const MISTAKE_SEARCH_TIME_BUDGET_MS = 25000;
 const MISTAKE_SEARCH_CANDIDATE_BUDGET = 400;
 const CLOCK_TICK_MS = 100;
 const LANGUAGE_STORAGE_KEY = "ludus.language";
-const SETUP_STORAGE_KEY = "ludus.setup.v1";
+// First-visit flag: the landing page is only for someone who has never been here.
+const SEEN_STORAGE_KEY = "ludus.seen.v1";
 // Opt-out for keeping downloaded games in IndexedDB across visits (see
 // loadNoPersistDownloadsPreference). Defaults to off so existing behavior
 // (7-day cache) is unchanged unless a person explicitly turns it on.
@@ -304,8 +322,8 @@ const TRANSLATIONS = {
     "result.boardToolsLabel": "Herramientas del tablero",
     "score.totalPoints": "Puntos totales",
     "score.duelScore": "Marcador duelo",
-    "scoring.system.simple.label": "Etiquetas simples (v1)",
-    "scoring.system.simple.description": "Puntajes simples por calidad: Error grave -1, Mala -0.5, Dudosa 0, Interesante 0.25, Buena 0.5, Muy buena 0.75, Perfecta 1.",
+    "scoring.system.simple.label": "Precisión (0 a 10)",
+    "scoring.system.simple.description": "Cuanto más cerca esté tu jugada de la mejor del motor, más puntos: hasta 10 por posición.",
     "quality.no_move": "Sin jugada",
     "quality.perfect": "Perfecta",
     "quality.very_good": "Muy buena",
@@ -387,7 +405,6 @@ const TRANSLATIONS = {
     "evaluation.noMoveZeroPoints": "No hubo jugada: 0 puntos.",
     "evaluation.timeoutZeroPts": "Tiempo agotado: 0 pts.",
     "evaluation.noMoveMadeZeroPts": "No hiciste jugada: 0 pts.",
-    "evaluation.wonPoints": "Ganaste {points} pts",
     "evaluation.bestPrefix": "Mejor: {san}",
     "evaluation.gamePrefix": "Partida: {san}",
     "game.searchingNext": "Buscando próxima posición...",
@@ -593,8 +610,8 @@ const TRANSLATIONS = {
     "result.boardToolsLabel": "Board tools",
     "score.totalPoints": "Total points",
     "score.duelScore": "Duel score",
-    "scoring.system.simple.label": "Simple labels (v1)",
-    "scoring.system.simple.description": "Simple quality scoring: Serious mistake -1, Bad -0.5, Dubious 0, Interesting 0.25, Good 0.5, Very good 0.75, Perfect 1.",
+    "scoring.system.simple.label": "Precision (0 to 10)",
+    "scoring.system.simple.description": "The closer your move is to the engine's best, the more points: up to 10 per position.",
     "quality.no_move": "No move",
     "quality.perfect": "Perfect",
     "quality.very_good": "Very good",
@@ -676,7 +693,6 @@ const TRANSLATIONS = {
     "evaluation.noMoveZeroPoints": "No move played: 0 points.",
     "evaluation.timeoutZeroPts": "Time ran out: 0 pts.",
     "evaluation.noMoveMadeZeroPts": "You did not play a move: 0 pts.",
-    "evaluation.wonPoints": "You won {points} pts",
     "evaluation.bestPrefix": "Best: {san}",
     "evaluation.gamePrefix": "Game: {san}",
     "game.searchingNext": "Searching next position...",
@@ -789,6 +805,66 @@ const TRANSLATIONS = {
   },
 };
 
+// Strings added by the core integration live in the shared dictionary (the
+// "core." prefix keeps them apart from the legacy keys above and from the other
+// modules'). t() finds them through the fallback.
+Ludus.i18n.register({
+  es: {
+    "core.hint.next.1": "Pista: la pieza (-{pct}%)",
+    "core.hint.next.2": "Pista: la casilla (-{pct}%)",
+    "core.hint.next.3": "Mostrar la jugada (0 pts)",
+    "core.hint.done": "Jugada revelada",
+    "core.hint.said.1": "Pista: mové el {piece} de {square}. Cuesta el {pct}% de los puntos.",
+    "core.hint.said.2": "Pista: mové el {piece} de {from} a {to}. Cuesta el {pct}% de los puntos.",
+    "core.hint.said.3": "Jugada revelada: {san}. Esta posición vale 0 puntos.",
+    "core.hint.square.from": ", pista: pieza a mover",
+    "core.hint.square.to": ", pista: casilla de destino",
+    "core.hint.resultRevealed": "Jugada revelada: 0 pts",
+    "core.result.earned": "Sumaste {points} / {max}",
+    "core.result.provisional": "Puntaje provisional: no se pudo evaluar a fondo esta jugada.",
+    "core.score.of": "{points} / {max} pts",
+    "core.score.duelMax": "(máx. {max} pts)",
+    "core.clock.untimed": "Sin límite",
+    "core.clock.untimedAria": "Sin límite de tiempo",
+    "core.clock.summary": "sin límite",
+    "core.toast.achievement": "Logro desbloqueado: {name}",
+    "core.toast.levelUp": "¡Subiste de nivel! {title}",
+    "core.session.own": "Tus partidas: {user}",
+    "core.wizard.heading.2": "Armemos tu sesión en 2 pasos",
+    "core.session.default.own": "Tus partidas",
+    "core.session.default.classic": "Partidas clásicas",
+    "core.session.default.review": "Repaso de errores",
+    "core.session.default.daily": "Desafío del día",
+  },
+  en: {
+    "core.hint.next.1": "Hint: the piece (-{pct}%)",
+    "core.hint.next.2": "Hint: the square (-{pct}%)",
+    "core.hint.next.3": "Show the move (0 pts)",
+    "core.hint.done": "Move revealed",
+    "core.hint.said.1": "Hint: move the {piece} on {square}. It costs {pct}% of the points.",
+    "core.hint.said.2": "Hint: move the {piece} from {from} to {to}. It costs {pct}% of the points.",
+    "core.hint.said.3": "Move revealed: {san}. This position is worth 0 points.",
+    "core.hint.square.from": ", hint: piece to move",
+    "core.hint.square.to": ", hint: destination square",
+    "core.hint.resultRevealed": "Move revealed: 0 pts",
+    "core.result.earned": "You earned {points} / {max}",
+    "core.result.provisional": "Provisional score: this move could not be evaluated in depth.",
+    "core.score.of": "{points} / {max} pts",
+    "core.score.duelMax": "(max. {max} pts)",
+    "core.clock.untimed": "No limit",
+    "core.clock.untimedAria": "No time limit",
+    "core.clock.summary": "no limit",
+    "core.toast.achievement": "Achievement unlocked: {name}",
+    "core.toast.levelUp": "Level up! {title}",
+    "core.session.own": "Your games: {user}",
+    "core.wizard.heading.2": "Let's build your session in 2 steps",
+    "core.session.default.own": "Your games",
+    "core.session.default.classic": "Classic games",
+    "core.session.default.review": "Mistake review",
+    "core.session.default.daily": "Daily challenge",
+  },
+});
+
 function normalizeLanguage(value) {
   return SUPPORTED_LANGUAGES.includes(String(value || "").toLowerCase()) ? String(value || "").toLowerCase() : "es";
 }
@@ -821,6 +897,69 @@ function saveLanguagePreference(language) {
   }
 }
 
+// ---------- Shared modules (Ludus.*) ----------
+// Every optional module is looked up when it is needed and every call into one is
+// guarded: a module that is missing or broken degrades that feature (no sound, no
+// toast, no notebook card) and never breaks a round.
+
+function ludusModule(name) {
+  try {
+    return typeof Ludus === "object" && Ludus ? (Ludus[name] || null) : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function settingsGet(path, fallback) {
+  const settings = ludusModule("Settings");
+  try {
+    if (settings && typeof settings.get === "function") {
+      const value = settings.get(path);
+      if (value !== undefined && value !== null) return value;
+    }
+  } catch (error) {
+    // fall through to the fallback
+  }
+  return fallback;
+}
+
+function settingsSet(path, value) {
+  const settings = ludusModule("Settings");
+  try {
+    return Boolean(settings && typeof settings.set === "function" && settings.set(path, value));
+  } catch (error) {
+    return false;
+  }
+}
+
+function busEmit(eventName, payload) {
+  const bus = ludusModule("bus");
+  try {
+    if (bus && typeof bus.emit === "function") bus.emit(eventName, payload);
+  } catch (error) {
+    console.error(`[Ludus] "${eventName}" handler failed`, error);
+  }
+}
+
+function playSound(name, options) {
+  const audio = ludusModule("Audio");
+  try {
+    if (audio && typeof audio.play === "function") audio.play(name, options);
+  } catch (error) {
+    // Sound is decoration.
+  }
+}
+
+function showToast(message, options = {}) {
+  const ui = ludusModule("ui");
+  try {
+    if (ui && typeof ui.toast === "function" && message) ui.toast(message, options);
+  } catch (error) {
+    // A toast is a courtesy, never a failure.
+  }
+}
+
+
 function normalizeTurnTimeSeconds(value, options = {}) {
   const fallback = options.fallback ?? DEFAULT_TURN_TIME_SECONDS;
   const numeric = Number(value);
@@ -828,30 +967,15 @@ function normalizeTurnTimeSeconds(value, options = {}) {
   return clamp(Math.round(safeValue), MIN_TURN_TIME_SECONDS, MAX_TURN_TIME_SECONDS);
 }
 
+// The turn time is a setting now ("clock.seconds" in Ludus.Settings, which also
+// migrated the legacy "ludus.setup.v1" key once); the wizard just reads and
+// writes it. Without Settings (a broken load) the default keeps the wizard usable.
 function loadSetupPreference() {
-  try {
-    const stored = window.localStorage.getItem(SETUP_STORAGE_KEY);
-    if (!stored) {
-      return { turnTimeSeconds: DEFAULT_TURN_TIME_SECONDS };
-    }
-    const parsed = JSON.parse(stored);
-    return {
-      turnTimeSeconds: normalizeTurnTimeSeconds(parsed?.turnTimeSeconds),
-    };
-  } catch (error) {
-    return { turnTimeSeconds: DEFAULT_TURN_TIME_SECONDS };
-  }
+  return { turnTimeSeconds: normalizeTurnTimeSeconds(settingsGet("clock.seconds", DEFAULT_TURN_TIME_SECONDS)) };
 }
 
 function saveSetupPreference(turnTimeSeconds) {
-  try {
-    const payload = {
-      turnTimeSeconds: normalizeTurnTimeSeconds(turnTimeSeconds),
-    };
-    window.localStorage.setItem(SETUP_STORAGE_KEY, JSON.stringify(payload));
-  } catch (error) {
-    // Ignore storage failures.
-  }
+  settingsSet("clock.seconds", normalizeTurnTimeSeconds(turnTimeSeconds));
 }
 
 // When enabled, a downloaded PGN base is kept only in STATE for the current
@@ -881,13 +1005,41 @@ function interpolate(text, params = {}) {
   });
 }
 
-function rawTranslation(key, language = STATE?.language || "es") {
+// app.js keeps its own dictionary for the legacy strings; every key it does not
+// know is looked up in the shared one (Ludus.i18n), where the newer modules and
+// this file's own additions live.
+function ownTranslation(key, language) {
   const normalized = normalizeLanguage(language);
-  return TRANSLATIONS[normalized]?.[key] ?? TRANSLATIONS.es?.[key] ?? key;
+  return TRANSLATIONS[normalized]?.[key] ?? TRANSLATIONS.es?.[key];
+}
+
+function sharedTranslation(key, params, language) {
+  const shared = ludusModule("i18n");
+  try {
+    if (shared && typeof shared.has === "function" && shared.has(key, normalizeLanguage(language))) {
+      return shared.t(key, params, normalizeLanguage(language));
+    }
+    if (shared && typeof shared.has === "function" && shared.has(key, "es")) {
+      return shared.t(key, params, "es");
+    }
+  } catch (error) {
+    // fall through: the key itself is the last resort
+  }
+  return undefined;
+}
+
+function rawTranslation(key, language = STATE?.language || "es") {
+  const own = ownTranslation(key, language);
+  if (own !== undefined) return own;
+  const shared = sharedTranslation(key, undefined, language);
+  return shared !== undefined ? shared : key;
 }
 
 function t(key, params = {}, language = STATE?.language || "es") {
-  return interpolate(rawTranslation(key, language), params);
+  const own = ownTranslation(key, language);
+  if (own !== undefined) return interpolate(own, params);
+  const shared = sharedTranslation(key, params, language);
+  return shared !== undefined ? shared : key;
 }
 
 function preferredLocale() {
@@ -895,110 +1047,6 @@ function preferredLocale() {
 }
 
 const DUEL_DEFAULT_PLAYERS = ["Jugador 1", "Jugador 2"];
-const ROUND_THINKING_FACTS = [
-  "¿Sabías que Emanuel Lasker mantuvo el título mundial durante 27 años (1894-1921)? Es el reinado más largo en la historia del Campeonato Mundial de Ajedrez.",
-  "¿Sabías que Garry Kasparov perdió un match contra la supercomputadora Deep Blue de IBM en 1997? Fue la primera vez que un campeón mundial reinante cayó ante una máquina en condiciones de torneo.",
-  "¿Sabías que Frank Marshall guardó durante años un sacrificio preparado contra José Raúl Capablanca? Cuando finalmente lo jugó en 1918, Capablanca encontró la defensa correcta sobre el tablero y ganó la partida.",
-  "¿Sabías que Paul Morphy jugó la famosa 'Partida de la Ópera' en un palco del Teatro de la Ópera de París en 1858? Derrotó a dos aristócratas que jugaban juntos consultándose entre ellos.",
-  "¿Sabías que Viktor Korchnoi acusó al equipo de Anatoli Karpov de enviarle señales secretas con yogur durante el Campeonato Mundial de 1978? La organización del match terminó interviniendo por la polémica.",
-  "¿Sabías que Magnus Carlsen derrotó a Bill Gates en una partida promocional que duró menos de dos minutos? La partida terminó en apenas 9 movimientos.",
-  "¿Sabías que Akiba Rubinstein fue considerado el jugador más fuerte del mundo hacia 1912 pero nunca jugó por el título mundial? La Primera Guerra Mundial y problemas financieros impidieron organizar su match.",
-  "¿Sabías que Alexander Alekhine es el único campeón mundial que murió siendo todavía campeón? Falleció en 1946 antes de disputar un nuevo match por el título.",
-  "¿Sabías que Bobby Fischer ganó 20 partidas consecutivas contra grandes maestros entre 1970 y 1971? La racha incluyó partidas del Interzonal de Palma de Mallorca y del ciclo de Candidatos.",
-  "¿Sabías que Vera Menchik tenía un 'club' con el nombre de los grandes maestros que perdían contra ella? Cuando derrotaba a uno, decía que quedaba automáticamente incorporado al llamado 'Club Vera Menchik'.",
-  "¿Sabías que Vladimir Kramnik sorprendió al mundo del ajedrez usando repetidamente la Defensa Berlín contra Garry Kasparov en el match por el título mundial de 2000? La solidez de esa apertura fue clave para ganar el campeonato.",
-  "¿Sabías que David Bronstein estuvo a una sola partida de convertirse en campeón mundial en 1951? Empató el match contra Mikhail Botvinnik, lo que permitió al campeón retener el título.",
-  "¿Sabías que Paul Keres terminó cinco veces entre los primeros en el torneo de Candidatos sin llegar a disputar el título mundial? Por eso a veces se lo llama 'el mejor jugador que nunca fue campeón'.",
-  "¿Sabías que Miguel Najdorf jugó 45 partidas simultáneas a ciegas en 1947? Ganó 39, empató 4 y perdió solo 2, estableciendo un récord mundial en ese momento.",
-  "¿Sabías que Judit Polgár llegó al puesto 8 del ranking mundial absoluto? Es considerada la jugadora más fuerte de la historia del ajedrez.",
-  "¿Sabías que Paul Morphy obtuvo su título de abogado en Louisiana a los 19 años, pero no pudo ejercer de inmediato por su edad? Esa pausa legal coincidió con su explosión como la mayor estrella del ajedrez de su época.",
-  "¿Sabías que Mikhail Botvinnik combinó el ajedrez de élite con una carrera seria como ingeniero electricista? Mientras competía por el título mundial, también desarrollaba trabajo técnico e investigador fuera del tablero.",
-  "¿Sabías que José Raúl Capablanca trabajó en el servicio diplomático cubano? Su cargo le permitió viajar por Europa mientras seguía construyendo su carrera como uno de los grandes genios del ajedrez.",
-  "¿Sabías que Emanuel Lasker obtuvo un doctorado en matemáticas y publicó obras de filosofía? Fue uno de los ajedrecistas más intelectualmente versátiles, destacando en la investigación académica más allá del tablero.",
-  "¿Sabías que Max Euwe, campeón mundial en 1935, era matemático de formación y llegó a ser profesor universitario? Durante años convivieron en él el ajedrecista de élite y el académico.",
-  "¿Sabías que Vasily Smyslov, además de campeón mundial, era un barítono con nivel profesional? Hizo audiciones para el teatro Bolshói y siguió dando recitales de ópera incluso durante su etapa en la élite del ajedrez.",
-  "¿Sabías que Viktor Korchnoi pasó un tiempo compitiendo como apátrida después de abandonar la Unión Soviética? Uno de los jugadores más fuertes del mundo llegó a disputar la élite sin representar formalmente a ningún país.",
-  "¿Sabías que Samuel Reshevsky se hizo famoso como niño prodigio y daba exhibiciones simultáneas contra adultos cuando todavía era muy chico? Su celebridad internacional empezó mucho antes de su madurez como gran maestro.",
-  "¿Sabías que Alexander Alekhine estudió Derecho en la Universidad de París? Además de campeón mundial, también tuvo una formación universitaria lejos del tablero.",
-  "¿Sabías que Mark Taimanov no fue solo gran maestro, sino también pianista de concierto de nivel internacional? Llegó a destacar seriamente en dos carreras de élite a la vez: ajedrez y música.",
-  "¿Sabías que Reuben Fine, uno de los jugadores más fuertes del mundo en los años 30 y 40, dejó en gran parte el ajedrez para dedicarse a la psicología? Terminó siendo psicólogo, profesor universitario y autor de libros en ambas disciplinas.",
-  "¿Sabías que Milan Vidmar fue al mismo tiempo gran maestro y especialista en ingeniería eléctrica? Se mantuvo entre los mejores del mundo mientras desarrollaba una carrera académica y técnica.",
-  "¿Sabías que Capablanca aprendió a jugar observando a su padre cuando era apenas un niño? Su talento parecía tan natural que muy pronto empezó a derrotar a jugadores adultos en Cuba.",
-  "¿Sabías que Lasker insistía en cobrar honorarios altos y negociar buenas condiciones para sus matches? Con eso ayudó a elevar el estatus profesional de los ajedrecistas en una época en que vivir del juego era mucho más difícil.",
-  "¿Sabías que Samuel Reshevsky, después de su fama temprana como prodigio, también completó estudios universitarios en contabilidad? Su vida combinó por años el ajedrez de elite con una formación profesional formal.",
-  "¿Sabías que el match por el Campeonato Mundial de 1984 entre Anatoli Karpov y Garry Kasparov fue suspendido sin resultado después de más de cinco meses? Se jugaba al primero en ganar 6 partidas, pero la FIDE lo detuvo con Karpov arriba por 5 a 3.",
-  "¿Sabías que Ding Liren estuvo 100 partidas clásicas consecutivas sin perder entre 2017 y 2018? Esa racha fue una de las más impresionantes de la era moderna.",
-  "¿Sabías que Abhimanyu Mishra se convirtió en el gran maestro más joven de la historia? Logró el título en 2021 con 12 años, 4 meses y 25 días.",
-  "¿Sabías que Susan Polgar fue la primera mujer en obtener el título de gran maestro cumpliendo las normas y el Elo exigidos en la categoría absoluta? Lo consiguió en 1991.",
-  "¿Sabías que Hikaru Nakamura logró algo rarísimo en el ajedrez moderno: ser al mismo tiempo un jugador de élite mundial y una superestrella del streaming? Su figura ayudó a unir el ajedrez profesional con la cultura de internet.",
-  "¿Sabías que Levy Rozman, más conocido como GothamChess, tomó su apodo de Nueva York? El 'Gotham' de su nombre viene de su vínculo con la ciudad antes de convertirse en uno de los divulgadores de ajedrez más populares del mundo.",
-  "¿Sabías que Alexandra Botez terminó dando nombre a una 'jugada' que en realidad es un chiste de internet? El llamado 'Botez Gambit' surgió entre los espectadores de BotezLive para bromear sobre esas posiciones en las que alguien cuelga la dama sin querer.",
-  "¿Sabías que Pepe Cuenca no solo es gran maestro, sino también ingeniero? Esa combinación de nivel ajedrecístico alto y estilo expresivo como comentarista ayudó a convertirlo en una de las voces más reconocibles del ajedrez en español.",
-  "¿Sabías que BotezLive no se hizo famoso solo por el nivel ajedrecístico, sino por convertir el ajedrez en un formato de entretenimiento masivo? El canal ayudó a acercar el juego a públicos mucho más amplios que los habituales.",
-  "¿Sabías que el número de partidas posibles es mayor al número de átomos en el universo observable? Se conoce como el Número de Shannon (10^120) y sirve para ilustrar la complejidad casi infinita del juego.",
-  "¿Sabías que Mikhail Tal, el 'Mago de Riga', ganó el título mundial en 1960 con un estilo de sacrificio tan caótico que hipnotizaba a sus rivales? Se decía que sus oponentes tenían miedo de mirarlo a los ojos durante la partida por su mirada intensa.",
-  "¿Sabías que 'El Turco' fue un falso autómata que engañó al mundo durante 84 años en los siglos XVIII y XIX? Parecía una máquina, pero escondía a un maestro en su interior; llegó a jugar contra Napoleón Bonaparte y Benjamin Franklin.",
-  "¿Sabías que la primera partida de ajedrez entre la Tierra y el espacio ocurrió en 1970? Los cosmonautas de la misión Soyuz 9 jugaron contra representantes en tierra; la partida terminó en tablas tras seis horas de transmisión.",
-  "¿Sabías que Wilhelm Steinitz, el primer campeón mundial oficial, afirmó una vez que podía darle un peón de ventaja a Dios y aun así ganarle? Era conocido por su carácter fuerte y por ser el padre de la estrategia moderna.",
-  "¿Sabías que la partida oficial más larga de la historia duró 20 horas y 15 minutos? Fue disputada entre Ivan Nikolić y Goran Arsović en Belgrado (1989) y terminó en tablas tras 269 movimientos.",
-  "¿Sabías que existe una variante llamada Chess960 creada por Bobby Fischer? Su objetivo es eliminar la memorización de aperturas sorteando la posición de las piezas en la primera fila, forzando la creatividad desde el primer movimiento.",
-];
-
-const ROUND_THINKING_FACTS_EN = [
-  "Did you know Emanuel Lasker held the world title for 27 years (1894-1921)? It remains the longest reign in World Chess Championship history.",
-  "Did you know Garry Kasparov lost a match to IBM's Deep Blue supercomputer in 1997? It was the first time a reigning world champion lost to a machine under tournament conditions.",
-  "Did you know Frank Marshall saved a prepared sacrifice against Jose Raul Capablanca for years? When he finally played it in 1918, Capablanca found the correct defense over the board and won the game.",
-  "Did you know Paul Morphy played the famous Opera Game from a box at the Paris Opera House in 1858? He defeated two aristocrats who were consulting each other on every move.",
-  "Did you know Viktor Korchnoi accused Anatoly Karpov's team of sending him secret signals with yogurt during the 1978 World Championship? The organizers ended up stepping in because of the controversy.",
-  "Did you know Magnus Carlsen beat Bill Gates in a promotional game that lasted less than two minutes? The game ended in only 9 moves.",
-  "Did you know Akiba Rubinstein was considered the strongest player in the world around 1912 but never played for the world title? World War I and financial problems prevented the match from being organized.",
-  "Did you know Alexander Alekhine is the only world champion who died while still holding the title? He died in 1946 before he could play another championship match.",
-  "Did you know Bobby Fischer won 20 consecutive games against grandmasters between 1970 and 1971? The streak included games from the Palma de Mallorca Interzonal and the Candidates cycle.",
-  "Did you know Vera Menchik had a 'club' named after the grandmasters she beat? Whenever she defeated one, she said he was automatically admitted to the so-called Vera Menchik Club.",
-  "Did you know Vladimir Kramnik shocked the chess world by repeatedly using the Berlin Defense against Garry Kasparov in the 2000 title match? The opening's solidity was key to winning the championship.",
-  "Did you know David Bronstein was just one game away from becoming world champion in 1951? He drew the match against Mikhail Botvinnik, which allowed the champion to keep the title.",
-  "Did you know Paul Keres finished among the leaders in the Candidates tournament five times without ever getting a world title match? That is why he is sometimes called the best player never to become champion.",
-  "Did you know Miguel Najdorf played 45 blindfold simultaneous games in 1947? He won 39, drew 4, and lost only 2, setting a world record at the time.",
-  "Did you know Judit Polgar reached number 8 in the absolute world rankings? She is considered the strongest female chess player in history.",
-  "Did you know Paul Morphy earned his law degree in Louisiana at age 19 but could not practice immediately because of his age? That legal pause coincided with his explosion as the biggest chess star of his era.",
-  "Did you know Mikhail Botvinnik combined elite chess with a serious career as an electrical engineer? While fighting for the world title, he was also doing technical and research work away from the board.",
-  "Did you know Jose Raul Capablanca worked in the Cuban diplomatic service? The post allowed him to travel around Europe while building his career as one of chess's great geniuses.",
-  "Did you know Emanuel Lasker earned a doctorate in mathematics and published works of philosophy? He was one of the most intellectually versatile chess players, with serious academic work beyond the board.",
-  "Did you know Max Euwe, world champion in 1935, was trained as a mathematician and later became a university professor? For years he combined elite chess with academic life.",
-  "Did you know Vasily Smyslov, besides being world champion, was a baritone of professional level? He auditioned for the Bolshoi Theatre and kept giving opera recitals even during his elite chess years.",
-  "Did you know Viktor Korchnoi spent time competing as a stateless player after leaving the Soviet Union? One of the world's strongest players reached the top level without formally representing any country.",
-  "Did you know Samuel Reshevsky became famous as a child prodigy and gave simultaneous exhibitions against adults while still very young? His international fame began long before his mature grandmaster career.",
-  "Did you know Alexander Alekhine studied law at the University of Paris? In addition to being world champion, he also had a university education far from the board.",
-  "Did you know Mark Taimanov was not only a grandmaster but also a concert pianist of international level? He seriously pursued two elite careers at once: chess and music.",
-  "Did you know Reuben Fine, one of the world's strongest players in the 1930s and 1940s, largely left chess to devote himself to psychology? He became a psychologist, university professor, and author in both fields.",
-  "Did you know Milan Vidmar was both a grandmaster and an expert in electrical engineering? He remained among the world's best while developing an academic and technical career.",
-  "Did you know Capablanca learned to play by watching his father when he was just a child? His talent seemed so natural that he soon began defeating adult players in Cuba.",
-  "Did you know Lasker insisted on high fees and good match conditions? In doing so, he helped raise the professional status of chess players in an era when making a living from the game was much harder.",
-  "Did you know Samuel Reshevsky, after his early fame as a prodigy, also completed university studies in accounting? For years his life combined elite chess with formal professional training.",
-  "Did you know the 1984 World Championship match between Anatoly Karpov and Garry Kasparov was stopped without a result after more than five months? It was being played to the first 6 wins, but FIDE halted it with Karpov leading 5-3.",
-  "Did you know Ding Liren went 100 consecutive classical games without a loss between 2017 and 2018? It was one of the most impressive unbeaten streaks of the modern era.",
-  "Did you know Abhimanyu Mishra became the youngest grandmaster in history? He earned the title in 2021 at 12 years, 4 months, and 25 days old.",
-  "Did you know Susan Polgar was the first woman to earn the grandmaster title by meeting the full norms and rating requirements of the open category? She achieved it in 1991.",
-  "Did you know Hikaru Nakamura pulled off something very rare in modern chess: being both an elite world player and a streaming superstar? His profile helped connect professional chess with internet culture.",
-  "Did you know Levy Rozman, better known as GothamChess, took his nickname from New York? The 'Gotham' in his name comes from his bond with the city before he became one of the most popular chess educators in the world.",
-  "Did you know Alexandra Botez ended up lending her name to a so-called 'move' that is really an internet joke? The 'Botez Gambit' came from BotezLive viewers joking about positions where someone accidentally hangs their queen.",
-  "Did you know Pepe Cuenca is not only a grandmaster but also an engineer? That mix of strong chess skill and expressive commentary style helped make him one of the most recognizable chess voices in Spanish.",
-  "Did you know BotezLive became famous not only for chess strength but for turning chess into a mass entertainment format? The channel helped bring the game to much wider audiences than usual.",
-  "Did you know the number of possible chess games is greater than the number of atoms in the observable universe? It is known as the Shannon Number (10^120) and illustrates the game's near-infinite complexity.",
-  "Did you know Mikhail Tal, the 'Magician from Riga,' won the world title in 1960 with a sacrificial style so chaotic it hypnotized his rivals? People said his opponents were afraid to look him in the eyes during the game because of his intense stare.",
-  "Did you know 'The Turk' was a fake automaton that fooled the world for 84 years in the 18th and 19th centuries? It looked like a machine but hid a master inside; it even played against Napoleon Bonaparte and Benjamin Franklin.",
-  "Did you know the first chess game between Earth and space took place in 1970? Cosmonauts from Soyuz 9 played against representatives on the ground; the game ended in a draw after six hours of transmission.",
-  "Did you know Wilhelm Steinitz, the first official world champion, once claimed he could give God a pawn and still win? He was known for his strong personality and for being the father of modern strategy.",
-  "Did you know the longest official chess game in history lasted 20 hours and 15 minutes? It was played by Ivan Nikolic and Goran Arsovic in Belgrade in 1989 and ended in a draw after 269 moves.",
-  "Did you know Bobby Fischer created a variant called Chess960? Its goal is to remove opening memorization by randomizing the back-rank pieces, forcing creativity from move one.",
-];
-
-const ROUND_THINKING_MESSAGES = {
-  easy: ROUND_THINKING_FACTS,
-  medium: ROUND_THINKING_FACTS,
-  hard: ROUND_THINKING_FACTS,
-};
-
 // The chess primitives and the PGN helpers live in js/chess.js and js/pgn.js
 // (loaded before this file, see index.html and docs/ARCHITECTURE.md).
 const { Chess, files, uciToMove, moveToUci, moveToSan, sanToMove } = Ludus.chess;
@@ -1040,7 +1088,12 @@ const STATE = {
   pendingPromotion: null,
   userMove: null,
   score: 0,
-  engine: { mode: "local", worker: null, ready: false, evalCache: new Map() },
+  // The strong engine (Ludus.Engine over a Worker) once it is up; until then, or
+  // after it fails, the shallow local search answers (see analyzePosition).
+  engine: { mode: "local", instance: null, ready: false },
+  // analyzePosition(): finished results, the requests still running, and the
+  // counter that cancels everything started before it (new session, leaving).
+  analysis: { cache: new Map(), inflight: new Map(), generation: 0 },
   boardPerspective: "w",
   keyboardFocusSquare: null,
   revealed: { best: null, game: null, user: null, userAlt: null },
@@ -1062,8 +1115,25 @@ const STATE = {
   userMode: "citizen",
   gameFormat: "solo",
   turnTimeSeconds: INITIAL_SETUP.turnTimeSeconds,
+  // What the running session plays with: fixed when it starts (from Settings, or
+  // from the options a screen passes to Ludus.game.startSession).
+  clockMode: "timed",
+  hintsEnabled: true,
+  scoringOverride: null,
+  // The session in progress (or just finished): { id, kind, title, mode, ... }.
+  session: null,
+  // Progressive hints for the round on screen: 0 none, 1 piece, 2 square, 3 revealed.
+  hintsUsed: 0,
+  hint: null,
+  roundStartedAt: 0,
+  // Ids of the curiosities already shown, so the next result picks a new one.
+  recentFacts: [],
   setupWizard: {
     step: 1,
+    // Step 1 (who plays) is skipped when a screen already chose the mode.
+    skipModeStep: false,
+    // The profiles of a duel's two players, when a screen knows them (null: guests).
+    profileIds: null,
     mode: "solo",
     duelNames: [...DUEL_DEFAULT_PLAYERS],
     platform: "lichess",
@@ -1081,11 +1151,6 @@ const STATE = {
     handoffState: null,
     handoffReturnFocusEl: null,
     searchCancelRequested: false,
-    thinkingMessages: {
-      level: "medium",
-      queue: [],
-      intervalId: null,
-    },
   },
   resultView: {
     visible: false,
@@ -1151,7 +1216,15 @@ function syncLocalizedPlayerDefaults() {
 
 function updateDocumentLanguage() {
   document.documentElement.lang = preferredLocale();
-  document.title = t("meta.title");
+  // Once the router owns the screens, each screen sets its own title (and
+  // re-sets it on a language change); this only names the page at boot.
+  let routed = false;
+  try {
+    routed = Boolean(ludusModule("router") && Ludus.router.current());
+  } catch (error) {
+    routed = false;
+  }
+  if (!routed) document.title = t("meta.title");
 }
 
 function updateLanguageToggleUi() {
@@ -1192,7 +1265,13 @@ function joinPreferredTimeClasses(values = []) {
   return values.map((entry) => translateTimeClass(entry)).join("/");
 }
 
-function setLanguage(language, options = {}) {
+// True while this file is the one changing the shared language, so the echo of
+// its own "language:changed" event does not run the refresh a second time.
+let languageEchoGuard = false;
+
+// Applies a language to everything app.js owns (its dictionary, the static
+// markup, the round UI). It does not touch the shared i18n: see setLanguage().
+function applyAppLanguage(language, options = {}) {
   const nextLanguage = normalizeLanguage(language);
   STATE.language = nextLanguage;
   if (!options.skipPersist) saveLanguagePreference(nextLanguage);
@@ -1201,6 +1280,38 @@ function setLanguage(language, options = {}) {
   syncLocalizedPlayerDefaults();
   applyStaticTranslations();
   refreshLocalizedUi();
+}
+
+// The language switch of this page. The shared i18n changes first (it emits
+// "language:changed", which is how every other screen re-renders) and then the
+// game's own UI follows.
+function setLanguage(language, options = {}) {
+  const nextLanguage = normalizeLanguage(language);
+  const shared = ludusModule("i18n");
+  if (shared && typeof shared.setLanguage === "function") {
+    languageEchoGuard = true;
+    try {
+      shared.setLanguage(nextLanguage, options.skipPersist ? { persist: false } : undefined);
+    } catch (error) {
+      console.error("[Ludus] language change failed in a listener", error);
+    } finally {
+      languageEchoGuard = false;
+    }
+  }
+  applyAppLanguage(nextLanguage, options);
+}
+
+// The language can also be changed from elsewhere (the shell, the settings
+// screen, another tab through storage): follow it, without emitting it again.
+function watchSharedLanguage() {
+  const bus = ludusModule("bus");
+  if (!bus || typeof bus.on !== "function") return;
+  bus.on("language:changed", (payload) => {
+    if (languageEchoGuard) return;
+    const next = normalizeLanguage(payload && payload.lang);
+    if (next === STATE.language) return;
+    applyAppLanguage(next, { skipPersist: true });
+  });
 }
 
 // ---------- Utility ----------
@@ -1403,7 +1514,34 @@ function duelPlayerName(index) {
   return sanitizePlayerName(STATE.duel.players[index], fallback);
 }
 
+// "Ver la que jugó Anderssen": the surname of the side to move, out of a
+// position's "White vs Black" players line (classics, notebook cards).
+function positionMoverName(position) {
+  const meta = position && position.meta ? position.meta : {};
+  const players = String(meta.players || "").split(/\s+vs\.?\s+/i);
+  if (players.length !== 2) return "";
+  let side = meta.sideToMove;
+  if (side !== "w" && side !== "b") {
+    try {
+      side = new Chess(position.fen).turn;
+    } catch (error) {
+      return "";
+    }
+  }
+  const full = sanitizePlayerName(side === "b" ? players[1] : players[0], "");
+  if (!full) return "";
+  if (full.includes(",")) return full.split(",")[0].trim();
+  const words = full.split(" ");
+  return words[words.length - 1];
+}
+
 function gameMoveAuthorName() {
+  // A fixed list of positions (classics, review, daily) has no user name to show:
+  // the move of the game was played by whoever was to move in that game.
+  if (STATE.session && STATE.session.kind !== "own") {
+    const mover = positionMoverName(STATE.positions[STATE.index]);
+    if (mover) return mover;
+  }
   const fromAnalysis = sanitizePlayerName(STATE.analysisContext?.targetName, "");
   if (fromAnalysis) return fromAnalysis;
   const fromWizard = sanitizePlayerName(STATE.setupWizard?.username, "");
@@ -1411,7 +1549,7 @@ function gameMoveAuthorName() {
   const fromRemote = sanitizePlayerName(STATE.remotePgnSources?.[0]?.username, "");
   if (fromRemote) return fromRemote;
   const fromDetected = sanitizePlayerName(playerNameDetectedEl?.textContent, "");
-  if (fromDetected && fromDetected !== t("players.notDetected")) return fromDetected;
+  if (fromDetected && fromDetected !== t("players.notDetected") && fromDetected !== t("players.enterUserContinue")) return fromDetected;
   return t("players.genericUser");
 }
 
@@ -1509,45 +1647,85 @@ function setPositionSearchProgress(ratio = null, label = "") {
   announcePositionSearchProgressMilestone(pct, text);
 }
 
-function normalizeThinkingLevel(level) {
-  if (level === "hard") return "hard";
-  if (level === "easy") return "easy";
-  return "medium";
-}
+// ---------- Curiosity carousels (Ludus.Reader) ----------
+// One lives in the overlay over the board and one in the wizard's waiting area.
+// The carousel never advances before the reading time of a fact has passed and
+// stops rotating when the wait it decorates is over (onlyWhile).
 
-function nextRoundThinkingMessage(level = "medium") {
-  const bucket = normalizeThinkingLevel(level);
-  const thinkingState = STATE.ui.thinkingMessages;
-  if (thinkingState.level !== bucket || !Array.isArray(thinkingState.queue) || thinkingState.queue.length === 0) {
-    thinkingState.level = bucket;
-    const facts = preferredLocale() === "en" ? ROUND_THINKING_FACTS_EN : ROUND_THINKING_FACTS;
-    thinkingState.queue = shuffle([...(facts || ROUND_THINKING_FACTS)]);
+let overlayCarousel = null;
+let overlayCarouselTimer = null;
+let wizardCarousel = null;
+
+function mountFactsCarousel(containerEl, onlyWhile) {
+  const reader = ludusModule("Reader");
+  if (!containerEl || !reader || typeof reader.createCarousel !== "function") return null;
+  try {
+    const carousel = reader.createCarousel(containerEl, { onlyWhile });
+    carousel.start();
+    return carousel;
+  } catch (error) {
+    console.error("[Ludus] the facts carousel could not start", error);
+    return null;
   }
-  return thinkingState.queue.pop() || t("common.searching");
 }
 
-function stopRoundThinkingMessages() {
-  const thinkingState = STATE.ui.thinkingMessages;
-  if (thinkingState.intervalId) {
-    clearInterval(thinkingState.intervalId);
-    thinkingState.intervalId = null;
+function destroyFactsCarousel(carousel) {
+  if (!carousel) return;
+  try {
+    carousel.destroy();
+  } catch (error) {
+    // The container is being torn down anyway.
   }
-  thinkingState.queue = [];
 }
 
-function startRoundThinkingMessages(level = "medium") {
-  stopRoundThinkingMessages();
-  if (!positionSearchMetaEl) return;
-  const normalizedLevel = normalizeThinkingLevel(level);
-  const pushMessage = () => {
-    if (!positionSearchMetaEl || positionSearchOverlayEl?.classList.contains("hidden")) return;
-    positionSearchMetaEl.textContent = nextRoundThinkingMessage(normalizedLevel);
+function positionSearchOverlayIsShowing() {
+  return Boolean(positionSearchOverlayEl)
+    && !positionSearchOverlayEl.classList.contains("hidden")
+    && Boolean(STATE.ui.positionSearchState);
+}
+
+function stopOverlayFacts() {
+  if (overlayCarouselTimer) {
+    clearTimeout(overlayCarouselTimer);
+    overlayCarouselTimer = null;
+  }
+  destroyFactsCarousel(overlayCarousel);
+  overlayCarousel = null;
+}
+
+// Makes the overlay's carousel match what the overlay asked for. Called on every
+// show, so a language refresh that shows the overlay again keeps the carousel it
+// already has instead of restarting it.
+function syncOverlayFacts() {
+  const state = STATE.ui.positionSearchState;
+  if (!state || !state.facts || !positionSearchFactsEl) {
+    stopOverlayFacts();
+    return;
+  }
+  if (overlayCarousel || overlayCarouselTimer) return;
+  const start = () => {
+    overlayCarouselTimer = null;
+    if (overlayCarousel || !positionSearchOverlayIsShowing()) return;
+    overlayCarousel = mountFactsCarousel(positionSearchFactsEl, positionSearchOverlayIsShowing);
   };
-  pushMessage();
-  // Removed setInterval to stop continuous message changes.
-  // STATE.ui.thinkingMessages.intervalId = setInterval(pushMessage, ROUND_THINKING_MESSAGE_INTERVAL_MS);
+  if (state.factsDelayMs > 0) overlayCarouselTimer = setTimeout(start, state.factsDelayMs);
+  else start();
 }
 
+function startWizardFacts() {
+  stopWizardFacts();
+  wizardCarousel = mountFactsCarousel(analysisFactsEl, () => Boolean(STATE.ui.setupAnalyzing));
+}
+
+function stopWizardFacts() {
+  destroyFactsCarousel(wizardCarousel);
+  wizardCarousel = null;
+}
+
+// Long waits (the engine loading, scanning games, searching the next mistake,
+// evaluating a round) show a carousel of chess history while they last:
+// options.facts turns it on, options.factsDelayMs holds it back so a wait that
+// turns out to be short never flashes one.
 function showPositionSearchOverlay(title, meta = "", options = {}) {
   if (!positionSearchOverlayEl) return;
   const opts = options || {};
@@ -1558,6 +1736,8 @@ function showPositionSearchOverlay(title, meta = "", options = {}) {
     progressRatio: opts.progressRatio,
     progressLabel: opts.progressLabel || "",
     cancellable: Boolean(opts.cancellable),
+    facts: Boolean(opts.facts),
+    factsDelayMs: Number(opts.factsDelayMs) || 0,
   };
   if (positionSearchTitleEl) {
     positionSearchTitleEl.textContent = STATE.ui.positionSearchState.title || t("game.searchingNext");
@@ -1577,13 +1757,14 @@ function showPositionSearchOverlay(title, meta = "", options = {}) {
     positionSearchCancelBtnEl.classList.toggle("hidden", !opts.cancellable);
   }
   positionSearchOverlayEl.classList.remove("hidden");
+  syncOverlayFacts();
 }
 
 function hidePositionSearchOverlay() {
   if (!positionSearchOverlayEl) return;
   positionSearchOverlayEl.classList.add("hidden");
   STATE.ui.positionSearchState = null;
-  stopRoundThinkingMessages();
+  stopOverlayFacts();
   setPositionSearchProgress(null);
   if (positionSearchMetaEl) positionSearchMetaEl.textContent = "";
 }
@@ -1638,23 +1819,40 @@ function updateResultAnalysisControls() {
   }
 }
 
+// The phase is set BEFORE the snapshot is drawn: renderBoard() reads it to decide
+// whether the squares accept moves. Drawn while the phase was still "result", every
+// square kept aria-disabled="true" and a "not interactive" label until the first
+// click, so a screen reader was told the analysis board could not be played.
 function enterResultAnalysisMode() {
   if (!STATE.resultView.visible || !STATE.resultView.snapshotFen) return;
-  applyResultSnapshotToBoard();
   STATE.resultView.analysisMode = true;
   setUiPhase("result_analysis", false);
+  applyResultSnapshotToBoard();
   updateResultAnalysisControls();
 }
 
 function resetResultAnalysisBoard() {
   if (!STATE.resultView.visible || !STATE.resultView.snapshotFen) return;
-  applyResultSnapshotToBoard();
   if (STATE.resultView.analysisMode) setUiPhase("result_analysis", false);
+  applyResultSnapshotToBoard();
   updateResultAnalysisControls();
 }
 
-function qualityToVerdictClass(qualityCode) {
-  if (!qualityCode) return "";
+// The ten quality codes of Ludus.Scoring map onto the eight the legacy CSS knows
+// (brilliant and great look like perfect there).
+function compatQualityCode(code) {
+  const scoring = ludusModule("Scoring");
+  try {
+    if (scoring && typeof scoring.compatQuality === "function") return scoring.compatQuality(code);
+  } catch (error) {
+    // fall through
+  }
+  return code || "no_move";
+}
+
+function qualityToVerdictClass(rawQualityCode) {
+  if (!rawQualityCode) return "";
+  const qualityCode = compatQualityCode(rawQualityCode);
   if (qualityCode === "perfect" || qualityCode === "very_good") return "verdict-perfect";
   if (qualityCode === "good") return "verdict-good";
   if (qualityCode === "interesting" || qualityCode === "dubious") return "verdict-dubious";
@@ -1778,60 +1976,119 @@ function restoreResultView(snapshot) {
   renderBoardArrows();
 }
 
+// The result on screen is drawn from STATE.resultView.context alone, so it can
+// be drawn again (a language change) without recomputing anything.
+function legacyScored(assessment) {
+  return { ...assessment, diff: Number.isFinite(assessment.cpLoss) ? assessment.cpLoss : null };
+}
+
+// "You earned 7.4 / 10", or why there is nothing to earn.
+function roundSummaryText(answer) {
+  if (!answer.uci) {
+    if (answer.hintsUsed >= 3) return t("core.hint.resultRevealed");
+    return answer.noMoveReason === "timeout" ? t("evaluation.timeoutZeroPts") : t("evaluation.noMoveMadeZeroPts");
+  }
+  return t("core.result.earned", { points: formatPoints(answer.assessment.points), max: answer.assessment.maxPoints });
+}
+
+// The explanations that go under the verdict: why the move lost points (mate
+// missed or allowed), what a hint cost, whether the score is provisional, and the
+// short hedged sentences of Ludus.Insights. The later coach panel replaces this.
+function appendResultNotes(context, answer) {
+  if (!roundResultEl) return;
+  const scoring = ludusModule("Scoring");
+  const insightsApi = ludusModule("Insights");
+  const notes = [];
+  const assessment = answer.assessment;
+  if (answer.uci && scoring) notes.push(scoring.reasonLabel(assessment.reason, STATE.language));
+  if (answer.hintsUsed >= 1 && answer.hintsUsed < 3 && assessment.hintPenalty > 0) {
+    notes.push(t("scoring.note.hint_penalty", { percent: Math.round((assessment.hintCost || 0) * 100) }));
+  }
+  if (answer.provisional) notes.push(t("core.result.provisional"));
+  try {
+    const messages = answer.insights && Array.isArray(answer.insights.messages) ? answer.insights.messages : [];
+    if (insightsApi && messages.length) {
+      insightsApi.renderMessages(messages.slice(0, 3), STATE.language).forEach((text) => notes.push(text));
+    }
+  } catch (error) {
+    // Insights are decoration.
+  }
+  if (context.engine && context.engine.source === "local") notes.push(t("analysis.status.localEngineNotice"));
+  notes.filter(Boolean).forEach((text) => {
+    roundResultEl.insertAdjacentHTML("beforeend", `<p class="result-summary-line">${escapeHtml(text)}</p>`);
+  });
+}
+
+function renderSoloResultPanels(context) {
+  const answer = context.answers[0];
+  renderRoundFeedbackTable(
+    context.best.san,
+    formatScoreText(context.best.score),
+    context.master ? context.master.san : "-",
+    context.master ? formatScoreText(context.master.score) : t("common.notAvailable"),
+    answer.san,
+    formatScoreText(answer.userScore),
+    context.best.score,
+    context.master ? context.master.score : NaN,
+    answer.userScore,
+    legacyScored(answer.assessment),
+    answer.noMoveReason,
+    { mode: "solo", noMove: !answer.uci, hasGameMove: Boolean(context.master) },
+  );
+  appendResultNotes(context, answer);
+  showResultOverlay(t("game.result.yourMove"), roundSummaryText(answer), answer.assessment.qualityCode);
+}
+
+function renderDuelResultPanels(context) {
+  const [first, second] = context.answers;
+  const view = (answer) => ({
+    name: answer.name,
+    san: answer.san,
+    qualityCode: answer.assessment.qualityCode,
+    points: answer.assessment.points,
+    diff: Number.isFinite(answer.assessment.cpLoss) ? answer.assessment.cpLoss : null,
+    hit: answer.hit,
+  });
+  const p1 = view(first);
+  const p2 = view(second);
+  renderRoundFeedbackTable(
+    context.best.san,
+    formatScoreText(context.best.score),
+    context.master ? context.master.san : "-",
+    context.master ? formatScoreText(context.master.score) : t("common.notAvailable"),
+    second.san,
+    formatScoreText(second.userScore),
+    context.best.score,
+    context.master ? context.master.score : NaN,
+    second.userScore,
+    legacyScored(second.assessment),
+    second.noMoveReason,
+    { mode: "duel", noMove: !second.uci, hasGameMove: Boolean(context.master), duel: { player1: p1, player2: p2 } },
+  );
+  showResultOverlay(
+    t("game.result.positionSolved"),
+    `R${context.round}: ${p1.name} ${formatPoints(p1.points)} · ${p2.name} ${formatPoints(p2.points)}`,
+    p1.points >= p2.points ? p1.qualityCode : p2.qualityCode,
+  );
+  let winnerText = t("game.comparison.tie");
+  if (p1.points > p2.points) winnerText = t("game.comparison.advantage", { player: p1.name });
+  if (p2.points > p1.points) winnerText = t("game.comparison.advantage", { player: p2.name });
+  roundResultEl.insertAdjacentHTML("afterbegin", `<p class="result-summary-line">${escapeHtml(winnerText)}</p>`);
+  if (context.engine && context.engine.source === "local") {
+    roundResultEl.insertAdjacentHTML("beforeend", `<p class="result-summary-line">${escapeHtml(t("analysis.status.localEngineNotice"))}</p>`);
+  }
+}
+
 function renderResultViewContext() {
   const context = STATE.resultView.context;
   if (!context) return;
   if (context.kind === "round_solo") {
-    renderRoundFeedbackTable(
-      context.bestSan,
-      evaluationToText(decodeEvaluation(context.bestMover)),
-      context.gameSan,
-      Number.isFinite(context.gameMover) ? evaluationToText(decodeEvaluation(context.gameMover)) : t("common.notAvailable"),
-      context.userSan || "",
-      evaluationToText(decodeEvaluation(context.userMover)),
-      context.bestMover,
-      context.gameMover,
-      context.userMover,
-      context.scored,
-      context.noMoveReason,
-      { mode: "solo", hitThreshold: context.hitThreshold },
-    );
-    const summary = !context.userMove
-      ? (context.noMoveReason === "timeout" ? t("evaluation.timeoutZeroPts") : t("evaluation.noMoveMadeZeroPts"))
-      : t("evaluation.wonPoints", { points: formatSigned(context.scored.points) });
-    showResultOverlay(t("game.result.yourMove"), summary, context.scored?.qualityCode);
+    renderSoloResultPanels(context);
     return;
   }
 
   if (context.kind === "round_duel") {
-    renderRoundFeedbackTable(
-      context.bestSan,
-      evaluationToText(decodeEvaluation(context.bestMover)),
-      context.gameSan,
-      Number.isFinite(context.gameMover) ? evaluationToText(decodeEvaluation(context.gameMover)) : t("common.notAvailable"),
-      context.player2.san || "",
-      evaluationToText(decodeEvaluation(context.currentUserMover)),
-      context.bestMover,
-      context.gameMover,
-      context.currentUserMover,
-      context.currentScored,
-      context.currentNoMoveReason,
-      {
-        mode: "duel",
-        duel: {
-          player1: context.player1,
-          player2: context.player2,
-        },
-      },
-    );
-    showResultOverlay(
-      t("game.result.positionSolved"),
-      `R${context.round}: ${context.player1.name} ${formatSigned(context.player1.points)} · ${context.player2.name} ${formatSigned(context.player2.points)}`
-    );
-    let winnerText = t("game.comparison.tie");
-    if (context.player1.points > context.player2.points) winnerText = t("game.comparison.advantage", { player: context.player1.name });
-    if (context.player2.points > context.player1.points) winnerText = t("game.comparison.advantage", { player: context.player2.name });
-    roundResultEl.insertAdjacentHTML("afterbegin", `<p class="result-summary-line">${escapeHtml(winnerText)}</p>`);
+    renderDuelResultPanels(context);
     return;
   }
 
@@ -1880,12 +2137,18 @@ function soloSessionTarget() {
   return Math.max(1, STATE.targetPositions || STATE.positions.length || 1);
 }
 
+// Points are out of ten per position, so the total is shown against what was
+// possible so far: "72.4 / 100 pts" after ten positions.
 function soloScoreText() {
-  return `${formatPoints(STATE.score || 0)} pts`;
+  const played = Math.max(0, STATE.sessionPlayed);
+  if (played <= 0) return `${formatPoints(STATE.score || 0)} pts`;
+  return t("core.score.of", { points: formatPoints(STATE.score || 0), max: played * POINTS_PER_POSITION });
 }
 
 function duelMatchScoreText() {
-  return `${duelPlayerName(0)} ${formatPoints(STATE.duel.scores[0] || 0)} - ${formatPoints(STATE.duel.scores[1] || 0)} ${duelPlayerName(1)}`;
+  const played = Math.max(0, STATE.sessionPlayed);
+  const line = `${duelPlayerName(0)} ${formatPoints(STATE.duel.scores[0] || 0)} - ${formatPoints(STATE.duel.scores[1] || 0)} ${duelPlayerName(1)}`;
+  return played > 0 ? `${line} ${t("core.score.duelMax", { max: played * POINTS_PER_POSITION })}` : line;
 }
 
 function sessionSummaryScoreText() {
@@ -2094,18 +2357,36 @@ function announceClockMilestone(totalSeconds) {
     : t("labels.clockTimeUp");
 }
 
+// The relaxed state of the clock ("untimed" in Settings or in the session's
+// options): an infinity sign and a full bar, no countdown, no urgency.
+function isUntimedSession() {
+  return STATE.clockMode === "untimed";
+}
+
 // Un solo reloj para los dos modos: el de la barra de ronda. En duelo muestra
 // el tiempo del jugador que está al turno, porque sólo uno juega a la vez.
 function updateRoundTimerUi(remainingMs = STATE.timer.deadlineMs - Date.now()) {
   if (!soloClockRailEl || !soloClockValueEl || !soloClockBarEl) return;
 
-  const duration = Math.max(1, STATE.timer.durationMs || Math.round(STATE.turnTimeSeconds * 1000));
-  const safeRemaining = Math.max(0, remainingMs);
-  const ratio = clamp(safeRemaining / duration, 0, 1);
-
   const showClock = document.body.classList.contains("playing-mode") && !STATE.resultView.visible;
   soloClockRailEl.classList.toggle("hidden", !showClock);
   if (!showClock) return;
+
+  const untimed = isUntimedSession();
+  soloClockRailEl.classList.toggle("is-untimed", untimed);
+  soloClockRailEl.setAttribute("aria-label", untimed ? t("core.clock.untimedAria") : t("labels.clockTitle"));
+  if (untimed) {
+    soloClockValueEl.textContent = "\u221E";
+    soloClockValueEl.setAttribute("title", t("core.clock.untimedAria"));
+    soloClockBarEl.style.setProperty("--clock-ratio", "100%");
+    soloClockRailEl.classList.remove("urgency-mid", "urgency-high");
+    return;
+  }
+  soloClockValueEl.removeAttribute("title");
+
+  const duration = Math.max(1, STATE.timer.durationMs || Math.round(STATE.turnTimeSeconds * 1000));
+  const safeRemaining = Math.max(0, remainingMs);
+  const ratio = clamp(safeRemaining / duration, 0, 1);
 
   soloClockValueEl.textContent = formatClock(safeRemaining);
   soloClockBarEl.style.setProperty("--clock-ratio", `${Math.round(ratio * 100)}%`);
@@ -2120,6 +2401,17 @@ function updateRoundTimerUi(remainingMs = STATE.timer.deadlineMs - Date.now()) {
 
 function startRoundTimer() {
   stopRoundTimer();
+  STATE.roundStartedAt = Date.now();
+  if (isUntimedSession()) {
+    // Nothing counts down and nothing times out; the round is over when the
+    // person answers, skips or takes the hint that shows the move.
+    STATE.timer.durationMs = 0;
+    STATE.timer.deadlineMs = 0;
+    STATE.timer.lastAnnouncedSeconds = null;
+    if (soloClockAnnounceEl) soloClockAnnounceEl.textContent = "";
+    updateRoundTimerUi();
+    return;
+  }
   const durationMs = Math.round(normalizeTurnTimeSeconds(STATE.turnTimeSeconds) * 1000);
   STATE.timer.durationMs = durationMs;
   STATE.timer.deadlineMs = Date.now() + durationMs;
@@ -2221,11 +2513,27 @@ function describeChessComNormalProtocol(settings = getChessComFetchSettings()) {
   });
 }
 
+// What the mistake search asks of the engine. The threshold above which a move of
+// the person's own game counts as a mistake comes from the settings
+// ("mistakes.sensitivity"); the compat inputs only apply in the (hidden) engineer mode.
+function settingsMistakeThresholdCp() {
+  const settings = ludusModule("Settings");
+  try {
+    if (settings && typeof settings.mistakeThresholdCp === "function") {
+      const value = Number(settings.mistakeThresholdCp());
+      if (Number.isFinite(value) && value > 0) return value;
+    }
+  } catch (error) {
+    // fall through to the standard sensitivity
+  }
+  return DEFAULT_CITIZEN_THRESHOLD;
+}
+
 function getEffectiveAnalysisConfig() {
   if (STATE.userMode === "citizen") {
     return {
       moveTimeMs: DEFAULT_CITIZEN_MOVETIME,
-      thresholdCp: DEFAULT_CITIZEN_THRESHOLD,
+      thresholdCp: settingsMistakeThresholdCp(),
       scoringSystem: DEFAULT_SCORING_SYSTEM,
     };
   }
@@ -2234,10 +2542,6 @@ function getEffectiveAnalysisConfig() {
     thresholdCp: clamp(Number(thresholdEl.value) || DEFAULT_CITIZEN_THRESHOLD, 50, 800),
     scoringSystem: normalizeScoringSystem(scoringSystemEl ? scoringSystemEl.value : DEFAULT_SCORING_SYSTEM),
   };
-}
-
-function getRatingConfig() {
-  return { depth: RATING_DEPTH, moveTimeMs: RATING_MOVE_TIME_MS };
 }
 
 function sanitizeWizardUsername(value) {
@@ -2378,14 +2682,45 @@ function renderWizardSummary() {
     `<p><strong>${escapeHtml(t("game.summaryPlatform"))}:</strong> ${escapeHtml(platformText)}</p>`,
     `<p><strong>${escapeHtml(t("game.summaryUser"))}:</strong> ${escapeHtml(config.username || "-")}</p>`,
     `<p><strong>${escapeHtml(t("game.summaryPositions"))}:</strong> ${config.sessionSize}</p>`,
-    `<p><strong>${escapeHtml(t("game.summaryRoundTime"))}:</strong> ${config.turnTimeSeconds}s</p>`,
+    `<p><strong>${escapeHtml(t("game.summaryRoundTime"))}:</strong> ${escapeHtml(wizardClockIsUntimed() ? t("core.clock.summary") : `${config.turnTimeSeconds}s`)}</p>`,
   ].join("");
 }
 
+// Untimed play is a setting; while it is on, the wizard has no round time to ask for.
+function wizardClockIsUntimed() {
+  return settingsGet("clock.mode", "timed") === "untimed";
+}
+
+// A screen that already knows who plays (Ludus.game.openOwnGamesSetup) skips the
+// first step; the indicator then counts only the steps that are shown.
+function wizardFirstStep() {
+  return STATE.setupWizard.skipModeStep ? 2 : 1;
+}
+
+function wizardVisibleSteps() {
+  return STATE.setupWizard.skipModeStep ? 2 : 3;
+}
+
+function renderWizardHeading() {
+  const headingEl = document.querySelector("#setup-wizard .wizard-header h2");
+  if (!headingEl) return;
+  const key = STATE.setupWizard.skipModeStep ? "core.wizard.heading.2" : "wizard.heading";
+  headingEl.setAttribute("data-i18n", key);
+  headingEl.textContent = t(key);
+}
+
 function renderWizardStep() {
-  const step = clamp(Number(STATE.setupWizard.step) || 1, 1, 3);
+  const firstStep = wizardFirstStep();
+  const totalSteps = wizardVisibleSteps();
+  const step = clamp(Number(STATE.setupWizard.step) || firstStep, firstStep, 3);
   STATE.setupWizard.step = step;
+  const shownStep = step - (firstStep - 1);
   const config = collectWizardConfig();
+  renderWizardHeading();
+  const timerGroupEl = turnTimeSecondsEl && typeof turnTimeSecondsEl.closest === "function"
+    ? turnTimeSecondsEl.closest(".wizard-step-group")
+    : null;
+  if (timerGroupEl) timerGroupEl.classList.toggle("hidden", wizardClockIsUntimed());
 
   wizardStepEls.forEach((stepEl, idx) => {
     if (!stepEl) return;
@@ -2394,8 +2729,8 @@ function renderWizardStep() {
     stepEl.classList.toggle("is-active", isCurrent);
   });
 
-  if (wizardStepIndicatorEl) wizardStepIndicatorEl.textContent = t("wizard.stepIndicator", { step, total: 3 });
-  if (wizardProgressBarEl) wizardProgressBarEl.style.width = `${Math.round((step / 3) * 100)}%`;
+  if (wizardStepIndicatorEl) wizardStepIndicatorEl.textContent = t("wizard.stepIndicator", { step: shownStep, total: totalSteps });
+  if (wizardProgressBarEl) wizardProgressBarEl.style.width = `${Math.round((shownStep / totalSteps) * 100)}%`;
 
   if (wizardModeSoloBtn) {
     const selected = config.mode === "solo";
@@ -2436,7 +2771,7 @@ function renderWizardStep() {
   setRadioGroupTabIndex(wizardSizeChipEls, selectedSizeChip);
   updateWizardTimerChipSelection(config.turnTimeSeconds);
 
-  if (wizardPrevBtn) wizardPrevBtn.classList.toggle("hidden", step <= 1);
+  if (wizardPrevBtn) wizardPrevBtn.classList.toggle("hidden", step <= firstStep);
   if (wizardNextBtn) wizardNextBtn.classList.toggle("hidden", step >= 3);
   if (analyzeBtn) analyzeBtn.classList.toggle("hidden", step !== 3);
 
@@ -2491,7 +2826,7 @@ function validateWizardStep(step = STATE.setupWizard.step) {
 }
 
 function goToWizardStep(step) {
-  STATE.setupWizard.step = clamp(Number(step) || 1, 1, 3);
+  STATE.setupWizard.step = clamp(Number(step) || wizardFirstStep(), wizardFirstStep(), 3);
   renderWizardStep();
   window.scrollTo({ top: 0, behavior: "auto" });
   const heading = document.getElementById(`wizard-step-${STATE.setupWizard.step}-title`);
@@ -2503,11 +2838,12 @@ function goToWizardStep(step) {
   }
 }
 
-function resetSetupWizard({ mode = null, statusMessage = "" } = {}) {
+function resetSetupWizard({ mode = null, statusMessage = "", skipModeStep = false } = {}) {
   if (mode) {
     STATE.setupWizard.mode = normalizeGameFormat(mode);
   }
-  STATE.setupWizard.step = 1;
+  STATE.setupWizard.skipModeStep = Boolean(skipModeStep);
+  STATE.setupWizard.step = wizardFirstStep();
   STATE.setupWizard.platform = getRemoteProviderModeFromUi();
   STATE.setupWizard.username = sanitizeWizardUsername(onlineUserInputEl ? onlineUserInputEl.value : "");
   STATE.setupWizard.sessionSize = clamp(Number(sessionSizeEl ? sessionSizeEl.value : DEFAULT_CITIZEN_SESSION_SIZE) || DEFAULT_CITIZEN_SESSION_SIZE, 1, 200);
@@ -2520,7 +2856,7 @@ function resetSetupWizard({ mode = null, statusMessage = "" } = {}) {
   clearWizardSourceError();
   syncWizardToLegacyInputs();
   if (analysisStatusEl && statusMessage) analysisStatusEl.textContent = statusMessage;
-  goToWizardStep(1);
+  goToWizardStep(wizardFirstStep());
 }
 
 function sendWizardBackToSourceStep(key = "common.sourceError", params = {}) {
@@ -2628,28 +2964,75 @@ function updatePgnSelectionUi() {
   renderWizardStep();
 }
 
-function showLandingScreen() {
-  if (landingScreenEl) {
-    landingScreenEl.classList.remove("hidden");
-    landingScreenEl.style.display = "";
-  }
-  document.body.classList.add("landing-active");
-  if (setupPanelEl) {
-    setupPanelEl.classList.add("hidden");
-    setupPanelEl.style.display = "";
+// ---------- Navigation (Ludus.router) ----------
+// Every screen is shown through the router. The old sections of this page are
+// registered as router screens too ("landing", "setup", "game", see
+// registerRouterScreens) and this file only asks for them by name.
+
+// Which of the screen modules mounted without throwing (a broken screen must
+// never take the app down: it is just not registered).
+const mountedScreens = {};
+
+function routerShow(id, params) {
+  const router = ludusModule("router");
+  if (!router || typeof router.show !== "function") return false;
+  try {
+    return Boolean(router.show(id, params));
+  } catch (error) {
+    console.error(`[Ludus] could not show "${id}"`, error);
+    return false;
   }
 }
 
-function openSetupFromLanding({ format = null, statusMessage = "" } = {}) {
-  if (landingScreenEl) {
-    landingScreenEl.classList.add("hidden");
-    landingScreenEl.style.display = "none";
+function markLandingSeen() {
+  try {
+    Ludus.storage.set(SEEN_STORAGE_KEY, 1);
+  } catch (error) {
+    // Private mode: the landing may come back next visit, nothing worse.
   }
-  document.body.classList.remove("landing-active");
-  if (setupPanelEl) {
-    setupPanelEl.classList.remove("hidden");
-    setupPanelEl.style.display = "grid";
+}
+
+function landingWasSeen() {
+  try {
+    return Boolean(Ludus.storage.get(SEEN_STORAGE_KEY, 0));
+  } catch (error) {
+    return false;
   }
+}
+
+function hasPlayedBefore() {
+  const profile = ludusModule("Profile");
+  try {
+    const rounds = profile && typeof profile.rounds === "function" ? profile.rounds(undefined, { limit: 1 }) : [];
+    return Array.isArray(rounds) && rounds.length > 0;
+  } catch (error) {
+    return false;
+  }
+}
+
+// The landing page is for someone who has never been here; everybody else
+// starts at home.
+function shouldShowLanding() {
+  return !landingWasSeen() && !hasPlayedBefore();
+}
+
+function showLandingScreen() {
+  return routerShow("landing");
+}
+
+// Every "back to start" goes to the home screen. The old landing page only
+// stands in when home failed to mount.
+function goHome(params) {
+  if (mountedScreens.home && routerShow("home", params)) return true;
+  return showLandingScreen();
+}
+
+// Shows the own-games wizard. Used by the landing page when home is not
+// available, and by Ludus.game.openOwnGamesSetup for the screens that know
+// already who plays.
+function openSetupFromLanding({ format = null, statusMessage = "", skipModeStep = false } = {}) {
+  if (setupPanelEl) setupPanelEl.style.display = "";
+  routerShow("setup");
   if (format) {
     const normalized = normalizeGameFormat(format);
     if (gameFormatEl) gameFormatEl.value = normalized;
@@ -2658,18 +3041,49 @@ function openSetupFromLanding({ format = null, statusMessage = "" } = {}) {
   resetSetupWizard({
     mode: format ? normalizeGameFormat(format) : STATE.setupWizard.mode,
     statusMessage: statusMessage || t("wizard.status.currentStep"),
+    skipModeStep,
   });
   updatePgnSelectionUi();
 }
 
-function startFromLanding() {
+// Ludus.game.openOwnGamesSetup({ mode: "solo" | "duel", names?: [a, b], profileIds?: [id, id] }): the
+// wizard for the person's own games, with the mode already chosen. When the mode
+// is known (and, for a duel, so are both names) step 1 is skipped and the
+// indicator counts only the steps that remain ("Step 1 of 2").
+function openOwnGamesSetup(options = {}) {
+  const opts = options && typeof options === "object" ? options : {};
+  const mode = opts.mode === "duel" || opts.mode === "solo" ? opts.mode : null;
+  const names = Array.isArray(opts.names) ? opts.names : [];
+  const nameA = sanitizePlayerName(names[0], "").slice(0, 20);
+  const nameB = sanitizePlayerName(names[1], "").slice(0, 20);
+  if (mode === "duel") {
+    if (nameA && duelPlayerAEl) duelPlayerAEl.value = nameA;
+    if (nameB && duelPlayerBEl) duelPlayerBEl.value = nameB;
+    STATE.setupWizard.duelNames = [
+      nameA || STATE.setupWizard.duelNames[0],
+      nameB || STATE.setupWizard.duelNames[1],
+    ];
+  }
+  const skipModeStep = mode === "solo" || (mode === "duel" && Boolean(nameA) && Boolean(nameB));
   // Opening the wizard is the first sign of someone meaning to play, so the
-  // engine download starts here and usually finishes while they fill in the
-  // three steps. Whoever only looks at the landing page pays nothing.
+  // engine download starts here and usually finishes while they fill it in.
   void ensureStockfishLoading();
   openSetupFromLanding({
+    format: mode,
+    skipModeStep,
     statusMessage: t("wizard.status.modeSourceOptions"),
   });
+  STATE.setupWizard.profileIds = mode === "duel" && Array.isArray(opts.profileIds)
+    ? [0, 1].map((index) => (typeof opts.profileIds[index] === "string" ? opts.profileIds[index] : null))
+    : null;
+}
+
+// The landing page's start button: it marks the page as seen and goes home.
+// Only when home did not mount does it open the wizard, as it always did.
+function startFromLanding() {
+  markLandingSeen();
+  if (mountedScreens.home && goHome()) return;
+  openOwnGamesSetup({});
 }
 
 function sleepMs(ms) {
@@ -3110,10 +3524,6 @@ function confirmRemoteFetchConsent(provider, username) {
   });
 }
 
-function toMoverScore(whiteScore, moverTurn) {
-  return moverTurn === "w" ? whiteScore : -whiteScore;
-}
-
 const MATE_SCORE_BASE = 100000;
 const MATE_SCORE_STEP = 1000;
 const MAX_ENCODABLE_MATE_DISTANCE = 50;
@@ -3135,26 +3545,12 @@ function decodeEvaluation(moverScore) {
   return { kind: "cp", cp: Math.round(moverScore), score: moverScore };
 }
 
-function evaluationToText(evalObj) {
-  if (!evalObj) return t("common.notAvailable");
-  if (evalObj.kind === "cp") {
-    const cp = Math.round(evalObj.cp);
-    const sign = cp > 0 ? "+" : "";
-    return `${sign}${cp} cp`;
-  }
-  return evalObj.matePly > 0
-    ? t("evaluation.mateIn", { ply: evalObj.matePly })
-    : t("evaluation.getsMatedIn", { ply: Math.abs(evalObj.matePly) });
-}
-
 const SCORING_SYSTEMS = {
   simple_labels_v1: {
     labelKey: "scoring.system.simple.label",
     descriptionKey: "scoring.system.simple.description",
   },
 };
-
-const WIN_CHANCE_MULTIPLIER = -0.00368208;
 
 function normalizeScoringSystem(value) {
   return SCORING_SYSTEMS[value] ? value : DEFAULT_SCORING_SYSTEM;
@@ -3173,6 +3569,8 @@ function updateScoringSystemHint() {
   scoringSystemHintEl.textContent = t(getScoringSystemMeta(STATE.scoringSystem).descriptionKey);
 }
 
+// Points are shown with at most two decimals ("7.4", "10"), with the decimal
+// comma in Spanish.
 function formatPoints(value, options = {}) {
   const { signed = false } = options;
   if (!Number.isFinite(value)) return "-";
@@ -3180,69 +3578,9 @@ function formatPoints(value, options = {}) {
   let text = Number.isInteger(rounded)
     ? String(rounded)
     : rounded.toFixed(2).replace(/\.?0+$/, "");
+  if (preferredLocale() === "es") text = text.replace(".", ",");
   if (signed && rounded > 0) text = `+${text}`;
   return text;
-}
-
-function formatSigned(value) {
-  return formatPoints(value, { signed: true });
-}
-
-function scoreToWinningChance(score) {
-  if (!Number.isFinite(score)) return null;
-  const abs = Math.abs(score);
-  if (abs >= MATE_SCORE_THRESHOLD) {
-    const mateDistance = Math.max(1, Math.round((MATE_SCORE_BASE - abs) / MATE_SCORE_STEP));
-    const cp = (21 - Math.min(10, mateDistance)) * 100;
-    const signed = cp * (score >= 0 ? 1 : -1);
-    return 2 / (1 + Math.exp(WIN_CHANCE_MULTIPLIER * signed)) - 1;
-  }
-  const limitedCp = clamp(score, -1000, 1000);
-  return 2 / (1 + Math.exp(WIN_CHANCE_MULTIPLIER * limitedCp)) - 1;
-}
-
-function scoreToExpectedPoints(score) {
-  const chance = scoreToWinningChance(score);
-  if (!Number.isFinite(chance)) return null;
-  return (chance + 1) / 2;
-}
-
-function cpQualityCode(loss, exactBest = false, expectedLoss = null, reasonCode = "") {
-  if (reasonCode === "no_move") return "no_move";
-  if (reasonCode === "allows_mate" || reasonCode === "missed_forced_mate") return "blunder";
-  if (exactBest || reasonCode === "optimal_mate") return "perfect";
-  if (!Number.isFinite(loss)) return "no_move";
-  const nearPerfectByCp = loss <= 10;
-  const nearPerfectByExpected = Number.isFinite(expectedLoss) && expectedLoss <= 0.008 && loss <= 18;
-  if (nearPerfectByCp || nearPerfectByExpected) return "perfect";
-  if (loss <= 35) return "very_good";
-  if (loss <= 70) return "good";
-  if (loss <= 115) return "interesting";
-  if (loss <= 165) return "dubious";
-  if (loss <= 240) return "bad";
-  return "blunder";
-}
-
-function pointsFromQualityCode(code) {
-  switch (code) {
-    case "perfect":
-      return 1;
-    case "very_good":
-      return 0.75;
-    case "good":
-      return 0.5;
-    case "interesting":
-      return 0.25;
-    case "dubious":
-      return 0;
-    case "bad":
-      return -0.5;
-    case "blunder":
-      return -1;
-    case "no_move":
-    default:
-      return 0;
-  }
 }
 
 function computeLossAgainstBest(bestMoverScore, choiceMoverScore) {
@@ -3281,27 +3619,6 @@ function computeLossAgainstBest(bestMoverScore, choiceMoverScore) {
     reasonCode,
     best,
     choice,
-  };
-}
-
-function scoreMoveAgainstBest(bestMoverScore, choiceMoverScore, scoringSystem = STATE.scoringSystem, options = {}) {
-  const system = normalizeScoringSystem(scoringSystem);
-  const base = computeLossAgainstBest(bestMoverScore, choiceMoverScore);
-  const exactBest = Boolean(options.exactBest);
-  const bestExpected = scoreToExpectedPoints(bestMoverScore);
-  const choiceExpected = scoreToExpectedPoints(choiceMoverScore);
-  const expectedLoss = Number.isFinite(bestExpected) && Number.isFinite(choiceExpected)
-    ? clamp(bestExpected - choiceExpected, 0, 1)
-    : null;
-  const qualityCode = cpQualityCode(base.loss, exactBest, expectedLoss, base.reasonCode);
-  const points = pointsFromQualityCode(qualityCode);
-
-  return {
-    ...base,
-    points: Math.round(points * 100) / 100,
-    qualityCode,
-    expectedLoss,
-    scoringSystem: system,
   };
 }
 
@@ -3351,7 +3668,16 @@ function adaptiveMoveTime(baseMoveTimeMs, board, options = {}) {
   return clamp(Math.round(base * factor), minMoveTimeMs, maxMoveTimeMs);
 }
 
-function getRoundEvaluationPlan(board, position, baseMoveTimeMs = RATING_MOVE_TIME_MS) {
+// The search budget of one round. The size of one search is what the settings
+// say (Settings.engineBudget(): a preset in ms and a MultiPV width); the
+// difficulty of the position only scales it (0.8x for a quiet position, up to
+// 1.6x for a crowded one) and the whole evaluation of the round stays under
+// ROUND_EVAL_HARD_CAP_MS however many searches it needs: one for the reference
+// (unless the position brings its own lines), one per answer the reference does
+// not cover and one for the move of the game. It depends only on the position and the
+// mode, so the search started while the person thinks and the one made when
+// they answer have the same key and the second is a cache hit.
+function getRoundEvaluationPlan(board, position, answerCount = 1) {
   const legalMoves = board.generateMoves();
   const legalCount = legalMoves.length;
   const captureCount = legalMoves.filter((move) => move.capture || move.enPassant).length;
@@ -3383,17 +3709,376 @@ function getRoundEvaluationPlan(board, position, baseMoveTimeMs = RATING_MOVE_TI
     label = "medium";
   }
 
-  const base = clamp(Number(baseMoveTimeMs) || RATING_MOVE_TIME_MS, 900, ROUND_EVAL_MAX_TOTAL_MS);
-  const scaledBudget = Math.round(2600 + normalized * 4400);
-  const weightedBudget = Math.round((scaledBudget * 0.7) + (base * 0.3));
-  const totalBudgetMs = clamp(weightedBudget, ROUND_EVAL_MIN_TOTAL_MS, ROUND_EVAL_MAX_TOTAL_MS);
-
+  const budget = engineBudgetFromSettings();
+  const multiplier = ROUND_EVAL_MULTIPLIER_MIN + normalized * (ROUND_EVAL_MULTIPLIER_MAX - ROUND_EVAL_MULTIPLIER_MIN);
+  const maxTasks = (hasReferenceLines(position) ? 0 : 1) + Math.max(1, answerCount) + 1;
+  const perSearch = clamp(Math.round(budget.movetimeMs * multiplier), ROUND_EVAL_MIN_SEARCH_MS, ROUND_EVAL_MAX_SEARCH_MS);
+  const movetimeMs = clamp(
+    Math.min(perSearch, Math.floor(ROUND_EVAL_HARD_CAP_MS / maxTasks)),
+    ROUND_EVAL_MIN_SEARCH_MS,
+    ROUND_EVAL_MAX_SEARCH_MS,
+  );
   return {
     level,
     label,
-    totalBudgetMs,
+    multiplier: Math.round(multiplier * 100) / 100,
+    movetimeMs,
+    multiPv: budget.multiPv,
+    maxTasks,
+    totalBudgetMs: movetimeMs * maxTasks,
   };
 }
+
+// ---------- Scoring a round (Ludus.Scoring) ----------
+// Points are 0..10 per position and come from Ludus.Scoring.assess(): how far the
+// move is from the engine's best (docs/SCORING.md). This section gets the numbers
+// that assess() needs (the reference lines, the score of the move that was not
+// among them, the score of the move of the game) and the explanations around it.
+
+// Mover-POV score of a line: engine lines carry { type, value }, the compact
+// lines of a Position (and of the notebook) a number already in that encoding.
+function lineMoverScore(line) {
+  if (!line || typeof line !== "object") return NaN;
+  if (typeof line.score === "number") return Number.isFinite(line.score) ? line.score : NaN;
+  const scoring = ludusModule("Scoring");
+  return scoring && line.score && typeof line.score === "object" ? scoring.encodeScore(line.score) : NaN;
+}
+
+function lineFirstUci(line) {
+  if (!line || typeof line !== "object") return "";
+  const uci = typeof line.uci === "string" ? line.uci : (Array.isArray(line.pv) ? line.pv[0] : "");
+  return /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(String(uci || "")) ? String(uci) : "";
+}
+
+// The lines a position brings with it (classics, notebook cards): the round is
+// scored against them and no reference search is needed.
+function referenceLinesOf(position) {
+  const raw = position && position.reference && Array.isArray(position.reference.lines) ? position.reference.lines : [];
+  const out = [];
+  raw.forEach((line) => {
+    const uci = lineFirstUci(line);
+    if (!uci || !Number.isFinite(lineMoverScore(line)) || out.some((entry) => entry.uci === uci)) return;
+    out.push({
+      uci,
+      san: typeof line.san === "string" ? line.san : "",
+      score: lineMoverScore(line),
+      pv: Array.isArray(line.pv) ? line.pv.filter((move) => typeof move === "string") : [uci],
+    });
+  });
+  return out;
+}
+
+function hasReferenceLines(position) {
+  return referenceLinesOf(position).length > 0;
+}
+
+// Engine lines ({ multipv, depth, score: { type, value }, pv }) in the compact
+// form the scoring code works with ({ uci, score: number, pv }), best first.
+function compactEngineLines(lines) {
+  const out = [];
+  (Array.isArray(lines) ? lines : []).forEach((line) => {
+    const uci = lineFirstUci(line);
+    const score = lineMoverScore(line);
+    if (!uci || !Number.isFinite(score) || out.some((entry) => entry.uci === uci)) return;
+    out.push({ uci, san: "", score, pv: Array.isArray(line.pv) && line.pv.length ? line.pv.filter((move) => typeof move === "string") : [uci] });
+  });
+  return out;
+}
+
+function engineBudgetFromSettings() {
+  const settings = ludusModule("Settings");
+  try {
+    if (settings && typeof settings.engineBudget === "function") {
+      const budget = settings.engineBudget();
+      if (budget && Number.isFinite(budget.movetimeMs) && Number.isFinite(budget.multiPv)) {
+        return { movetimeMs: budget.movetimeMs, multiPv: clamp(Math.round(budget.multiPv), 1, 5) };
+      }
+    }
+  } catch (error) {
+    // fall through to the balanced preset
+  }
+  return { movetimeMs: 1500, multiPv: 3 };
+}
+
+// The scoring rules of the running session: what a screen asked for in
+// startSession's options, else the person's settings (read every time, so a
+// change in the settings applies from the next round).
+function sessionScoringSettings() {
+  if (STATE.scoringOverride) return STATE.scoringOverride;
+  const settings = ludusModule("Settings");
+  try {
+    if (settings && typeof settings.scoringSettings === "function") return settings.scoringSettings();
+  } catch (error) {
+    // fall through to the defaults
+  }
+  const scoring = ludusModule("Scoring");
+  return scoring ? scoring.normalizeSettings({}) : {};
+}
+
+function formatScoreText(score) {
+  const scoring = ludusModule("Scoring");
+  if (Number.isFinite(score) && scoring && typeof scoring.formatEval === "function") {
+    return scoring.formatEval(score, STATE.language);
+  }
+  return t("common.notAvailable");
+}
+
+function pvToSan(fen, pv, maxPlies = 6) {
+  const out = [];
+  try {
+    const board = new Chess(fen);
+    for (const uci of (Array.isArray(pv) ? pv : []).slice(0, maxPlies)) {
+      const move = uciToMove(uci, board);
+      if (!move) break;
+      out.push(moveToSan(board, move));
+      board.makeMove(move);
+    }
+  } catch (error) {
+    // A line that cannot be replayed is shown as far as it goes.
+  }
+  return out;
+}
+
+// The lines for the result panel: SAN-converted, with their evaluation.
+function buildLinesView(fen, lines, marks = {}) {
+  const userUcis = Array.isArray(marks.userUcis) ? marks.userUcis : [];
+  return (lines || []).slice(0, 5).map((line, index) => {
+    const uci = lineFirstUci(line);
+    const score = lineMoverScore(line);
+    const sanList = pvToSan(fen, Array.isArray(line.pv) && line.pv.length ? line.pv : [uci], 8);
+    return {
+      rank: index + 1,
+      uci,
+      san: sanList[0] || line.san || uci,
+      score,
+      evalText: formatScoreText(score),
+      pvSan: sanList,
+      isBest: index === 0,
+      isUser: userUcis.includes(uci),
+      isMaster: Boolean(marks.masterUci) && uci === marks.masterUci,
+    };
+  });
+}
+
+// The lines a round record keeps (Profile caps them again): at most 3, six
+// plies each, only the fields a review needs.
+function compactLines(fen, lines) {
+  return (lines || []).slice(0, 3).map((line) => {
+    const uci = lineFirstUci(line);
+    const pv = (Array.isArray(line.pv) && line.pv.length ? line.pv : [uci]).slice(0, 6);
+    return { uci, san: pvToSan(fen, pv, 1)[0] || line.san || "", score: Math.round(lineMoverScore(line)), pv };
+  }).filter((line) => line.uci);
+}
+
+function pickCuriosity() {
+  const facts = ludusModule("Facts");
+  try {
+    if (facts && typeof facts.pick === "function") {
+      const fact = facts.pick({ exclude: STATE.recentFacts });
+      if (fact && fact.id) {
+        STATE.recentFacts.push(fact.id);
+        while (STATE.recentFacts.length > RECENT_FACTS_MAX) STATE.recentFacts.shift();
+        return fact;
+      }
+    }
+  } catch (error) {
+    // A curiosity is decoration.
+  }
+  return null;
+}
+
+function noMoveReasonToScoring(noMoveReason) {
+  if (noMoveReason === "timeout") return "timeout";
+  if (noMoveReason === "manual_skip" || noMoveReason === "hint_reveal") return "skip";
+  return "";
+}
+
+// Evaluates the answers of one round (one in solo, two in a duel) against the
+// same reference, in one pass.
+//
+//   answers: [{ move|null, noMoveReason, hintsUsed, timeSpentMs, playerIndex }]
+//   plan:    getRoundEvaluationPlan()
+//   hooks:   { onProgress({ ratio, elapsedTotalMs }) }
+//
+// Returns null when the work was cancelled (a new session started meanwhile).
+// The reference is the position's own lines when it has them (classics, notebook
+// cards) and one MultiPV search at the root otherwise. A move that is not among
+// those lines is searched on its own (searchmoves) with the same time, so both
+// scores are comparable; the move of the game is scored the same way so its
+// evaluation can be shown.
+async function evaluateRoundAnswers(base, position, answers, plan, hooks = {}) {
+  const fen = position.fen;
+  const scoring = ludusModule("Scoring");
+  const insightsApi = ludusModule("Insights");
+  if (!scoring) throw new Error("Ludus.Scoring is not available");
+  const settings = sessionScoringSettings();
+  const startedAt = Date.now();
+  let completedTasks = 0;
+  const report = (fraction) => {
+    if (typeof hooks.onProgress !== "function") return;
+    hooks.onProgress({
+      ratio: clamp((completedTasks + clamp(Number(fraction) || 0, 0, 1)) / Math.max(1, plan.maxTasks), 0, 1),
+      elapsedTotalMs: Date.now() - startedAt,
+    });
+  };
+  let sourceUsed = engineSourceName();
+  const task = async (options) => {
+    const result = await analyzePosition(fen, {
+      ...options,
+      movetimeMs: plan.movetimeMs,
+      onProgress: (progress) => report(progress.ratio),
+    });
+    completedTasks += 1;
+    report(0);
+    if (result.source === "local") sourceUsed = "local";
+    return result;
+  };
+
+  // 1. The reference lines.
+  let lines;
+  let origin;
+  let depth = 0;
+  if (hasReferenceLines(position)) {
+    lines = referenceLinesOf(position);
+    origin = position.reference.origin === "runtime" ? "runtime" : "precomputed";
+    depth = Number(position.reference.depth) || 0;
+  } else {
+    const root = await task({ multiPv: plan.multiPv });
+    if (root.aborted) return null;
+    lines = compactEngineLines(root.lines);
+    origin = "runtime";
+    depth = root.depth;
+  }
+  if (!lines.length) throw new Error("no-analysis");
+  const referenceBest = lineMoverScore(lines[0]);
+
+  // 2. The score of a move that is not among the lines.
+  const scoreOutsideLines = async (uci) => {
+    const one = await task({ searchMoves: [uci], multiPv: 1 });
+    if (one.aborted) return { aborted: true };
+    const line = one.lines[0] || null;
+    let score = lineMoverScore(line);
+    if (Number.isFinite(score) && origin === "precomputed" && one.source === "local") {
+      // The reference was made by the strong engine and this by the 3-ply
+      // fallback, whose numbers are not comparable. Carry over only the
+      // difference between the best move and this one, both measured by the fallback.
+      const bestOne = await task({ searchMoves: [lines[0].uci], multiPv: 1 });
+      if (bestOne.aborted) return { aborted: true };
+      const bestLocal = lineMoverScore(bestOne.lines[0]);
+      score = Number.isFinite(bestLocal) ? referenceBest - Math.max(0, bestLocal - score) : score;
+    }
+    return { score, line };
+  };
+
+  const masterUci = position.gameMoveUci && uciToMove(position.gameMoveUci, base) ? position.gameMoveUci : "";
+  const results = [];
+  for (const answer of answers) {
+    const uci = answer.move ? moveToUci(answer.move) : null;
+    const reason = uci ? "" : noMoveReasonToScoring(answer.noMoveReason);
+    const hintsUsed = clamp(Math.round(Number(answer.hintsUsed) || 0), 0, 3);
+    let isSacrifice = false;
+    try {
+      const features = uci && insightsApi ? insightsApi.moveFeatures(fen, uci) : null;
+      isSacrifice = Boolean(features && features.sacrifice);
+    } catch (error) {
+      isSacrifice = false;
+    }
+    const input = { lines, userUci: uci, masterUci, settings, reason, hintsUsed };
+    let assessment = scoring.assess(input, { isSacrifice });
+    if (assessment.needsEvaluation && uci && !assessment.error) {
+      const outside = await scoreOutsideLines(uci);
+      if (outside.aborted) return null;
+      if (Number.isFinite(outside.score)) {
+        assessment = scoring.assess({ ...input, userScore: outside.score }, { isSacrifice });
+      }
+    }
+    assessment = { ...assessment, hintsUsed };
+    const provisional = Boolean(uci && assessment.needsEvaluation);
+
+    let insight = { tags: [], messages: [], conceptIds: [], phase: null, verdict: "unknown" };
+    try {
+      if (insightsApi) {
+        const analyzed = insightsApi.analyzeChoice({
+          fen,
+          userUci: uci,
+          bestUci: assessment.bestUci,
+          assessment,
+          lines,
+          masterUci,
+          timing: { timeSpentMs: answer.timeSpentMs, limitMs: isUntimedSession() ? 0 : STATE.timer.durationMs, timedOut: reason === "timeout" },
+        });
+        if (analyzed && !analyzed.error) insight = analyzed;
+      }
+    } catch (error) {
+      // Insights are decoration: never allowed to break a round.
+    }
+
+    const userScore = Number.isFinite(assessment.userScore) ? assessment.userScore : NaN;
+    results.push({
+      playerIndex: answer.playerIndex || 0,
+      move: answer.move || null,
+      uci,
+      san: answer.move ? moveToSan(base, answer.move) : "",
+      noMoveReason: uci ? "" : (answer.noMoveReason || "no_move"),
+      reason: assessment.reason,
+      hintsUsed,
+      timeSpentMs: Math.max(0, Math.round(Number(answer.timeSpentMs) || 0)),
+      isSacrifice,
+      provisional,
+      assessment,
+      userScore,
+      userEvalText: Number.isFinite(userScore) ? formatScoreText(userScore) : t("common.notAvailable"),
+      hit: Boolean(uci) && hintsUsed < 3 && (assessment.isBest || assessment.accuracy >= HIT_ACCURACY),
+      insights: insight,
+    });
+  }
+
+  // 3. The move of the game (the master's, or the one the person made in their game).
+  let master = null;
+  if (masterUci) {
+    const rank = lines.findIndex((line) => line.uci === masterUci);
+    let score = rank >= 0 ? lineMoverScore(lines[rank]) : NaN;
+    if (rank < 0) {
+      const outside = await scoreOutsideLines(masterUci);
+      if (outside.aborted) return null;
+      score = outside.score;
+    }
+    const masterMove = uciToMove(masterUci, base);
+    master = {
+      uci: masterUci,
+      san: masterMove ? moveToSan(base, masterMove) : (position.gameMoveSan || masterUci),
+      score,
+      evalText: Number.isFinite(score) ? formatScoreText(score) : (position.gameEvalText || t("common.notAvailable")),
+      rank: rank >= 0 ? rank + 1 : null,
+    };
+  }
+  report(1);
+
+  const bestUci = lines[0].uci;
+  const bestMove = uciToMove(bestUci, base);
+  const marks = { userUcis: results.map((entry) => entry.uci).filter(Boolean), masterUci };
+  return {
+    fen,
+    lines,
+    linesView: buildLinesView(fen, lines, marks),
+    origin,
+    source: sourceUsed,
+    depth,
+    plan,
+    // A local 3-ply "best move" is a guess: it is not kept as the position's
+    // best in the records, unless the lines came with the position.
+    trustedLines: origin === "precomputed" || sourceUsed === "stockfish",
+    best: bestMove,
+    bestUci,
+    bestSan: bestMove ? moveToSan(base, bestMove) : (position.bestMoveSan || "-"),
+    bestScore: referenceBest,
+    bestEvalText: formatScoreText(referenceBest),
+    game: master ? uciToMove(master.uci, base) : null,
+    master,
+    answers: results,
+  };
+}
+
 
 function formatDelta(referenceScore, comparedScore) {
   if (!Number.isFinite(referenceScore) || !Number.isFinite(comparedScore)) return t("evaluation.deltaUnavailable");
@@ -3453,85 +4138,71 @@ function searchBestMove(board, depth) {
   return { move: bestMove, score: Math.round(bestScore) };
 }
 
-function normalizeScore(score, turn) {
-  return turn === "w" ? score : -score;
-}
+// ---------- Engine (Ludus.Engine) and analyzePosition ----------
+// The strong engine is Stockfish in a Worker behind Ludus.Engine (MultiPV,
+// searchmoves, progress, abort). Until it is up, or after it fails, a shallow
+// 3-ply search of this file answers instead: analyzePosition() hides which one
+// it was, and says so in its result.
+
+// Tests and end-to-end checks may hand the engine another transport (see
+// Ludus.game.configureEngine); in the browser the default is the Worker on
+// vendor/stockfish-18-lite-single.js.
+let engineTransportFactory = null;
+// Timings a test may shorten (Ludus.game.configureEngine); null: the constants.
+const timingOverrides = { minEvalVisibleMs: null, engineRetryBaseMs: null };
+// Bumped every time the engine is dropped, so a load that finishes after the
+// person already went home does not leave an engine running behind their back.
+let engineEpoch = 0;
 
 function resetEngineToLocal() {
-  if (STATE.engine.worker) {
+  engineEpoch += 1;
+  const instance = STATE.engine.instance;
+  STATE.engine = { mode: "local", instance: null, ready: false };
+  if (instance) {
     try {
-      STATE.engine.worker.terminate();
+      instance.terminate();
     } catch (error) {
       // ignore terminate failures
     }
   }
-  STATE.engine = { mode: "local", worker: null, ready: false, evalCache: new Map() };
 }
 
 function localFallbackDepth(depth) {
   return clamp(Number(depth) || LOCAL_FALLBACK_MAX_DEPTH, 1, LOCAL_FALLBACK_MAX_DEPTH);
 }
 
-function cacheGet(key) {
-  return STATE.engine.evalCache.get(key);
-}
-
-function cacheSet(key, value) {
-  if (STATE.engine.evalCache.size > 25000) {
-    STATE.engine.evalCache.clear();
-  }
-  STATE.engine.evalCache.set(key, value);
-}
-
-async function waitForWorkerReady(worker, timeoutMs = ENGINE_READY_TIMEOUT_MS) {
-  return new Promise((resolve) => {
-    let done = false;
-    const finish = (value) => {
-      if (done) return;
-      done = true;
-      clearTimeout(timeout);
-      worker.removeEventListener("message", onMessage);
-      worker.removeEventListener("error", onError);
-      resolve(value);
-    };
-    const timeout = setTimeout(() => finish(false), timeoutMs);
-
-    const onMessage = (event) => {
-      const line = typeof event.data === "string" ? event.data : "";
-      if (line === "readyok") finish(true);
-      else if (line.startsWith("engine-error")) finish(false);
-    };
-    // A missing or broken engine file gives up here instead of burning the
-    // whole wait on an answer that is never coming.
-    const onError = () => finish(false);
-
-    worker.addEventListener("message", onMessage);
-    worker.addEventListener("error", onError);
-    worker.postMessage("uci");
-    worker.postMessage("isready");
-  });
-}
-
 // One attempt at starting the strong engine. The worker requests the engine
 // file itself, so the app no longer fetches it first just to check it is there.
 async function setupStockfish() {
   resetEngineToLocal();
+  const epoch = engineEpoch;
+  const engineApi = ludusModule("Engine");
+  if (!engineApi || typeof engineApi.create !== "function") return false;
+  let instance = null;
   try {
-    const worker = new Worker("vendor/stockfish-18-lite-single.js");
-    worker.onerror = () => resetEngineToLocal();
-    const ready = await waitForWorkerReady(worker);
-    if (!ready) {
+    const config = { readyTimeoutMs: ENGINE_READY_TIMEOUT_MS };
+    if (typeof engineTransportFactory === "function") config.createTransport = engineTransportFactory;
+    instance = engineApi.create(config);
+    const ready = await instance.ready();
+    if (!ready || epoch !== engineEpoch) {
       try {
-        worker.terminate();
+        instance.terminate();
       } catch (error) {
         // ignore
       }
       return false;
     }
-    STATE.engine = { mode: "stockfish", worker, ready: true, evalCache: new Map() };
+    STATE.engine = { mode: "stockfish", instance, ready: true };
     return true;
   } catch (error) {
-    resetEngineToLocal();
+    if (instance) {
+      try {
+        instance.terminate();
+      } catch (terminateError) {
+        // ignore
+      }
+    }
+    if (epoch === engineEpoch) resetEngineToLocal();
     return false;
   }
 }
@@ -3547,7 +4218,10 @@ function ensureStockfishLoading() {
   if (!engineLoad) {
     engineLoad = (async () => {
       for (let attempt = 0; attempt < ENGINE_LOAD_ATTEMPTS; attempt += 1) {
-        if (attempt > 0) await sleepMs(ENGINE_RETRY_BASE_MS * attempt);
+        if (attempt > 0) {
+          const baseMs = timingOverrides.engineRetryBaseMs !== null ? timingOverrides.engineRetryBaseMs : ENGINE_RETRY_BASE_MS;
+          await sleepMs(baseMs * attempt);
+        }
         if (await setupStockfish()) return true;
       }
       return false;
@@ -3558,192 +4232,231 @@ function ensureStockfishLoading() {
   return engineLoad;
 }
 
-async function stockfishEvaluate(fen, depth, moveTimeMs, options = {}) {
-  return new Promise((resolve, reject) => {
-    // Keep this worker in a local reference. When a worker fails mid-round the
-    // app switches to the local engine and the shared reference becomes null;
-    // the cleanup below used to throw on that null before rejecting, which left
-    // the promise pending and the screen stuck on "evaluating" with no way out.
-    const worker = STATE.engine.worker;
-    if (!worker) {
-      reject(new Error("Worker no disponible"));
-      return;
+// Stops whatever the engine is doing for this page and invalidates every
+// analysis started so far: a new session, or leaving the game, calls this so no
+// result of the old work can land on the new screen.
+function abortEngineWork() {
+  STATE.analysis.generation += 1;
+  STATE.analysis.inflight.clear();
+  const instance = STATE.engine.instance;
+  if (instance && typeof instance.stop === "function") {
+    try {
+      instance.stop({ all: true });
+    } catch (error) {
+      // The engine may be gone already.
     }
+  }
+}
 
-    const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
-    let lastScore = 0;
-    let lastDepth = 0;
-    let lastElapsedMs = 0;
-    let finished = false;
-    const safeMoveTime = clamp(Number(moveTimeMs) || 0, 0, 10000);
-    const startedAt = Date.now();
-    const timeoutMs = Math.max(15000, safeMoveTime * 3 + 5000);
-    const emitProgress = (forcedRatio = null) => {
-      if (!onProgress) return;
-      if (finished && !Number.isFinite(forcedRatio)) return;
-      const elapsedMs = Number.isFinite(lastElapsedMs) && lastElapsedMs > 0
-        ? lastElapsedMs
-        : (Date.now() - startedAt);
-      let ratio = Number.isFinite(forcedRatio) ? forcedRatio : 0;
-      if (!Number.isFinite(forcedRatio)) {
-        if (safeMoveTime > 0) {
-          ratio = clamp(elapsedMs / safeMoveTime, 0, 0.98);
-        } else {
-          ratio = clamp(lastDepth / Math.max(1, Number(depth) || 1), 0, 0.98);
-        }
-      }
-      onProgress({
-        ratio,
-        elapsedMs,
-        targetMs: safeMoveTime,
-        depth: lastDepth,
-      });
-    };
-    const progressInterval = onProgress ? setInterval(() => emitProgress(), 120) : null;
-    const timeout = setTimeout(() => {
-      if (finished) return;
-      finished = true;
-      cleanup();
-      reject(new Error("Timeout del motor"));
-    }, timeoutMs);
+function engineSourceName() {
+  return STATE.engine.mode === "stockfish" && STATE.engine.ready && STATE.engine.instance ? "stockfish" : "local";
+}
 
-    const handler = (event) => {
-      const line = event.data;
-      if (typeof line !== "string") return;
-      if (line.startsWith("info ")) {
-        const depthMatch = line.match(/\bdepth (\d+)/);
-        if (depthMatch) lastDepth = Number(depthMatch[1]);
-        const timeMatch = line.match(/\btime (\d+)/);
-        if (timeMatch) lastElapsedMs = Number(timeMatch[1]);
-        emitProgress();
-      }
-      if (line.includes("score cp")) {
-        const match = line.match(/score cp (-?\d+)/);
-        if (match) lastScore = Number(match[1]);
-      }
-      if (line.includes("score mate")) {
-        const match = line.match(/score mate (-?\d+)/);
-        if (match) {
-          const mate = Number(match[1]);
-          lastScore = encodeMateScore(mate);
-        }
-      }
-      if (line.startsWith("bestmove")) {
-        if (finished) return;
-        finished = true;
-        cleanup();
-        emitProgress(1);
-        const bestMove = line.split(" ")[1];
-        resolve({ bestMove, score: lastScore });
-      }
-    };
-
-    const onWorkerError = () => {
-      if (finished) return;
-      finished = true;
-      cleanup();
-      reject(new Error("Fallo del motor"));
-    };
-
-    function cleanup() {
-      if (progressInterval) clearInterval(progressInterval);
-      clearTimeout(timeout);
-      worker.removeEventListener("message", handler);
-      worker.removeEventListener("error", onWorkerError);
-    }
-
-    worker.addEventListener("message", handler);
-    worker.addEventListener("error", onWorkerError);
-    worker.postMessage(`position fen ${fen}`);
-    if (safeMoveTime > 0) {
-      worker.postMessage(`go movetime ${safeMoveTime}`);
-    } else {
-      worker.postMessage(`go depth ${depth}`);
-    }
+function cleanUciList(list, max = 32) {
+  const out = [];
+  (Array.isArray(list) ? list : []).forEach((entry) => {
+    const uci = String(entry || "").trim().toLowerCase();
+    if (/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci) && !out.includes(uci) && out.length < max) out.push(uci);
   });
+  return out;
 }
 
-async function getBestMoveWithEngine(board, depth, moveTimeMs, options = {}) {
-  const effectiveMoveTime = adaptiveMoveTime(moveTimeMs, board, options);
-  if (STATE.engine.mode === "stockfish") {
-    const stockfishCacheKey = `best|stockfish|${board.fen()}|d${depth}|t${effectiveMoveTime}`;
-    const cached = cacheGet(stockfishCacheKey);
+function normalizeAnalysisRequest(fen, options) {
+  const cleanFen = String(fen || "").trim().replace(/\s+/g, " ");
+  if (!cleanFen) return null;
+  const opts = options && typeof options === "object" ? options : {};
+  const depth = Number(opts.depth) > 0 ? clamp(Math.round(Number(opts.depth)), 1, 40) : 0;
+  let movetimeMs = Number(opts.movetimeMs) > 0 ? clamp(Math.round(Number(opts.movetimeMs)), 10, 60000) : 0;
+  if (!movetimeMs && !depth) movetimeMs = DEFAULT_ANALYSIS_MS;
+  return {
+    fen: cleanFen,
+    multiPv: clamp(Math.round(Number(opts.multiPv) || 1), 1, 8),
+    movetimeMs,
+    depth,
+    searchMoves: cleanUciList(opts.searchMoves),
+    onProgress: typeof opts.onProgress === "function" ? opts.onProgress : null,
+  };
+}
+
+function analysisCacheKey(source, request) {
+  return `${source}|${request.fen}|d${request.depth}|t${request.movetimeMs}|m${request.multiPv}|s${request.searchMoves.join(",")}`;
+}
+
+function cloneAnalysisLines(lines) {
+  return (lines || []).map((line) => ({ ...line, score: { ...line.score }, pv: line.pv.slice() }));
+}
+
+function readAnalysisCache(key) {
+  const cache = STATE.analysis.cache;
+  const hit = cache.get(key);
+  if (!hit) return null;
+  // Touch it: the entry that was used last is the last to be dropped.
+  cache.delete(key);
+  cache.set(key, hit);
+  return hit;
+}
+
+function writeAnalysisCache(key, entry) {
+  const cache = STATE.analysis.cache;
+  cache.delete(key);
+  cache.set(key, entry);
+  while (cache.size > ANALYSIS_CACHE_MAX) {
+    cache.delete(cache.keys().next().value);
+  }
+}
+
+// The shallow fallback, in the shape of an engine line: score from the mover's
+// point of view, mate as { type: "mate", value } (only the mates a 3-ply search
+// can see: mate in 1, mate in 2, or "mated next move"), pv of one move.
+function localScoreObject(moverScore, afterBoard) {
+  if (Math.abs(moverScore) >= 90000) {
+    if (moverScore > 0) {
+      const mated = afterBoard.generateMoves().length === 0 && afterBoard.inCheck(afterBoard.turn);
+      return { type: "mate", value: mated ? 1 : 2 };
+    }
+    return { type: "mate", value: -1 };
+  }
+  return { type: "cp", value: clamp(Math.round(moverScore), -4000, 4000) };
+}
+
+function localAnalysisLine(board, move, whiteScore, depth) {
+  const mover = board.turn === "w" ? whiteScore : -whiteScore;
+  const after = board.clone();
+  after.makeMove(move);
+  return { multipv: 1, depth, score: localScoreObject(mover, after), pv: [moveToUci(move)] };
+}
+
+// One line: the best move of the 3-ply search, or, with searchMoves, the score
+// of the (first legal) move asked for. Synchronous, so it yields to the page
+// first: the shallow search must not freeze a click that is still being handled.
+async function runLocalAnalysis(request) {
+  await yieldToUi();
+  const board = new Chess(request.fen);
+  const depth = localFallbackDepth(request.depth || LOCAL_FALLBACK_MAX_DEPTH);
+  if (request.searchMoves.length) {
+    const lines = [];
+    request.searchMoves.forEach((uci) => {
+      const move = uciToMove(uci, board);
+      if (!move) return;
+      const clone = board.clone();
+      clone.makeMove(move);
+      lines.push({ move, whiteScore: evaluatePosition(clone, depth - 1) });
+    });
+    const scored = lines
+      .map((entry) => localAnalysisLine(board, entry.move, entry.whiteScore, depth))
+      .sort((a, b) => lineMoverScore(b) - lineMoverScore(a));
+    return { lines: scored.slice(0, 1), depth, aborted: false };
+  }
+  const best = searchBestMove(board, depth);
+  if (!best.move) return { lines: [], depth, aborted: false };
+  return { lines: [localAnalysisLine(board, best.move, best.score, depth)], depth, aborted: false };
+}
+
+async function runStockfishAnalysis(request, isAborted) {
+  const instance = STATE.engine.instance;
+  const startedAt = Date.now();
+  let depthSeen = 0;
+  const report = (ratio) => {
+    if (!request.onProgress) return;
+    request.onProgress({ ratio, elapsedMs: Date.now() - startedAt, targetMs: request.movetimeMs, depth: depthSeen });
+  };
+  // The engine reports when it has something new to say; a steady bar needs its own clock.
+  const ticker = request.onProgress
+    ? setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      report(clamp(request.movetimeMs > 0 ? elapsed / request.movetimeMs : depthSeen / Math.max(1, request.depth || 18), 0, 0.98));
+    }, 120)
+    : null;
+  try {
+    const result = await instance.analyze({
+      fen: request.fen,
+      movetimeMs: request.movetimeMs || undefined,
+      depth: request.depth || undefined,
+      multiPv: request.searchMoves.length ? 1 : request.multiPv,
+      searchMoves: request.searchMoves.length ? request.searchMoves : undefined,
+      onInfo: (info) => {
+        depthSeen = info.depth;
+      },
+      signal: { get aborted() { return isAborted(); } },
+    });
+    return { lines: result.lines, depth: result.depth, aborted: Boolean(result.aborted && isAborted()), timedOut: Boolean(result.timedOut) };
+  } finally {
+    if (ticker) clearInterval(ticker);
+  }
+}
+
+// analyzePosition(fen, { multiPv, movetimeMs, depth, searchMoves, onProgress, signal })
+//   -> { lines, source: "stockfish" | "local", depth, cached?, aborted? }
+//
+// lines[] are engine lines ({ multipv, depth, score: { type: "cp" | "mate", value },
+// pv: [uci] }), scores from the point of view of the side to move: feed them to
+// Ludus.Scoring (and Ludus.Engine.moverScore) as they are. With the shallow
+// fallback there is one line and the mates it can see are encoded the same way.
+// Results are cached (fen, depth, time, MultiPV and searchmoves make the key);
+// the same request made while it is still running joins it instead of asking the
+// engine twice. If the strong engine fails on the way the page drops to the
+// fallback for the rest of the session, and the answer says so in `source`.
+// `aborted` (with no lines) means a new session / leaving the game cancelled it.
+async function analyzePosition(fen, options = {}) {
+  const request = normalizeAnalysisRequest(fen, options);
+  const callerSignal = options && options.signal ? options.signal : null;
+  const generation = STATE.analysis.generation;
+  const isAborted = () => Boolean(callerSignal && callerSignal.aborted) || generation !== STATE.analysis.generation;
+  if (!request) return { lines: [], source: engineSourceName(), depth: 0, aborted: false };
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (isAborted()) return { lines: [], source: engineSourceName(), depth: 0, aborted: true };
+    const source = engineSourceName();
+    const key = analysisCacheKey(source, request);
+    const cached = readAnalysisCache(key);
     if (cached) {
-      if (typeof options.onProgress === "function") {
-        options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, cached: true });
-      }
-      return { move: uciToMove(cached.bestMove, board), score: cached.score };
+      if (request.onProgress) request.onProgress({ ratio: 1, elapsedMs: 0, targetMs: request.movetimeMs, cached: true });
+      return { lines: cloneAnalysisLines(cached.lines), source, depth: cached.depth, cached: true, aborted: false };
     }
-    try {
-      const result = await stockfishEvaluate(board.fen(), depth, effectiveMoveTime, {
-        onProgress: options.onProgress,
-      });
-      const normalized = normalizeScore(result.score, board.turn);
-      cacheSet(stockfishCacheKey, { bestMove: result.bestMove, score: normalized });
-      return { move: uciToMove(result.bestMove, board), score: normalized };
-    } catch (error) {
-      resetEngineToLocal();
-    }
-  }
 
-  const depthForLocal = localFallbackDepth(depth);
-  const localCacheKey = `best|local|${board.fen()}|d${depthForLocal}`;
-  const cached = cacheGet(localCacheKey);
-  if (cached) {
-    if (typeof options.onProgress === "function") {
-      options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, cached: true, fallback: true });
+    const inflightKey = `${generation}|${key}`;
+    let pending = STATE.analysis.inflight.get(inflightKey);
+    const joined = Boolean(pending);
+    if (!pending) {
+      pending = (async () => {
+        if (source === "stockfish") {
+          try {
+            const result = await runStockfishAnalysis(request, isAborted);
+            if (result.aborted) return { ...result, source, lines: [] };
+            if (result.lines.length) return { ...result, source };
+            // The engine answered but had no line to give (a game that is
+            // already over, say): the fallback covers this one request only.
+          } catch (error) {
+            if (isAborted()) return { lines: [], depth: 0, aborted: true, source };
+            console.info("The strong engine failed; the fallback takes over.", error);
+            resetEngineToLocal();
+          }
+        }
+        const local = await runLocalAnalysis(request);
+        return { ...local, source: "local" };
+      })().finally(() => {
+        if (STATE.analysis.inflight.get(inflightKey) === pending) STATE.analysis.inflight.delete(inflightKey);
+      });
+      STATE.analysis.inflight.set(inflightKey, pending);
     }
-    return { move: uciToMove(cached.bestMove, board), score: cached.score };
+
+    const result = await pending;
+    if (result.aborted && !isAborted()) continue; // someone else's cancellation: ask again
+    if (joined && request.onProgress) request.onProgress({ ratio: 1, elapsedMs: 0, targetMs: request.movetimeMs, cached: true });
+    if (!result.aborted && !result.timedOut && result.lines.length) {
+      writeAnalysisCache(analysisCacheKey(result.source, request), { lines: cloneAnalysisLines(result.lines), depth: result.depth });
+    }
+    if (request.onProgress && !result.aborted) request.onProgress({ ratio: 1, elapsedMs: 0, targetMs: request.movetimeMs, depth: result.depth });
+    return {
+      lines: cloneAnalysisLines(result.lines),
+      source: result.source,
+      depth: result.depth,
+      aborted: Boolean(result.aborted),
+    };
   }
-  const local = searchBestMove(board, depthForLocal);
-  if (typeof options.onProgress === "function") {
-    options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, fallback: true, depth: depthForLocal });
-  }
-  cacheSet(localCacheKey, { bestMove: moveToUci(local.move), score: local.score });
-  return local;
+  return { lines: [], source: engineSourceName(), depth: 0, aborted: true };
 }
 
-async function evaluateMoveWithEngine(board, move, depth, moveTimeMs, options = {}) {
-  const clone = board.clone();
-  clone.makeMove(move);
-  const effectiveMoveTime = adaptiveMoveTime(moveTimeMs, board, options);
-  if (STATE.engine.mode === "stockfish") {
-    const stockfishCacheKey = `eval|stockfish|${clone.fen()}|d${depth}|t${effectiveMoveTime}`;
-    const cached = cacheGet(stockfishCacheKey);
-    if (Number.isFinite(cached)) {
-      if (typeof options.onProgress === "function") {
-        options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, cached: true });
-      }
-      return cached;
-    }
-    try {
-      const result = await stockfishEvaluate(clone.fen(), depth, effectiveMoveTime, {
-        onProgress: options.onProgress,
-      });
-      const normalized = normalizeScore(result.score, clone.turn);
-      cacheSet(stockfishCacheKey, normalized);
-      return normalized;
-    } catch (error) {
-      resetEngineToLocal();
-    }
-  }
-
-  const depthForLocal = localFallbackDepth(depth);
-  const localCacheKey = `eval|local|${clone.fen()}|d${depthForLocal}`;
-  const cached = cacheGet(localCacheKey);
-  if (Number.isFinite(cached)) {
-    if (typeof options.onProgress === "function") {
-      options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, cached: true, fallback: true });
-    }
-    return cached;
-  }
-  const localScore = evaluatePosition(clone, depthForLocal);
-  if (typeof options.onProgress === "function") {
-    options.onProgress({ ratio: 1, elapsedMs: 0, targetMs: effectiveMoveTime, fallback: true, depth: depthForLocal });
-  }
-  cacheSet(localCacheKey, localScore);
-  return localScore;
-}
 
 function inferPlayerName(games) {
   const map = new Map();
@@ -3877,6 +4590,10 @@ function updateNextSearchStatus(ctx, phaseText = "", ordinal = null) {
   roundStatusEl.textContent = "";
 }
 
+// Candidate mistake search (own games): cheap single-line searches, best move
+// first and then only the move that was played (searchmoves), each on a short
+// adaptive budget. MultiPV would make every candidate slower for nothing here:
+// the round itself gets the full MultiPV analysis when it is played.
 async function evaluateCandidateForMistake(candidate, ctx) {
   const game = ctx.games[candidate.gameIdx];
   if (!game) return null;
@@ -3898,26 +4615,39 @@ async function evaluateCandidateForMistake(candidate, ctx) {
       if (before.generateMoves().length < MIN_LEGAL_MOVES_FOR_CANDIDATE) return null;
 
       const adaptive = adaptiveThreshold(ctx.thresholdCp, before);
+      const budgetMs = adaptiveMoveTime(ctx.moveTimeMs, before);
+      const playedUci = moveToUci(move);
+      const beforeFen = before.fen();
 
-      const best = await getBestMoveWithEngine(before, ctx.depth, ctx.moveTimeMs);
-      const playedEvalWhite = await evaluateMoveWithEngine(before, move, Math.max(1, ctx.depth - 1), ctx.moveTimeMs);
+      const bestResult = await analyzePosition(beforeFen, { multiPv: 1, movetimeMs: budgetMs });
+      const bestLine = bestResult.lines[0];
+      if (!bestLine) return null;
+      const bestUci = lineFirstUci(bestLine);
+      // The person played the engine's move: nothing to learn here, and one search saved.
+      if (!bestUci || bestUci === playedUci) return null;
+      const playedResult = await analyzePosition(beforeFen, { searchMoves: [playedUci], multiPv: 1, movetimeMs: budgetMs });
+      const playedLine = playedResult.lines[0];
+      if (!playedLine) return null;
 
-      const bestMover = toMoverScore(best.score, moverColor);
-      const playedMover = toMoverScore(playedEvalWhite, moverColor);
+      const bestMover = lineMoverScore(bestLine);
+      const playedMover = lineMoverScore(playedLine);
       const scored = computeLossAgainstBest(bestMover, playedMover);
 
       if ((scored.diff || 0) < adaptive.threshold) return null;
 
+      const bestMove = uciToMove(bestUci, before);
       return {
-        fen: before.fen(),
+        id: `own:${Ludus.util.hashString(beforeFen)}`,
+        source: "own",
+        fen: beforeFen,
         meta: buildMeta(tags, moveNumber, moverColor),
         gameIdx: candidate.gameIdx,
-        gameMoveUci: moveToUci(move),
+        gameMoveUci: playedUci,
         gameMoveSan: moveToSan(before, move),
-        gameEvalText: evaluationToText(decodeEvaluation(playedMover)),
-        bestMoveUci: moveToUci(best.move),
-        bestMoveSan: moveToSan(before, best.move),
-        bestEvalText: evaluationToText(decodeEvaluation(bestMover)),
+        gameEvalText: formatScoreText(playedMover),
+        bestMoveUci: bestUci,
+        bestMoveSan: bestMove ? moveToSan(before, bestMove) : bestUci,
+        bestEvalText: formatScoreText(bestMover),
         lossCp: scored.diff || 0,
         thresholdUsed: adaptive.threshold,
         phase: adaptive.phase,
@@ -4215,7 +4945,9 @@ function renderBoardArrows() {
   if (!boardArrowsEl) return;
   boardArrowsEl.innerHTML = "";
 
-  if (!STATE.resultView || !STATE.resultView.visible) return;
+  // Arrows belong to the result, except the one that gives the move away when
+  // the hint is taken to its last level.
+  if (!STATE.resultView || (!STATE.resultView.visible && !hintRevealsMove())) return;
 
   const width = boardArrowsEl.clientWidth || boardEl.clientWidth;
   const height = boardArrowsEl.clientHeight || boardEl.clientHeight;
@@ -4297,6 +5029,7 @@ function renderBoard() {
     square.classList.remove(
       "selected", "legal", "capture",
       "best-from", "best-to", "game-from", "game-to", "user-from", "user-to", "user-alt-from", "user-alt-to",
+      "hint-from", "hint-to",
     );
     const existingPiece = square.querySelector(".piece-img");
     if (existingPiece) existingPiece.remove();
@@ -4336,6 +5069,17 @@ function renderBoard() {
 
   paint(STATE.revealed.best, "best-from", "best-to");
   paint(STATE.revealed.game, "game-from", "game-to");
+  // A hint reuses the "best" highlight (the same green ring) plus its own class:
+  // level 1 marks the piece to move, level 2 also its destination.
+  const hintMove = visibleHintMove();
+  if (hintMove) {
+    const hintFrom = boardEl.querySelector(`[data-square="${Chess.indexToSquare(hintMove.from)}"]`);
+    if (hintFrom) hintFrom.classList.add("hint-from", "best-from");
+    if (hintMove.showTo) {
+      const hintTo = boardEl.querySelector(`[data-square="${Chess.indexToSquare(hintMove.to)}"]`);
+      if (hintTo) hintTo.classList.add("hint-to", "best-to");
+    }
+  }
   paint(STATE.revealed.user, "user-from", "user-to");
   paint(STATE.revealed.userAlt, "user-alt-from", "user-alt-to");
 
@@ -4351,6 +5095,9 @@ function renderBoard() {
     if (square.classList.contains("selected")) stateParts.push(t("board.selected"));
     if (square.classList.contains("capture")) stateParts.push(t("board.captureTarget"));
     else if (square.classList.contains("legal")) stateParts.push(t("board.legalTarget"));
+    // Not by colour alone: a hinted square says so to a screen reader too.
+    if (square.classList.contains("hint-from")) stateParts.push(t("core.hint.square.from"));
+    if (square.classList.contains("hint-to")) stateParts.push(t("core.hint.square.to"));
     if (!acceptsInput) stateParts.push(t("board.disabled"));
 
     square.setAttribute("aria-label", STATE.board ? boardSquareAriaLabel(squareName, piece, stateParts) : squareName);
@@ -4525,12 +5272,14 @@ function startRound(options = {}) {
   STATE.isResolvingRound = false;
   STATE.revealed = { best: null, game: null, user: null, userAlt: null };
   STATE.duel.handoffReady = false;
+  resetHintState();
   setUiPhase("playing", false);
   hideHandoffOverlay();
   hidePositionSearchOverlay();
   hideResultOverlay();
 
   renderGameInfo(position);
+  renderSessionTitle();
   const totalTarget = Math.max(1, STATE.targetPositions || STATE.positions.length || 1);
   // El rótulo dice sólo la posición; de quién es el turno lo dice el centro de
   // la barra de ronda, así no se repite el mismo dato dos veces.
@@ -4550,6 +5299,11 @@ function startRound(options = {}) {
   nextBtn.textContent = t("buttons.nextPosition");
 
   renderBoard();
+  updateHintButton();
+  focusBoardAfterRoundStart();
+  // The person is about to think for a while and the engine has nothing to do:
+  // the analysis that scoring needs starts now, so the answer is scored almost at once.
+  prefetchRoundReference(position);
 }
 
 function onSquareClick(square) {
@@ -4694,6 +5448,176 @@ async function submitNoMove(reason = "no_move") {
   await resolveRound(null, { noMoveReason: reason });
 }
 
+// ---------- Hints ----------
+// Progressive hints for the round on screen, when the settings (or the session)
+// allow them and the best move is known before the answer: level 1 marks the
+// piece to move, level 2 also its destination, level 3 shows the move and
+// closes the round as revealed (0 points, reason "skip", hintsUsed 3). The
+// points they cost are Scoring's (settings.hintCost, applied by assess()).
+
+function hintCostPercent(level) {
+  const settings = sessionScoringSettings();
+  const cost = settings && settings.hintCost ? settings.hintCost : { level1: 0.15, level2: 0.35, reveal: 1 };
+  const fraction = level <= 1 ? cost.level1 : level === 2 ? cost.level2 : cost.reveal;
+  return Math.round((Number(fraction) || 0) * 100);
+}
+
+function resetHintState() {
+  STATE.hint = null;
+  STATE.hintsUsed = 0;
+}
+
+function hintRevealsMove() {
+  return Boolean(STATE.hint && STATE.hint.level >= 3);
+}
+
+// What the board shows of the hint. It goes away once the round is being scored
+// (the result draws its own arrows).
+function visibleHintMove() {
+  const hint = STATE.hint;
+  if (!hint || hint.level < 1 || STATE.roundSubmitted || STATE.resultView.visible) return null;
+  return { from: hint.from, to: hint.to, showTo: hint.level >= 2 };
+}
+
+// The root analysis a round is scored against, when it has already finished.
+function peekRootAnalysis(position, base) {
+  if (hasReferenceLines(position)) return null;
+  const plan = getRoundEvaluationPlan(base, position, isDuelMode() ? 2 : 1);
+  const request = normalizeAnalysisRequest(position.fen, { multiPv: plan.multiPv, movetimeMs: plan.movetimeMs });
+  return request ? (STATE.analysis.cache.get(analysisCacheKey("stockfish", request)) || null) : null;
+}
+
+// The move a hint points at, fixed the first time a hint is asked for so level 2
+// and 3 keep saying what level 1 said. The position's own lines come first
+// (classics, notebook), then the deeper analysis if it has finished, then the
+// best move the mistake search found.
+function findHintTarget(position, base) {
+  let uci = lineFirstUci(referenceLinesOf(position)[0]);
+  if (!uci) {
+    const cached = peekRootAnalysis(position, base);
+    if (cached && cached.lines.length) uci = lineFirstUci(cached.lines[0]);
+  }
+  if (!uci) uci = String(position.bestMoveUci || "");
+  const move = uci ? uciToMove(uci, base) : null;
+  return move ? { move, uci: moveToUci(move) } : null;
+}
+
+function hintAvailable() {
+  if (!STATE.hintsEnabled || !STATE.board || !STATE.positions.length) return false;
+  if (STATE.ui.phase !== "playing" || STATE.ui.blockBoardInput) return false;
+  if (STATE.roundSubmitted || STATE.isResolvingRound || STATE.resultView.visible) return false;
+  if ((STATE.hintsUsed || 0) >= 3) return false;
+  const position = STATE.positions[STATE.index];
+  if (!position) return false;
+  if (STATE.hint && STATE.hint.uci) return true;
+  try {
+    return Boolean(findHintTarget(position, new Chess(position.fen)));
+  } catch (error) {
+    return false;
+  }
+}
+
+function updateHintButton() {
+  if (!hintBtn) return;
+  hintBtn.classList.toggle("hidden", !STATE.hintsEnabled);
+  const nextLevel = Math.min(3, (STATE.hintsUsed || 0) + 1);
+  hintBtn.textContent = (STATE.hintsUsed || 0) >= 3
+    ? t("core.hint.done")
+    : t(`core.hint.next.${nextLevel}`, { pct: hintCostPercent(nextLevel) });
+  hintBtn.disabled = !hintAvailable();
+}
+
+// A hint is announced through the clock's polite live region (the round bar's
+// status): it is the one that is on screen and polite while a round is played,
+// and only pressing the hint button writes to it, so it stays quiet otherwise.
+function announceHint(text) {
+  if (soloClockAnnounceEl) soloClockAnnounceEl.textContent = text;
+}
+
+// Ludus.game.hint(): asks for the next hint of the round on screen.
+// -> { level, from?, to?, uci? } (squares as "e2"), or null when no hint can be given now.
+function requestHint() {
+  if (!hintAvailable()) return null;
+  const position = STATE.positions[STATE.index];
+  const base = new Chess(position.fen);
+  if (!STATE.hint) {
+    const target = findHintTarget(position, base);
+    if (!target) return null;
+    STATE.hint = {
+      level: 0,
+      uci: target.uci,
+      from: target.move.from,
+      to: target.move.to,
+      promotion: target.move.promotion || null,
+      san: moveToSan(base, target.move),
+      piece: base.pieceAt(target.move.from),
+    };
+  }
+  const hint = STATE.hint;
+  hint.level += 1;
+  STATE.hintsUsed = hint.level;
+  const from = Chess.indexToSquare(hint.from);
+  const to = Chess.indexToSquare(hint.to);
+  const piece = pieceAriaName(hint.piece);
+  const pct = hintCostPercent(hint.level);
+
+  if (hint.level === 1) {
+    announceHint(t("core.hint.said.1", { piece, square: from, pct }));
+  } else if (hint.level === 2) {
+    announceHint(t("core.hint.said.2", { piece, from, to, pct }));
+  } else {
+    announceHint(t("core.hint.said.3", { san: hint.san }));
+    STATE.revealed = { ...STATE.revealed, best: { from: hint.from, to: hint.to, promotion: hint.promotion || undefined } };
+  }
+  renderBoard();
+  updateHintButton();
+  if (hint.level >= 3) {
+    // The move is shown: the round ends here, worth nothing.
+    void resolveRound(null, { noMoveReason: "hint_reveal" });
+    return { level: 3, from, to, uci: hint.uci };
+  }
+  return hint.level === 1 ? { level: 1, from } : { level: 2, from, to };
+}
+
+// The reference analysis of a position that brings no lines of its own, started
+// while the person thinks (the engine is idle then). The same request is made
+// when the answer is scored, so it costs nothing extra: it is a cache hit, or
+// the running search that the scoring joins.
+function prefetchRoundReference(position) {
+  if (!position || hasReferenceLines(position) || engineSourceName() !== "stockfish") return;
+  try {
+    const base = new Chess(position.fen);
+    const plan = getRoundEvaluationPlan(base, position, isDuelMode() ? 2 : 1);
+    void analyzePosition(position.fen, { multiPv: plan.multiPv, movetimeMs: plan.movetimeMs }).then(() => {
+      // A finished analysis may know a better move than the one the hint had:
+      // nothing to do, the hint keeps the one it chose first, but the button may become available.
+      updateHintButton();
+    }, () => {});
+  } catch (error) {
+    // Prefetching is an optimisation.
+  }
+}
+
+function renderSessionTitle() {
+  if (!sessionTitleEl) return;
+  const title = STATE.session ? String(STATE.session.title || "") : "";
+  sessionTitleEl.textContent = title;
+  sessionTitleEl.classList.toggle("hidden", !title);
+}
+
+// Keyboard: a new round starts with the focus on the board (where the person plays),
+// unless they are typing somewhere else. The button that had it ("Next position")
+// has just gone away, which would otherwise leave the focus nowhere.
+function focusBoardAfterRoundStart() {
+  const active = document.activeElement;
+  const lost = !active || active === document.body
+    || (resultOverlayEl && typeof resultOverlayEl.contains === "function" && resultOverlayEl.contains(active));
+  if (!lost || !boardEl || typeof boardEl.querySelector !== "function") return;
+  const target = boardEl.querySelector('.square[tabindex="0"]');
+  if (target && typeof target.focus === "function") target.focus({ preventScroll: true });
+}
+
+
 function resultStateClass({ hit = false, noMove = false, isReference = false } = {}) {
   if (isReference) return "state-neutral";
   if (noMove) return "state-neutral";
@@ -4712,7 +5636,7 @@ const INF_BAR_LABEL_BANDS = Object.freeze({
 });
 
 function qualityToInfographicPercent(code, diff, maxDiff) {
-  const band = INF_BAR_LABEL_BANDS[code] || INF_BAR_LABEL_BANDS.no_move;
+  const band = INF_BAR_LABEL_BANDS[compatQualityCode(code)] || INF_BAR_LABEL_BANDS.no_move;
   const safeMax = Math.max(1, Number(maxDiff) || 1);
   const safeDiff = Number.isFinite(diff) ? clamp(diff, 0, safeMax) : safeMax * 0.5;
   const ratio = safeDiff / safeMax;
@@ -4831,12 +5755,12 @@ function renderVerticalInfographic({ bestNode, gameNode, userNodes }) {
 }
 
 function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, userSan, userEvalText, bestMover, gameMover, userMover, scored, noMoveReason = "", extra = {}) {
-  const noMove = !Number.isFinite(userMover);
+  const noMove = extra.noMove !== undefined ? Boolean(extra.noMove) : !Number.isFinite(userMover);
   const noMoveByTimeout = noMoveReason === "timeout";
   const duelNoMoveNote = noMoveByTimeout
     ? t("evaluation.timeoutZeroPoints")
     : (noMove ? t("evaluation.noMoveZeroPoints") : "");
-  const duelSummary = `${t("evaluation.classification")}: ${qualityLabel(scored.qualityCode)} | ${t("evaluation.delta")}: ${formatDelta(bestMover, userMover)} | ${t("evaluation.points")}: ${formatSigned(scored.points)}${duelNoMoveNote ? ` | ${duelNoMoveNote}` : ""}`;
+  const duelSummary = `${t("evaluation.classification")}: ${qualityLabel(scored.qualityCode)} | ${t("evaluation.delta")}: ${formatDelta(bestMover, userMover)} | ${t("evaluation.points")}: ${formatPoints(scored.points)}${duelNoMoveNote ? ` | ${duelNoMoveNote}` : ""}`;
 
   let userNodes = [];
 
@@ -4897,7 +5821,9 @@ function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, 
     revealBestBtn.textContent = t("buttons.revealBest");
   }
   if (revealGameBtn) {
-    revealGameBtn.classList.remove("hidden");
+    // A position without the move of a game (a review card) has nothing to compare with.
+    const hasGameMove = extra.hasGameMove !== undefined ? Boolean(extra.hasGameMove) : true;
+    revealGameBtn.classList.toggle("hidden", !hasGameMove);
     revealGameBtn.textContent = revealGameButtonLabel();
   }
 
@@ -4907,7 +5833,7 @@ function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, 
 }
 
 function finalSessionSummaryText() {
-  if (!isDuelMode()) return t("game.finalScoreSolo", { score: formatPoints(STATE.score) });
+  if (!isDuelMode()) return t("game.finalScoreSolo", { score: soloScoreText() });
   const p1 = duelPlayerName(0);
   const p2 = duelPlayerName(1);
   const s1 = STATE.duel.scores[0];
@@ -4924,131 +5850,9 @@ function finalSessionSummaryText() {
   });
 }
 
-async function evaluateRoundMovesForPosition(base, position, moves, ratingDepth, ratingMoveTimeMs, options = {}) {
-  const moverTurn = base.turn;
-  const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
-  const minTaskMs = clamp(Number(options.minTaskMs) || ROUND_EVAL_MIN_TASK_MS, 150, ROUND_EVAL_MAX_TOTAL_MS);
-  const maxTotalMs = clamp(Number(options.maxTotalMs) || ROUND_EVAL_MAX_TOTAL_MS, minTaskMs, ROUND_EVAL_MAX_TOTAL_MS);
-  const totalBudgetMs = clamp(Number(options.totalBudgetMs) || maxTotalMs, minTaskMs, maxTotalMs);
-  const overallStartMs = Date.now();
-
-  const game = uciToMove(position.gameMoveUci, base);
-  const needsBestSearch = !uciToMove(position.bestMoveUci, base);
-  const userEvalTasks = moves.reduce((acc, payload) => {
-    const hasMove = Boolean(payload && payload.move);
-    return hasMove ? acc + 1 : acc;
-  }, 0);
-  const totalTasks = Math.max(1, (needsBestSearch ? 1 : 0) + 1 + (game ? 1 : 0) + userEvalTasks);
-  let completedTasks = 0;
-  let spentMs = 0;
-
-  const emitProgress = (taskProgress = 0, stepLabel = "", payload = {}) => {
-    if (!onProgress) return;
-    const localProgress = clamp(Number(taskProgress) || 0, 0, 1);
-    const ratio = clamp((completedTasks + localProgress) / totalTasks, 0, 1);
-    const elapsedTotalMs = Math.max(0, Date.now() - overallStartMs);
-    onProgress({
-      ratio,
-      stepLabel,
-      elapsedMs: payload.elapsedMs,
-      targetMs: payload.targetMs,
-      elapsedTotalMs,
-      totalBudgetMs,
-      completedTasks,
-      totalTasks,
-    });
-  };
-
-  const runEngineTask = async (enabled, stepLabel, taskRunner) => {
-    if (!enabled) return null;
-    const remainingTasks = Math.max(1, totalTasks - completedTasks);
-    const remainingBudget = Math.max(minTaskMs, totalBudgetMs - spentMs);
-    const plannedTaskMs = clamp(Math.round(remainingBudget / remainingTasks), minTaskMs, ROUND_EVAL_MAX_TOTAL_MS);
-    const taskStartMs = Date.now();
-    const engineOptions = {
-      minMoveTimeMs: Math.max(150, Math.round(plannedTaskMs * 0.65)),
-      maxMoveTimeMs: plannedTaskMs,
-      onProgress: (payload = {}) => {
-        emitProgress(payload.ratio, stepLabel, payload);
-      },
-    };
-    emitProgress(0, stepLabel, { elapsedMs: 0, targetMs: plannedTaskMs });
-    const value = await taskRunner(engineOptions, plannedTaskMs);
-    const elapsedMs = Math.max(1, Date.now() - taskStartMs);
-    spentMs += elapsedMs;
-    completedTasks += 1;
-    emitProgress(0, `${stepLabel} listo`, { elapsedMs, targetMs: plannedTaskMs });
-    return value;
-  };
-
-  const bestByTag = uciToMove(position.bestMoveUci, base);
-  const searchedBest = await runEngineTask(
-    !bestByTag,
-    "best_move_search",
-    (engineOptions, plannedTaskMs) => getBestMoveWithEngine(base, ratingDepth, plannedTaskMs, engineOptions),
-  );
-  const best = bestByTag || searchedBest?.move || null;
-  const bestEvalSource = best
-    ? await runEngineTask(
-      true,
-      "best_move_eval",
-      (engineOptions, plannedTaskMs) => evaluateMoveWithEngine(base, best, Math.max(1, ratingDepth - 1), plannedTaskMs, engineOptions),
-    )
-    : NaN;
-  const gameEvalWhite = game
-    ? await runEngineTask(
-      true,
-      "game_move_eval",
-      (engineOptions, plannedTaskMs) => evaluateMoveWithEngine(base, game, Math.max(1, ratingDepth - 1), plannedTaskMs, engineOptions),
-    )
-    : NaN;
-  const bestMover = toMoverScore(bestEvalSource, moverTurn);
-  const gameMover = toMoverScore(gameEvalWhite, moverTurn);
-  const hitThreshold = Number.isFinite(position.thresholdUsed) ? position.thresholdUsed : 120;
-
-  const evaluatedMoves = [];
-  for (let idx = 0; idx < moves.length; idx += 1) {
-    const payload = moves[idx];
-    const candidateMove = payload && payload.move ? payload.move : null;
-    const noMoveReason = candidateMove ? "" : (payload?.noMoveReason || "no_move");
-    const userEvalWhite = candidateMove
-      ? await runEngineTask(
-        true,
-        `move_eval_${idx + 1}`,
-        (engineOptions, plannedTaskMs) => evaluateMoveWithEngine(base, candidateMove, Math.max(1, ratingDepth - 1), plannedTaskMs, engineOptions),
-      )
-      : NaN;
-    const userMover = toMoverScore(userEvalWhite, moverTurn);
-    const isExactBest = Boolean(candidateMove && best && moveToUci(candidateMove) === moveToUci(best));
-    const scored = scoreMoveAgainstBest(bestMover, userMover, STATE.scoringSystem, { exactBest: isExactBest });
-    const hit = Boolean(candidateMove && Number.isFinite(scored.diff) && scored.diff <= hitThreshold);
-
-    evaluatedMoves.push({
-      move: candidateMove,
-      noMoveReason,
-      userMover,
-      scored,
-      hit,
-      userSan: candidateMove ? moveToSan(base, candidateMove) : "",
-      userEvalText: evaluationToText(decodeEvaluation(userMover)),
-    });
-  }
-  emitProgress(1, "evaluation_complete", { elapsedMs: Date.now() - overallStartMs, targetMs: totalBudgetMs });
-
-  return {
-    best,
-    game,
-    bestMover,
-    gameMover,
-    bestSan: best ? moveToSan(base, best) : position.bestMoveSan || "-",
-    gameSan: game ? moveToSan(base, game) : position.gameMoveSan || "-",
-    bestEvalText: evaluationToText(decodeEvaluation(bestMover)),
-    gameEvalText: Number.isFinite(gameMover) ? evaluationToText(decodeEvaluation(gameMover)) : position.gameEvalText || t("common.notAvailable"),
-    hitThreshold,
-    evaluatedMoves,
-  };
-}
-
+// The round flow: the answer is scored against the engine (evaluateRoundAnswers),
+// the result is drawn, the round is announced on the bus ("round:completed", one
+// record per player) and the person can move on.
 async function resolveRound(move, options = {}) {
   if (STATE.roundSubmitted || STATE.isResolvingRound) return;
   const sessionToken = STATE.sessionToken;
@@ -5057,53 +5861,46 @@ async function resolveRound(move, options = {}) {
   STATE.isResolvingRound = true;
   const duelFirstTurn = isDuelMode() && STATE.duel.currentPlayer === 0;
   try {
-    const { ratingDepth, ratingMoveTimeMs, position, base, noMove, noMoveReason } =
+    const { position, base, noMove, noMoveReason, timeSpentMs, hintsUsed } =
       prepareRoundResolutionContext(move, options, duelFirstTurn);
 
     if (duelFirstTurn) {
-      handleDuelFirstTurnHandoff(base, position, move, noMoveReason);
+      handleDuelFirstTurnHandoff(base, position, move, noMoveReason, { timeSpentMs, hintsUsed });
       return;
     }
 
     showEvaluatingMoveOnBoard(move, noMove, noMoveReason);
 
-    const movesToEvaluate = buildMovesToEvaluate(move, noMoveReason);
+    const answers = buildAnswersToEvaluate(move, noMoveReason, { timeSpentMs, hintsUsed });
+    const plan = getRoundEvaluationPlan(base, position, answers.length);
+    const evaluationVisibleStartedAt = beginRoundEvaluationOverlay(plan);
 
-    const { roundPlan, evaluationVisibleStartedAt } = beginRoundEvaluationOverlay(base, position, ratingMoveTimeMs);
+    await waitForEngineToLoad();
+    if (!isCurrentSessionWork(sessionToken)) return;
 
-    const evaluation = await evaluateRoundMovesForPosition(
-      base,
-      position,
-      movesToEvaluate,
-      ratingDepth,
-      ratingMoveTimeMs,
-      {
-        totalBudgetMs: roundPlan.totalBudgetMs,
-        maxTotalMs: ROUND_EVAL_MAX_TOTAL_MS,
-        minTaskMs: ROUND_EVAL_MIN_TASK_MS,
-        onProgress: (payload = {}) => {
-          const ratio = clamp(Number(payload.ratio) || 0, 0, 1);
-          const elapsedTotalMs = Math.max(0, Number(payload.elapsedTotalMs) || 0);
-          const pct = Math.round(ratio * 100);
-          const progressLabel = t("overlay.progressLabel", {
-            pct,
-            elapsed: (elapsedTotalMs / 1000).toFixed(1),
-            total: (roundPlan.totalBudgetMs / 1000).toFixed(1),
-          });
-          setPositionSearchProgress(ratio, progressLabel);
-        },
+    const evaluation = await evaluateRoundAnswers(base, position, answers, plan, {
+      onProgress: (payload = {}) => {
+        const ratio = clamp(Number(payload.ratio) || 0, 0, 1);
+        const elapsedTotalMs = Math.max(0, Number(payload.elapsedTotalMs) || 0);
+        setPositionSearchProgress(ratio, t("overlay.progressLabel", {
+          pct: Math.round(ratio * 100),
+          elapsed: (elapsedTotalMs / 1000).toFixed(1),
+          total: (plan.totalBudgetMs / 1000).toFixed(1),
+        }));
       },
-    );
+    });
+    // null: the work was cancelled (a new session, or leaving the game).
+    if (!evaluation || !isCurrentSessionWork(sessionToken)) return;
 
-    const baseResult = await settleRoundEvaluationVisibility(sessionToken, evaluation, evaluationVisibleStartedAt);
-    if (!baseResult) return;
+    const stillCurrent = await settleRoundEvaluationVisibility(sessionToken, evaluationVisibleStartedAt);
+    if (!stillCurrent) return;
 
     if (!isDuelMode()) {
-      renderSoloRoundOutcome(move, noMove, noMoveReason, base, position, evaluation, baseResult);
+      renderSoloRoundOutcome(base, position, evaluation);
       return;
     }
 
-    renderDuelRoundOutcome(base, position, evaluation, baseResult);
+    renderDuelRoundOutcome(base, position, evaluation);
   } catch (error) {
     if (!isCurrentSessionWork(sessionToken)) return;
     hidePositionSearchOverlay();
@@ -5116,10 +5913,30 @@ async function resolveRound(move, options = {}) {
     skipBtn.disabled = false;
     nextBtn.disabled = true;
     setUiPhase("playing", false);
+    // The answer was not scored, so the round goes back to how it was. A revealed
+    // move is taken back one level (it stays on the screen of the person who saw it
+    // and still costs what the second hint cost).
+    if (STATE.hint && STATE.hint.level >= 3) {
+      STATE.hint.level = 2;
+      STATE.hintsUsed = 2;
+    }
     startRoundTimer();
+    updateHintButton();
   } finally {
     STATE.isResolvingRound = false;
   }
+}
+
+// Someone answering before the strong engine has finished loading waits for it
+// (the overlay is up, with its carousel), but only as long as the session
+// promised: after that the fallback scores the round and the download carries on.
+async function waitForEngineToLoad() {
+  if (STATE.engine.mode === "stockfish" && STATE.engine.ready) return;
+  const loading = engineLoad;
+  if (!loading) return;
+  const startedAt = STATE.session ? STATE.session.startedAt : Date.now();
+  const remainingMs = Math.max(1500, startedAt + ENGINE_SESSION_WAIT_MS - Date.now());
+  await Promise.race([loading, sleepMs(remainingMs)]);
 }
 
 // Puts the board back to the position the round started from. The played move
@@ -5141,31 +5958,36 @@ function restoreBoardToRoundStart() {
 // Computes per-round config, snapshots the starting position, and resets
 // selection/legal-move UI state before a round is evaluated.
 function prepareRoundResolutionContext(move, options, duelFirstTurn) {
-  const { depth: ratingDepth, moveTimeMs: ratingMoveTimeMs } = getRatingConfig();
   const position = STATE.positions[STATE.index];
   const base = new Chess(position.fen);
   const noMove = !move;
   const noMoveReason = noMove ? (options.noMoveReason || "no_move") : "";
-  const playerIdx = STATE.duel.currentPlayer;
-  const playerName = duelPlayerName(playerIdx);
+  const limitMs = isUntimedSession() ? 0 : Math.max(0, STATE.timer.durationMs);
+  const elapsedMs = STATE.roundStartedAt ? Math.max(0, Date.now() - STATE.roundStartedAt) : 0;
+  const timeSpentMs = Math.round(limitMs > 0 ? Math.min(elapsedMs, limitMs) : elapsedMs);
+  const hintsUsed = clamp(Math.round(Number(STATE.hintsUsed) || 0), 0, 3);
 
   STATE.userMove = move || null;
   STATE.selection = null;
   STATE.legalMoves = [];
   skipBtn.disabled = true;
+  if (hintBtn) hintBtn.disabled = true;
   setUiPhase(duelFirstTurn ? "handoff_wait_eval" : "playing", true);
 
-  return { ratingDepth, ratingMoveTimeMs, position, base, noMove, noMoveReason };
+  return { position, base, noMove, noMoveReason, timeSpentMs, hintsUsed };
 }
 
 // Duel mode, player 1's turn: stash their pending move without evaluating it
 // yet, and hand the board off to player 2 to play their reply.
-function handleDuelFirstTurnHandoff(base, position, move, noMoveReason) {
+function handleDuelFirstTurnHandoff(base, position, move, noMoveReason, extra = {}) {
   STATE.duel.roundResults[0] = {
     pendingMove: move ? { ...move } : null,
     noMoveReason,
     userMove: snapshotMove(move),
+    timeSpentMs: extra.timeSpentMs || 0,
+    hintsUsed: extra.hintsUsed || 0,
   };
+  if (move) playSound("move");
   STATE.board = new Chess(position.fen);
   setBoardPerspective(base.turn);
   STATE.selection = null;
@@ -5180,6 +6002,7 @@ function handleDuelFirstTurnHandoff(base, position, move, noMoveReason) {
   nextBtn.textContent = t("buttons.nextPosition");
   nextBtn.disabled = true;
   skipBtn.disabled = true;
+  updateHintButton();
   setThinkingMode(false);
   renderSessionProgress();
   updateScoreDisplay();
@@ -5200,134 +6023,341 @@ function showEvaluatingMoveOnBoard(move, noMove, noMoveReason) {
     STATE.board.makeMove(move);
     STATE.revealed = { ...STATE.revealed, user: move };
     renderBoard();
+    let sound = "move";
+    if (STATE.board.inCheck(STATE.board.turn)) sound = "check";
+    else if (move.capture || move.enPassant) sound = "capture";
+    playSound(sound);
   }
 }
 
-// Builds the list of moves the engine needs to score for this round: one
-// move in solo mode, or both players' moves in duel mode.
-function buildMovesToEvaluate(move, noMoveReason) {
-  const movesToEvaluate = [];
-  if (!isDuelMode()) {
-    movesToEvaluate.push({ move, noMoveReason });
-  } else {
-    const p1Pending = STATE.duel.roundResults[0];
-    const p1Move = p1Pending && p1Pending.pendingMove ? { ...p1Pending.pendingMove } : null;
-    const p1NoMoveReason = p1Move ? "" : (p1Pending?.noMoveReason || "no_move");
-    movesToEvaluate.push({ move: p1Move, noMoveReason: p1NoMoveReason });
-    movesToEvaluate.push({ move, noMoveReason });
-  }
-  return movesToEvaluate;
+// Builds the answers the engine needs to score for this round: one in solo
+// mode, or both players' in duel mode (scored against the same reference, in
+// one pass). Each carries what Ludus.Scoring needs besides the move: the hints
+// used and how long the person took.
+function buildAnswersToEvaluate(move, noMoveReason, extra = {}) {
+  const current = { move, noMoveReason, hintsUsed: extra.hintsUsed || 0, timeSpentMs: extra.timeSpentMs || 0 };
+  if (!isDuelMode()) return [{ ...current, playerIndex: 0 }];
+  const p1Pending = STATE.duel.roundResults[0];
+  const p1Move = p1Pending && p1Pending.pendingMove ? { ...p1Pending.pendingMove } : null;
+  return [
+    {
+      move: p1Move,
+      noMoveReason: p1Move ? "" : (p1Pending?.noMoveReason || "no_move"),
+      hintsUsed: p1Pending?.hintsUsed || 0,
+      timeSpentMs: p1Pending?.timeSpentMs || 0,
+      playerIndex: 0,
+    },
+    { ...current, playerIndex: 1 },
+  ];
 }
 
-// Works out the search-difficulty plan for this round and shows the
-// "searching" overlay with its progress bar before the engine call starts.
-function beginRoundEvaluationOverlay(base, position, ratingMoveTimeMs) {
+// Shows the "searching" overlay with its progress bar before the engine work
+// starts; a wait that turns out long gets the curiosity carousel.
+function beginRoundEvaluationOverlay(plan) {
   const evaluationTitle = isDuelMode()
     ? t("overlay.evaluatingBoth")
     : t("overlay.evaluatingYours");
-  const roundPlan = getRoundEvaluationPlan(base, position, ratingMoveTimeMs);
-  const budgetLabel = `${(roundPlan.totalBudgetMs / 1000).toFixed(1)}s max`;
+  const budgetLabel = `${(plan.totalBudgetMs / 1000).toFixed(1)}s max`;
   showPositionSearchOverlay(
     evaluationTitle,
-    t("overlay.difficultyBudget", { label: t(`difficulty.${roundPlan.label}`), budget: budgetLabel }),
+    t("overlay.difficultyBudget", { label: t(`difficulty.${plan.label}`), budget: budgetLabel }),
     {
       showProgress: true,
       progressRatio: 0,
       progressLabel: t("overlay.progressLabel", {
         pct: 0,
         elapsed: "0.0",
-        total: (roundPlan.totalBudgetMs / 1000).toFixed(1),
+        total: (plan.totalBudgetMs / 1000).toFixed(1),
       }),
+      facts: true,
+      factsDelayMs: OVERLAY_FACTS_DELAY_MS,
     },
   );
-  startRoundThinkingMessages(roundPlan.level);
-  const evaluationVisibleStartedAt = Date.now();
-  return { roundPlan, evaluationVisibleStartedAt };
+  return Date.now();
 }
 
-// After the engine call resolves: bail out silently if a newer session has
-// since started, otherwise wait out the minimum "visible thinking" time,
-// compute the fallback base result, and hide the search overlay.
-// Returns null when the caller should stop (stale session work).
-async function settleRoundEvaluationVisibility(sessionToken, evaluation, evaluationVisibleStartedAt) {
-  if (!isCurrentSessionWork(sessionToken)) return null;
+// After the evaluation: keep the overlay up just long enough not to flash (the
+// person still sees that something was evaluated), then take it down. Returns
+// false when a newer session has taken over meanwhile.
+async function settleRoundEvaluationVisibility(sessionToken, evaluationVisibleStartedAt) {
+  if (!isCurrentSessionWork(sessionToken)) return false;
   const evaluationVisibleElapsedMs = Date.now() - evaluationVisibleStartedAt;
-  if (evaluationVisibleElapsedMs < MIN_ROUND_EVAL_VISIBLE_MS) {
-    await sleepMs(MIN_ROUND_EVAL_VISIBLE_MS - evaluationVisibleElapsedMs);
+  const minVisibleMs = timingOverrides.minEvalVisibleMs !== null ? timingOverrides.minEvalVisibleMs : MIN_ROUND_EVAL_VISIBLE_MS;
+  if (evaluationVisibleElapsedMs < minVisibleMs) {
+    await sleepMs(minVisibleMs - evaluationVisibleElapsedMs);
   }
-  if (!isCurrentSessionWork(sessionToken)) return null;
-  const baseResult = evaluation.evaluatedMoves[0] || {
-    move: null,
-    noMoveReason: "no_move",
-    userMover: NaN,
-    scored: scoreMoveAgainstBest(evaluation.bestMover, NaN, STATE.scoringSystem),
-    hit: false,
-    userSan: "",
-    userEvalText: t("common.notAvailable"),
-  };
-
+  if (!isCurrentSessionWork(sessionToken)) return false;
   hidePositionSearchOverlay();
   setThinkingMode(false);
+  return true;
+}
 
-  return baseResult;
+// ---------- After the evaluation: the result, the records, the events ----------
+
+function roundScore(value) {
+  return Math.round(value * 100) / 100;
+}
+
+// A sound for how the round went (Audio honours the settings itself).
+function playResultSound(answer) {
+  if (!answer) return;
+  if (!answer.uci) {
+    if (answer.reason === "timeout") playSound("wrong");
+    return;
+  }
+  const quality = answer.assessment.qualityCode;
+  if (quality === "brilliant" || quality === "great") playSound("great");
+  else if (answer.hit) playSound("correct");
+  else if (answer.assessment.accuracy < 40) playSound("wrong");
+}
+
+function positionSourceOf(position) {
+  if (["own", "classic", "notebook", "daily"].includes(position.source)) return position.source;
+  const kind = STATE.session ? STATE.session.kind : "own";
+  if (kind === "review") return "notebook";
+  return ["classic", "daily"].includes(kind) ? kind : "own";
+}
+
+// The profile a player's rounds are recorded for: the person at the device in
+// solo, the linked profile of each player in a duel (null for a guest, whom
+// Profile does not record).
+function sessionProfileId(playerIndex) {
+  const ids = STATE.session && Array.isArray(STATE.session.profileIds) ? STATE.session.profileIds : [];
+  return (isDuelMode() ? ids[playerIndex === 1 ? 1 : 0] : ids[0]) || null;
+}
+
+function activeProfileId() {
+  const profile = ludusModule("Profile");
+  try {
+    const active = profile && typeof profile.active === "function" ? profile.active() : null;
+    return active && active.id ? active.id : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function insightTexts(insights) {
+  const insightsApi = ludusModule("Insights");
+  try {
+    return insightsApi && insights && Array.isArray(insights.messages) ? insightsApi.renderMessages(insights.messages, STATE.language) : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+// Everything the result panel needs, kept on STATE.resultView.context so a
+// coach panel can draw it without computing anything again: the full
+// assessment(s), the lines (SAN, with their evaluation), the insight messages,
+// the move of the game, and the curiosity of the round.
+function buildRoundContext(kind, position, evaluation) {
+  const answers = evaluation.answers.map((answer) => ({
+    playerIndex: answer.playerIndex,
+    name: isDuelMode() ? duelPlayerName(answer.playerIndex) : "",
+    uci: answer.uci,
+    san: answer.san,
+    move: snapshotMove(answer.move),
+    noMoveReason: answer.noMoveReason,
+    reason: answer.reason,
+    hintsUsed: answer.hintsUsed,
+    timeSpentMs: answer.timeSpentMs,
+    provisional: answer.provisional,
+    hit: answer.hit,
+    isSacrifice: answer.isSacrifice,
+    userScore: answer.userScore,
+    assessment: answer.assessment,
+    insights: {
+      tags: answer.insights.tags || [],
+      messages: answer.insights.messages || [],
+      conceptIds: answer.insights.conceptIds || [],
+      phase: answer.insights.phase || null,
+      verdict: answer.insights.verdict || "unknown",
+      texts: insightTexts(answer.insights),
+    },
+  }));
+  const primary = answers[answers.length - 1];
+  return {
+    kind,
+    round: STATE.index + 1,
+    positionId: position.id || "",
+    fen: position.fen,
+    source: positionSourceOf(position),
+    best: { uci: evaluation.bestUci, san: evaluation.bestSan, score: evaluation.bestScore, evalText: evaluation.bestEvalText },
+    master: evaluation.master,
+    lines: evaluation.linesView,
+    answers,
+    assessment: primary.assessment,
+    assessments: answers.map((entry) => entry.assessment),
+    insights: primary.insights,
+    fact: pickCuriosity(),
+    engine: { source: evaluation.source, origin: evaluation.origin, depth: evaluation.depth, movetimeMs: evaluation.plan.movetimeMs },
+    hintsUsed: primary.hintsUsed,
+    points: primary.assessment.points,
+    maxPoints: primary.assessment.maxPoints,
+    session: STATE.session ? { id: STATE.session.id, kind: STATE.session.kind, title: STATE.session.title } : null,
+  };
+}
+
+// The RoundRecord of section 9 of docs/ARCHITECTURE.md.
+function buildRoundRecord(position, base, evaluation, answer) {
+  const session = STATE.session;
+  const assessment = answer.assessment;
+  const source = positionSourceOf(position);
+  const meta = position.meta && typeof position.meta === "object" ? position.meta : {};
+  const trusted = evaluation.trustedLines;
+  const record = {
+    id: Ludus.util.uid("r_"),
+    ts: Date.now(),
+    profileId: sessionProfileId(answer.playerIndex),
+    sessionId: session ? session.id : "",
+    sessionKind: session ? session.kind : "own",
+    source,
+    positionId: position.id || `${source}:${Ludus.util.hashString(position.fen)}`,
+    fen: position.fen,
+    sideToMove: base.turn,
+    phase: (answer.insights && answer.insights.phase) || position.phase || getGamePhase(base),
+    userUci: answer.uci,
+    userSan: answer.san || "",
+    bestUci: trusted ? evaluation.bestUci : null,
+    bestSan: trusted ? evaluation.bestSan : "",
+    points: assessment.points,
+    accuracy: assessment.accuracy,
+    qualityCode: assessment.qualityCode,
+    winLossPct: assessment.winLossPct,
+    cpLoss: assessment.cpLoss,
+    isBest: assessment.isBest,
+    rank: assessment.rank,
+    onlyMove: assessment.onlyMove,
+    timeSpentMs: answer.timeSpentMs,
+    hintsUsed: answer.hintsUsed,
+    timedOut: answer.reason === "timeout",
+    tags: answer.insights && Array.isArray(answer.insights.tags) ? answer.insights.tags.slice(0, 12) : [],
+    lines: trusted ? compactLines(position.fen, evaluation.lines) : [],
+    meta: {
+      players: meta.players,
+      event: meta.event,
+      year: meta.year,
+      site: meta.site,
+      eco: meta.eco,
+      result: meta.result,
+      moveNumber: meta.moveNumber,
+      sideToMove: base.turn,
+    },
+  };
+  if (evaluation.master) {
+    record.masterUci = evaluation.master.uci;
+    record.masterSan = evaluation.master.san;
+  }
+  // A notebook position is graded by Profile itself when it records a round of
+  // source "notebook" (the card is the position): nothing else to call.
+  if (position.cardId) record.cardId = position.cardId;
+  return record;
+}
+
+function profileLevelNumber(profileId) {
+  if (!profileId) return 0;
+  const profile = ludusModule("Profile");
+  try {
+    const stats = profile && typeof profile.stats === "function" ? profile.stats(profileId) : null;
+    return stats && stats.level ? Number(stats.level.level) || 0 : 0;
+  } catch (error) {
+    return 0;
+  }
+}
+
+function celebrateLevelUp(profileId) {
+  const profile = ludusModule("Profile");
+  let title = "";
+  try {
+    const stats = profile && typeof profile.stats === "function" ? profile.stats(profileId) : null;
+    title = stats && stats.level && stats.level.title ? stats.level.title : "";
+  } catch (error) {
+    title = "";
+  }
+  showToast(t("core.toast.levelUp", { title }), { kind: "levelup" });
+  playSound("levelup", { delay: 0.3 });
+}
+
+// Announces a round on the bus (Profile.attach records it) and notices a level
+// up: the result of recordRound is not returned through the bus, so the level
+// is compared before and after.
+function emitRoundCompleted(record) {
+  const levelBefore = profileLevelNumber(record.profileId);
+  busEmit("round:completed", { round: record });
+  const levelAfter = profileLevelNumber(record.profileId);
+  if (levelBefore > 0 && levelAfter > levelBefore) celebrateLevelUp(record.profileId);
+}
+
+// A daily challenge position: finishing the round completes the day.
+function completeDailyChallenge(dailyKey, accuracy, profileId) {
+  const profile = ludusModule("Profile");
+  try {
+    if (!profile || !profile.daily || typeof profile.daily.complete !== "function") return;
+    const result = profile.daily.complete(dailyKey, accuracy, profileId || undefined);
+    if (result && result.levelUp) celebrateLevelUp(profileId);
+  } catch (error) {
+    console.error("[Ludus] the daily challenge could not be completed", error);
+  }
+}
+
+function recordRoundOutcome(position, base, evaluation) {
+  evaluation.answers.forEach((answer) => {
+    let record = null;
+    try {
+      record = buildRoundRecord(position, base, evaluation, answer);
+    } catch (error) {
+      console.error("[Ludus] the round record could not be built", error);
+      return;
+    }
+    if (STATE.session) {
+      STATE.session.records.push({
+        playerIndex: answer.playerIndex,
+        points: record.points,
+        accuracy: record.accuracy,
+        qualityCode: record.qualityCode,
+        isBest: record.isBest,
+        roundId: record.id,
+      });
+    }
+    emitRoundCompleted(record);
+    if (position.dailyKey && !isDuelMode()) completeDailyChallenge(position.dailyKey, record.accuracy, record.profileId);
+  });
 }
 
 // Solo mode: renders the result board/feedback table, updates the score and
 // history, and leaves the UI ready for the next position.
-function renderSoloRoundOutcome(move, noMove, noMoveReason, base, position, evaluation, baseResult) {
+function renderSoloRoundOutcome(base, position, evaluation) {
+  const answer = evaluation.answers[0];
+  const assessment = answer.assessment;
   STATE.board = new Chess(position.fen);
   setBoardPerspective(base.turn);
   STATE.selection = null;
   STATE.legalMoves = [];
-  STATE.revealed = { best: null, game: null, user: move || null, userAlt: null };
+  // Someone who was shown the move (the last hint) sees its arrow again.
+  STATE.revealed = {
+    best: answer.hintsUsed >= 3 ? snapshotMove(evaluation.best) : null,
+    game: null,
+    user: answer.move || null,
+    userAlt: null,
+  };
   captureResultSnapshot(position.fen);
   renderBoard();
-  renderRoundFeedbackTable(
-    evaluation.bestSan,
-    evaluation.bestEvalText,
-    evaluation.gameSan,
-    evaluation.gameEvalText,
-    baseResult.userSan,
-    baseResult.userEvalText,
-    evaluation.bestMover,
-    evaluation.gameMover,
-    baseResult.userMover,
-    baseResult.scored,
-    baseResult.noMoveReason,
-    { mode: "solo", hitThreshold: evaluation.hitThreshold },
-  );
-  STATE.resultView.context = {
-    kind: "round_solo",
-    bestSan: evaluation.bestSan,
-    gameSan: evaluation.gameSan,
-    bestMover: evaluation.bestMover,
-    gameMover: evaluation.gameMover,
-    userMover: baseResult.userMover,
-    scored: baseResult.scored,
-    noMoveReason: baseResult.noMoveReason,
-    userSan: baseResult.userSan || "",
-    userMove: snapshotMove(move),
-    hitThreshold: evaluation.hitThreshold,
-  };
-  const soloRoundSummary = noMove
-    ? (noMoveReason === "timeout" ? t("evaluation.timeoutZeroPts") : t("evaluation.noMoveMadeZeroPts"))
-    : t("evaluation.wonPoints", { points: formatSigned(baseResult.scored.points) });
-  showResultOverlay(t("game.result.yourMove"), soloRoundSummary, baseResult.scored?.qualityCode);
+  STATE.resultView.context = buildRoundContext("round_solo", position, evaluation);
+  renderSoloResultPanels(STATE.resultView.context);
   setUiPhase("result", true);
-  STATE.score = Math.round((STATE.score + baseResult.scored.points) * 100) / 100;
+  STATE.score = roundScore(STATE.score + assessment.points);
   STATE.sessionPlayed += 1;
-  if (baseResult.hit) STATE.sessionHits += 1;
+  if (answer.hit) STATE.sessionHits += 1;
   pushHistoryEntry({
     round: STATE.index + 1,
     mode: "solo",
     fen: position.fen,
     meta: position.meta,
     bestSan: evaluation.bestSan,
-    gameSan: evaluation.gameSan,
-    userSan: baseResult.userSan || "",
+    gameSan: evaluation.master ? evaluation.master.san : (position.gameMoveSan || "-"),
+    userSan: answer.san || "",
     bestMove: snapshotMove(evaluation.best),
     gameMove: snapshotMove(evaluation.game),
-    userMove: snapshotMove(move),
+    userMove: snapshotMove(answer.move),
   });
   nextBtn.textContent = t("buttons.nextPosition");
   nextBtn.disabled = false;
@@ -5337,35 +6367,20 @@ function renderSoloRoundOutcome(move, noMove, noMoveReason, base, position, eval
   updateScoreDisplay();
   updateCompetitiveStatus();
   setScoringInfoVisible(true);
+  updateHintButton();
+  playResultSound(answer);
+  recordRoundOutcome(position, base, evaluation);
 }
 
 // Duel mode: builds both players' results, updates duel scores/hits, renders
 // the comparison feedback table, and leaves the UI ready for the next position.
-function renderDuelRoundOutcome(base, position, evaluation, baseResult) {
-  const secondResult = evaluation.evaluatedMoves[1] || baseResult;
-  const p1 = duelPlayerName(0);
-  const p2 = duelPlayerName(1);
-  const r1 = {
-    points: baseResult.scored.points,
-    diff: baseResult.scored.diff,
-    qualityCode: baseResult.scored.qualityCode,
-    bestSan: evaluation.bestSan,
-    userSan: baseResult.userSan,
-    userMove: snapshotMove(baseResult.move),
-    hit: baseResult.hit,
-  };
-  const r2 = {
-    points: secondResult.scored.points,
-    diff: secondResult.scored.diff,
-    qualityCode: secondResult.scored.qualityCode,
-    bestSan: evaluation.bestSan,
-    userSan: secondResult.userSan,
-    userMove: snapshotMove(secondResult.move),
-    hit: secondResult.hit,
-  };
+function renderDuelRoundOutcome(base, position, evaluation) {
+  const [first, second] = evaluation.answers;
+  const r1 = { points: first.assessment.points, hit: first.hit, userMove: snapshotMove(first.move) };
+  const r2 = { points: second.assessment.points, hit: second.hit, userMove: snapshotMove(second.move) };
   STATE.duel.roundResults = [r1, r2];
-  STATE.duel.scores[0] = Math.round((STATE.duel.scores[0] + (r1.points || 0)) * 100) / 100;
-  STATE.duel.scores[1] = Math.round((STATE.duel.scores[1] + (r2.points || 0)) * 100) / 100;
+  STATE.duel.scores[0] = roundScore(STATE.duel.scores[0] + (r1.points || 0));
+  STATE.duel.scores[1] = roundScore(STATE.duel.scores[1] + (r2.points || 0));
   if (r1.hit) STATE.duel.hits[0] += 1;
   if (r2.hit) STATE.duel.hits[1] += 1;
 
@@ -5376,85 +6391,15 @@ function renderDuelRoundOutcome(base, position, evaluation, baseResult) {
   STATE.revealed = {
     best: null,
     game: null,
-    user: secondResult.move || null,
+    user: second.move || null,
     userAlt: r1.userMove || null,
   };
   captureResultSnapshot(position.fen);
   renderBoard();
   hideHandoffOverlay();
-  renderRoundFeedbackTable(
-    evaluation.bestSan,
-    evaluation.bestEvalText,
-    evaluation.gameSan,
-    evaluation.gameEvalText,
-    secondResult.userSan,
-    secondResult.userEvalText,
-    evaluation.bestMover,
-    evaluation.gameMover,
-    secondResult.userMover,
-    secondResult.scored,
-    secondResult.noMoveReason,
-    {
-      mode: "duel",
-      duel: {
-        player1: {
-          name: p1,
-          san: r1.userSan,
-          qualityCode: r1.qualityCode,
-          points: r1.points,
-          diff: r1.diff,
-          hit: r1.hit,
-        },
-        player2: {
-          name: p2,
-          san: r2.userSan,
-          qualityCode: r2.qualityCode,
-          points: r2.points,
-          diff: r2.diff,
-          hit: r2.hit,
-        },
-      },
-    },
-  );
-  STATE.resultView.context = {
-    kind: "round_duel",
-    round: STATE.index + 1,
-    bestSan: evaluation.bestSan,
-    gameSan: evaluation.gameSan,
-    bestMover: evaluation.bestMover,
-    gameMover: evaluation.gameMover,
-    currentUserMover: secondResult.userMover,
-    currentScored: secondResult.scored,
-    currentNoMoveReason: secondResult.noMoveReason,
-    player1: {
-      name: p1,
-      san: r1.userSan,
-      qualityCode: r1.qualityCode,
-      points: r1.points,
-      diff: r1.diff,
-      hit: r1.hit,
-    },
-    player2: {
-      name: p2,
-      san: r2.userSan,
-      qualityCode: r2.qualityCode,
-      points: r2.points,
-      diff: r2.diff,
-      hit: r2.hit,
-    },
-  };
-  const duelBestQuality = r1.points >= r2.points ? r1.qualityCode : r2.qualityCode;
-  showResultOverlay(
-    t("game.result.positionSolved"),
-    `R${STATE.index + 1}: ${p1} ${formatSigned(r1.points)} · ${p2} ${formatSigned(r2.points)}`,
-    duelBestQuality
-  );
+  STATE.resultView.context = buildRoundContext("round_duel", position, evaluation);
+  renderDuelResultPanels(STATE.resultView.context);
   if (roundResultPanelEl) roundResultPanelEl.classList.remove("hidden");
-
-  let winnerText = t("game.comparison.tie");
-  if (r1.points > r2.points) winnerText = t("game.comparison.advantage", { player: p1 });
-  if (r2.points > r1.points) winnerText = t("game.comparison.advantage", { player: p2 });
-  roundResultEl.insertAdjacentHTML("afterbegin", `<p class="result-summary-line">${escapeHtml(winnerText)}</p>`);
   STATE.sessionPlayed += 1;
   pushHistoryEntry({
     round: STATE.index + 1,
@@ -5462,13 +6407,13 @@ function renderDuelRoundOutcome(base, position, evaluation, baseResult) {
     fen: position.fen,
     meta: position.meta,
     bestSan: evaluation.bestSan,
-    gameSan: evaluation.gameSan,
+    gameSan: evaluation.master ? evaluation.master.san : (position.gameMoveSan || "-"),
     bestMove: snapshotMove(evaluation.best),
     gameMove: snapshotMove(evaluation.game),
-    player1Name: p1,
-    player2Name: p2,
-    player1San: r1.userSan,
-    player2San: r2.userSan,
+    player1Name: duelPlayerName(0),
+    player2Name: duelPlayerName(1),
+    player1San: first.san,
+    player2San: second.san,
     player1Move: r1.userMove,
     player2Move: r2.userMove,
   });
@@ -5481,6 +6426,90 @@ function renderDuelRoundOutcome(base, position, evaluation, baseResult) {
   updateScoreDisplay();
   updateCompetitiveStatus();
   setScoringInfoVisible(true);
+  updateHintButton();
+  playResultSound(r1.points >= r2.points ? first : second);
+  recordRoundOutcome(position, base, evaluation);
+}
+
+// The end of a session: builds its record, announces it ("session:completed") and
+// shows the closing summary in place of the round result.
+function showSessionSummary({ noMorePositions = false } = {}) {
+  const record = finishSession();
+  if (roundResultEl) roundResultEl.classList.add("hidden");
+  if (resultAnalysisBtn) resultAnalysisBtn.classList.add("hidden");
+  if (nextBtn) nextBtn.classList.add("hidden");
+
+  if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
+  STATE.resultView.context = { kind: "session_summary", noMorePositions, session: record };
+  if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = sessionSummaryScoreText();
+  if (summaryDetailsTextEl) {
+    summaryDetailsTextEl.textContent = finalSessionSummaryText() + (noMorePositions ? ` ${t("game.noMorePositions")}` : "");
+  }
+  if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
+
+  roundStatusEl.textContent = t("game.sessionDone");
+  skipBtn.disabled = true;
+  stopRoundTimer();
+  setThinkingMode(false);
+  updateCompetitiveStatus();
+  setScoringInfoVisible(true);
+  setUiPhase("result", true);
+  updateHintButton();
+
+  // Show only the summary card overlay
+  revealResultOverlay();
+  if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden"); // Hide normal layout
+  updateRoundTimerUi(0);
+  renderBoardArrows();
+}
+
+// The SessionRecord of section 9 (docs/ARCHITECTURE.md), emitted once. In a duel
+// the totals count both players and `duel` carries each player's score and
+// linked profile (Profile stores the session for every linked profile).
+function finishSession() {
+  const session = STATE.session;
+  if (!session) return null;
+  if (session.completed) return session.record || null;
+  session.completed = true;
+  const scoring = ludusModule("Scoring");
+  const summary = scoring
+    ? scoring.summarize(session.records.map((entry) => ({
+      points: entry.points,
+      maxPoints: POINTS_PER_POSITION,
+      accuracy: entry.accuracy,
+      qualityCode: entry.qualityCode,
+      isBest: entry.isBest,
+    })))
+    : { points: STATE.score, maxPoints: session.records.length * POINTS_PER_POSITION, avgAccuracy: 0, byQuality: {} };
+  const byQuality = {};
+  Object.keys(summary.byQuality || {}).forEach((code) => {
+    if (summary.byQuality[code] > 0) byQuality[code] = summary.byQuality[code];
+  });
+  const record = {
+    id: session.id,
+    ts: Date.now(),
+    profileId: session.mode === "duel" ? null : (session.profileIds[0] || null),
+    kind: session.kind,
+    title: session.title,
+    mode: session.mode,
+    positions: STATE.sessionPlayed,
+    points: summary.points,
+    maxPoints: summary.maxPoints,
+    avgAccuracy: summary.avgAccuracy,
+    durationMs: Math.min(Math.max(0, Date.now() - session.startedAt), 86400000),
+    byQuality,
+    roundIds: session.records.map((entry) => entry.roundId),
+  };
+  if (session.mode === "duel") {
+    record.duel = {
+      names: [duelPlayerName(0), duelPlayerName(1)],
+      scores: [STATE.duel.scores[0], STATE.duel.scores[1]],
+      profileIds: [session.profileIds[0] || null, session.profileIds[1] || null],
+    };
+  }
+  session.record = record;
+  busEmit("session:completed", { session: record });
+  return record;
 }
 
 async function nextPosition() {
@@ -5501,57 +6530,15 @@ async function nextPosition() {
   setUiPhase("playing", false);
 
   if (STATE.index >= Math.max(1, STATE.targetPositions) - 1) {
-    if (roundResultEl) roundResultEl.classList.add("hidden");
-    if (resultAnalysisBtn) resultAnalysisBtn.classList.add("hidden");
-    if (nextBtn) nextBtn.classList.add("hidden");
-
-    if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
-    STATE.resultView.context = { kind: "session_summary", noMorePositions: false };
-    if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = sessionSummaryScoreText();
-    if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText();
-    if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
-
-    roundStatusEl.textContent = t("game.sessionDone");
-    skipBtn.disabled = true;
-    stopRoundTimer();
-    setThinkingMode(false);
-    updateCompetitiveStatus();
-    setScoringInfoVisible(true);
-    setUiPhase("result", true);
-
-    // Show only the summary card overlay
-    revealResultOverlay();
-    if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden"); // Hide normal layout
-    updateRoundTimerUi(0);
-    renderBoardArrows();
+    showSessionSummary({ noMorePositions: false });
     return;
   }
 
   if (STATE.index >= STATE.positions.length - 1) {
     const ctx = STATE.analysisContext;
     if (!ctx) {
-      if (roundResultEl) roundResultEl.classList.add("hidden");
-      if (resultAnalysisBtn) resultAnalysisBtn.classList.add("hidden");
-      if (nextBtn) nextBtn.classList.add("hidden");
-
-      if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
-      STATE.resultView.context = { kind: "session_summary", noMorePositions: false };
-      if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = sessionSummaryScoreText();
-      if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText();
-      if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
-
-      roundStatusEl.textContent = t("game.sessionDone");
-      skipBtn.disabled = true;
-      stopRoundTimer();
-      setThinkingMode(false);
-      setScoringInfoVisible(true);
-      setUiPhase("result", true);
-
-      // Show only the summary card overlay
-      revealResultOverlay();
-      if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden"); // Hide normal layout
-      updateRoundTimerUi(0);
-      renderBoardArrows();
+      // A fixed list of positions (classics, review, daily): this was the last one.
+      showSessionSummary({ noMorePositions: false });
       return;
     }
 
@@ -5559,7 +6546,7 @@ async function nextPosition() {
     skipBtn.disabled = true;
     // Do not show a duplicate loading message on the top bar
     roundStatusEl.textContent = "";
-    showPositionSearchOverlay(t("overlay.searchingNext"), "", { cancellable: true });
+    showPositionSearchOverlay(t("overlay.searchingNext"), "", { cancellable: true, facts: true });
     setUiPhase("loading_next_position", true);
     const sessionToken = STATE.sessionToken;
     const search = await findNextMistake(ctx, "Siguiente: ");
@@ -5572,28 +6559,7 @@ async function nextPosition() {
     const nextMistake = search.mistake;
     if (!nextMistake) {
       hidePositionSearchOverlay();
-      if (roundResultEl) roundResultEl.classList.add("hidden");
-      if (resultAnalysisBtn) resultAnalysisBtn.classList.add("hidden");
-      if (nextBtn) nextBtn.classList.add("hidden");
-
-      if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
-      STATE.resultView.context = { kind: "session_summary", noMorePositions: true };
-      if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = sessionSummaryScoreText();
-      if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = `${finalSessionSummaryText()} ${t("game.noMorePositions")}`;
-      if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
-
-      roundStatusEl.textContent = t("game.sessionDone");
-      skipBtn.disabled = true;
-      stopRoundTimer();
-      setThinkingMode(false);
-      setScoringInfoVisible(true);
-      setUiPhase("result", true);
-
-      // Show only the summary card overlay
-      revealResultOverlay();
-      if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden"); // Hide normal layout
-      updateRoundTimerUi(0);
-      renderBoardArrows();
+      showSessionSummary({ noMorePositions: true });
       return;
     }
     showPositionSearchOverlay(t("game.positionFound"), formatPositionSearchMeta(nextMistake));
@@ -5624,16 +6590,15 @@ function revealDuelSecondTurn() {
   startRound({ preserveDuelRoundResults: true });
 }
 
-function restartToSetup() {
-  beginSessionWork();
+// Clears everything a session left on the page: the round, the clock, the
+// overlays, the summary, the hints. It does not route anywhere.
+function resetGameSurface() {
   stopRoundTimer();
-  resetEngineToLocal();
-  STATE.ui.setupAnalyzing = false;
-  setWizardFormControlsDisabled(false);
   setThinkingMode(false);
   setScoringInfoVisible(false);
   hideHandoffOverlay();
   hidePositionSearchOverlay();
+  closePromotionPicker({ skipFocusReturn: true });
   hideResultOverlay();
 
   if (resultOverlayInnerEl) resultOverlayInnerEl.classList.remove("hidden"); // Restore normal layout exactly
@@ -5641,13 +6606,13 @@ function restartToSetup() {
   if (summaryMenuBtn) summaryMenuBtn.classList.add("hidden");
   if (roundResultEl) roundResultEl.classList.remove("hidden");
   if (resultAnalysisBtn) resultAnalysisBtn.classList.remove("hidden");
+  // The summary hides this button; without showing it again the next session
+  // would have no way to move on from a result.
+  if (nextBtn) nextBtn.classList.remove("hidden");
 
   setUiPhase("playing", false);
-  document.body.classList.remove("playing-mode");
-  setupPanelEl.classList.remove("hidden");
-  gameLayoutEl.classList.add("hidden");
-
   STATE.positions = [];
+  STATE.allMistakes = [];
   STATE.index = 0;
   STATE.selection = null;
   STATE.legalMoves = [];
@@ -5655,31 +6620,79 @@ function restartToSetup() {
   STATE.board = null;
   STATE.roundSubmitted = false;
   STATE.isResolvingRound = false;
-  STATE.revealed = { best: false, game: false, user: true, userAlt: true };
+  STATE.revealed = { best: null, game: null, user: null, userAlt: null };
+  STATE.analysisContext = null;
+  STATE.historyEntries = [];
+  STATE.historySelectedIdx = -1;
   if (revealBestBtn) revealBestBtn.classList.remove("revealed-state");
   if (revealGameBtn) revealGameBtn.classList.remove("revealed-state");
+  STATE.score = 0;
   STATE.sessionPlayed = 0;
   STATE.sessionHits = 0;
+  resetHintState();
   resetDuelState();
+  renderHistoryList();
+  renderSessionTitle();
   renderSessionProgress();
   updateScoreDisplay();
   updateCompetitiveStatus();
+  updateHintButton();
   if (roundResultPanelEl) roundResultPanelEl.classList.add("hidden");
-  roundResultEl.innerHTML = "";
-  analysisStatusEl.textContent = t("wizard.status.currentStep");
+  if (roundResultEl) roundResultEl.innerHTML = "";
+  if (skipBtn) skipBtn.disabled = true;
+  if (nextBtn) nextBtn.disabled = true;
+}
+
+// Ends whatever is going on, without recording it as a completed session: the
+// round timer, the engine work, downloads in flight, overlays, and the session
+// itself. Rounds already played were recorded as they were played. The strong
+// engine is dropped too (it is loaded again when someone is about to play)
+// unless a new session is about to start, which will need it.
+function abortSessionInternal({ keepEngine = false } = {}) {
+  beginSessionWork();
+  abortEngineWork();
+  if (!keepEngine) resetEngineToLocal();
+  STATE.session = null;
+  STATE.ui.setupAnalyzing = false;
+  STATE.ui.searchCancelRequested = true;
+  stopWizardFacts();
+  setWizardFormControlsDisabled(false);
+  resetGameSurface();
+  STATE.scoringOverride = null;
+  if (analysisProgressWrapEl) analysisProgressWrapEl.classList.add("hidden");
+}
+
+// The wizard was left while it was still searching (the router hides "setup"):
+// the download and the search stop, nothing is left running behind the next screen.
+function cancelSetupWork() {
+  if (!STATE.ui.setupAnalyzing && !STATE.analysisInProgress) return;
+  beginSessionWork();
+  abortEngineWork();
+  STATE.ui.searchCancelRequested = true;
+  STATE.ui.setupAnalyzing = false;
+  stopWizardFacts();
+  setWizardFormControlsDisabled(false);
+  resetAnalysisProgress();
+  if (analysisProgressWrapEl) analysisProgressWrapEl.classList.add("hidden");
+  if (analysisStatusEl) analysisStatusEl.textContent = t("wizard.status.currentStep");
+  updateAnalyzeButtonState();
+}
+
+// "Volver al inicio": drops the session (and its engine), gets the wizard ready
+// for the next one and goes home.
+function restartToSetup() {
+  abortSessionInternal();
+  if (analysisStatusEl) analysisStatusEl.textContent = t("wizard.status.currentStep");
   if (playerNameDetectedEl) playerNameDetectedEl.textContent = t("players.enterUserContinue");
   resetAnalysisProgress();
-  analysisProgressWrapEl.classList.add("hidden");
-  skipBtn.disabled = true;
-  nextBtn.disabled = true;
   resetSetupWizard({
     mode: "solo",
     statusMessage: t("wizard.status.nextSession"),
   });
   updatePgnSelectionUi();
-  showLandingScreen();
   buildBoard();
   renderBoard();
+  goHome();
 }
 
 function hasActiveSessionProgress() {
@@ -5701,6 +6714,160 @@ async function confirmRestartToSetup() {
   });
 }
 
+// ---------- Sessions (Ludus.game) ----------
+// A session is a list of positions played one after the other, by one person or
+// by two on the same device. Fixed lists (classics, review, daily) go through
+// startSession(); the person's own games keep their lazy pipeline (wizard ->
+// download -> search) and join the same lifecycle when the first position is
+// found (enterPlayModeWithFirstPosition). Both announce themselves on the bus:
+// "session:started" {session}, "round:completed" {round} per answer and
+// "session:completed" {session} (see docs/ARCHITECTURE.md section 9).
+
+const SESSION_KINDS = ["own", "classic", "review", "daily"];
+
+function defaultSessionTitle(kind) {
+  return t(`core.session.default.${kind}`);
+}
+
+// The positions a session is played with: a copy of each, with what the round
+// needs filled in (an id, a source, meta). Anything that is not a playable
+// position (no FEN, an illegal FEN, no legal move) is left out.
+function normalizeSessionPositions(list, kind) {
+  const fallbackSource = kind === "review" ? "notebook" : (["classic", "daily"].includes(kind) ? kind : "own");
+  const out = [];
+  (Array.isArray(list) ? list : []).forEach((raw) => {
+    if (!raw || typeof raw !== "object" || typeof raw.fen !== "string") return;
+    let board = null;
+    try {
+      board = new Chess(raw.fen.trim());
+    } catch (error) {
+      return;
+    }
+    if (!board || board.generateMoves().length === 0) return;
+    const position = { ...raw, fen: raw.fen.trim() };
+    if (!["own", "classic", "notebook", "daily"].includes(position.source)) position.source = fallbackSource;
+    position.id = raw.id ? String(raw.id) : `${position.source}:${Ludus.util.hashString(position.fen)}`;
+    position.meta = raw.meta && typeof raw.meta === "object" ? { ...raw.meta } : {};
+    if (!position.meta.sideToMove) position.meta.sideToMove = board.turn;
+    out.push(position);
+  });
+  return out;
+}
+
+function publicSessionInfo(session) {
+  if (!session) return null;
+  return {
+    id: session.id,
+    kind: session.kind,
+    title: session.title,
+    mode: session.mode,
+    names: session.names ? session.names.slice() : null,
+    profileIds: session.profileIds.slice(),
+    startedAt: session.startedAt,
+    positions: session.positions,
+    options: { ...session.options },
+  };
+}
+
+// What the session plays with, from the settings unless the screen that starts
+// it says otherwise (options: { clock, hints, scoring }).
+function applySessionOptions(options) {
+  const opts = options && typeof options === "object" ? options : {};
+  const clock = opts.clock && typeof opts.clock === "object" ? opts.clock : {};
+  const clockMode = clock.mode === "untimed" || clock.mode === "timed" ? clock.mode : settingsGet("clock.mode", "timed");
+  STATE.clockMode = clockMode === "untimed" ? "untimed" : "timed";
+  STATE.turnTimeSeconds = normalizeTurnTimeSeconds(clock.seconds != null ? clock.seconds : settingsGet("clock.seconds", DEFAULT_TURN_TIME_SECONDS));
+  STATE.hintsEnabled = typeof opts.hints === "boolean" ? opts.hints : Boolean(settingsGet("hints.enabled", true));
+  STATE.scoringOverride = null;
+  const scoring = ludusModule("Scoring");
+  if (opts.scoring && typeof opts.scoring === "object" && scoring) {
+    STATE.scoringOverride = scoring.normalizeSettings({ ...sessionScoringSettings(), ...opts.scoring });
+  }
+}
+
+// Ludus.game.startSession({ kind, title, mode, names, profileIds, positions, options })
+// -> Promise<void>, resolved once the first round is on screen. The session is
+// the given list, in order (its length is the session's length); the engine
+// starts loading in the background, because someone is about to play.
+async function startSession(config = {}) {
+  const cfg = config && typeof config === "object" ? config : {};
+  const kind = SESSION_KINDS.includes(cfg.kind) ? cfg.kind : "classic";
+  const positions = normalizeSessionPositions(cfg.positions, kind);
+  if (!positions.length) throw new Error("Ludus.game.startSession: there are no playable positions");
+  const mode = cfg.mode === "duel" ? "duel" : "solo";
+  const names = mode === "duel"
+    ? [0, 1].map((index) => sanitizePlayerName(Array.isArray(cfg.names) ? cfg.names[index] : "", defaultDuelPlayerName(index)).slice(0, 20))
+    : null;
+  const profileIds = mode === "duel"
+    ? [0, 1].map((index) => (Array.isArray(cfg.profileIds) && typeof cfg.profileIds[index] === "string" ? cfg.profileIds[index] : null))
+    : [Array.isArray(cfg.profileIds) && typeof cfg.profileIds[0] === "string" ? cfg.profileIds[0] : activeProfileId()];
+
+  // Whatever was going on ends here; the engine, if it is up, is kept for this one.
+  abortSessionInternal({ keepEngine: true });
+  STATE.ui.searchCancelRequested = false;
+  beginSessionWork();
+
+  applyGameFormat(mode);
+  if (names) STATE.duel.players = names;
+  resetDuelState();
+  applySessionOptions(cfg.options);
+  STATE.positions = positions;
+  STATE.targetPositions = positions.length;
+  STATE.index = 0;
+  STATE.score = 0;
+  STATE.sessionPlayed = 0;
+  STATE.sessionHits = 0;
+  STATE.analysisContext = null;
+  STATE.session = {
+    id: Ludus.util.uid("s_"),
+    kind,
+    title: String(cfg.title || "").trim().slice(0, 80) || defaultSessionTitle(kind),
+    mode,
+    names,
+    profileIds,
+    options: cfg.options && typeof cfg.options === "object" ? { ...cfg.options } : {},
+    startedAt: Date.now(),
+    positions: positions.length,
+    completed: false,
+    records: [],
+    record: null,
+  };
+  renderHistoryList();
+  updateRoundTimerUi(Math.round(STATE.turnTimeSeconds * 1000));
+  const session = STATE.session;
+  // The engine loads while the first round is played; when it is up, the analysis
+  // that scoring needs (and a better hint) starts on the position still on screen.
+  void ensureStockfishLoading().then((ready) => {
+    if (!ready || STATE.session !== session || STATE.roundSubmitted || !session || session.completed) return;
+    prefetchRoundReference(STATE.positions[STATE.index]);
+    updateHintButton();
+  });
+  routerShow("game");
+  startRound();
+  busEmit("session:started", { session: publicSessionInfo(STATE.session) });
+}
+
+function isSessionActive() {
+  return Boolean(STATE.session && !STATE.session.completed);
+}
+
+// Ludus.game.abort(): stops the round timer, the engine work, downloads and
+// overlays, forgets the session (no "session:completed": what was played was
+// already recorded round by round) and goes back to the home screen.
+function abortSession() {
+  abortSessionInternal();
+  goHome();
+}
+
+// Leaving while something is in progress asks first (what the confirm dialog of
+// "Volver al inicio" says). Resolves to true when the session was left.
+async function leaveSession() {
+  if (!(await confirmRestartToSetup())) return false;
+  restartToSetup();
+  return true;
+}
+
+
 function refreshLocalizedUi() {
   applyStaticTranslations();
   updateOnlineProviderUi();
@@ -5710,6 +6877,9 @@ function refreshLocalizedUi() {
   updateScoreDisplay();
   updateCompetitiveStatus();
   renderSessionProgress();
+  renderSessionTitle();
+  updateHintButton();
+  updateRoundTimerUi();
   renderHistoryList();
   updatePgnSelectionUi();
   if (STATE.setupWizard.sourceError?.key) {
@@ -5757,6 +6927,9 @@ function refreshLocalizedUi() {
       progressRatio: overlayState.progressRatio,
       progressLabel: overlayState.progressLabel,
       cancellable: overlayState.cancellable,
+      // The carousel already on screen keeps running (it follows the language itself).
+      facts: overlayState.facts,
+      factsDelayMs: overlayState.factsDelayMs,
     });
   }
 
@@ -5767,6 +6940,15 @@ function refreshLocalizedUi() {
       analysisStatusEl.textContent = readiness.valid ? readyMessage : readiness.reason;
     }
   }
+}
+
+// The best move of the round on screen: what the result was scored against
+// (the analysis), else what the position itself knows.
+function resultBestMove(position) {
+  const context = STATE.resultView.context;
+  if (context && context.best && context.best.uci) return { uci: context.best.uci, san: context.best.san };
+  const uci = lineFirstUci(referenceLinesOf(position)[0]) || String(position.bestMoveUci || "");
+  return uci ? { uci, san: position.bestMoveSan || "-" } : null;
 }
 
 function revealSpecificMove(type) {
@@ -5780,12 +6962,14 @@ function revealSpecificMove(type) {
       revealBestBtn.textContent = t("buttons.revealBest");
       STATE.revealed.best = null;
     } else {
-      const from = Chess.squareToIndex(p.bestMoveUci.substring(0, 2));
-      const to = Chess.squareToIndex(p.bestMoveUci.substring(2, 4));
-      const prom = p.bestMoveUci.length > 4 ? p.bestMoveUci[4] : undefined;
+      const best = resultBestMove(p);
+      if (!best) return;
+      const from = Chess.squareToIndex(best.uci.substring(0, 2));
+      const to = Chess.squareToIndex(best.uci.substring(2, 4));
+      const prom = best.uci.length > 4 ? best.uci[4] : undefined;
       STATE.revealed.best = { from, to, promotion: prom };
       if (revealBestBtn) {
-        revealBestBtn.textContent = t("evaluation.bestPrefix", { san: p.bestMoveSan || "-" });
+        revealBestBtn.textContent = t("evaluation.bestPrefix", { san: best.san || "-" });
         revealBestBtn.classList.add("revealed-state");
       }
     }
@@ -5795,6 +6979,7 @@ function revealSpecificMove(type) {
       revealGameBtn.textContent = revealGameButtonLabel();
       STATE.revealed.game = null;
     } else {
+      if (!p.gameMoveUci) return;
       const from = Chess.squareToIndex(p.gameMoveUci.substring(0, 2));
       const to = Chess.squareToIndex(p.gameMoveUci.substring(2, 4));
       const prom = p.gameMoveUci.length > 4 ? p.gameMoveUci[4] : undefined;
@@ -6345,6 +7530,7 @@ async function startSessionPipeline() {
   } finally {
     if (isCurrentSessionWork(sessionToken)) {
       STATE.ui.setupAnalyzing = false;
+      stopWizardFacts();
       setWizardFormControlsDisabled(false);
       updateAnalyzeButtonState();
     }
@@ -6361,6 +7547,8 @@ function resetSessionStateForNewPipeline() {
   if (analyzeBtn) analyzeBtn.disabled = true;
   resetAnalysisProgress();
   analysisProgressWrapEl.classList.remove("hidden");
+  // Downloading and scanning games is a long wait: chess history keeps it company.
+  startWizardFacts();
   stopRoundTimer();
   setThinkingMode(false);
   setScoringInfoVisible(false);
@@ -6368,6 +7556,11 @@ function resetSessionStateForNewPipeline() {
   hidePositionSearchOverlay();
   hideResultOverlay();
   setUiPhase("playing", false);
+  STATE.session = null;
+  STATE.scoringOverride = null;
+  STATE.clockMode = settingsGet("clock.mode", "timed") === "untimed" ? "untimed" : "timed";
+  STATE.hintsEnabled = Boolean(settingsGet("hints.enabled", true));
+  resetHintState();
   STATE.allMistakes = [];
   STATE.positions = [];
   STATE.index = 0;
@@ -6530,10 +7723,29 @@ function enterPlayModeWithFirstPosition(firstMistake, ctx) {
   analysisStatusEl.textContent = isUsingFallbackEngine()
     ? `${t("analysis.status.firstReady")} ${t("analysis.status.localEngineNotice")}`
     : t("analysis.status.firstReady");
-  setupPanelEl.classList.add("hidden");
-  document.body.classList.add("playing-mode");
-  gameLayoutEl.classList.remove("hidden");
+  // The own-games pipeline joins the same lifecycle as any other session.
+  const duel = STATE.gameFormat === "duel";
+  STATE.session = {
+    id: Ludus.util.uid("s_"),
+    kind: "own",
+    title: t("core.session.own", { user: gameMoveAuthorName() }),
+    mode: duel ? "duel" : "solo",
+    names: duel ? [duelPlayerName(0), duelPlayerName(1)] : null,
+    profileIds: duel
+      ? [0, 1].map((index) => (Array.isArray(STATE.setupWizard.profileIds) ? STATE.setupWizard.profileIds[index] || null : null))
+      : [activeProfileId()],
+    options: {},
+    startedAt: Date.now(),
+    positions: STATE.targetPositions,
+    completed: false,
+    records: [],
+    record: null,
+  };
+  // The search is over: hiding the wizard must not read as leaving it half way.
+  STATE.ui.setupAnalyzing = false;
+  routerShow("game");
   startRound();
+  busEmit("session:started", { session: publicSessionInfo(STATE.session) });
 }
 
 // ---------- Events ----------
@@ -6561,7 +7773,7 @@ if (languageBtnEn) {
 
 if (sourceBackBtn) {
   sourceBackBtn.addEventListener("click", () => {
-    showLandingScreen();
+    goHome();
   });
 }
 
@@ -6700,9 +7912,17 @@ wizardTimerChipEls.forEach((chipEl) => {
   });
 });
 
-if (landingStartBtn) {
-  landingStartBtn.addEventListener("click", () => {
-    startFromLanding();
+// The landing page's start button is found by delegation, so it keeps working
+// if the landing screen re-renders its markup when it mounts.
+document.addEventListener("click", (event) => {
+  const target = event && event.target;
+  const button = target && typeof target.closest === "function" ? target.closest("#landing-start-btn") : null;
+  if (button) startFromLanding();
+});
+
+if (hintBtn) {
+  hintBtn.addEventListener("click", () => {
+    requestHint();
   });
 }
 
@@ -6903,6 +8123,176 @@ function registerServiceWorker() {
   });
 }
 
+// ---------- Boot: shell, screens, router, public API ----------
+
+const SCREEN_NAMES = ["landing", "home", "classics", "notebook", "progress", "museum", "settings", "account"];
+
+function registerRouterScreen(name, container, screen) {
+  const router = ludusModule("router");
+  if (!router) return;
+  router.register(name, {
+    el: container,
+    title: screen && screen.title,
+    onShow(params) {
+      if (name === "landing") document.body.classList.add("landing-active");
+      if (screen && typeof screen.show === "function") screen.show(params);
+    },
+    onHide() {
+      if (name === "landing") document.body.classList.remove("landing-active");
+      if (screen && typeof screen.hide === "function") screen.hide();
+    },
+  });
+}
+
+// The sections this page always had are screens too: "setup" (the own-games
+// wizard) and "game" (the board, its result and its actions).
+function registerLegacyScreens() {
+  const router = ludusModule("router");
+  if (!router) return;
+  router.register("setup", {
+    el: setupPanelEl,
+    onShow() {
+      document.body.classList.remove("landing-active");
+    },
+    onHide() {
+      cancelSetupWork();
+    },
+  });
+  router.register("game", {
+    el: gameLayoutEl,
+    onShow() {
+      document.body.classList.add("playing-mode");
+      if (sharedActionsEl) sharedActionsEl.classList.remove("hidden");
+      updateRoundTimerUi();
+    },
+    onHide() {
+      document.body.classList.remove("playing-mode");
+      // Leaving the board by any road but the game's own buttons abandons the
+      // session (a finished one just goes away): no timer, no engine and no
+      // overlay is left running behind the next screen.
+      abortSessionInternal();
+    },
+  });
+}
+
+// One broken screen must never take the app down: it is reported and skipped.
+function mountScreens() {
+  const screens = ludusModule("Screens") || {};
+  SCREEN_NAMES.forEach((name) => {
+    const container = document.getElementById(name === "landing" ? "landing-screen" : `screen-${name}`);
+    const screen = screens[name];
+    if (!container) return;
+    let mounted = false;
+    if (screen && typeof screen.mount === "function") {
+      try {
+        screen.mount(container);
+        mounted = true;
+      } catch (error) {
+        console.error(`[Ludus] the "${name}" screen failed to mount`, error);
+      }
+    }
+    mountedScreens[name] = mounted;
+    // The landing page is always a screen (its markup is in index.html); the
+    // others only when their module mounted.
+    if (name === "landing" || mounted) registerRouterScreen(name, container, mounted ? screen : null);
+  });
+}
+
+// The settings the wizard and the clock reflect follow the settings screen.
+function watchSettings() {
+  const bus = ludusModule("bus");
+  if (!bus || typeof bus.on !== "function") return;
+  bus.on("settings:changed", (payload) => {
+    const path = payload && payload.path;
+    const overrides = STATE.session && STATE.session.options ? STATE.session.options : {};
+    if (path === "clock.seconds" && !overrides.clock) {
+      setWizardTurnTimeSeconds(payload.value, { skipPersist: true });
+      renderWizardStep();
+    } else if (path === "clock.mode") {
+      if (!STATE.session) STATE.clockMode = payload.value === "untimed" ? "untimed" : "timed";
+      renderWizardStep();
+    } else if (path === "hints.enabled" && typeof overrides.hints !== "boolean" && !STATE.session) {
+      STATE.hintsEnabled = Boolean(payload.value);
+      updateHintButton();
+    }
+  });
+  // A new achievement is a small celebration (Profile decides what unlocks).
+  bus.on("achievement:unlocked", (payload) => {
+    const name = payload && payload.achievement ? payload.achievement.name : "";
+    if (!name) return;
+    showToast(t("core.toast.achievement", { name }), { kind: "achievement" });
+    playSound("levelup");
+  });
+  bus.on("screen:changed", (payload) => {
+    try {
+      document.body.dataset.screen = payload && payload.id ? String(payload.id) : "";
+    } catch (error) {
+      // Cosmetic hook for CSS only.
+    }
+  });
+}
+
+function exposeGameApi() {
+  Ludus.game = {
+    startSession,
+    isActive: isSessionActive,
+    abort: abortSession,
+    leave: leaveSession,
+    openOwnGamesSetup,
+    hint: requestHint,
+    session: () => publicSessionInfo(STATE.session),
+    resultContext: () => STATE.resultView.context,
+    analyzePosition,
+    isUsingFallbackEngine,
+    // For tests and end-to-end checks: hands the engine another transport
+    // (a fake, or a Node child process) instead of the Worker, and may shorten
+    // the waits (minEvalVisibleMs, retryBaseMs). Drops the engine that is
+    // loaded; the next session loads the new one.
+    configureEngine(options = {}) {
+      const opts = options && typeof options === "object" ? options : {};
+      engineTransportFactory = typeof opts.createTransport === "function" ? opts.createTransport : null;
+      timingOverrides.minEvalVisibleMs = Number.isFinite(opts.minEvalVisibleMs) ? Math.max(0, opts.minEvalVisibleMs) : null;
+      timingOverrides.engineRetryBaseMs = Number.isFinite(opts.retryBaseMs) ? Math.max(0, opts.retryBaseMs) : null;
+      abortEngineWork();
+      resetEngineToLocal();
+      STATE.analysis.cache.clear();
+    },
+  };
+}
+
+function bootCore() {
+  exposeGameApi();
+  // The person's settings and profile are ready before anything draws.
+  try {
+    const settings = ludusModule("Settings");
+    if (settings && typeof settings.applyToDocument === "function") settings.applyToDocument();
+  } catch (error) {
+    console.error("[Ludus] settings could not be applied", error);
+  }
+  try {
+    const profile = ludusModule("Profile");
+    if (profile) {
+      profile.ensureActive();
+      profile.attach();
+    }
+  } catch (error) {
+    console.error("[Ludus] the profile could not start", error);
+  }
+  watchSharedLanguage();
+  watchSettings();
+  registerLegacyScreens();
+  try {
+    const shell = ludusModule("shell");
+    if (shell && typeof shell.mount === "function") shell.mount(document.querySelector(".app"));
+  } catch (error) {
+    console.error("[Ludus] the shell failed to mount", error);
+  }
+  mountScreens();
+  // The landing page is for someone who has never been here; everybody else starts at home.
+  if (shouldShowLanding()) showLandingScreen();
+  else goHome();
+}
+
 skipBtn.disabled = true;
 updateDocumentLanguage();
 updateLanguageToggleUi();
@@ -6927,9 +8317,9 @@ updateRoundTimerUi(Math.round(STATE.turnTimeSeconds * 1000));
 updateScoreDisplay();
 updateCompetitiveStatus();
 renderHistoryList();
-showLandingScreen();
 buildBoard();
 renderBoard();
+bootCore();
 refreshLocalizedUi();
 registerServiceWorker();
 void purgeExpiredRemotePgnCache();

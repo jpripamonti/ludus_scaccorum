@@ -52,8 +52,28 @@ Operational requirement: keep these files in the third-party inventory. Recommen
 
 Operational requirement: prefer the WebP asset in production CSS when browser support allows, and keep source/license metadata with the asset. If the artwork is ever replaced, record the new origin here before shipping it.
 
-## Google Fonts
+## Fonts (self-hosted)
 
-- Current usage: none. The app uses system font stacks.
+The interface fonts are served from this site (`assets/fonts/`); no request goes to Google Fonts or any other font provider, so visiting the site discloses nothing to a third party through fonts. Both families are variable fonts in WOFF2 format, restricted to the Latin and Latin Extended subsets (the two "latin" files are precached by the service worker; the "latin-ext" files are only fetched when a glyph outside the Latin range appears). The files are the unmodified WOFF2 subsets distributed by the Fontsource project (`@fontsource-variable/inter` 5.3.0 and `@fontsource-variable/cormorant` 5.3.0 from the npm registry), which repackages the upstream releases.
 
-Operational requirement: if remote fonts are reintroduced, document the provider and privacy impact here before shipping.
+### Inter
+
+- Files: `assets/fonts/inter-latin-wght.woff2`, `assets/fonts/inter-latin-ext-wght.woff2` (about 48 KB and 85 KB).
+- Use: the interface and body text (`--font-ui`, family name "Ludus Sans" in `css/system.css`).
+- Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter).
+- License: SIL Open Font License, Version 1.1 (https://openfontlicense.org). The Font Software may be used, studied, copied, merged, embedded, modified, redistributed and sold, provided the copyright notice and licence travel with it and that modified versions do not use the Reserved Font Name. The full licence text ships next to the font files as `assets/fonts/OFL-Inter.txt`.
+
+### Cormorant
+
+- Files: `assets/fonts/cormorant-latin-wght.woff2`, `assets/fonts/cormorant-latin-ext-wght.woff2` (about 35 KB and 30 KB).
+- Use: titles, the wordmark and large numerals (`--font-display`, family name "Ludus Display" in `css/system.css`).
+- Copyright 2015 The Cormorant Project Authors (https://github.com/CatharsisFonts/Cormorant), designed by Christian Thalmann.
+- License: SIL Open Font License, Version 1.1 (https://openfontlicense.org), same terms as above. The full licence text ships next to the font files as `assets/fonts/OFL-Cormorant.txt`.
+
+Operational requirement: if the fonts are ever replaced or loaded from a remote provider, update this section first (provider, privacy impact, licence) and the `font-src` directive of the Content-Security-Policy in `index.html`.
+
+## Brand mark and icons
+
+- Files: `assets/brand/logo.svg`, `assets/brand/favicon.svg`, `assets/icons/icon-192.png`, `assets/icons/icon-512.png`, `assets/icons/icon-maskable-512.png`, `assets/icons/apple-touch-icon.png`.
+- Origin: an original mark drawn for this project (a rook inside a laurel wreath, built from plain geometric paths); the PNG icons are rendered from the SVG with Chromium. No third-party artwork or font is embedded in these files (the SVGs contain no text).
+- License: same as the project (GPL-3.0-or-later).

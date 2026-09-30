@@ -483,3 +483,139 @@ this section lists the differences that matter to integrators. Per-module detail
 * **Tooling**: `npm test` runs 17 steps (~25 s). After editing any hashed file run `node scripts/generate-version.js`.
   New `js/*.js` / `css/*.css` files must be listed in `index.html` (script/link tags) and in `sw.js` `CORE_ASSETS` and, for
   the file lists in `scripts/smoke-check.js` (`LOGIC_MODULES`, `UI_SUPPORT_NAMES`, `SCREEN_NAMES`, `CSS_FILES`).
+
+## 19. The game core as integrated (`app.js`)
+
+`app.js` is the game core; this section is what a screen needs to know about it (the code wins where they differ).
+
+**Public API, `Ludus.game`** (defined at boot, before the screens mount):
+
+* `startSession({ kind: "classic"|"review"|"daily"|"own", title, mode: "solo"|"duel", names?, profileIds?, positions, options? })`
+  -> `Promise<void>`, resolved once round 1 is on screen. Fixed list: the session ends after `positions.length`. `options`:
+  `clock: { mode, seconds }`, `hints: boolean`, `scoring: partial Scoring settings`; whatever is missing comes from the
+  settings. Rejects when no position is playable. An unfinished session is ended quietly first. `profileIds` for a duel: `[id|null, id|null]`
+  (`null` = guest, whose rounds are not recorded anywhere).
+* `isActive()`, `abort()` (stops timers / engine / overlays, records nothing, routes to `home`), `leave()` (asks the same
+  confirmation as "Volver al inicio", then goes home; resolves to a boolean), `session()` (a copy of the session info).
+* `openOwnGamesSetup({ mode?, names?, profileIds? })`: the wizard of the person's own games with the mode already chosen;
+  step 1 is skipped when the mode is `solo`, or `duel` with both names given ("Step 1 of 2").
+* `hint()` -> `{ level, from?, to?, uci? } | null`: level 1 marks the piece, 2 also its destination, 3 shows the move and ends
+  the round for 0 points (`reason: "skip"`, `hintsUsed: 3`). The cost is `Scoring.DEFAULTS.hintCost` (settings). The button is `#hint-btn`.
+* `analyzePosition(fen, { multiPv, movetimeMs, depth, searchMoves, onProgress, signal })` -> `{ lines, source: "stockfish"|"local", depth, cached?, aborted? }`
+  (cached, joins a running identical request, falls back to a 3-ply search of `app.js` with the same line shape).
+* `resultContext()` = `STATE.resultView.context`, what the coach panel draws: `{ kind, round, fen, positionId, source, best, master,
+  lines (SAN + eval), answers[] (assessment, insights, hit, hintsUsed, ...), assessment, assessments, insights, fact, engine, ... }`.
+* `configureEngine({ createTransport?, minEvalVisibleMs?, retryBaseMs? })` and `isUsingFallbackEngine()`: for tests and e2e.
+
+**Events** (all on `Ludus.bus`): `session:started {session}`, `round:completed {round}` (a RoundRecord per answer, two in a duel,
+each with the profile of its player), `session:completed {session}` (a SessionRecord; in a duel the totals count both players
+and `duel: { names, scores, profileIds }`). An aborted session emits no `session:completed`. `Profile.attach()` records them;
+a record with an explicit `profileId: null` is a guest and is skipped (a direct `recordRound()` keeps "null = the active profile").
+Achievements and level-ups show `Ludus.ui.toast(message, { kind })` and play a sound, both guarded.
+
+**Routing.** `landing`, `setup` (the wizard) and `game` are router screens registered by `app.js`; the others are the
+screens' own. First visit (no `ludus.seen.v1`, no rounds) shows `landing`, everybody else `home`; the landing's start button
+marks the flag and goes home; every "back to start" goes home (the landing page only stands in when `home` failed to mount).
+Leaving `game` or `setup` by any router call abandons the session / stops the search. `document.body.dataset.screen` follows the router.
+
+**Scoring a round.** Reference = the position's `reference.lines`, else one MultiPV search at the root
+(`Settings.engineBudget()`, scaled 0.8x..1.6x by how crowded the position is, the whole round capped at 10 s); the analysis of a
+position without lines starts while the person thinks. A move outside the lines is searched with `searchmoves`
+at the same time and re-assessed; the move of the game is scored the same way. A "hit" is `isBest || accuracy >= 70` and no revealed hint.
+With the fallback engine a precomputed reference is used through the difference the fallback measures, and lines the
+fallback guessed are not kept in records.
+
+## 20. Design system quick reference (`styles.css`, `css/system.css`, `js/ui/kit.js`, `js/ui/shell.js`, `js/ui/home.js`)
+
+(Numbered 20 because section 19 was taken by the game-core notes; the design-system brief called it "section 19".)
+
+Direction: a scholarly study. Deep ink/navy surfaces, one warm gold accent, Cormorant (display) + Inter (UI), hairline
+borders, soft layered shadows, restrained motion. Always dark (`color-scheme: dark`). Load order in `index.html`:
+`styles.css` (tokens + base) -> `css/system.css` (components) -> `css/shell.css` -> screen CSS. `css/system.css` opens with a
+comment block listing every component class; this section is the short version.
+
+### Tokens (`styles.css :root`, never redefine them in a screen file)
+
+* **Fonts** (self-hosted, `assets/fonts/`, licences in `THIRD_PARTY_NOTICES.md`): `--font-display` (titles, wordmark, big
+  section headings; use weight 600-650, it is thin below 20px) and `--font-ui` (everything else), `--font-mono`. Body text uses lining
+  figures (`font-variant-numeric: lining-nums` on `body`).
+* **Type scale** in rem (it follows `a11y.textScale`, which sets `--text-scale` and scales `html`): `--text-xs` 12px, `-sm` 13, `-base` 15,
+  `-md` 16 (body), `-lg` 18, `-xl` 20, `-2xl` 24, `-3xl` 32, `-4xl` 44, `-5xl` 60, `--text-display` (fluid hero size),
+  `--lh-tight|snug|normal|loose`. Do not write `px` font sizes in new CSS.
+* **Colour**: surface ramp `--color-bg` < `--color-surface` < `-surface-2` < `-surface-3` < `-surface-4`; `--color-border` /
+  `--color-border-mid` are for things the user must find (inputs, buttons: 3:1), `--color-hairline` / `--color-hairline-strong` are
+  decorative edges; `--color-text`, `--color-text-muted` (5.6:1 on `-surface-2`); gold ramp `--gold-100..-800` with
+  `--color-gold` (400), `--color-gold-dim` (600), `--color-gold-bg` (900), `--color-on-gold` (ink on a gold fill),
+  `--gold-gradient`; focus ring `--focus-ring` (+ `-width`, `-offset`), `--color-info` is the focus colour.
+* **Verdicts**, the ten quality codes: `--q-<code>`, `--q-<code>-bg`, `--q-<code>-bd` for `brilliant great perfect very-good good
+  interesting dubious bad blunder no-move` (underscore -> hyphen). Built on `--color-brilliant|great|very-good|interesting|bad`
+  (new) and the existing `--color-perfect|good|dubious|blunder`. Status aliases `--color-success|warning|danger`. Colour is never the
+  only signal: pair it with a glyph and words (`Ludus.ui.qualityBadge(code)` does).
+* **Space** `--space-0..-11` (2, 4, 8, 12, 16, 20, 24, 32, 40, 56, 72, 96 px), **radii** `--radius-xs..-3xl`, `--radius-pill`,
+  **elevation** `--shadow-1..3` (+ legacy `--shadow-board|panel|float`), **motion** `--ease-out|-in-out|-spring`, `--dur-1|2|3`
+  (120 / 220 / 420 ms), **z-index** `--z-header 40, -tabbar 45, -popover 60, -overlay 90, -modal 110, -toast 130`, **layout**
+  `--page-max`, `--page-gutter`, `--header-h`, `--tabbar-h`, `--hit` (44px).
+* **Board themes**: `[data-board-theme="walnut|classic|ocean|forest|slate|contrast"]` (set on `<html>` by Settings, or on any
+  element) define `--board-light`, `--board-dark`, `--board-hl`, `--board-coord-on-light|dark` (and the legacy
+  `--color-board-light|dark`). `Ludus.ui.miniBoard` reads them.
+* **Accessibility hooks on `<html>`**: `data-contrast="high"` (stronger borders and text: tokens are overridden),
+  `data-motion="reduce"` (no animation; also honours `prefers-reduced-motion`), `--text-scale`. The `[hidden]` attribute always wins.
+
+### Components (`css/system.css`)
+
+`.btn` + `.btn-primary|-secondary|-ghost|-danger`, `.btn-sm|-lg|-icon|-block`, `aria-busy="true"` = loading, labels wrap. `.card`
+(`.card-interactive`, `a.card`, `button.card`, `.card-flat`, `.card-accent`, `.card-head|-title|-text|-foot`). `.chip`, `.badge`
+(`.badge-gold|success|warn|danger|info|count`, `.badge.q-<code>`), `.stat`, `.kbd`, `.avatar`, `.level-badge`. `.tabs` + `[role=tab]`,
+`.segmented` (children with `aria-pressed|checked|selected`). Forms: `.field` + `label` / `.field-hint` / `.field-error`, `.input`,
+`.select`, `.switch`, `.check`, `.slider` (+ `Ludus.ui.bindSlider(input)`). Feedback: `.progress`, `.ring`, `.gauge`,
+`.sparkline`, `.chart`, `.spinner`, `.toast-stack`, `.modal-backdrop` + `.modal` (+ `.sheet`), `.skeleton`, `.empty`. Layout:
+`.page`, `.stack`, `.cluster`, `.grid` (`--grid-min`), `.screen`, `.screen-head|-title|-sub`, `.section`. Type: `.t-display`,
+`.t-title`, `.t-h2`, `.t-h3`, `.t-eyebrow`, `.t-lead`, `.t-muted`, `.t-small`, `.t-mono`, `.t-num`. Reader: all `.rd-*` classes.
+The wizard (`.wizard-*`) and the consent overlay (`.consent-*`) are restyled by light overrides at the end of `system.css`.
+
+A routed screen is a `<section id="screen-x" class="screen" role="main">` in `index.html` (only the visible one is exposed, so
+the page has one `main`); give its top heading `data-screen-title` (the shell moves focus there after navigation) and build its
+content from the components above. Every string goes through `Ludus.i18n.register` (es with "vos", and en).
+
+### `Ludus.ui` (`js/ui/kit.js`), every node built with `Ludus.util.h`; builders return `null` without a DOM
+
+`icon(name, {size, title, className})` (42 stroke icons, `iconNames()`), `toast(message, {kind: info|success|warn|error|achievement|levelup, duration,
+action:{label,onClick}})` -> `{id, el, dismiss()}` (queue of 3, hover/focus pauses, errors in an assertive region, the rest polite),
+`clearToasts()`, `modal({title, body, actions:[{label, kind, value, onClick(handle) -> false keeps open, autofocus, icon}], onClose,
+dismissible, size: sm|md|lg, variant, initialFocus, role, describedBy, ariaLabel})` -> `{el, close(result), closed: Promise}`
+(focus trap, Escape, focus restore, `aria-modal`, scroll lock, the rest of the page `inert`), `confirm({title, body, confirmLabel,
+cancelLabel, danger})` -> `Promise<boolean>`, `sheet(opts)`, `avatar(profile, {size, label})`, `levelBadge(levelFor(xp))`,
+`gauge({value, max, label, size, tone})`, `ring(0..1, {size, label, text})`, `sparkline(values, {width, height, min, max, label})`,
+`barChart(items, {label, width, height, max, format, fill})` (natural size, `fill` stretches it; hidden data table for screen readers), `chip`, `badge`, `qualityBadge(code)`,
+`button(label, {kind, size, icon, onClick, href, loading, block, disabled})`, `iconButton(icon, label, opts)`, `progress(v, {label,
+tone, size})`, `stat({label, value, hint, icon, tone})`, `skeleton({kind: text|title|card|circle, lines})`, `spinner()`,
+`emptyState({icon, title, body, action:{label,onClick,href,kind}, level})`,
+`miniBoard(fen, {size, orientation, coords, highlight:[sq | {square, kind}], arrows:[{from,to,color}], theme, label})`
+(static SVG, 64 squares, cburnett pieces, `role="img"` with a "who moves + piece list" label), `bindSlider(input)`,
+`parseFen`, `reducedMotion()`.
+
+### `Ludus.shell` (`js/ui/shell.js`)
+
+`mount(appEl)` (idempotent; enhances `#shell-header`, `#shell-nav`, `#shell-status`, keeps `#language-switch`), `update()`,
+`setVisible(bool)`, `destroy()`, `parseHash(hash)`. It sets `body.dataset.screen` on `screen:changed` and `body.dataset.shell` =
+`on | minimal (landing) | off (game)`, marks the current nav item `aria-current="page"`, shows the due-card badge from
+`Profile.notebook.counts().due`, the streak from `Profile.stats().streak`, the profile chip + popover (switch up to 4 profiles,
+add a profile, Account link), and a bottom tab bar under 720px (Home, Classics, Notebook, Progress, More sheet). Hash routes
+`#/home|classics|notebook|progress|museum|settings|account` navigate on load and on `hashchange`; `#/daily` opens home and starts the
+daily challenge; the current screen is mirrored back with `replaceState`. Nothing navigates by hash while `Ludus.game.isActive()`.
+The header's width steps are container queries in rem, so they follow the text size.
+
+### Screens `Ludus.Screens.landing` and `Ludus.Screens.home` (`js/ui/home.js`)
+
+`landing.mount(#landing-screen)`: the hero is static HTML in `index.html` (`#landing-start-btn` is app.js's), mount localises it and renders
+steps, sources, privacy, closing call and footer (version, GPL-3.0-or-later, Stockfish, `THIRD_PARTY_NOTICES.md`, ES/EN switch that
+clicks the header buttons). `home.mount(#screen-home)`, `show()` (also driven by `screen:changed`), `hide()`, `render()`,
+`startDaily()`, `openDuelSetup()`, `title: "home.title"`, pure `helpers` for tests. The hub re-renders on `language:changed`,
+`profile:changed`, `notebook:changed`, `session:completed`; the daily position loads lazily with a skeleton, an error state with a
+retry, a done state; "Next fact" only touches the fact card.
+
+### Tests
+
+`scripts/tests/kit.test.js` (28 tests, fake DOM in `scripts/tests/_uidom.js`) and `scripts/tests/ui-screens.test.js` (19: text parity,
+home / daily / duel / landing / shell flows against the real Profile, Classics and Facts). Browser checks: Playwright with
+`serviceWorkers: "block"`; axe-core injected in a `bypassCSP: true` context.

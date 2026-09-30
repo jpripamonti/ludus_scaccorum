@@ -2304,6 +2304,28 @@ const toDoc = (id, data, extra = {}) => ({ kind: "ludus-progress", v: 1, app: "l
 }
 
 {
+  // Guests (a duel player with no local profile) are emitted with profileId: null
+  // and must not be filed under the active profile; recordRound() called directly
+  // keeps its "null = the active profile" meaning (tested above).
+  const { p, bus } = make();
+  const a = p.create({ name: "A" });
+  const b = p.create({ name: "B" });
+  eq(p.attach(), true);
+  bus.emit("round:completed", { round: rr(11, { profileId: a.id }) });
+  bus.emit("round:completed", { round: rr(12, { profileId: null }) });
+  bus.emit("round:completed", { round: rr(13, { profileId: b.id }) });
+  eq(p.stats(a.id).totalPositions, 1, "a linked player's round is recorded");
+  eq(p.stats(b.id).totalPositions, 1, "for each linked player");
+  eq(p.rounds(a.id).length + p.rounds(b.id).length, 2, "the guest's round is recorded nowhere");
+  const duel = (extra) => ({ id: "sd1", ts: T0, kind: "classic", mode: "duel", positions: 3, points: 40, maxPoints: 60, avgAccuracy: 66, durationMs: 1, duel: { names: ["A", "B"], scores: [22, 18] }, ...extra });
+  bus.emit("session:completed", { session: duel({ profileId: null, duel: { names: ["A", "B"], scores: [22, 18], profileIds: [null, null] } }) });
+  eq(p.sessions(a.id).length + p.sessions(b.id).length, 0, "a duel of two guests is recorded nowhere");
+  bus.emit("session:completed", { session: duel({ id: "sd2", profileId: null, duel: { names: ["A", "B"], scores: [22, 18], profileIds: [a.id, null] } }) });
+  eq(p.sessions(a.id).length, 1, "a duel with one linked player is recorded for that player");
+  eq(p.sessions(b.id).length, 0);
+}
+
+{
   // Error messages exist in both languages.
   const { p } = make();
   ["too-large", "invalid-json", "invalid-format", "unsupported-version", "no-profiles", "limit", "storage-failed", "read-only", "invalid-mode", "no-such-profile"].forEach((code) => {

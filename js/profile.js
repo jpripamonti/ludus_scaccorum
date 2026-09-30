@@ -2668,6 +2668,12 @@
     // Records every "round:completed" / "session:completed" the game emits.
     // recordRound / recordSession ignore a duplicate id, so calling them
     // directly as well is harmless.
+    //
+    // A guest (a duel player without a local profile) is emitted with an explicit
+    // `profileId: null` and belongs to nobody: recordRound() alone would file
+    // that under the ACTIVE profile (null = "the active one" for a direct call),
+    // so the bus path skips it. Likewise a session that names no profile at all
+    // (`profileId` null and no linked player in `duel.profileIds`).
     function attach() {
       detach();
       const bus = getBus();
@@ -2675,10 +2681,15 @@
       attachStorageListener();
       detachFns = [
         bus.on("round:completed", (payload) => {
-          if (payload && payload.round) recordRound(payload.round);
+          if (payload && payload.round && payload.round.profileId !== null) recordRound(payload.round);
         }),
         bus.on("session:completed", (payload) => {
-          if (payload && payload.session) recordSession(payload.session);
+          const session = payload && payload.session;
+          if (!session) return;
+          const linked = isObject(session.duel) && Array.isArray(session.duel.profileIds)
+            && session.duel.profileIds.some((value) => typeof value === "string" && value);
+          if (session.profileId === null && !linked) return;
+          recordSession(session);
         }),
       ];
       return true;
