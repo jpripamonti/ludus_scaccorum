@@ -542,6 +542,12 @@ test("delete: the confirm button stays off until the name is typed, then removes
   const modal = modalOf(env);
   assert.strictEqual(modal.getAttribute("role"), "alertdialog");
   assert.ok(text(q(modal, ".modal-title")).includes("Bruno Díaz"));
+  // the dialog is described by the consequence, not by the whole form (the typed-name field, the export button)
+  const describedIds = String(modal.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
+  assert.ok(describedIds.length >= 1, "the alert dialog has a description");
+  const described = describedIds.map((id) => qa(modal, "p").find((node) => node.id === id || node.getAttribute("id") === id));
+  assert.ok(described.every(Boolean) && described.some((node) => text(node).includes("erased from this device for good")), "the consequence paragraph is the description");
+  assert.ok(!described.some((node) => node.querySelector && node.querySelector("input")), "the form is not");
   const confirm = modalButton(env, "danger");
   assert.strictEqual(confirm.hasAttribute("disabled"), true, "off at first");
   assert.ok(text(modal).includes("This cannot be undone"));

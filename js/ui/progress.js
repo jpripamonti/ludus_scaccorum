@@ -1177,7 +1177,7 @@
         onfocus: () => showTip(index, geo, sessions, cross, tip),
         onblur: () => hideTip(cross, tip),
       },
-      h("svg:circle", { class: "progress-pt-hit", cx: point.x, cy: point.y, r: 14 }),
+      h("svg:circle", { class: "progress-pt-hit", cx: point.x, cy: point.y, r: 22 }),
       h("svg:circle", { class: "progress-pt-focus", cx: point.x, cy: point.y, r: 9 }),
       h("svg:circle", { class: `progress-pt-dot${index === total - 1 ? " is-last" : ""}`, cx: point.x, cy: point.y, r: 4.5 }));
     });

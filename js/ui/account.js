@@ -1173,12 +1173,16 @@
     const input = h("input", {
       type: "text", class: "input", id: inputId, autocomplete: "off", autocapitalize: "off", spellcheck: "false", "aria-describedby": hintId,
     });
+    // The dialog is described by the consequence (and the "last profile" note), not by the whole form: a screen reader that read the typed-name field
+    // and the export button as the description would bury what is about to be lost.
+    const consequence = h("p", { class: "modal-text" }, t("account.delete.body", {
+      positions: tCount("account.delete.positions", row.positions),
+      cards: tCount("account.delete.cards", row.cards),
+    }));
+    const lastNote = only ? h("p", { class: "modal-text account-note" }, t("account.delete.last")) : null;
     const body = h("div", { class: "account-form" },
-      h("p", { class: "modal-text" }, t("account.delete.body", {
-        positions: tCount("account.delete.positions", row.positions),
-        cards: tCount("account.delete.cards", row.cards),
-      })),
-      only ? h("p", { class: "modal-text account-note" }, t("account.delete.last")) : null,
+      consequence,
+      lastNote,
       button(t("account.delete.export"), { kind: "ghost", size: "sm", icon: "download", onClick: () => exportProfiles(row.id, row.name) }),
       h("div", { class: "field" },
         h("label", { for: inputId }, t("account.delete.type", { name: row.name })),
@@ -1190,6 +1194,7 @@
       body,
       size: "sm",
       role: "alertdialog",
+      describedBy: [consequence, lastNote].filter(Boolean),
       initialFocus: input,
       onClose: () => applyRefocus(),
       actions: [
@@ -1492,8 +1497,9 @@
     const word = t("account.danger.word");
     const inputId = nextId("account-confirm");
     const input = h("input", { type: "text", class: "input", id: inputId, autocomplete: "off", autocapitalize: "off", spellcheck: "false" });
+    const consequence = h("p", { class: "modal-text" }, t("account.danger.modal.body"));
     const body = h("div", { class: "account-form" },
-      h("p", { class: "modal-text" }, t("account.danger.modal.body")),
+      consequence,
       h("div", { class: "field" },
         h("label", { for: inputId }, t("account.danger.type", { word })),
         input));
@@ -1503,6 +1509,7 @@
       body,
       size: "sm",
       role: "alertdialog",
+      describedBy: consequence,
       initialFocus: input,
       onClose: () => applyRefocus(),
       actions: [

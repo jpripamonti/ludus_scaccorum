@@ -17,7 +17,9 @@
 .museum-sub { margin-top: var(--space-3); max-width: 58ch; line-height: 1.55; text-wrap: pretty; }
 
 .museum-tabs { margin-top: var(--space-2); }
-.museum-tab { display: inline-flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
+/* The tablist (`.tabs`) scrolls on its own axis, which clips a ring drawn outside the tab: the ring is drawn inside instead (the variable pattern of
+   styles.css; the keyboard probe of scripts/e2e/shell.js found it clipped). */
+.museum-tab { --focus-ring-offset: -3px; display: inline-flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
 .museum-tab .ui-icon { color: var(--color-text-muted); }
 .museum-tab[aria-selected="true"] .ui-icon { color: var(--color-gold); }
 @media (max-width: 599px) {
@@ -121,6 +123,7 @@
 }
 .museum-era-nav::-webkit-scrollbar { display: none; }
 .museum-era-link {
+  --focus-ring-offset: -3px;
   display: grid;
   flex: none;
   gap: 1px;
@@ -147,7 +150,7 @@
 
 .museum-year-form { display: grid; gap: var(--space-2); }
 .museum-year-row { display: flex; gap: var(--space-2); }
-.museum-year-input { flex: 1 1 auto; min-width: 0; max-width: 9rem; font-variant-numeric: tabular-nums lining-nums; }
+.museum-year-input { --focus-ring-offset: -3px; flex: 1 1 auto; min-width: 0; max-width: 9rem; font-variant-numeric: tabular-nums lining-nums; }
 .museum-year-status { min-height: 1.4em; margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: 1.4; }
 .museum-year-status.is-error { color: var(--color-blunder); font-weight: 600; }
 .museum-year-status:empty { display: none; }
@@ -270,6 +273,8 @@
 }
 @media (min-width: 960px) {
   .museum-timeline-layout { grid-template-columns: 15.5rem minmax(0, 1fr); gap: var(--space-9); }
+  /* The side column scrolls (overflow-y: auto), which clips an outside ring on both axes: everything focusable in it draws its ring inside. */
+  .museum-timeline-side :is(a, button, input) { --focus-ring-offset: -3px; }
   .museum-timeline-side { position: sticky; top: calc(var(--header-h) + var(--space-4)); max-height: calc(100vh - var(--header-h) - var(--space-7)); max-height: calc(100svh - var(--header-h) - var(--space-7)); overflow-y: auto; }
   .museum-era-nav { flex-direction: column; gap: 2px; margin-inline: 0; padding: 0; overflow: visible; }
   .museum-era-link { width: 100%; border-color: transparent; background: transparent; }
