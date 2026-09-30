@@ -1151,6 +1151,9 @@ textarea.input { min-height: 96px; resize: vertical; }
   animation: ui-fade var(--dur-2) ease both;
 }
 .modal-backdrop.is-closing { animation: ui-fade-out 180ms ease both; }
+/* A toast must not cover the buttons of a dialog (both sit at the bottom of a short window): while one is open the stack
+   goes behind it. An error or a warning keeps its place above the dialog. */
+body:has(.modal-backdrop:not(.is-closing)) .toast-stack:not(:has(.toast-list[role="alert"] .toast)) { z-index: var(--z-overlay); }
 .modal {
   --modal-w: 520px;
   display: flex;

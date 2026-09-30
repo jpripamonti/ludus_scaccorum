@@ -220,6 +220,10 @@
 @media (max-width: 719px) {
   .classics-filter-panel[data-open="false"] { display: none; }
 }
+/* The labels of the selects ("Todas las épocas") need the whole width of a phone. */
+@media (max-width: 479px) {
+  .classics-filter-panel { grid-template-columns: minmax(0, 1fr); }
+}
 @media (min-width: 720px) {
   .classics-filter-toggle { display: none; }
   .classics-controls { grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: end; }
@@ -232,7 +236,7 @@
   .classics-field-kind,
   .classics-field-sort { grid-column: span 6; }
 }
-@media (min-width: 1100px) {
+@media (min-width: 900px) {
   .classics-field-search { grid-column: span 5; }
   .classics-field-difficulty { grid-column: span 7; }
   .classics-field-era,
@@ -335,6 +339,7 @@
   gap: var(--space-2) var(--space-3);
   padding: var(--space-3) var(--space-5) var(--space-5);
 }
+.classics-card-body .progress { margin-top: var(--space-2); }
 .classics-card-count { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-muted); font-size: var(--text-sm); }
 .classics-card-count .ui-icon { color: var(--color-gold); }
 .classics-card-train { position: relative; z-index: 2; }
@@ -540,6 +545,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
   gap: 2px var(--space-2);
+  max-height: clamp(200px, 36vh, 340px);
   max-height: clamp(200px, 36svh, 340px);
   padding-right: 4px;
   overflow-y: auto;
@@ -600,6 +606,10 @@
 .classics-train-tip { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: 1.5; }
 .classics-train-tip .ui-icon { flex: none; margin-top: 2px; color: var(--color-gold); }
 
+.classics-progress { display: grid; gap: var(--space-2); }
+.classics-progress-text { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; color: var(--color-text); font-size: var(--text-sm); line-height: 1.5; }
+.classics-progress-text .ui-icon { flex: none; margin-top: 2px; color: var(--color-perfect); }
+
 /* About + sources: comfortable reading measure. */
 .classics-about { --card-pad: clamp(20px, 3vw, 32px); display: grid; gap: var(--space-5); }
 .classics-about-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5) var(--space-8); align-items: start; }
@@ -648,7 +658,10 @@
 }
 /* Portrait tablets: the board is as tall as the window allows, controls included. */
 @media (min-width: 720px) and (max-width: 899px) {
-  .classics-detail { --classics-board: clamp(300px, calc(100svh - 500px), 640px); }
+  .classics-detail { --classics-board: clamp(300px, calc(100vh - 500px), 640px); }
+  @supports (height: 100svh) {
+    .classics-detail { --classics-board: clamp(300px, calc(100svh - 500px), 640px); }
+  }
 }
 
 /* ── Wider screens ── */
@@ -673,7 +686,7 @@
   /* The board is as tall as the window allows: header, title strip, player names and the transport
      are what is left of the 100svh. The card is that wide plus its padding. */
   .classics-detail {
-    --classics-board: clamp(300px, calc(100svh - 344px), 640px);
+    --classics-board: clamp(300px, calc(100vh - 344px), 640px);
     grid-template-columns: calc(var(--classics-board) + 2 * var(--space-4)) minmax(0, 1fr);
     grid-template-areas:
       "replay head"
@@ -691,6 +704,12 @@
   .classics-moves-card { grid-area: moves; }
   .classics-train { grid-area: train; }
   .classics-replay-missing { grid-area: replay; }
+}
+/* Small viewport units where they exist (a phone's collapsing address bar must not change the board). */
+@supports (height: 100svh) {
+  @media (min-width: 900px) {
+    .classics-detail { --classics-board: clamp(300px, calc(100svh - 344px), 640px); }
+  }
 }
 /* The card follows the page while the right column scrolls, but only where it fits in the window. */
 @media (min-width: 900px) and (min-height: 640px) {

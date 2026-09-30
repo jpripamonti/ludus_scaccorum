@@ -151,7 +151,7 @@ async function open(browser, vp, options = {}) {
   // A returning person goes straight home; the landing page has its own checks (gate.js).
   await page.locator("#landing-start-btn").click();
   await page.waitForFunction(() => Ludus.router.current() === "home");
-  return { context, page, problems, vp, lang: options.lang || "en", issues: [], tag: options.tag || vp.name };
+  return { context, page, problems, vp, lang: options.lang || "en", issues: [], tag: options.tag || vp.name, bypassCSP: Boolean(options.bypassCSP) };
 }
 
 async function collectEvents(page) {
@@ -383,7 +383,8 @@ const motionProbe = (page) => page.evaluate(() => document.getAnimations()
 
 let axeSource = null;
 async function axeScan(ctx, label, options = {}) {
-  if (!AXE_PATH) return;
+  // axe is injected as an inline script: only a context that bypasses the CSP can run it (the others enforce the CSP).
+  if (!AXE_PATH || !ctx.bypassCSP) return;
   const { page } = ctx;
   if (axeSource === null) axeSource = fs.readFileSync(AXE_PATH, "utf8");
   const has = await page.evaluate(() => typeof window.axe !== "undefined");
@@ -920,7 +921,8 @@ function buildPgn() {
 }
 
 async function ownFlow(browser, vp) {
-  const ctx = await open(browser, vp, { lang: "en", tag: `own-${vp.name}` });
+  // With axe on, the context bypasses the CSP (axe is injected as a script); otherwise it is enforced.
+  const ctx = await open(browser, vp, { lang: "en", tag: `own-${vp.name}`, bypassCSP: Boolean(AXE_PATH) });
   const { page, context } = ctx;
   try {
     await context.route("https://lichess.org/**", async (route) => {
@@ -948,35 +950,48 @@ async function ownFlow(browser, vp) {
     assert.strictEqual(await link.getAttribute("target"), "_blank");
     assert.strictEqual(await page.locator("#coach-thinking .co-ctx-mover").count(), 0, "no master's name on your own game");
     await inspect(ctx, "1-thinking");
-    await playUci(page, await page.evaluate(() => STATE.positions[0].bestMoveUci));
-    await waitResult(page);
-    await settle(page, 700);
-    assert.match(await textOf(page, ".co-hero-verdict"), /.{10}/);
-    await inspect(ctx, "2-result");
-
-    step(`${vp.w}x${vp.h}: the search for the next mistake sits on the board with its facts`);
-    await page.locator("#next-btn").click();
-    const overlay = page.locator("#position-search-overlay");
-    await overlay.waitFor({ state: "visible", timeout: 30000 });
-    await page.locator("#position-search-facts .rd-carousel").waitFor({ state: "attached", timeout: 30000 }).catch(() => {});
-    await settle(page, 300);
+    // The waiting overlay in its fullest state (a cancellable search, with progress and a story), put up
+    // directly: the real search is often over before a script can look at it (play-session.js follows it).
+    step(`${vp.w}x${vp.h}: the waiting overlay sits on the board, its way out in reach`);
+    await page.evaluate(() => {
+      showPositionSearchOverlay("Searching next position...", "TestUser vs Rival \u00B7 1-0 \u00B7 move 12 \u00B7 2024", {
+        cancellable: true, facts: true, showProgress: true, progressRatio: 0.4, progressLabel: "12 / 30", factsDelayMs: 0,
+      });
+    });
+    await page.locator("#position-search-cancel-btn").waitFor({ state: "visible", timeout: 5000 });
+    await settle(page, 500);
     const facts = await page.evaluate(() => {
+      const cancel = document.querySelector("#position-search-cancel-btn").getBoundingClientRect();
       const overlayRect = document.querySelector("#position-search-overlay").getBoundingClientRect();
       const wrap = document.querySelector(".board-wrap").getBoundingClientRect();
-      const cancel = document.querySelector("#position-search-cancel-btn").getBoundingClientRect();
       const card = document.querySelector(".co-search-card").getBoundingClientRect();
+      const storyEl = document.querySelector("#position-search-facts");
       return {
         inside: overlayRect.left >= wrap.left - 1 && overlayRect.right <= wrap.right + 1 && overlayRect.top >= wrap.top - 1 && overlayRect.bottom <= wrap.bottom + 1,
         // The way out is on the card, on the board and on the screen, whatever the size of the board.
         cancelReachable: cancel.top >= card.top - 1 && cancel.bottom <= card.bottom + 1 && cancel.bottom <= overlayRect.bottom + 1 && cancel.bottom <= innerHeight && cancel.top >= 0,
         cancelH: cancel.height,
         cancelW: cancel.width,
+        storyShown: storyEl.getBoundingClientRect().height > 0,
+        boardHeight: wrap.height,
+        detail: JSON.stringify({ overlay: [overlayRect.top, overlayRect.bottom], wrap: [wrap.top, wrap.bottom], card: [card.top, card.bottom], cancel: [cancel.top, cancel.bottom] }),
       };
     });
-    assert.strictEqual(facts.inside, true, "the overlay stays on the board");
-    assert.strictEqual(facts.cancelReachable, true, "the cancel button is on the card, on the board and on the screen");
+    assert.strictEqual(facts.inside, true, `the overlay stays on the board (${facts.detail})`);
+    assert.strictEqual(facts.cancelReachable, true, `the cancel button is on the card, on the board and on the screen (${facts.detail})`);
     assert.ok(facts.cancelH >= 43.5 && facts.cancelW >= 43.5, `the cancel button is a real target (${facts.cancelW}x${facts.cancelH})`);
+    // A big board tells a story while it waits; a small one keeps to what is happening.
+    assert.strictEqual(facts.storyShown, facts.boardHeight > 545, `the story is shown only on a board taller than 545px (board ${facts.boardHeight}px, story ${facts.storyShown})`);
     await inspect(ctx, "3-searching", { axe: true });
+    await page.evaluate(() => hidePositionSearchOverlay());
+    await page.locator("#position-search-overlay").waitFor({ state: "hidden", timeout: 5000 });
+
+    await playUci(page, await page.evaluate(() => STATE.positions[0].bestMoveUci));
+    await waitResult(page);
+    await settle(page, 700);
+    assert.match(await textOf(page, ".co-hero-verdict"), /.{10}/);
+    await inspect(ctx, "2-result");
+    await page.locator("#next-btn").click();
     await page.waitForFunction(() => STATE.index === 1 && STATE.ui.phase === "playing", null, { timeout: 120000 });
     await page.evaluate(() => Ludus.game.abort());
     checkProblems(`own ${vp.name}`, ctx.problems);

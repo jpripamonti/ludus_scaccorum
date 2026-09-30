@@ -499,8 +499,17 @@ body.playing-mode #landing-screen { display: none !important; }
   .co-play[data-mode="duel"] .co-sound { display: none; }
   .co-play[data-mode="duel"] .co-duel-name { max-width: 12ch; }
 }
+/* The title is the page's h1: when there is no room for it, it stays for a screen reader (never display: none). */
 @media (max-width: 480px) {
-  .co-head-title { display: none; }
+  .co-head-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
   .co-head-pos { font-size: 0.9375rem; }
 }
 @media (max-width: 400px) {
@@ -581,7 +590,7 @@ body.playing-mode #landing-screen { display: none !important; }
   .co-play { --co-head-h: 44px; --co-pad: 8px; --co-gap: 6px; --co-strip-h: 24px; --co-dock-h: 44px; --co-panel-w: clamp(300px, 42vw, 420px); }
   .co-head { padding-block: 0; }
   .co-head-info { gap: 0; }
-  .co-head-title { display: none; }
+  .co-head-title { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   .co-clock { min-height: 32px; }
   .co-score-label { display: none; }
   .co-exit-label { display: none; }
@@ -1028,6 +1037,9 @@ html[data-motion="reduce"] .co-score.is-bump .co-score-value { animation: none; 
 button.co-concept { min-height: 44px; }
 .co-concept:hover { background: var(--color-surface-3); }
 .co-concept-body { display: grid; gap: var(--space-4); justify-items: center; }
+/* Wide and short: the board beside the words */
+.co-concept-body.is-beside { grid-template-columns: auto minmax(0, 1fr); align-items: center; justify-items: start; }
+.co-concept-body.is-beside .co-concept-text { font-size: var(--text-base); line-height: var(--lh-normal); }
 .co-concept-board { max-width: 100%; }
 .co-concept-board .mini-board { max-width: 100%; height: auto; }
 .co-concept-text { margin: 0; font-size: var(--text-md); line-height: var(--lh-loose); }
@@ -1273,6 +1285,9 @@ button.co-concept { min-height: 44px; }
   .co-play[data-view="summary"] #session-summary-result { grid-template-columns: minmax(340px, 0.9fr) minmax(0, 1.4fr); gap: var(--space-5); }
 }
 @media (max-width: 719px) {
+  /* Two columns: the primary action has a row to itself, and the way home fills the last one */
+  .co-play[data-view="summary"] #summary-again-btn { grid-column: 1 / -1; }
+  .co-play[data-view="summary"] .co-summary-actions[data-tail="odd"] #summary-menu-btn { grid-column: 1 / -1; }
   .co-sum-hero { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; padding: var(--space-4); }
   .co-sum-stats { justify-content: center; }
   .co-play[data-view="summary"] .co-panel { border-radius: var(--co-radius) var(--co-radius) 0 0; }

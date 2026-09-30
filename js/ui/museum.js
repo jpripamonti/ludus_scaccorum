@@ -459,6 +459,15 @@
     hashOnMount: "",
   };
 
+  // The hidden property and the hidden attribute together (a builder may have written the attribute, and the
+  // property alone would not clear it in every DOM).
+  function setHidden(el, on) {
+    if (!el) return;
+    el.hidden = Boolean(on);
+    if (on) el.setAttribute("hidden", "");
+    else el.removeAttribute("hidden");
+  }
+
   function clear(node) {
     while (node && node.firstChild) node.removeChild(node.firstChild);
   }
@@ -515,15 +524,6 @@
 
   function categoryChip(cat) {
     return h("span", { class: `rd-chip rd-chip--${cat} museum-cat` }, categoryLabel(cat));
-  }
-
-  function pill(label, pressed, onClick, extra) {
-    return h("button", {
-      type: "button",
-      class: `chip museum-pill${extra ? ` ${extra}` : ""}`,
-      "aria-pressed": String(pressed),
-      onclick: onClick,
-    }, label);
   }
 
   function panelHead(titleKey, leadKey) {
@@ -588,11 +588,7 @@
     if (open) state.timeline.open.add(item.id);
     else state.timeline.open.delete(item.id);
     button.setAttribute("aria-expanded", String(open));
-    if (panel) {
-      panel.hidden = !open;
-      if (open) panel.removeAttribute("hidden");
-      else panel.setAttribute("hidden", "");
-    }
+    setHidden(panel, !open);
     const related = panel ? panel.querySelectorAll(".museum-related-list li").length : 0;
     const label = button.querySelector(".btn-label");
     if (label) label.textContent = open ? t("museum.timeline.less") : (related ? t("museum.timeline.more.n", { n: related }) : t("museum.timeline.more"));
@@ -776,18 +772,18 @@
     const shown = Math.min(state.facts.shown, list.length);
     clear(refs.factGrid);
     list.slice(0, shown).forEach((fact) => refs.factGrid.appendChild(factCard(fact)));
-    refs.factGrid.hidden = list.length === 0;
+    setHidden(refs.factGrid, list.length === 0);
     refs.factCount.textContent = tCount("museum.facts.count", shown, { shown, total: list.length });
-    refs.factEmpty.hidden = list.length !== 0;
+    setHidden(refs.factEmpty, list.length !== 0);
     const remaining = list.length - shown;
-    refs.factMore.hidden = remaining <= 0;
+    setHidden(refs.factMore, remaining <= 0);
     if (remaining > 0) {
       refs.factMore.querySelector(".btn-label").textContent = t("museum.facts.more.n", { n: remaining });
     }
     Array.from(refs.factCats.querySelectorAll("button")).forEach((button) => {
       button.setAttribute("aria-pressed", String(button.getAttribute("data-cat") === state.facts.category));
     });
-    refs.factClear.hidden = !state.facts.query;
+    setHidden(refs.factClear, !state.facts.query);
   }
 
   function showSurprise() {
@@ -819,9 +815,8 @@
     if (!box) return;
     clear(box);
     const fact = state.surprise.id && Facts ? Facts.get(state.surprise.id) : null;
-    box.hidden = !fact;
+    setHidden(box, !fact);
     if (!fact) return;
-    box.removeAttribute("hidden");
     box.appendChild(h("div", { class: "museum-surprise-inner card card-accent" },
       h("div", { class: "museum-surprise-head" },
         h("p", { class: "t-eyebrow" }, icon("sparkles", { size: 14 }), t("museum.facts.surprise.title")),
@@ -868,7 +863,7 @@
       placeholder: t("museum.facts.search.placeholder"),
       oninput: (event) => {
         state.facts.query = event.target.value;
-        if (refs.factClear) refs.factClear.hidden = !state.facts.query;
+        if (refs.factClear) setHidden(refs.factClear, !state.facts.query);
         scheduleSearch(false);
       },
     });
@@ -1020,7 +1015,7 @@
     clear(refs.schoolGrid);
     list.forEach((concept) => refs.schoolGrid.appendChild(conceptCard(concept)));
     refs.schoolCount.textContent = tCount("museum.school.count", list.length);
-    refs.schoolEmpty.hidden = list.length !== 0;
+    setHidden(refs.schoolEmpty, list.length !== 0);
     Array.from(refs.schoolFilter.querySelectorAll("button")).forEach((button) => {
       button.setAttribute("aria-pressed", String(button.getAttribute("data-tag") === state.school.tag));
     });
@@ -1086,7 +1081,8 @@
     const Facts = factsApi();
     const host = state.refs.roomHost;
     destroyRoom();
-    if (!host || !Reader || typeof Reader.createCarousel !== "function" || !Facts) return;
+    // Nothing runs behind a hidden screen (a language switch redraws even then): show() starts it.
+    if (!state.visible || !host || !Reader || typeof Reader.createCarousel !== "function" || !Facts) return;
     clear(host);
     const category = state.room.category === "all" ? undefined : state.room.category;
     if (Facts.byCategory(category || "all").length === 0) {
@@ -1158,11 +1154,7 @@
         button.setAttribute("aria-selected", String(selected));
         button.setAttribute("tabindex", selected ? "0" : "-1");
       }
-      if (panel) {
-        panel.hidden = !selected;
-        if (selected) panel.removeAttribute("hidden");
-        else panel.setAttribute("hidden", "");
-      }
+      setHidden(panel, !selected);
     });
   }
 

@@ -575,6 +575,49 @@ replacing `STATE.board` clears it. **Sound and haptics** of the person's own mov
 `a11y.*` re-renders (the view calls `Settings.applyToDocument()` for the theme); `sound.*` / `haptics` are read by Audio each time.
 i18n keys `bd.live.*` (announcements) and `bd.state.*` (words for highlights, used in the square labels) are registered by the module.
 
+### The play screen and the coach (`index.html #game-layout`, `css/coach.css` `.co-`, `js/ui/coach.js` = `Ludus.Coach`)
+
+`#game-layout` (`<main>`) is one screen with a fixed grid: header (`#play-header`), stage (turn strip, `#board`, dock), panel
+(`#coach-panel`: a handle `#coach-expand`, the scroll region `#coach-scroll`, the footer `#coach-foot`). The page never scrolls;
+the panel is its own scroll region and its footer (`#next-btn`, or `#summary-actions`) is always on screen. `app.js`
+(`syncGamePhase()`) mirrors the state into attributes, and the CSS only reads them: `data-phase` = `thinking | evaluating |
+handoff | result | summary`, `data-view` = `play | summary`, `data-mode` = `solo | duel`, `data-expanded` = the phone/tablet sheet
+open over the board. **Regimes**: side (>= 1100px, or landscape >= 560px: board left, panel right, `--board-size` from the
+viewport), stacked (portrait: the board, the dock, the panel as a sheet; on a phone the board runs edge to edge and in a result
+the handle opens the sheet over the board), and short landscape (an icon-only dock, the title kept for a screen reader).
+`--co-head-h` is the header as it really is: the board is sized from it. The dock under the board swaps its content (hint /
+skip while thinking, best / game / explore / reset on a result) at the same height, and the evaluating state draws skeletons in
+the shape of the result: nothing moves when the answer arrives.
+
+**Who draws what.** `app.js` owns the state, the flow and the words it needs even without the coach (`play.*`, `game.*`,
+`core.*`: the header, the live regions `#play-announce` and `#result-overlay-live`, a plain-text fallback of the result and of the
+summary when `Ludus.Coach` is missing). `Ludus.Coach` owns the words and pictures of the panel (`coach.*`, registered through
+`Ludus.i18n.register`, es and en, tests keep both in step and reject unused keys). Pure helpers (no DOM): `qualityInfo`,
+`verdictKey` / `verdictText`, `winBars`, `safeGameUrl` (only https on lichess.org / chess.com becomes a link), `positionModel`,
+`dotsModel`, `rewardModel`, `summaryModel`, `shareText`, `pvTokens`, `roundArrows`. Renderers (every node with `Ludus.util.h`, quiet
+without a DOM): `renderThinking(el, model, extra)`, `renderEvaluating(el)`, `renderRound(el, context, api)`, `renderDuel(el, context,
+api)`, `renderDots(el, model)`, `renderSummary(el, summary, api)`, `renderSummaryActions(el, summary, api)`, `openConcept(id)`.
+`api` (all optional): `{ lang, pv: { line, ply }, onStep(lineIndex, ply), onOpenRound(index), matchText, gaugeSize, canReplay,
+canReview, onPlayAgain, onReview, onShare }`. The result on screen is always drawn from `STATE.resultView.context` alone, so a
+`language:changed` redraws it without recomputing anything and keeps the engine line that is open (`STATE.resultView.pv`).
+
+**What a session keeps for the summary**: `STATE.session.rounds` (index, fen, side, context), so the summary can reopen any
+position (`openSummaryRound(i)`: the board goes back to it, the header follows, `#next-btn` says "back to the summary" and
+`backToSummary()` returns). `Profile.recordRound` is called first by `emitRoundCompleted` to get what the round earned (XP, level,
+notebook card, achievements: `context.rewards`, one entry per answer); the bus event that follows is ignored by `Profile.attach()`.
+Celebrations are one toast at a time and none is shown over the summary of a solo session (the summary lists them); a duel has no
+experience card. Leaving a running session by any road (nav, brand, "More" sheet, the address bar) asks the same question as the exit
+button (`shell.js` `leaveGameThen()` -> `Ludus.game.leave()`), and only a yes goes on.
+
+**Rules this screen keeps** (checked by `scripts/e2e/coach.js`): no horizontal scroll and no page scroll, nothing overlaps (header
+items, board, dock, panel), every control is at least 44x44, every text is at least 4.5:1 (3:1 large) measured on the pixels it sits
+on, the quality of an answer is never told by colour alone (glyph, label and words), a visible focus ring on every stop, N / H / E / B
+keys as in the legend, no motion under `prefers-reduced-motion` or `a11y.motion = reduce`, no serious or critical axe violation.
+
+`scripts/tests/coach.test.js` (28): the pure helpers, both languages, the renderers in the fake DOM, degradation without the kit or a
+DOM. Browser: `scripts/e2e/coach.js` (scenarios `regimes` at eight viewports x es / en, `classic`, `duel`, `clock`, `own`, `motion`,
+`keyboard`, `contrast`, and `axe` with `LUDUS_AXE=/path/to/axe.min.js`); the core flows stay in `play-session.js` and `gate.js`.
+
 ## 20. Design system quick reference (`styles.css`, `css/system.css`, `js/ui/kit.js`, `js/ui/shell.js`, `js/ui/home.js`)
 
 (Numbered 20 because section 19 was taken by the game-core notes; the design-system brief called it "section 19".)
@@ -664,7 +707,117 @@ clicks the header buttons). `home.mount(#screen-home)`, `show()` (also driven by
 `profile:changed`, `notebook:changed`, `session:completed`; the daily position loads lazily with a skeleton, an error state with a
 retry, a done state; "Next fact" only touches the fact card.
 
+### Screens `Ludus.Screens.classics` and `Ludus.Screens.museum` (`js/ui/classics.js`, `js/ui/museum.js`; `css/classics.css` `.classics-`, `css/museum.css` `.museum-`)
+
+Both export `{ titleKey, mount, show(params), hide, render, destroy, helpers, TEXT }` and re-render on `language:changed`.
+
+**classics** (`titleKey "classics.title"`): `mount` draws the shell, `show` loads `Ludus.Classics.load()` (skeleton, error state with retry).
+Gallery of the 28 games (mini board of a signature position, bilingual title, players, opening, difficulty as dots + words, themes, number
+of training positions, a "moves cross-checked" mark when the record has >= 2 sources and one names the score), search (accent-blind, every
+word must match players, event, place, year, ECO, title, opening in both languages), difficulty / era (before 1900, 1900-1949, 1950-1999,
+2000 on) / theme / position kind / sort, removable chips, result count (`role=status`), empty state. "Random mix" (max difficulty x 5/10/20,
+remembered in `ludus.classics.mix.v1`) -> `Classics.random(...)` -> `startSession({kind:"classic", title, positions})`; the daily strip calls
+`Ludus.Screens.home.startDaily()` (falls back to its own `kind:"daily"` session). Game page: `show({ game: id })` (also `gameId`/`id`) or the
+hash `#/classics/<id>` (cold start captured at mount, `hashchange`, mirrored with `replaceState` after the shell's own mirror; ignored while
+`Ludus.game.isActive()`). The replay uses `Ludus.Classics.story(id)` + `Ludus.chess` and draws with `Ludus.Board` (same board, slide animation
+and theme as the play screen; `Ludus.ui.miniBoard` when it is missing): first / previous / play-pause / next / last (aria-disabled, so focus is
+never lost), scrubber with a diamond on each training position, list of moves with a roving tab stop, flip, speed 0.5x / 1x / 2x, the
+hand-written note of a moment after its move, a "try this position" cue before a training move (`startSession` with that one position),
+arrow keys / Home / End / Space from the document (arrows inside the list also move focus; up / down jump a whole move). Auto play waits the
+reading time of a note (`Reader.readingTimeMs`), pauses when the tab is hidden. "Train this game": count (5 / 10 / all), hints switch,
+shuffle -> `startSession({kind:"classic", title, positions, options:{hints}})`; the sentence "you play the master's side..." is on the card.
+The board squares are made non-focusable and the stage is `role=img` with a spoken description of the position.
+
+**museum** (`titleKey "museum.title"`, nav label "History"): accessible tablist (roles, roving tab stop, Left / Right / Home / End, panels built
+on first use) with `timeline` (36 milestones grouped in 8 eras; each expands to the curiosities of its time and its source; era links; jump to
+a year), `curiosities` (category pills with counts, accent-blind search, 24 at a time, "surprise me": a featured card, nothing is saved),
+`school` (`Concepts.list()`, a miniBoard with the best-move arrow and the move in SAN, "mistakes it helps to avoid" from `Concepts.tags` /
+`Insights.TAGS`, filter by tag) and `room` (`Reader.createCarousel`, created when the tab opens, destroyed when it closes or the screen hides;
+`onlyWhile` keeps it from rotating in the background). `show({ tab })` and the hash `#/museum/<tab>` open a tab. A missing module (Facts,
+Concepts, Insights, Reader, kit) turns that tab into a short notice.
+
+### Screens `Ludus.Screens.notebook` and `Ludus.Screens.progress` (`js/ui/notebook.js`, `js/ui/progress.js`; `css/notebook.css` `.notebook-`, `css/progress.css` `.progress-`)
+
+Both export `{ titleKey, mount, show(params), hide, render, destroy, helpers, TEXT }` (mount draws only the heading; the data is read in `show()`, again
+on `profile:changed` / `notebook:changed` / `session:completed` while visible, and once more when a hidden screen is shown) and never call
+`Profile.notebook.grade`: the game core's recorded round does.
+
+**notebook** (`titleKey "notebook.title"`, nav label "Notebook"): the summary (due now, cards, cleared = box >= 3, new, the next review in words
+and how many cards come back that day, a hand-written SVG of the six boxes with a table for screen readers), "Review N now" (N = 5 / 10 / 20, remembered
+in `ludus.notebook.prefs.v1`) -> `Ludus.game.startSession({ kind: "review", title, mode: "solo", positions })`; with nothing due it offers "Practise
+anyway" (the lowest boxes: passing early still moves the card up, the screen says so). **A position is built from a card** (`helpers.positionFromCard`):
+`{ id: "notebook:<cardId>", fen, source: "notebook", cardId, meta, tags, phase }` plus `reference: { origin: "precomputed", lines }` and
+`bestMoveUci` / `bestMoveSan` ONLY when the stored lines are a complete top-lines set (>= 2 lines, best first, every move legal, or as many lines
+as legal moves); a card made under the fallback engine has none of that and the round analyses at the root. Weak spots (themes of the cards that are
+not cleared) train one theme (`pickReviewCards mode "tag"`, due first) and the theme chips open the lesson (`Ludus.Screens.notebook.openConcept(tag,
+{ train })`, a dialog with `Concepts` text and a mini board; the progress screen reuses it). The list filters by status (all / due / new / learning /
+cleared), origin, theme, phase, how bad the mistake was (from the stored round of the card, else from the accuracy bands) and accent-blind text, sorts
+by next review / most recent / worst first, shows 12 at a time, and each card has a board seen from the side to move with the best-move arrow, the
+origin (your game names the opponent when the profile name is one of the players), your move against the best one, five box pips, the next review,
+the stored lines and the review history, review-this-one and a confirmed removal. `show({ tag, status, source, phase })` presets the filters.
+
+**progress** (`titleKey "progress.title"`): level and XP bar, streak (with the "at risk" warning) and daily streak, the four numbers, a 12 week heatmap
+(a grid computed by calendar arithmetic on local Y-M-D, so DST changes and New Year cannot shift a day; a list of the active days as its alternative),
+the accuracy trend of the last 20 non-duel sessions (drawn at the width it is shown at, one tab stop with arrow keys, a tooltip on focus and on the
+nearest session to the pointer, a table for screen readers) with the improvement between the first and the last positions, accuracy by phase and by
+origin (a mark at 70, small samples labelled), the quality of the moves as one stacked bar whose legend repeats every number, the weakest themes
+(only with `Profile.constants.MIN_TAG_SAMPLE` positions) linking to their lesson and to `router.show("notebook", { tag })`, the achievements catalogue
+with progress, and the recent sessions. What is missing is said with numbers (`helpers.dataGaps`); nothing is invented (no rarity, no placeholders).
+The profile switcher looks at another profile (`show({ profile })`) without changing the active one.
+
+### Screens `Ludus.Screens.settings` and `Ludus.Screens.account` (`js/ui/settings.js`, `js/ui/account.js`; `css/settings.css` `.settings-`, `css/account.css` `.account-`)
+
+Both export `{ titleKey, mount, show, hide, render, destroy, TEXT, helpers }`; `mount` only stores the container and subscribes (nothing is drawn or read until
+`show`), and both redraw on `language:changed`.
+
+**settings** (`titleKey "settings.title"`): drawn from `Ludus.Settings.schema` / `groups`, so an entry it has never heard of still gets a control (a trailing
+"Other settings" section). Five sections (`board`, `judge` = engine + scoring, `play` = clock + hints + mistakes, `sound`, `access`), a side nav on wide screens
+(pills on small ones, `aria-current` follows the scroll), a "Current setup" chip row, a per-section Reset (with an Undo toast) and a global Reset all (confirm).
+Controls by type: `boolean` -> `.switch`; `enum` -> a group of real radio inputs drawn as tiles (arrow keys, one tab stop; options with a
+`settings.ui.desc.<path>.<value>` text become cards); `number` -> `.slider` with `aria-valuetext` (a plain number field for wide ranges); `showWhen` hides a
+row. Every change goes to `Settings.set` (live) and the `settings:changed` listener repaints the controls IN PLACE (same nodes: focus and a drag survive),
+sparing the board preview / the table when the changed path cannot affect them. Rich pieces: the theme picker (a `Ludus.ui.miniBoard` per theme) and a large
+preview that follows `board.coords`, `board.lastMove` and `board.legalDots`; the "how the best move is decided" panel (a 3-step explainer, the wait the engine
+preset means, `helpers.waitEstimate`, the sentence of what counts as best with the tolerance in cp) and the **live preview table**:
+`helpers.previewRows({ scoring: Settings.scoringSettings(), multiPv, hintsEnabled })` runs `Scoring.assess` on ten canned cases (best, only move, equivalent,
+20 cp, master, 50 / 150 / 400 cp, missed mate, best with a level 1 hint) with the lines cut to `engine.multiPv`; a case whose points changed flashes (not under
+reduced motion). Clock: presets 60 / 90 / 180 / 360 s plus a number field that commits only complete in-range numbers while typing and clamps on leaving.
+Sound: one test button per `Audio.names` (`aria-disabled` while sound is off, so the buttons stay focusable), the volume slider plays "move" on release, the
+vibration test only where `navigator.vibrate` exists. Registered i18n: `settings.title|eyebrow|heading|sub`, `settings.section.*`, `settings.ui.*` (the schema's
+own `settings.<path>.label|hint|option.<v>` come from `js/settings.js`).
+
+**account** (`titleKey "account.title"`): profiles as cards (avatar, name, level badge, positions, active marker; create with a name + `Profile.constants.PALETTE`
+colour and an optional switch, rename, switch, delete with the typed name; there is no recolour because `Profile` has no API for it; deleting the last profile
+leaves a fresh empty one through `Profile.ensureActive()`), "Your data" (export through a Blob and `a[download]` named
+`ludus-scaccorum-<name|all-profiles>-YYYY-MM-DD.json`; import through a real file input that is also the drop area: `Profile.importJSON(text, { dryRun: true })`
+shows what is in the file, then `merge` (default) or `replace`; errors through `Profile.errorKey`; a 5 MB guard before reading; delete all with a typed word
+(`BORRAR` / `DELETE`) that clears the profiles, the settings, every other `ludus.*` key except the language, the IndexedDB cache of downloaded games and
+the local Google hint; the storage indicator counts the app's own `localStorage` keys), the Google sync card, "Install" and "About".
+The **Google card** exists only when `Auth.isConfigured()`; otherwise a quiet informational card (no button) points the site owner to `docs/GOOGLE_SIGNIN.md`.
+It is drawn from `helpers.syncModel(Auth.state())` and repaints from `Auth.onChange` (subscribed only while the screen is visible): signed out (one button,
+`Auth.preload()` on pointer / focus), connecting, signed in (name as text, picture only if `helpers.safePictureUrl` accepts a googleusercontent.com https
+URL, last sync, Sync now / Sign out / Sign out and revoke), syncing, error (`Auth.errorMessage(code)` in a `role="alert"`, Try again), expired or remembered after
+a reload (Reconnect). Note the machine: an expired session is `status "signed_out"` + `error "reconnect-required"` + a remembered user. The install prompt is
+captured when `js/ui/account.js` loads (the event fires early and once), `preventDefault()`ed, and used once from the button; iOS gets the Share hint and an installed
+app the "already installed" line. Registered i18n: `account.*`.
+
 ### Tests
+
+`scripts/tests/settings-ui.test.js` (34) and `scripts/tests/account-ui.test.js` (42): pure helpers, the preview values and how every setting moves them, both screens
+against the real Settings / Profile / Scoring / kit in the fake DOM, a stand-in Auth for every sync state, the dialogs, the download / import round trip, degradation
+without Scoring, Audio, the kit, Profile or Auth. Browser: `scripts/e2e/settings.js` (every setting changed through its control and persisted across a reload,
+what each one applies to the real page and play screen, the preview against `docs/SCORING.md`, keyboard, reset, motion, 7 viewports x es / en with layout and contrast
+probes, axe) and `scripts/e2e/account.js` (profiles, real downloads and the export -> delete -> import round trip, and the whole Google flow against an in-memory
+mock of Google Identity, userinfo and Drive shared by two "devices"; helpers in `scripts/e2e/_settings-account-common.js`).
+
+`scripts/tests/notebook-ui.test.js` (36) and `scripts/tests/progress-ui.test.js` (27): pure helpers (DST-safe days, filters, position building, chart
+maths, heatmap grid with an injected clock) and both screens against the real Profile in the fake DOM. Browser: `scripts/e2e/track.js` (seeds a learner
+through the real Profile API with `scripts/e2e/track-seed.js`: ~150 rounds over 40 days; a real review session graded by Profile; empty, partial and
+at-risk states; 7 viewports x es / en; reduced motion; focus rings; axe on 46 states).
+
+`scripts/tests/classics-ui.test.js` (36) and `scripts/tests/museum-ui.test.js` (18): pure helpers, the replay model of all 28 games, the
+screens against the real data in the fake DOM. Browser: `scripts/e2e/learn.js` (gallery, replay, deep links, training launchers, history tabs,
+the reading room against the real clock, 7 viewports x es / en, reduced motion, focus rings, axe).
 
 `scripts/tests/kit.test.js` (28 tests, fake DOM in `scripts/tests/_uidom.js`) and `scripts/tests/ui-screens.test.js` (19: text parity,
 home / daily / duel / landing / shell flows against the real Profile, Classics and Facts). Browser checks: Playwright with

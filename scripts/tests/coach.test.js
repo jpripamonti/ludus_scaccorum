@@ -381,6 +381,16 @@ test("positionModel: the card of a classic, an own game and a review; nothing mi
   const en = Coach.positionModel({ position: classicPosition, session: { kind: "classic" }, lang: "en" });
   assert.strictEqual(en.note, "A note in English.");
   assert.notStrictEqual(en.eyebrow, es.eyebrow);
+  // The stored text of a classic is English / ASCII: the classics screen (when it is there) gives the words of the page.
+  Ludus.Screens = Ludus.Screens || {};
+  Ludus.Screens.classics = { helpers: { localizeMeta: (meta, lang) => Object.assign({}, meta, { event: `${meta.event}@${lang}`, players: `${meta.players}@${lang}` }) } };
+  const localized = Coach.positionModel({ position: classicPosition, session: { kind: "classic" }, lang: "es" });
+  assert.strictEqual(localized.event, "Opera Game@es");
+  assert.strictEqual(localized.players, "Paul Morphy vs Duke of Brunswick@es");
+  assert.strictEqual(localized.moverName, "Morphy", "the surname still comes from the stored names");
+  Ludus.Screens.classics = { helpers: { localizeMeta() { throw new Error("broken"); } } };
+  assert.strictEqual(Coach.positionModel({ position: classicPosition, session: { kind: "classic" }, lang: "es" }).event, "Opera Game", "a failing helper falls back to the stored text");
+  delete Ludus.Screens.classics;
   // Black to move takes the other name.
   const black = Coach.positionModel({ position: Object.assign({}, classicPosition, { meta: Object.assign({}, classicPosition.meta, { sideToMove: "b" }) }), session: { kind: "classic" }, lang: "en" });
   assert.strictEqual(black.moverName, "Duke of Brunswick".split(" ").pop());
@@ -754,6 +764,43 @@ test("renderRound: a concept chip opens the lesson in a dialog", () => {
   assert.strictEqual(Coach.openConcept("not-a-concept"), null);
 });
 
+test("openConcept: a wide and short window puts the board beside the words, and a scrolling lesson can be reached by keyboard", () => {
+  const { FakeElement } = require("./_uidom.js");
+  const env = createEnv({ language: "en" });
+  const { Coach, doc, Ludus, context } = env;
+  const conceptId = Ludus.Concepts.list()[0].id;
+  const dialog = () => findAll(doc.body, byClass("modal")).pop();
+  // A tall window: the board on top, at full size, nothing to scroll.
+  context.innerWidth = 1280;
+  context.innerHeight = 800;
+  Coach.openConcept(conceptId, { lang: "en" });
+  assert.strictEqual(all(dialog(), "is-beside").length, 0);
+  assert.strictEqual(all(dialog(), "co-concept-board").length, 1);
+  assert.strictEqual(first(dialog(), "modal-body").getAttribute("tabindex"), null, "a lesson that fits needs no extra tab stop");
+  // A phone on its side: the board is beside the words and smaller.
+  context.innerWidth = 844;
+  context.innerHeight = 390;
+  const scrolling = Object.getOwnPropertyDescriptor(FakeElement.prototype, "scrollHeight");
+  Object.defineProperty(FakeElement.prototype, "scrollHeight", { configurable: true, get() { return this.classList.contains("modal-body") ? 500 : 0; } });
+  Object.defineProperty(FakeElement.prototype, "clientHeight", { configurable: true, get() { return this.classList.contains("modal-body") ? 200 : 0; } });
+  try {
+    Coach.openConcept(conceptId, { lang: "en" });
+    const modal = dialog();
+    assert.strictEqual(all(modal, "is-beside").length, 1, "the words beside the board");
+    const board = first(modal, "co-concept-board").children[0];
+    assert.ok(Number(board.getAttribute("width")) <= 160, `a small board (${board.getAttribute("width")})`);
+    // The body scrolls (its content is taller than it is): a keyboard reaches it and it has a name.
+    const body = first(modal, "modal-body");
+    assert.strictEqual(body.getAttribute("tabindex"), "0");
+    assert.strictEqual(body.getAttribute("role"), "region");
+    assert.ok(body.getAttribute("aria-label"));
+  } finally {
+    if (scrolling) Object.defineProperty(FakeElement.prototype, "scrollHeight", scrolling);
+    else delete FakeElement.prototype.scrollHeight;
+    delete FakeElement.prototype.clientHeight;
+  }
+});
+
 test("renderDuel: who won, both players, one shared analysis", () => {
   const env = createEnv({ language: "en" });
   const { Coach, doc } = env;
@@ -873,11 +920,13 @@ test("renderSummaryActions: play again, review and share come and go, the home b
   Coach.renderSummaryActions(el, summary, api);
   const ids = () => findAll(el, (node) => node.tagName === "BUTTON").map((node) => node.getAttribute("id"));
   sameData(ids(), ["summary-again-btn", "summary-review-btn", "summary-share-btn", "summary-menu-btn"], "in this order, home last");
+  assert.strictEqual(el.getAttribute("data-tail"), "odd", "review, share and home leave home alone on the last row: it takes the whole row");
   ["summary-again-btn", "summary-review-btn", "summary-share-btn"].forEach((id) => doc.getElementById(id).click());
   sameData(calls, ["again", "review", "share"]);
   // Drawing again does not duplicate them; what cannot be done is left out.
   Coach.renderSummaryActions(el, summary, { canReplay: false, canReview: false, onShare: () => {} });
   sameData(ids(), ["summary-share-btn", "summary-menu-btn"]);
+  assert.strictEqual(el.getAttribute("data-tail"), "even", "share and home fill a row of two");
   Coach.renderSummaryActions(el, Coach.summaryModel({ record: { mode: "duel", positions: 1, duel: { names: ["A", "B"], scores: [1, 2] } }, rounds: [], mode: "duel", lang: "en" }), { canReplay: true, onPlayAgain: () => {} });
   assert.ok(/rematch/i.test(text(doc.getElementById("summary-again-btn"))), "a duel offers a rematch");
   assert.strictEqual(doc.getElementById("summary-menu-btn"), home, "the static home button is never rebuilt");

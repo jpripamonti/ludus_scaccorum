@@ -608,7 +608,8 @@ async function readingRoomScenario(browser) {
   assert.strictEqual(s0.state, "running");
   assert.ok(s0.durationMs >= 6000 && s0.durationMs <= 24000, `reading time ${s0.durationMs}`);
   const text = await page.locator(".rd-text").innerText();
-  const words = (text.match(/[\p{L}\p{N}]+/gu) || []).length;
+  // The same word rule as js/reader.js (an apostrophe or hyphen inside a word keeps it one word).
+  const words = (text.match(/[\p{L}\p{N}]+(?:['\u2019\-][\p{L}\p{N}]+)*/gu) || []).length;
   const expected = Math.round(Math.min(24000, Math.max(6000, (words / 3) * 1000 + 1500)));
   assert.ok(Math.abs(expected - s0.durationMs) <= 60, `reading time ${s0.durationMs} for ${words} words (expected ${expected})`);
   assert.match(await page.locator(".museum-room-counter").innerText(), /^Fact 1 of 126$/);

@@ -86,7 +86,8 @@
       "classics.stat.years": "{from}–{to}",
       "classics.stat.span": "de historia del ajedrez",
       "classics.loading": "Cargando las partidas",
-      "classics.error": "No pudimos cargar las partidas clásicas. Revisá tu conexión e intentá de nuevo.",
+      "classics.error.title": "No pudimos cargar las partidas",
+      "classics.error": "Revisá tu conexión e intentá de nuevo.",
       "classics.retry": "Reintentar",
       "classics.nodata.title": "Todavía no hay partidas",
       "classics.nodata.body": "La biblioteca de partidas clásicas está vacía por ahora.",
@@ -171,6 +172,11 @@
       "classics.card.verified.hint": "La partida se comparó con copias públicas y con las reglas del ajedrez.",
       "classics.card.more": "+{n}",
       "classics.card.moves": "{n} jugadas",
+      "classics.card.practised": "{played} de {total} practicadas",
+      "classics.progress.label": "Practicadas: {played} de {total}",
+      "classics.progress.detail": "Ya practicaste {played} de {total} posiciones de esta partida y superaste {passed}. Precisión media de tu mejor intento: {accuracy} %.",
+      "classics.progress.detail.one": "Ya practicaste 1 de {total} posiciones de esta partida y {passed} superada. Precisión de tu mejor intento: {accuracy} %.",
+      "classics.progress.done": "¡Practicaste todas las posiciones de esta partida! Precisión media de tu mejor intento: {accuracy} %.",
 
       "classics.detail.back": "Todas las partidas",
       "classics.detail.result.w": "Ganan las blancas",
@@ -254,7 +260,8 @@
       "classics.stat.years": "{from}–{to}",
       "classics.stat.span": "of chess history",
       "classics.loading": "Loading the games",
-      "classics.error": "We could not load the classic games. Check your connection and try again.",
+      "classics.error.title": "We could not load the games",
+      "classics.error": "Check your connection and try again.",
       "classics.retry": "Try again",
       "classics.nodata.title": "There are no games yet",
       "classics.nodata.body": "The classic games library is empty for now.",
@@ -339,6 +346,11 @@
       "classics.card.verified.hint": "The game was compared with public copies and with the rules of chess.",
       "classics.card.more": "+{n}",
       "classics.card.moves": "{n} moves",
+      "classics.card.practised": "{played} of {total} practised",
+      "classics.progress.label": "Practised: {played} of {total}",
+      "classics.progress.detail": "You have practised {played} of {total} positions of this game and passed {passed}. Average accuracy of your best attempts: {accuracy}%.",
+      "classics.progress.detail.one": "You have practised 1 of {total} positions of this game and passed {passed}. Accuracy of your best attempt: {accuracy}%.",
+      "classics.progress.done": "You have practised every position of this game! Average accuracy of your best attempts: {accuracy}%.",
 
       "classics.detail.back": "All the games",
       "classics.detail.result.w": "White wins",
@@ -425,6 +437,8 @@
   const SORTS = ["chrono", "difficulty", "title"];
   const DIFFICULTIES = [1, 2, 3];
   const MIX_COUNTS = [5, 10, 20];
+  // The accuracy that passes a review in Ludus.Profile (a position at or above it counts as "passed").
+  const PASS_ACCURACY = 70;
   const SPEEDS = ["slow", "normal", "fast"];
   // Milliseconds between two moves of the automatic replay.
   const SPEED_MS = { slow: 2200, normal: 1400, fast: 700 };
@@ -624,6 +638,43 @@
     return allowed.includes(n) ? n : fallback;
   }
 
+  // What the person has done with each game's training positions. `rounds` are RoundRecords of source "classic"
+  // (Ludus.Profile.rounds), `hashFn` the hash of Ludus.util (a position id is "classic:<hash of the FEN>"). A hint
+  // that revealed the answer never counts as an attempt worth anything. -> Map(gameId -> { played, total, passed,
+  // accuracy }) with `accuracy` the mean of the best attempt of each played position (0-100), for games with rounds only.
+  function progressByGame(records, rounds, hashFn) {
+    const out = new Map();
+    const hash = typeof hashFn === "function" ? hashFn : (value) => value;
+    const owner = new Map();
+    const totals = new Map();
+    (Array.isArray(records) ? records : []).forEach((record) => {
+      if (!record || !record.id || !Array.isArray(record.positions)) return;
+      totals.set(record.id, record.positions.length);
+      record.positions.forEach((pos) => owner.set(`classic:${hash(pos.fen)}`, record.id));
+    });
+    const best = new Map();
+    (Array.isArray(rounds) ? rounds : []).forEach((round) => {
+      if (!round || !owner.has(round.positionId)) return;
+      const accuracy = Number(round.hintsUsed) >= 3 ? 0 : Math.max(0, Math.min(100, Number(round.accuracy) || 0));
+      if (!best.has(round.positionId) || best.get(round.positionId) < accuracy) best.set(round.positionId, accuracy);
+    });
+    const perGame = new Map();
+    best.forEach((accuracy, id) => {
+      const gameId = owner.get(id);
+      if (!perGame.has(gameId)) perGame.set(gameId, []);
+      perGame.get(gameId).push(accuracy);
+    });
+    perGame.forEach((list, gameId) => {
+      out.set(gameId, {
+        played: list.length,
+        total: totals.get(gameId) || list.length,
+        passed: list.filter((accuracy) => accuracy >= PASS_ACCURACY).length,
+        accuracy: Math.round(list.reduce((sum, value) => sum + value, 0) / list.length),
+      });
+    });
+    return out;
+  }
+
   // A game is "cross-checked" when its notes carry at least two sources and one of them names the score.
   function isVerified(record) {
     const sources = record && Array.isArray(record.sources) ? record.sources.filter((s) => typeof s === "string") : [];
@@ -703,6 +754,20 @@
     const raw = String(event === undefined || event === null ? "" : event);
     const entry = EVENT_TEXT[raw];
     return entry ? entry[language === "en" ? "en" : "es"] : raw;
+  }
+
+  // The display form of a stored `meta` ({ players: "A vs B", event, ... }): the classics data is English / ASCII and the other
+  // screens (the coach card, the notebook) show it too, so they ask here instead of writing "Casual game" on a Spanish page.
+  // Only names and events this screen knows are changed, so the metadata of a person's own games passes through as it came.
+  function localizeMeta(meta, language) {
+    const source = meta && typeof meta === "object" ? meta : {};
+    const out = Object.assign({}, source);
+    if (typeof source.players === "string") {
+      const sides = source.players.split(/\s+vs\.?\s+/i);
+      if (sides.length === 2) out.players = sides.map((side) => displayName(side.trim(), language)).join(" vs ");
+    }
+    if (typeof source.event === "string") out.event = eventLabel(source.event, language);
+    return out;
   }
 
   const COUNTRY = {
@@ -1009,6 +1074,7 @@
     daily: { status: "idle", key: "", position: null, promise: null },
     cards: new Map(),
     cardsLang: "",
+    progress: new Map(),
     refs: {},
     listScroll: 0,
     lastOpened: null,
@@ -1092,17 +1158,17 @@
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   }
 
-  function clear(node) {
-    while (node && node.firstChild) node.removeChild(node.firstChild);
+  // The hidden property and the hidden attribute together (a builder may have written the attribute, and the
+  // property alone would not clear it in every DOM).
+  function setHidden(el, on) {
+    if (!el) return;
+    el.hidden = Boolean(on);
+    if (on) el.setAttribute("hidden", "");
+    else el.removeAttribute("hidden");
   }
 
-  function reducedMotion() {
-    const ui = L().ui;
-    try {
-      return Boolean(ui && typeof ui.reducedMotion === "function" && ui.reducedMotion());
-    } catch (error) {
-      return false;
-    }
+  function clear(node) {
+    while (node && node.firstChild) node.removeChild(node.firstChild);
   }
 
   // Changing the page inside the screen (gallery <-> game) must not glide: the page has scroll-behavior
@@ -1163,10 +1229,34 @@
       if (record) state.records.set(game.id, record);
     });
     state.facets = facetOptions(state.games);
+    readProgress();
     state.cards.clear();
     DIFFICULTIES.forEach((level) => {
       state.mixAvailable[level] = countMixPositions(Array.from(state.records.values()), level);
     });
+  }
+
+  // ---------- Progress on the games ----------
+
+  function readProgress() {
+    const Profile = L().Profile;
+    const util = L().util;
+    let rounds = [];
+    try {
+      if (Profile && typeof Profile.rounds === "function") rounds = Profile.rounds(undefined, { source: "classic" });
+    } catch (error) {
+      rounds = [];
+    }
+    state.progress = progressByGame(Array.from(state.records.values()), rounds, util && util.hashString);
+  }
+
+  // A new answer changes the progress line of the cards: they are drawn again (the person is on the play screen
+  // when it happens, so no focus is lost).
+  function refreshProgress() {
+    if (state.status !== "ready") return;
+    readProgress();
+    state.cards.clear();
+    if (state.view === "list" && state.refs.grid) updateResults();
   }
 
   // ---------- Daily strip ----------
@@ -1402,6 +1492,7 @@
     const black = displayName(meta.black, language);
     const opening = pickText(meta.opening, language);
     const positions = meta.positionCount || 0;
+    const progress = state.progress.get(meta.id) || null;
     const titleId = `classics-card-${meta.id}`;
     return h("li", { class: "classics-item", "data-game": meta.id },
       h("article", { class: "classics-card card card-interactive", "aria-labelledby": titleId },
@@ -1418,9 +1509,13 @@
             h("a", { class: "classics-card-link", href: buildGameHash(meta.id), "data-fkey": `open-${meta.id}`, onclick: (event) => onOpenClick(event, meta.id) }, title)),
           h("p", { class: "classics-card-players" }, `${white} `, h("span", { class: "classics-vs" }, t("classics.detail.vs")), ` ${black}`),
           h("p", { class: "classics-card-where" }, `${cityLabel(meta.site, language)} · ${prettyResult(meta.result)} · ${t("classics.card.moves", { n: moveCountOf(meta.plies) })}`),
-          h("div", { class: "classics-card-tags" }, difficultyMark(meta.difficulty), ...themeChips(meta.themes, 2))),
+          h("div", { class: "classics-card-tags" }, difficultyMark(meta.difficulty), ...themeChips(meta.themes, 2)),
+          progress && ui && ui.progress
+            ? ui.progress(progress.played / progress.total, { label: t("classics.progress.label", { played: progress.played, total: progress.total }), size: "sm", tone: progress.passed >= progress.total ? "success" : null })
+            : null),
         h("div", { class: "classics-card-foot" },
-          h("span", { class: "classics-card-count" }, icon("target", { size: 16 }), tCount("classics.card.positions", positions)),
+          h("span", { class: "classics-card-count" }, icon("target", { size: 16 }),
+            progress ? t("classics.card.practised", { played: progress.played, total: progress.total }) : tCount("classics.card.positions", positions)),
           h("button", {
             type: "button",
             class: "btn btn-secondary btn-sm classics-card-train",
@@ -1587,10 +1682,7 @@
   function syncSearchClear() {
     const refs = state.refs;
     if (!refs.searchClear) return;
-    const has = Boolean(state.filters.q);
-    refs.searchClear.hidden = !has;
-    if (has) refs.searchClear.removeAttribute("hidden");
-    else refs.searchClear.setAttribute("hidden", "");
+    setHidden(refs.searchClear, !state.filters.q);
   }
 
   // Puts the state of the filters back into the controls (after "clear", or when a chip is removed).
@@ -1627,15 +1719,11 @@
     const active = hasActiveFilters(state.filters);
     clear(refs.grid);
     list.forEach((meta) => refs.grid.appendChild(cardFor(meta)));
-    refs.grid.hidden = list.length === 0;
+    setHidden(refs.grid, list.length === 0);
     if (refs.count) {
       refs.count.textContent = active ? tCount("classics.count", list.length, { shown: list.length, total }) : tCount("classics.count.all", total, { total });
     }
-    if (refs.empty) {
-      refs.empty.hidden = list.length !== 0;
-      if (list.length === 0) refs.empty.removeAttribute("hidden");
-      else refs.empty.setAttribute("hidden", "");
-    }
+    setHidden(refs.empty, list.length !== 0);
     if (refs.chips) {
       clear(refs.chips);
       const chips = filterChipList();
@@ -1652,9 +1740,7 @@
       if (chips.length) {
         refs.chips.appendChild(h("button", { type: "button", class: "btn btn-ghost btn-sm classics-clear", onclick: clearFilters }, h("span", { class: "btn-label" }, t("classics.filters.clear"))));
       }
-      refs.chips.hidden = chips.length === 0;
-      if (chips.length) refs.chips.removeAttribute("hidden");
-      else refs.chips.setAttribute("hidden", "");
+      setHidden(refs.chips, chips.length === 0);
     }
     syncControls();
   }
@@ -1693,7 +1779,7 @@
       rootEl.appendChild(ui && ui.emptyState
         ? ui.emptyState({
           icon: isError ? "alert" : "columns",
-          title: isError ? t("classics.retry") : t("classics.nodata.title"),
+          title: isError ? t("classics.error.title") : t("classics.nodata.title"),
           body: isError ? t("classics.error") : t("classics.nodata.body"),
           action: isError ? { label: t("classics.retry"), onClick: () => retry(), kind: "primary" } : null,
         })
@@ -2166,12 +2252,25 @@
     return h("section", { class: "classics-train card card-accent", "aria-labelledby": "classics-train-title" },
       h("h2", { class: "classics-h3", id: "classics-train-title" }, t("classics.train.title")),
       h("p", { class: "classics-train-how" }, t("classics.train.how", { playing: L().Classics ? L().Classics.playingLabel(meta.protagonist === "b" ? "b" : "w") : "" })),
+      progressLine(meta.id),
       counts.length > 1 ? h("div", { class: "field classics-train-field" }, h("span", { class: "field-label" }, t("classics.train.count")), r.trainCounts) : null,
       h("div", { class: "classics-train-switches" },
         toggle("classics-train-hints", "hints", d.train.hints, t("classics.train.hints"), t("classics.train.hints.hint")),
         toggle("classics-train-shuffle", "shuffle", d.train.shuffle, t("classics.train.shuffle"), t("classics.train.shuffle.hint"))),
       r.trainStart,
       h("p", { class: "classics-train-tip" }, icon("lightbulb", { size: 16 }), t("classics.replay.tip")));
+  }
+
+  // What the person has already done with this game (nothing is shown before the first answer).
+  function progressLine(id) {
+    const ui = L().ui;
+    const progress = state.progress.get(id);
+    if (!progress) return null;
+    const params = { played: progress.played, total: progress.total, passed: progress.passed, accuracy: progress.accuracy };
+    const done = progress.played >= progress.total;
+    return h("div", { class: "classics-progress" },
+      ui && ui.progress ? ui.progress(progress.played / progress.total, { label: t("classics.progress.label", params), size: "sm", tone: progress.passed >= progress.total ? "success" : null }) : null,
+      h("p", { class: "classics-progress-text" }, icon("check", { size: 14 }), done ? t("classics.progress.done", params) : tCount("classics.progress.detail", progress.played, params)));
   }
 
   function buildAboutCard(d) {
@@ -2395,7 +2494,9 @@
     r.play.setAttribute("title", label);
     r.play.setAttribute("aria-pressed", String(snap.playing));
     clear(r.play);
-    r.play.appendChild(icon(snap.playing ? "pause" : "play", { size: 24 }));
+    const playIcon = icon(snap.playing ? "pause" : "play", { size: 24 });
+    // Without the kit's icons the button keeps a text glyph, so it is never empty.
+    r.play.appendChild(playIcon || getDoc().createTextNode(snap.playing ? "❚❚" : "▶"));
 
     // The note of the moment, the training cue and the state of the game.
     renderNow(d, shown, upcoming, snap);
@@ -2403,14 +2504,20 @@
     // The list of moves: the current one is marked and is the only tab stop.
     const activePly = shown ? shown.ply : -1;
     const stop = activePly >= 0 ? activePly : (model && model.total ? 0 : -1);
-    r.moveButtons.forEach((button, ply) => {
-      const on = ply === activePly;
-      if (on) button.setAttribute("aria-current", "step");
-      else button.removeAttribute("aria-current");
-      button.classList.toggle("is-current", on);
-      button.setAttribute("tabindex", ply === stop ? "0" : "-1");
+    // Only the two buttons that change are touched (a game of 271 plies has 271 of them).
+    (r.marked || []).forEach((button) => {
+      button.removeAttribute("aria-current");
+      button.classList.remove("is-current");
+      button.setAttribute("tabindex", "-1");
     });
+    const marked = r.moveButtons.get(activePly);
+    if (marked) {
+      marked.setAttribute("aria-current", "step");
+      marked.classList.add("is-current");
+    }
     const current = r.moveButtons.get(stop);
+    if (current) current.setAttribute("tabindex", "0");
+    r.marked = [marked, current].filter(Boolean);
     if (current) {
       scrollMoveIntoView(r.moveButtons.get(activePly));
       if (opts.focusMove && typeof current.focus === "function") current.focus({ preventScroll: true });
@@ -2604,7 +2711,7 @@
     } catch (error) {
       logError("[Ludus.classics] the screen could not be drawn", error);
       clear(rootEl);
-      rootEl.appendChild(h("p", { class: "classics-notice" }, t("classics.error")));
+      rootEl.appendChild(h("p", { class: "classics-notice" }, t("classics.error.title")));
     }
   }
 
@@ -2633,8 +2740,8 @@
         state.cards.clear();
         render();
       });
-      on("profile:changed", () => renderDailySlot());
-      on("session:completed", () => renderDailySlot());
+      on("profile:changed", () => { renderDailySlot(); refreshProgress(); });
+      on("session:completed", () => { renderDailySlot(); refreshProgress(); });
       if (typeof root.addEventListener === "function") {
         root.addEventListener("hashchange", onHashChange);
         state.domOffs.push(() => root.removeEventListener("hashchange", onHashChange));
@@ -2680,6 +2787,8 @@
       const d = state.detail;
       if (d && d.replay) d.replay.pause();
       destroyDetail();
+      // The page of a game holds a board and timers: it goes away with the screen (show() draws it again).
+      if (d && state.container) clear(state.container);
     },
     render,
     destroy() {
@@ -2706,6 +2815,7 @@
       signatureOf,
       trainCounts,
       countMixPositions,
+      progressByGame,
       isVerified,
       linkifySource,
       parseGameHash,
@@ -2713,6 +2823,7 @@
       buildGameHash,
       displayName,
       eventLabel,
+      localizeMeta,
       siteLabel,
       cityLabel,
       resultSide,

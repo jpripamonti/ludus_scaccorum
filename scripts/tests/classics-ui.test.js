@@ -277,6 +277,69 @@ test("mix availability agrees with Ludus.Classics.random (forced mates in one st
   assert.strictEqual(h.countMixPositions(null, 3), 0);
 });
 
+test("progress: the best attempt on each position, hints that reveal the answer count for nothing", async () => {
+  const { Ludus } = createEnv();
+  await Ludus.Classics.load();
+  const h = Ludus.Screens.classics.helpers;
+  const records = ["opera-1858", "immortal-1851"].map((id) => Ludus.Classics.get(id));
+  const hash = Ludus.util.hashString;
+  const pid = (record, i) => `classic:${hash(record.positions[i].fen)}`;
+  const rounds = [
+    { positionId: pid(records[0], 0), accuracy: 40, hintsUsed: 0 },
+    { positionId: pid(records[0], 0), accuracy: 90, hintsUsed: 0 }, // the best of the position
+    { positionId: pid(records[0], 1), accuracy: 100, hintsUsed: 3 }, // revealed: worth nothing
+    { positionId: pid(records[0], 2), accuracy: 70, hintsUsed: 1 }, // exactly the pass mark
+    { positionId: "classic:unknown", accuracy: 100 },
+    { positionId: pid(records[1], 0), accuracy: 55 },
+    null,
+  ];
+  const progress = h.progressByGame(records, rounds, hash);
+  const opera = progress.get("opera-1858");
+  assert.deepStrictEqual({ played: opera.played, total: opera.total, passed: opera.passed, accuracy: opera.accuracy }, { played: 3, total: 6, passed: 2, accuracy: Math.round((90 + 0 + 70) / 3) });
+  assert.deepStrictEqual({ played: progress.get("immortal-1851").played, passed: progress.get("immortal-1851").passed }, { played: 1, passed: 0 });
+  assert.strictEqual(progress.size, 2, "games without answers are not listed");
+  assert.strictEqual(h.progressByGame([], rounds, hash).size, 0);
+  assert.strictEqual(h.progressByGame(records, null, hash).size, 0);
+  assert.strictEqual(h.progressByGame(null, rounds).size, 0);
+});
+
+test("progress: answers already given show on the cards and on the game page, and follow new answers", async () => {
+  const { Ludus, el } = createEnv();
+  const screen = Ludus.Screens.classics;
+  screen.mount(el);
+  Ludus.router.show("classics");
+  await flush();
+  const card = () => one(el, (n) => n.getAttribute("data-game") === "opera-1858");
+  assert.ok(text(card()).includes("6 posiciones de entrenamiento") && findAll(card(), (n) => n.getAttribute("role") === "progressbar").length === 0, "nothing before the first answer");
+  const positions = Ludus.Classics.positions("opera-1858", {});
+  positions.slice(0, 3).forEach((pos, i) => Ludus.Profile.recordRound({
+    id: `p${i}`, ts: Date.now() - i * 1000, source: "classic", sessionKind: "classic", positionId: pos.id, fen: pos.fen, userUci: pos.bestMoveUci, bestUci: pos.bestMoveUci,
+    accuracy: [95, 80, 40][i], points: 9, phase: pos.phase, timeSpentMs: 4000,
+  }));
+  Ludus.bus.emit("profile:changed", {});
+  const bar = findAll(card(), (n) => n.getAttribute("role") === "progressbar")[0];
+  assert.ok(bar, "a progress bar on the card");
+  assert.strictEqual(bar.getAttribute("aria-valuenow"), "50");
+  assert.strictEqual(bar.getAttribute("aria-label"), "Practicadas: 3 de 6");
+  assert.ok(text(card()).includes("3 de 6 practicadas"));
+  Ludus.router.show("classics", { game: "opera-1858" });
+  await flush();
+  const line = q(el, ".classics-progress-text");
+  assert.ok(text(line).includes("Ya practicaste 3 de 6") && text(line).includes("superaste 2") && text(line).includes("72 %"), text(line));
+  Ludus.i18n.setLanguage("en", { persist: false });
+  assert.ok(text(q(el, ".classics-progress-text")).includes("You have practised 3 of 6") && text(q(el, ".classics-progress-text")).includes("passed 2"));
+  // All six practised: the sentence changes and the bar is complete.
+  positions.slice(3).forEach((pos, i) => Ludus.Profile.recordRound({
+    id: `q${i}`, ts: Date.now() + i, source: "classic", sessionKind: "classic", positionId: pos.id, fen: pos.fen, userUci: pos.bestMoveUci, bestUci: pos.bestMoveUci,
+    accuracy: 100, points: 10, phase: pos.phase, timeSpentMs: 4000,
+  }));
+  Ludus.bus.emit("session:completed", {});
+  Ludus.router.show("classics");
+  await flush();
+  const done = findAll(card(), (n) => n.getAttribute("role") === "progressbar")[0];
+  assert.strictEqual(done.getAttribute("aria-valuenow"), "100");
+});
+
 test("verified rule and safe source links", async () => {
   const { Ludus } = createEnv();
   await Ludus.Classics.load();
@@ -323,6 +386,19 @@ test("display: names, events, sites, results in both languages", async () => {
   assert.strictEqual(h.eventLabel("Casual game", "es"), "Partida amistosa");
   assert.strictEqual(h.eventLabel("Casual game", "en"), "Casual game");
   assert.strictEqual(h.eventLabel("Hastings", "es"), "Hastings", "proper names are kept");
+  // The coach card and the notebook show a stored classic's metadata through localizeMeta (regression: a Spanish page
+  // used to say "Casual game" and "Duke Karl of Brunswick and Count Isouard").
+  const stored = { players: "Paul Morphy vs Duke Karl of Brunswick and Count Isouard", event: "Casual game", year: "1858", site: "Paris FRA", moveNumber: 7 };
+  const shownEs = h.localizeMeta(stored, "es");
+  assert.strictEqual(shownEs.players, "Paul Morphy vs el duque Carlos de Brunswick y el conde Isouard");
+  assert.strictEqual(shownEs.event, "Partida amistosa");
+  assert.strictEqual(shownEs.year, "1858");
+  assert.strictEqual(shownEs.moveNumber, 7, "the other fields pass through");
+  assert.strictEqual(stored.event, "Casual game", "the stored metadata is not touched");
+  assert.strictEqual(h.localizeMeta(stored, "en").event, "Casual game");
+  assert.strictEqual(h.localizeMeta({ players: "Ana vs Marta_92", event: "Lichess blitz" }, "es").players, "Ana vs Marta_92", "a person's own games pass through");
+  assert.strictEqual(h.localizeMeta({ players: "Somebody" }, "es").players, "Somebody", "not two players: unchanged");
+  assert.strictEqual(Object.keys(h.localizeMeta(null, "es")).length, 0, "no metadata: an empty one");
   assert.strictEqual(h.siteLabel("London ENG", "es"), "Londres, Inglaterra");
   assert.strictEqual(h.siteLabel("London ENG", "en"), "London, England");
   assert.strictEqual(h.siteLabel("New York USA", "es"), "Nueva York, EE. UU.");
@@ -679,7 +755,7 @@ test("daily strip: pending shows the play button (through the home screen when t
 });
 
 test("game page: opening a card shows the replay, mirrors the hash and moves focus to the title", async () => {
-  const { Ludus, el, location } = createEnv();
+  const { Ludus, el } = createEnv();
   const screen = Ludus.Screens.classics;
   screen.mount(el);
   Ludus.router.show("classics");
@@ -702,7 +778,6 @@ test("game page: opening a card shows the replay, mirrors the hash and moves foc
   assert.ok(text(q(el, ".classics-about")).includes("Fuentes y verificación"));
   const links = findAll(q(el, ".classics-sources"), (n) => n.tagName === "A");
   assert.ok(links.length >= 1 && links.every((a) => a.getAttribute("href").startsWith("https://") && a.getAttribute("rel") === "noopener noreferrer" && a.getAttribute("target") === "_blank"));
-  void location;
 });
 
 test("game page: hash mirrored, back returns to the gallery with focus on the card", async () => {
@@ -802,8 +877,8 @@ test("replay: the note of a moment shows after its move, the cue with the try bu
   Ludus.Screens.classics.mount(el);
   Ludus.router.show("classics", { game: "opera-1858" });
   await flush();
-  const slider = q(el, ".classics-scrub-input");
-  const goto = (n) => { slider.value = String(n); slider.dispatch("input"); };
+  // Looked up each time: a language switch redraws the page.
+  const goto = (n) => { const slider = q(el, ".classics-scrub-input"); slider.value = String(n); slider.dispatch("input"); };
   const record = Ludus.Classics.get("opera-1858");
   const moment = record.positions.find((p) => p.note);
   goto(moment.ply);
@@ -917,8 +992,8 @@ test("auto play: moves on the timer, waits the reading time on a note, pauses wh
   assert.strictEqual(replay().index, moment.ply + 1, "one step to the note");
   advance(5500);
   assert.strictEqual(replay().index, moment.ply + 1, "the note is being read");
-  advance(1500);
-  assert.strictEqual(replay().index, moment.ply + 2, "on to the next move afterwards");
+  advance(1800);
+  assert.strictEqual(replay().index, moment.ply + 2, "on to the next move once its reading time (7.2 s for 17 words) has passed");
   // Leaving the screen stops the timer and drops the board.
   assert.strictEqual(replay().playing, true);
   Ludus.router.show("home");
@@ -1024,6 +1099,7 @@ test("language: the gallery and the game page re-render in place (filters and po
   await flush();
   const search = q(el, "#classics-search");
   search.value = "morphy";
+  search.dispatch("input");
   search.dispatch("keydown", { key: "Enter" });
   Ludus.i18n.setLanguage("en", { persist: false });
   assert.ok(text(q(el, ".classics-title")).includes("Classic games"));
@@ -1056,7 +1132,7 @@ test("loading: a failing load shows an error with a retry (never a blank screen)
   await flush();
   console.error = originalError;
   assert.strictEqual(cardIds(el).length, 0);
-  assert.ok(text(el).includes("No pudimos cargar las partidas clásicas"));
+  assert.ok(text(el).includes("No pudimos cargar las partidas") && text(el).includes("Revisá tu conexión"));
   const retry = one(el, (n) => n.tagName === "BUTTON" && text(n).includes("Reintentar"));
   assert.ok(retry, "there is a retry button");
   retry.click();
@@ -1115,6 +1191,36 @@ test("without chess.js or Ludus.Board: the replay falls back to the mini board; 
   one(noStory.el, byFkey("train-start")).click();
   await flush();
   assert.strictEqual(noStory.calls.sessions.length, 1, "training does not need the replay");
+});
+
+test("with Ludus.Board: the replay board has 64 squares, the last move, the check, no focusable squares", async () => {
+  const env = createEnv({ withBoard: true });
+  const { Ludus, el } = env;
+  Ludus.Screens.classics.mount(el);
+  Ludus.router.show("classics", { game: "opera-1858" });
+  await flush();
+  const board = q(el, ".classics-board");
+  assert.ok(board, "the board of Ludus.Board");
+  assert.strictEqual(findAll(board, byClass("square")).length, 64);
+  assert.strictEqual(board.getAttribute("aria-hidden"), "true");
+  assert.strictEqual(findAll(board, (n) => n.classList.contains("bd-piece")).length, 32);
+  assert.strictEqual(findAll(board, (n) => n.hasAttribute("tabindex")).length, 0, "no square is focusable");
+  assert.strictEqual(findAll(el, (n) => n.tagName.toLowerCase() === "svg" && n.classList.contains("mini-board")).length, 0, "no fallback board");
+  one(el, byAction("next")).click();
+  const last = findAll(board, (n) => n.classList.contains("bd-last")).map((n) => n.dataset.square).sort();
+  assert.deepStrictEqual(last, ["e2", "e4"]);
+  one(el, byAction("last")).click();
+  assert.ok(findAll(board, (n) => n.classList.contains("bd-check")).length === 1, "the mated king glows");
+  assert.strictEqual(findAll(board, (n) => n.classList.contains("bd-check"))[0].dataset.square, "e8");
+  assert.strictEqual(findAll(board, (n) => n.hasAttribute("tabindex")).length, 0, "still no focusable square after more renders");
+  // Flip rebuilds the squares with Black at the bottom.
+  one(el, byAction("flip")).click();
+  assert.strictEqual(board.getAttribute("data-orientation"), "b");
+  assert.strictEqual(findAll(board, byClass("square")).length, 64);
+  assert.strictEqual(findAll(board, (n) => n.classList.contains("bd-check")).length, 1, "the position is kept");
+  // Leaving destroys the view: no board is left behind.
+  Ludus.router.show("home");
+  assert.strictEqual(findAll(el, byClass("classics-board")).length, 0);
 });
 
 test("hashchange and cold start: #/classics/<id> is followed, a running session is not interrupted", async () => {

@@ -262,7 +262,7 @@
 }
 @media (min-width: 960px) {
   .museum-timeline-layout { grid-template-columns: 15.5rem minmax(0, 1fr); gap: var(--space-9); }
-  .museum-timeline-side { position: sticky; top: calc(var(--header-h) + var(--space-4)); max-height: calc(100svh - var(--header-h) - var(--space-7)); overflow-y: auto; }
+  .museum-timeline-side { position: sticky; top: calc(var(--header-h) + var(--space-4)); max-height: calc(100vh - var(--header-h) - var(--space-7)); max-height: calc(100svh - var(--header-h) - var(--space-7)); overflow-y: auto; }
   .museum-era-nav { flex-direction: column; gap: 2px; margin-inline: 0; padding: 0; overflow: visible; }
   .museum-era-link { width: 100%; border-color: transparent; background: transparent; }
   .museum-era-link:hover { background: var(--color-surface-2); }

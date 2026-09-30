@@ -1094,7 +1094,10 @@ test("integration", "onInfo is throttled and its last call equals the result", a
   assert.ok(calls.length >= 1, "progress was reported");
   assert.ok(calls.length <= Math.ceil(result.elapsedMs / 125) + 2, `${calls.length} updates in ${result.elapsedMs} ms`);
   assert.ok(calls.every((c) => c.lines.length >= 1 && c.depth >= 1));
-  assert.deepStrictEqual(calls[calls.length - 1].lines, result.lines);
+  // Progress is keyed on what a person sees (depth, score, line), not on the node counters: a late info line that only
+  // moved nodes / nps / timeMs is deliberately not re-emitted, so compare the meaningful fields (this used to flake).
+  const seen = (line) => ({ multipv: line.multipv, score: line.score, pv: line.pv });
+  assert.deepStrictEqual(calls[calls.length - 1].lines.map(seen), result.lines.map(seen));
   assert.strictEqual(calls[calls.length - 1].depth, result.depth);
 });
 

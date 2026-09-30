@@ -556,12 +556,28 @@
     return words[words.length - 1];
   }
 
+  // The stored metadata in the language of the page (a classic's players and event are kept in English / ASCII); without the
+  // classics screen the raw text is shown.
+  function localizedMeta(meta, lang) {
+    const screen = L().Screens && L().Screens.classics;
+    const helpers = screen && screen.helpers;
+    if (helpers && typeof helpers.localizeMeta === "function") {
+      try {
+        return helpers.localizeMeta(meta, lang);
+      } catch (error) {
+        // keep the raw text
+      }
+    }
+    return meta;
+  }
+
   // What the card shows while the person thinks. `position` is a Position (docs section 9).
   function positionModel(input) {
     const opts = input || {};
     const position = opts.position || {};
-    const meta = position.meta && typeof position.meta === "object" ? position.meta : {};
+    const rawMeta = position.meta && typeof position.meta === "object" ? position.meta : {};
     const lang = langOf(opts.lang);
+    const meta = localizedMeta(rawMeta, lang);
     const kind = opts.session && opts.session.kind ? opts.session.kind : position.source === "classic" ? "classic" : "own";
     const classic = position.classic && typeof position.classic === "object" ? position.classic : null;
     const classics = L().Classics;
@@ -590,7 +606,7 @@
       side,
       kind: kindInfo,
       note: String(note || ""),
-      moverName: kind === "own" ? "" : moverSurname(meta.players, side),
+      moverName: kind === "own" ? "" : moverSurname(rawMeta.players, side),
       link,
       eco: String(meta.eco || "").trim(),
       lang,
@@ -1120,18 +1136,36 @@
     }
     if (!concept || !text) return null;
     const uci = concept.bestUci || "";
+    // A window that is wide and short (a phone on its side) puts the board beside the words and shrinks it,
+    // so the lesson fits without scrolling; anywhere else the board is on top at full size.
+    const height = Number(root.innerHeight) || 800;
+    const width = Number(root.innerWidth) || 1280;
+    const beside = width > 640 && height < 560;
+    const boardSize = beside ? Math.max(140, Math.min(300, height - 230)) : 300;
     const board = typeof kit.miniBoard === "function"
       ? kit.miniBoard(concept.fen, {
-        size: 300, orientation: concept.fen && concept.fen.split(" ")[1] === "b" ? "b" : "w", coords: true,
+        size: boardSize, orientation: concept.fen && concept.fen.split(" ")[1] === "b" ? "b" : "w", coords: !beside,
         arrows: roundArrows(uci, null), label: t("coach.concept.example", { title: text.title }, lang),
       })
       : null;
-    return kit.modal({
+    const handle = kit.modal({
       title: text.title,
       size: "md",
-      body: [h("div", { class: "co-concept-body" }, board ? h("div", { class: "co-concept-board" }, board) : null, h("p", { class: "co-concept-text" }, text.body))],
+      body: [h("div", { class: cls("co-concept-body", beside && "is-beside") }, board ? h("div", { class: "co-concept-board" }, board) : null, h("p", { class: "co-concept-text" }, text.body))],
       actions: [{ label: t("coach.concept.close", {}, lang), kind: "primary", autofocus: true }],
     });
+    // A lesson taller than the window scrolls inside the dialog: a keyboard has to be able to reach the rest.
+    try {
+      const scroller = handle && handle.el && typeof handle.el.querySelector === "function" ? handle.el.querySelector(".modal-body") : null;
+      if (scroller && scroller.scrollHeight > scroller.clientHeight + 1) {
+        scroller.setAttribute("tabindex", "0");
+        scroller.setAttribute("role", "region");
+        scroller.setAttribute("aria-label", text.title);
+      }
+    } catch (error) {
+      // the dialog works without it
+    }
+    return handle;
   }
 
   function conceptsRow(answer, lang) {
@@ -1584,6 +1618,10 @@
       const row = h("div", { class: "co-summary-row", "data-co": "" }, secondary.filter(Boolean));
       el.insertBefore(row, home);
     }
+    // On two columns (a phone) the play-again button takes a row of its own, and the home button takes the
+    // last one when the others would leave it alone in a corner: the stylesheet reads this.
+    const others = secondary.filter(Boolean).length + (home ? 1 : 0);
+    el.setAttribute("data-tail", others % 2 === 1 ? "odd" : "even");
   }
 
   return {
