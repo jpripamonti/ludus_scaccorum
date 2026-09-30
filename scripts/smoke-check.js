@@ -59,8 +59,9 @@ const LOGIC_MODULES = [
   "js/classics.js",
 ];
 const SCREEN_NAMES = ["home", "classics", "notebook", "progress", "museum", "settings", "account"];
-const SCREEN_MODULES = SCREEN_NAMES.map((name) => `js/ui/${name}.js`);
-const CSS_FILES = ["css/system.css", ...SCREEN_NAMES.map((name) => `css/${name}.css`)];
+const UI_SUPPORT_NAMES = ["kit", "shell", "board", "coach"];
+const SCREEN_MODULES = [...UI_SUPPORT_NAMES, ...SCREEN_NAMES].map((name) => `js/ui/${name}.js`);
+const CSS_FILES = ["css/system.css", "css/shell.css", "css/board.css", "css/coach.css", ...SCREEN_NAMES.map((name) => `css/${name}.css`)];
 
 [
   "index.html",

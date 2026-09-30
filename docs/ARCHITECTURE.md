@@ -439,3 +439,47 @@ deploy copies every top-level directory that `index.html` references).
 validation. Browser-level checks live in `scripts/e2e/*.js` (Playwright is not
 a project dependency; the scripts explain how to run them) and are **not** part
 of `npm test`.
+
+## 18. Addenda after the logic layer was built (authoritative where it differs from above)
+
+The modules are implemented and tested; where this document and the code differ, **the code wins** and
+this section lists the differences that matter to integrators. Per-module details live in
+`docs/SCORING.md`, `docs/FACTS_SOURCES.md` ("API as implemented"), `docs/CLASSICS_DATA.md`, `docs/GOOGLE_SIGNIN.md`.
+
+* **Extra support modules** (stubs owned by the UI work): `js/ui/kit.js` (`Ludus.ui`: toast, modal, miniBoard, gauge,
+  ring, sparkline, chips, empty states), `js/ui/shell.js` (`Ludus.shell`: top bar, nav, profile chip, bottom tabs),
+  `js/ui/board.js` (`Ludus.Board`: board interaction and visuals used by `app.js`), `js/ui/coach.js` (`Ludus.Coach`:
+  result coach panel and session summary). CSS: `css/shell.css` (`.sh-`), `css/board.css` (`.bd-`), `css/coach.css` (`.co-`).
+* **i18n**: `Ludus.i18n.onChange(fn)` calls `fn(langString)`. `Ludus.i18n.setLanguage()` always emits `language:changed`.
+  `app.js`'s `setLanguage()` must call it (and must react to `language:changed` coming from elsewhere).
+* **Router**: `show(id, params)` returns false for an unknown id; `el` may be an element or an id string; sets `document.title`
+  from the screen's `title` (i18n key). Nothing is routed through it yet: `app.js` owns the legacy sections
+  (`#landing-screen`, `#setup-panel`, `#game-layout`) and must register them as `landing`, `setup`, `game`.
+* **Scoring**: accuracy curve has `CURVE_SCALE = 1.8` (see `docs/SCORING.md`); mate blunders cap accuracy at 10;
+  `assess(input, options)` takes `options.isSacrifice`; extra fields `needsEvaluation`, `isMasterMove`, `hintCost`.
+  `Scoring.compatQuality(code)` maps to the 8 legacy CSS/quality codes. Colour tokens used: `--color-gold`, `--color-perfect`,
+  `--color-good`, `--color-dubious`, `--color-blunder`, `--color-text-muted`.
+* **Engine**: `Engine.create({createTransport?, hashMb?, ...})` defaults to a Worker on
+  `vendor/stockfish-18-lite-single.js`; results carry `aborted`, `timedOut`, `terminal`; `analyze` accepts `newGame`.
+* **Insights**: tag `pin_or_skewer`; extra tags `discovered_attack`, `missed_promotion`, `open_file`, `outpost`,
+  `trade_when_ahead`; messages are `{key, params, tag, raw}` where `params` are already localized (call
+  `Insights.renderMessage(m, lang)` after a language switch). `analyzeChoice` also accepts `timing`.
+* **Profile**: max 4 local profiles; `Profile.attach()` subscribes to `round:completed` / `session:completed`
+  (duplicate ids are ignored, so attach + direct `recordRound` is safe); `recordRound` returns
+  `{ok, round, xpGained, card, unlocked, level, levelUp}`; a new notebook card starts in box 0 and is due immediately;
+  "cleared" = box 3. Round `accuracy` ignores hints: a revealed answer never passes a review (handled inside Profile).
+  `Profile.exportJSON(which, {sync:true})` includes `googleSub` for Drive sync.
+* **Settings**: `Settings.clockOptions()`, `Settings.mistakeThresholdCp()`, `Settings.schema` / `Settings.groups`
+  (for generic rendering), `Settings.registerText`. `ludus.setup.v1` is migrated once; from now on the wizard must read and
+  write `Settings.get/set("clock.seconds")`. Call `Settings.applyToDocument()` at boot.
+* **Auth**: identity comes from the userinfo endpoint through one OAuth popup (no ID token). `signIn()` doubles as
+  "Reconnect". `Auth.preload()` should be called on hover/focus of the sign-in button. Never render `user().name` unescaped.
+* **Classics**: `ply` is the 0-based index of the master's move in `moves[]`; i18n prefix `cdata.`; only the protagonist's
+  side is trained; `random()`/`daily()` skip mate-in-one positions by default; `story(id)` / `movesText(id, upToPly)`
+  support a replay view; data file is lazy (`Classics.load()`).
+* **Facts/Reader**: `Reader.createCarousel(container, opts)` needs the CSS listed in `docs/FACTS_SOURCES.md`
+  ("Reader classes"); it does not advance before the reading time, and pauses on hover/focus-visible/touch/hidden tab.
+  `js/facts.js` (~100 KB) is loaded eagerly; the old `ROUND_THINKING_FACTS` rotation in `app.js` is to be removed.
+* **Tooling**: `npm test` runs 17 steps (~25 s). After editing any hashed file run `node scripts/generate-version.js`.
+  New `js/*.js` / `css/*.css` files must be listed in `index.html` (script/link tags) and in `sw.js` `CORE_ASSETS` and, for
+  the file lists in `scripts/smoke-check.js` (`LOGIC_MODULES`, `UI_SUPPORT_NAMES`, `SCREEN_NAMES`, `CSS_FILES`).
