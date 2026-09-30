@@ -209,6 +209,9 @@ function makeEnv(options = {}) {
     },
   };
   const dom = createFakeDom({ languages: options.languages || ["en"], storageMap: options.storageMap });
+  // The very first session of a profile has no clock (first-run behaviour, tested on its own): every other test
+  // plays as someone who has been here before.
+  if (!options.firstRun) dom.storageMap.set("ludus.firstRun.v1", "1");
   const env = loadApp(dom, consoleSpy, options.screens);
   const Ludus = env.context.Ludus;
   const built = buildTable(env);
@@ -526,6 +529,12 @@ test("a solo session: perfect, mediocre, blunder, skip and timeout, with the doc
 
   // 4. Skipping the position: nothing to measure, 0 points.
   await env.context.nextPosition();
+  // Skipping needs a second tap (UX-018): the first one only arms it and says so.
+  t.dom.document.getElementById("skip-btn").dispatch("click");
+  await delay(30);
+  assert.strictEqual(events.rounds.length, 3, "one tap on skip scores nothing");
+  assert.strictEqual(state(t, "STATE.roundSubmitted"), false);
+  assert.strictEqual(t.dom.document.getElementById("skip-btn-label").textContent, "Tap again to skip", "the button says what the next tap does");
   t.dom.document.getElementById("skip-btn").dispatch("click");
   await waitForResult(t);
   round = events.rounds[3];
@@ -545,10 +554,11 @@ test("a solo session: perfect, mediocre, blunder, skip and timeout, with the doc
   assert.strictEqual(round.qualityCode, "no_move");
   assert.strictEqual(state(t, 'document.getElementById("result-overlay-points").textContent'), "Time ran out: 0 pts.");
 
-  // The session is over after the last position: one record, once.
-  assert.strictEqual(events.completed.length, 0);
+  // The session is recorded the moment its LAST position is answered (leaving afterwards by any road loses
+  // nothing, COR-005), and the summary that follows does not record it again.
+  assert.strictEqual(events.completed.length, 1, "recorded as soon as the last answer is in");
   await env.context.nextPosition();
-  assert.strictEqual(events.completed.length, 1);
+  assert.strictEqual(events.completed.length, 1, "once");
   const record = events.completed[0];
   assert.strictEqual(record.id, started.id);
   assert.strictEqual(record.kind, "classic");
@@ -715,7 +725,10 @@ test("hints: three levels, their cost, and the last one reveals the move for zer
   const level1 = Ludus.game.hint();
   assert.deepStrictEqual(plain(level1), { level: 1, from: "e2" });
   assert.strictEqual(state(t, "STATE.hintsUsed"), 1);
-  assert.strictEqual(dom.document.getElementById("solo-clock-announce").textContent.includes("e2"), true, "announced once, in words");
+  await delay(60);
+  // A hint speaks through a live region of its own (the clock's milestones cannot overwrite it), in words, with its article.
+  assert.strictEqual(dom.document.getElementById("hint-announce").textContent.includes("e2"), true, "announced once, in words");
+  assert.ok(/move the white pawn on e2/.test(dom.document.getElementById("hint-announce").textContent), dom.document.getElementById("hint-announce").textContent);
   assert.ok(hintText().includes("35%"), `next: level 2 (${hintText()})`);
   const level2 = Ludus.game.hint();
   assert.deepStrictEqual(plain(level2), { level: 2, from: "e2", to: "e4" });
@@ -869,6 +882,22 @@ test("duel: two players are scored against the same reference in one pass, one r
   // Second position, then the end.
   await env.context.nextPosition();
   assert.strictEqual(state(t, "STATE.duel.currentPlayer"), 0);
+  // From the second position on the first player's clock waits for a tap: the position is covered, the board ignores
+  // the touch, nothing runs, and the cover says whose turn it is (and not, like the handoff, that somebody has played).
+  assert.strictEqual(state(t, "STATE.ui.phase"), "duel_ready");
+  assert.strictEqual(state(t, "STATE.duel.readyWait"), true);
+  const startedBefore = state(t, "STATE.roundStartedAt");
+  await delay(15);
+  assert.strictEqual(state(t, "document.getElementById('game-layout').dataset.phase"), "handoff");
+  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-title").textContent'), "Ana, get ready");
+  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-eyebrow").textContent'), "Position 2 of 2");
+  click(t, "e7", "e5");
+  assert.strictEqual(state(t, "STATE.roundSubmitted"), false, "a touch on the covered board is ignored");
+  assert.strictEqual(state(t, "STATE.roundStartedAt"), startedBefore, "the round has not started behind the cover");
+  env.run("revealDuelSecondTurn()");
+  assert.strictEqual(state(t, "STATE.ui.phase"), "playing");
+  assert.strictEqual(state(t, "STATE.duel.readyWait"), false);
+  assert.ok(state(t, "STATE.roundStartedAt") > startedBefore, "the tap starts the round (and its clock)");
   click(t, "e7", "e5");
   await waitFor(() => state(t, "STATE.ui.phase") === "handoff_ready", "the handoff");
   env.run("revealDuelSecondTurn()");
@@ -975,7 +1004,7 @@ test("a daily position completes the day after its round", async () => {
 
 // ---------- bus listeners ----------
 
-test("a level up is celebrated once, when a round makes the level go up", async () => {
+test("a level up is celebrated once, in the result panel while the play screen is up (no toast over the verdict)", async () => {
   const t = makeEnv();
   const { Ludus, env, events } = t;
   assert.strictEqual(Ludus.Profile.stats().level.level, 1);
@@ -987,13 +1016,17 @@ test("a level up is celebrated once, when a round makes the level go up", async 
     if (Ludus.Profile.stats().level.level > 1) break;
   }
   assert.ok(Ludus.Profile.stats().level.level >= 2, "four perfect rounds reach level 2 (300 xp)");
-  // The celebration is one toast per tick (a level up and its achievements are merged).
+  // While the play screen is up the celebration is not a toast (it covered the verdict, the board and the score): the result
+  // card lists it ("Level up!", the achievements), the sound still plays and a screen reader is told once the verdict was read.
   await delay(5);
-  const levelToasts = events.toasts.filter((toast) => /Level up!/.test(toast.message));
-  assert.strictEqual(levelToasts.length, 1, "one toast for the level up");
-  assert.ok(levelToasts[0].message.length > "Level up! ".length, "with the new title");
+  assert.strictEqual(events.toasts.filter((toast) => /Level up!|unlocked/.test(toast.message)).length, 0, "no toast over the play screen");
   assert.strictEqual(events.sounds.filter((name) => name === "levelup").length >= 1, true);
+  assert.ok(state(t, "STATE.resultView.context.rewards.some((entry) => entry && entry.levelUp)"), "the level up is in the rewards the result panel draws");
   await Ludus.game.abort();
+  // The same celebration on any other screen is a toast.
+  Ludus.bus.emit("achievement:unlocked", { achievement: { id: "later", name: "Later" } });
+  await delay(5);
+  assert.strictEqual(events.toasts.filter((toast) => /Later/.test(toast.message)).length, 1, "a toast once the play screen is gone");
   assertClean(t);
 });
 
@@ -1086,16 +1119,16 @@ test("celebrations: a newer toast replaces the older one, and the summary of a s
   assert.strictEqual(events.toasts.length, 2);
   assert.strictEqual(dismissed, 1, "the first toast made room for the second: one celebration on screen at a time");
 
-  // In a solo session that is over, the summary lists what the session unlocked: a toast over
-  // it would only hide its headline, and the one still up is taken down.
+  // On the play screen celebrations are not toasts at all (the result card lists them, and the summary of a solo session
+  // lists the session's): the toast that was still up from another screen is taken down, and no new one is raised.
   await Ludus.game.startSession({ kind: "classic", title: "One", positions: [position(t, 0)] });
   await playAndWait(t, "e2", "e4");
   await delay(5);
   const shownBefore = events.toasts.length;
-  const dismissedBefore = dismissed;
+  assert.ok(dismissed >= 2, "the toast from the other screen is gone once the round's celebration folds into the panel");
   await env.context.nextPosition();
   assert.strictEqual(state(t, "STATE.resultView.context.kind"), "session_summary");
-  assert.ok(dismissed > dismissedBefore, "the toast that was up is taken down when the summary opens");
+  assert.strictEqual(events.toasts.length, shownBefore, "no toast raised by the round or by the summary");
   Ludus.bus.emit("achievement:unlocked", { achievement: { id: "c", name: "Three" } });
   await delay(5);
   assert.strictEqual(events.toasts.length, shownBefore, "no toast over the summary");

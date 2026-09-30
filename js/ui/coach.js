@@ -112,31 +112,47 @@
       "coach.winChance": "Chances de ganar",
       "coach.winChance.aria": "Chances de ganar: {pct}%",
       "coach.eval": "Evaluación {eval}",
-      "coach.loss": "Perdés {pct}% de chances de ganar respecto de la mejor.",
+      "coach.loss": "Tu chance de ganar baja de {best}% a {user}% ({pts} puntos menos que con la mejor).",
       "coach.cmp.same": "Jugaste la mejor jugada.",
-      "coach.cmp.master.rank": "Era la opción {rank} del motor.",
-      "coach.cmp.master.out": "El motor no la tenía entre sus primeras opciones.",
+      "coach.cmp.equivalent": "Tan buena como la mejor: la diferencia es mínima.",
+      "coach.cmp.master.rank": "La jugada de {name} era la opción {rank} del motor.",
+      "coach.cmp.master.out": "La jugada de {name} no estaba entre las primeras opciones del motor.",
+      "coach.cmp.game.rank": "La jugada de tu partida era la opción {rank} del motor.",
+      "coach.cmp.game.out": "La jugada de tu partida no estaba entre las primeras opciones del motor.",
+      "coach.help.toggle": "¿Cómo leer estos números?",
+      "coach.help.winChance": "Chances de ganar: qué tan probable es que gane quien mueve, según el motor. Es una estimación, no una probabilidad real.",
+      "coach.help.eval": "El número con signo (como +0,35) es la ventaja en peones de quien mueve: positivo te favorece, negativo favorece al rival. M3 significa mate en 3.",
+      "coach.help.engine": "Stockfish es el programa de ajedrez que juzga las jugadas. La profundidad es cuántas jugadas por delante calculó: más profundidad, más confianza.",
+      "coach.theme.title": "Tema de la posición",
       "coach.gauge.label": "puntos",
       "coach.chip.hint": "Pista usada (-{pct}%)",
       "coach.chip.revealed": "Jugada revelada",
       "coach.chip.time": "{seconds} s",
       "coach.chip.timeOut": "Sin tiempo",
       "coach.chip.xp": "+{xp} XP",
+      "coach.chip.backup": "Motor de respaldo: estimación",
       "coach.note.provisional": "Puntaje estimado: esta jugada no se pudo medir a fondo.",
       "coach.note.fallback": "El motor fuerte todavía no estaba listo: esta ronda la evaluó el de respaldo, que analiza menos a fondo. Tomá el puntaje como una estimación.",
       "coach.note.refining": "Refinando el análisis…",
       "coach.verdict.brilliant": "¡Brillante! Encontraste la mejor jugada y era un sacrificio: entregás material a cambio de algo mejor.",
-      "coach.verdict.great": "Gran jugada: era la única que mantenía la posición, y la encontraste.",
+      "coach.verdict.brilliantEquivalent": "¡Brillante! Tu jugada es tan buena como la mejor y es un sacrificio: entregás material a cambio de algo mejor.",
+      "coach.verdict.great": "Gran jugada: las demás jugadas eran claramente peores, y la encontraste.",
+      "coach.verdict.greatEquivalent": "Gran jugada: las demás jugadas eran claramente peores, y elegiste una de las mejores.",
       "coach.verdict.perfect": "Encontraste la mejor jugada.",
+      "coach.verdict.equivalent": "Tan buena como la mejor: el motor lista {best} primero, pero la diferencia en chances de ganar es mínima.",
       "coach.verdict.masterSame": "Jugaste lo mismo que {master}: la mejor jugada.",
+      "coach.verdict.masterSameEquivalent": "Jugaste lo mismo que {master}. El motor prefiere {best} por muy poco: las dos son igual de buenas.",
       "coach.verdict.very_good": "Muy cerca de la mejor: el motor prefiere {best}, pero la tuya casi no pierde nada.",
       "coach.verdict.good": "Buena jugada, aunque {best} era algo más fuerte.",
       "coach.verdict.interesting": "Interesante, pero {best} era claramente mejor.",
       "coach.verdict.dubious": "Dudosa: cede parte de tu ventaja. Con {best} la posición estaba mejor.",
+      "coach.verdict.dubiousNoEdge": "Dudosa: {best} era claramente mejor y tu jugada empeora la posición.",
       "coach.verdict.bad": "Esta jugada empeora tu posición. {best} era el camino.",
       "coach.verdict.blunder": "Un error grave: cambia mucho la evaluación. Mirá {best}.",
       "coach.verdict.allows_mate": "Esta jugada le permite un mate forzado al rival. Antes de mover, revisá sus jaques. Era mejor {best}.",
       "coach.verdict.missed_mate": "Había un mate forzado y no lo jugaste: {best}.",
+      "coach.verdict.missedMateWinning": "Seguías ganando ({eval}), pero había un mate forzado: {best}. Un mate perdido cuesta puntos igual.",
+      "coach.label.missedMate": "Mate perdido",
       "coach.verdict.timeout": "Se acabó el tiempo antes de que movieras. La mejor era {best}.",
       "coach.verdict.skip": "Salteaste esta posición. La mejor era {best}.",
       "coach.verdict.revealed": "Miraste la respuesta: 0 puntos esta vez, pero ya conocés la idea: {best}.",
@@ -218,6 +234,7 @@
       "coach.sum.playAgain": "Jugar otra vez",
       "coach.sum.rematch": "Revancha",
       "coach.sum.review": "Repasar mis errores ahora",
+      "coach.sum.reviewPlayer": "Repasar errores de {name}",
       "coach.sum.share": "Compartir",
       "coach.sum.copied": "Resumen copiado al portapapeles.",
       "coach.sum.shareFailed": "No se pudo compartir. Copiá el resumen a mano.",
@@ -258,31 +275,47 @@
       "coach.winChance": "Win chance",
       "coach.winChance.aria": "Win chance: {pct}%",
       "coach.eval": "Evaluation {eval}",
-      "coach.loss": "You give up {pct}% of the winning chances compared with the best move.",
+      "coach.loss": "Your win chance drops from {best}% to {user}% ({pts} points less than with the best move).",
       "coach.cmp.same": "You played the best move.",
-      "coach.cmp.master.rank": "It was the engine's number {rank} choice.",
-      "coach.cmp.master.out": "The engine did not have it among its top choices.",
+      "coach.cmp.equivalent": "As good as the best: the difference is tiny.",
+      "coach.cmp.master.rank": "{name}'s move was the engine's number {rank} choice.",
+      "coach.cmp.master.out": "{name}'s move was not among the engine's top choices.",
+      "coach.cmp.game.rank": "The move from your game was the engine's number {rank} choice.",
+      "coach.cmp.game.out": "The move from your game was not among the engine's top choices.",
+      "coach.help.toggle": "How to read these numbers",
+      "coach.help.winChance": "Win chance: how likely the side to move is to win, according to the engine. It is an estimate, not a real probability.",
+      "coach.help.eval": "The signed number (like +0.35) is the advantage in pawns for the side to move: positive favours you, negative favours your opponent. M3 means mate in 3.",
+      "coach.help.engine": "Stockfish is the chess program that judges the moves. Depth is how many moves ahead it looked: the deeper, the more reliable.",
+      "coach.theme.title": "Theme of the position",
       "coach.gauge.label": "points",
       "coach.chip.hint": "Hint used (-{pct}%)",
       "coach.chip.revealed": "Move revealed",
       "coach.chip.time": "{seconds} s",
       "coach.chip.timeOut": "Out of time",
       "coach.chip.xp": "+{xp} XP",
+      "coach.chip.backup": "Backup engine: estimate",
       "coach.note.provisional": "Estimated score: this move could not be measured in depth.",
       "coach.note.fallback": "The strong engine was not ready yet: this round was scored by the backup engine, which looks less deeply. Take the score as an estimate.",
       "coach.note.refining": "Refining the analysis…",
       "coach.verdict.brilliant": "Brilliant! You found the best move and it was a sacrifice: you give up material for something better.",
-      "coach.verdict.great": "Great move: it was the only one that kept the position, and you found it.",
+      "coach.verdict.brilliantEquivalent": "Brilliant! Your move is as good as the best one and it is a sacrifice: you give up material for something better.",
+      "coach.verdict.great": "Great move: every other move was clearly worse, and you found it.",
+      "coach.verdict.greatEquivalent": "Great move: every other move was clearly worse, and you chose one of the best.",
       "coach.verdict.perfect": "You found the best move.",
+      "coach.verdict.equivalent": "As good as the best: the engine lists {best} first, but the difference in win chance is negligible.",
       "coach.verdict.masterSame": "You played the same move as {master}: the best move.",
+      "coach.verdict.masterSameEquivalent": "You played the same move as {master}. The engine prefers {best} by a hair: both are equally good.",
       "coach.verdict.very_good": "Very close to the best: the engine prefers {best}, but yours loses almost nothing.",
       "coach.verdict.good": "A good move, although {best} was a little stronger.",
       "coach.verdict.interesting": "Interesting, but {best} was clearly better.",
       "coach.verdict.dubious": "Dubious: it gives up part of your advantage. The position was better after {best}.",
+      "coach.verdict.dubiousNoEdge": "Dubious: {best} was clearly better and your move worsens the position.",
       "coach.verdict.bad": "This move makes your position worse. {best} was the way to go.",
       "coach.verdict.blunder": "A serious mistake: it changes the evaluation a lot. Look at {best}.",
       "coach.verdict.allows_mate": "This move lets the opponent force a checkmate. Check their checks before you move. {best} was better.",
       "coach.verdict.missed_mate": "There was a forced mate and you did not play it: {best}.",
+      "coach.verdict.missedMateWinning": "You were still winning ({eval}), but there was a forced mate: {best}. A missed mate still costs points.",
+      "coach.label.missedMate": "Missed mate",
       "coach.verdict.timeout": "Time ran out before you moved. The best move was {best}.",
       "coach.verdict.skip": "You skipped this position. The best move was {best}.",
       "coach.verdict.revealed": "You looked at the answer: 0 points this time, but now you know the idea: {best}.",
@@ -364,6 +397,7 @@
       "coach.sum.playAgain": "Play again",
       "coach.sum.rematch": "Rematch",
       "coach.sum.review": "Review my mistakes now",
+      "coach.sum.reviewPlayer": "Review {name}'s mistakes",
       "coach.sum.share": "Share",
       "coach.sum.copied": "Summary copied to the clipboard.",
       "coach.sum.shareFailed": "Could not share. Copy the summary by hand.",
@@ -477,8 +511,25 @@
 
   // ---------- Verdict ----------
 
-  // The i18n key of the one-sentence verdict, and the parameters it needs.
-  function verdictKey(context, answer) {
+  // A missed mate that keeps at least this win chance is still a winning position: the sentence says so instead of
+  // treating the move like a collapse. Scoring decides it (`assessment.keptWin`, the same 75%); an assessment stored
+  // without the flag is judged here from the score of the move.
+  const STILL_WINNING_PCT = 75;
+  // From this engine score (centipawns, the mover's point of view) the mover has an edge to give up.
+  const EDGE_CP = 50;
+
+  function stillWinningAfterMissedMate(answer) {
+    const assessment = (answer && answer.assessment) || {};
+    if (assessment.reason !== "missed_mate") return false;
+    if (typeof assessment.keptWin === "boolean") return assessment.keptWin;
+    const score = Number.isFinite(answer.userScore) ? answer.userScore : assessment.userScore;
+    const pct = Number.isFinite(score) ? winPercent(score) : null;
+    return pct !== null && pct >= STILL_WINNING_PCT;
+  }
+
+  // The i18n key of the one-sentence verdict, and the parameters it needs. The third argument is only
+  // needed by sentences that quote an evaluation (its decimal comma follows the language).
+  function verdictKey(context, answer, lang) {
     const ans = answer || answerOf(context, 0);
     if (!ans) return { key: "coach.verdict.no_move", params: {} };
     const best = context && context.best && context.best.san ? context.best.san : "-";
@@ -491,16 +542,36 @@
     }
     const assessment = ans.assessment || {};
     if (assessment.reason === "allows_mate") return { key: "coach.verdict.allows_mate", params };
-    if (assessment.reason === "missed_mate") return { key: "coach.verdict.missed_mate", params };
+    if (assessment.reason === "missed_mate") {
+      if (stillWinningAfterMissedMate(ans)) {
+        const score = Number.isFinite(ans.userScore) ? ans.userScore : assessment.userScore;
+        return { key: "coach.verdict.missedMateWinning", params: { best, eval: formatEval(score, lang) } };
+      }
+      return { key: "coach.verdict.missed_mate", params };
+    }
     const code = knownQuality(assessment.qualityCode);
-    if (code === "perfect" && context && context.master && context.master.uci === ans.uci && context.masterName) {
-      return { key: "coach.verdict.masterSame", params: { master: context.masterName } };
+    // "Perfect", "Great" and "Brilliant" only need the move to be as good as the best one (inside the tolerance band):
+    // when the engine lists another move first, the sentence must not claim that this was the best move.
+    const first = playedBest(context, ans);
+    const sameAsMaster = Boolean(context && context.master && context.master.uci === ans.uci && context.masterName);
+    if (code === "perfect" && sameAsMaster) {
+      return first
+        ? { key: "coach.verdict.masterSame", params: { master: context.masterName } }
+        : { key: "coach.verdict.masterSameEquivalent", params: { master: context.masterName, best } };
+    }
+    if (!first && code === "perfect") return { key: "coach.verdict.equivalent", params };
+    if (!first && code === "brilliant") return { key: "coach.verdict.brilliantEquivalent", params };
+    if (!first && code === "great") return { key: "coach.verdict.greatEquivalent", params };
+    // "Gives up part of your advantage" is only true when there was an advantage to give up.
+    if (code === "dubious") {
+      const score = context && context.best ? context.best.score : undefined;
+      if (!(Number.isFinite(score) && score >= EDGE_CP)) return { key: "coach.verdict.dubiousNoEdge", params };
     }
     return { key: `coach.verdict.${code}`, params };
   }
 
   function verdictText(context, answer, lang) {
-    const found = verdictKey(context, answer);
+    const found = verdictKey(context, answer, lang);
     return t(found.key, found.params, lang);
   }
 
@@ -571,6 +642,22 @@
     return meta;
   }
 
+  // The kind of a classic position ("sacrifice", "only-move"...) in words. It names the idea of the position, so it is
+  // never shown before the answer (see renderThinking): the result card shows it afterwards.
+  function themeInfo(code, lang) {
+    if (!code) return null;
+    const classics = L().Classics;
+    let label = String(code);
+    let hint = "";
+    try {
+      if (classics && typeof classics.kindLabel === "function") label = classics.kindLabel(code, lang) || label;
+      if (classics && typeof classics.kindHint === "function") hint = classics.kindHint(code, lang) || "";
+    } catch (error) {
+      // keep the raw kind
+    }
+    return { code: String(code), label, hint };
+  }
+
   // What the card shows while the person thinks. `position` is a Position (docs section 9).
   function positionModel(input) {
     const opts = input || {};
@@ -580,19 +667,7 @@
     const meta = localizedMeta(rawMeta, lang);
     const kind = opts.session && opts.session.kind ? opts.session.kind : position.source === "classic" ? "classic" : "own";
     const classic = position.classic && typeof position.classic === "object" ? position.classic : null;
-    const classics = L().Classics;
-    let kindInfo = null;
-    if (classic && classic.kind) {
-      let label = String(classic.kind);
-      let hint = "";
-      try {
-        if (classics && typeof classics.kindLabel === "function") label = classics.kindLabel(classic.kind, lang) || label;
-        if (classics && typeof classics.kindHint === "function") hint = classics.kindHint(classic.kind, lang) || "";
-      } catch (error) {
-        // keep the raw kind
-      }
-      kindInfo = { code: classic.kind, label, hint };
-    }
+    const kindInfo = classic && classic.kind ? themeInfo(classic.kind, lang) : null;
     const side = meta.sideToMove === "b" ? "b" : "w";
     const eyebrowKind = ["classic", "own", "review", "daily"].includes(kind) ? kind : "own";
     const link = kind === "own" || position.source === "own" ? safeGameUrl(meta.site) : null;
@@ -728,13 +803,32 @@
       const names = record.duel && Array.isArray(record.duel.names) ? record.duel.names : ["", ""];
       const scores = record.duel && Array.isArray(record.duel.scores) ? record.duel.scores.map((value) => Number(value) || 0) : [0, 0];
       const acc = [0, 0];
-      [0, 1].forEach((side) => {
+      // Each player has their own numbers (points, accuracy, hits, how their moves went): the two are never merged.
+      const players = [0, 1].map((side) => {
         const entries = rounds.map((round) => (round.players && round.players[side] ? round.players[side] : null)).filter(Boolean);
         const sum = entries.reduce((total, entry) => total + (Number.isFinite(entry.accuracy) ? entry.accuracy : 0), 0);
         acc[side] = entries.length ? Math.round((sum / entries.length) * 10) / 10 : 0;
+        const mine = {};
+        QUALITY_CODES.forEach((code) => {
+          mine[code] = 0;
+        });
+        entries.forEach((entry) => {
+          mine[knownQuality(entry.quality)] += 1;
+        });
+        const hitsOf = entries.filter((entry) => (typeof entry.hit === "boolean" ? entry.hit : HIT_QUALITIES.includes(knownQuality(entry.quality)))).length;
+        return {
+          name: names[side],
+          score: scores[side],
+          accuracy: acc[side],
+          hits: hitsOf,
+          total: entries.length,
+          segments: QUALITY_CODES.filter((code) => mine[code] > 0).map((code) => ({
+            code, count: mine[code], share: entries.length ? mine[code] / entries.length : 0, info: qualityInfo(code, lang),
+          })),
+        };
       });
       const winner = scores[0] > scores[1] ? 0 : scores[1] > scores[0] ? 1 : -1;
-      duelInfo = { names, scores, accuracy: acc, winner };
+      duelInfo = { names, scores, accuracy: acc, winner, players };
     }
     return {
       lang,
@@ -775,7 +869,8 @@
     } else {
       lines.push(t("coach.share.head", { title: summary.title || t("coach.sum.title", {}, lang), points, max, acc }, lang));
     }
-    const mix = (summary.segments || []).map((segment) => `${segment.count} ${segment.info.label.toLowerCase()}`).join(", ");
+    // A duel has no merged mix: the two players' moves are not one set of answers.
+    const mix = summary.mode === "duel" ? "" : (summary.segments || []).map((segment) => `${segment.count} ${segment.info.label.toLowerCase()}`).join(", ");
     if (mix) lines.push(mix);
     const xp = summary.rewards && Number.isFinite(summary.rewards.xp) ? summary.rewards.xp : 0;
     if (xp > 0) lines.push(t("coach.share.xp", { xp }, lang));
@@ -917,14 +1012,20 @@
           h("p", { class: "co-turnbanner-sub" }, t("coach.think.duelRule", {}, lang)))));
     }
 
+    // The backup-engine notice is the first row of the panel: on a phone the rest of the card is below the fold,
+    // and what it says (the score will be an estimate) matters before the first move.
+    if (opts.backupEngine) {
+      el.appendChild(h("p", { class: "co-note co-note-warn", role: "note" }, icon("alert", 16), h("span", null, t("coach.think.backup", {}, lang))));
+    }
+
+    // The kind of position (sacrifice, only move...) is deliberately not drawn here: naming the idea of the
+    // position before the answer would hand over the very thing the person is training to find. The result shows it.
     const ctx = [
       h("div", { class: "co-ctx-top" },
-        h("p", { class: "co-eyebrow co-eyebrow-gold" }, model.eyebrow),
-        model.kind ? plainChip(model.kind.label, "gold") : null),
+        h("p", { class: "co-eyebrow co-eyebrow-gold" }, model.eyebrow)),
       title ? h("h2", { class: "co-ctx-title" }, title) : null,
       model.players ? h("p", { class: "co-ctx-players" }, model.players) : null,
       meta.length ? h("p", { class: "co-ctx-meta" }, meta.join(" · ")) : null,
-      model.kind && model.kind.hint ? h("p", { class: "co-ctx-kind" }, model.kind.hint) : null,
       model.moverName ? h("p", { class: "co-ctx-mover" }, icon("users", 16), h("span", null, t("coach.think.master", { name: model.moverName }, lang))) : null,
     ];
     if (model.link) {
@@ -943,10 +1044,6 @@
       h("p", { class: "co-goal-text" }, icon("target", 18), h("span", null, t("coach.think.goal", {}, lang))),
       opts.hintCosts ? h("p", { class: "co-goal-hints" }, icon("lightbulb", 16), h("span", null, t("coach.think.hints", { p1: opts.hintCosts[0], p2: opts.hintCosts[1] }, lang))) : null,
     ], "co-goal"));
-
-    if (opts.backupEngine) {
-      el.appendChild(h("p", { class: "co-note co-note-warn", role: "note" }, icon("alert", 16), h("span", null, t("coach.think.backup", {}, lang))));
-    }
   }
 
   // The same silhouette as the result, so nothing moves when the answer arrives.
@@ -981,6 +1078,10 @@
     }
     const reward = rewardModel(rewards, Date.now(), lang);
     if (reward && reward.xp > 0) chips.push(plainChip(t("coach.chip.xp", { xp: reward.xp }, lang), "gold", "star"));
+    // "Missed mate" is a fact about the move whatever label the ladder gives it: a chip, so the title keeps the one vocabulary.
+    if (answer.uci && assessment.reason === "missed_mate") chips.push(plainChip(t("coach.label.missedMate", {}, lang), "warn", "alert"));
+    // The score of a round the backup engine judged is an estimate: said next to the score, not only in the long notes below.
+    if (context && context.engine && context.engine.source === "local") chips.push(plainChip(t("coach.chip.backup", {}, lang), "warn", "alert"));
     return chips;
   }
 
@@ -990,11 +1091,12 @@
     const points = Number.isFinite(assessment.points) ? assessment.points : 0;
     const max = Number.isFinite(assessment.maxPoints) ? assessment.maxPoints : 10;
     const chips = heroChips(context, answer, lang, options && options.rewards);
+    const label = info.label;
     return h("section", { class: "co-hero", "data-q": info.code },
       h("div", { class: "co-hero-gauge" }, gaugeNode(points, max, options && options.gaugeSize ? options.gaugeSize : 116, info.tone, t("coach.gauge.label", {}, lang))),
       h("div", { class: "co-hero-copy" },
         h("h2", { class: "co-hero-title", tabindex: "-1", "data-focus": "" },
-          h("span", { class: "co-glyph", "aria-hidden": "true" }, info.glyph), h("span", null, info.label)),
+          h("span", { class: "co-glyph", "aria-hidden": "true" }, info.glyph), h("span", null, label)),
         h("p", { class: "co-hero-verdict" }, verdictText(context, answer, lang))),
       chips.length ? h("div", { class: "co-chips" }, chips) : null);
   }
@@ -1005,6 +1107,26 @@
     if (answer && answer.provisional) notes.push(h("p", { class: "co-note co-note-info", role: "note" }, icon("info", 16), h("span", null, t("coach.note.provisional", {}, lang))));
     if (context.engine && context.engine.source === "local") notes.push(h("p", { class: "co-note co-note-warn", role: "note" }, icon("alert", 16), h("span", null, t("coach.note.fallback", {}, lang))));
     return notes;
+  }
+
+  // A disclosure that explains the numbers of a card ("win chance", the signed evaluation, "Stockfish, depth"). A real button
+  // (a title attribute does not exist on a phone); it stays open once the person opened it.
+  const helpOpen = {};
+  function helpBlock(id, keys, lang) {
+    const open = Boolean(helpOpen[id]);
+    const body = h("div", { class: "co-help-body", id, hidden: !open }, keys.map((key) => h("p", null, t(key, {}, lang))));
+    const button = h("button", {
+      type: "button",
+      class: "co-help-btn",
+      "aria-expanded": open ? "true" : "false",
+      "aria-controls": id,
+      onclick: () => {
+        helpOpen[id] = !helpOpen[id];
+        body.hidden = !helpOpen[id];
+        button.setAttribute("aria-expanded", helpOpen[id] ? "true" : "false");
+      },
+    }, icon("info", 15), h("span", null, t("coach.help.toggle", {}, lang)));
+    return h("div", { class: "co-help" }, button, body);
   }
 
   function winBar(pct, kind, lang) {
@@ -1077,15 +1199,23 @@
       Number.isFinite(row.pct) ? winBar(row.pct, row.tags[0].kind, lang) : null));
     const foot = [];
     const first = answers[0];
-    if (!options.duel && first && first.uci && !playedBest(context, first) && bars.loss !== null && bars.loss >= 1) {
-      foot.push(h("p", { class: "co-cmp-note" }, t("coach.loss", { pct: Math.round(bars.loss) }, lang)));
-    } else if (!options.duel && first && first.uci && playedBest(context, first)) {
+    // The note is computed from the same rounded numbers the bars print, so the arithmetic on screen always adds up
+    // (rounding the gap of the unrounded values used to disagree by one point in a quarter of the answers).
+    const bestPct = bars.best === null ? null : Math.round(clamp(bars.best, 0, 100));
+    const userPct = bars.user === null ? null : Math.round(clamp(bars.user, 0, 100));
+    const gapPts = bestPct !== null && userPct !== null ? bestPct - userPct : 0;
+    if (!options.duel && first && first.uci && playedBest(context, first)) {
       foot.push(h("p", { class: "co-cmp-note co-cmp-good" }, icon("check", 15), h("span", null, t("coach.cmp.same", {}, lang))));
+    } else if (!options.duel && first && first.uci && first.assessment && first.assessment.isBest) {
+      // Inside the tolerance band: another move is listed first, but this one is just as good.
+      foot.push(h("p", { class: "co-cmp-note co-cmp-good" }, icon("check", 15), h("span", null, t("coach.cmp.equivalent", {}, lang))));
+    } else if (!options.duel && first && first.uci && gapPts >= 1) {
+      foot.push(h("p", { class: "co-cmp-note" }, t("coach.loss", { best: bestPct, user: userPct, pts: gapPts }, lang)));
     }
     if (context.master && Number.isFinite(context.master.rank)) {
-      foot.push(h("p", { class: "co-cmp-note" }, t("coach.cmp.master.rank", { rank: context.master.rank }, lang)));
+      foot.push(h("p", { class: "co-cmp-note" }, t(context.masterName ? "coach.cmp.master.rank" : "coach.cmp.game.rank", { name: context.masterName || "", rank: context.master.rank }, lang)));
     } else if (context.master && context.master.uci && context.master.uci !== (context.best && context.best.uci)) {
-      foot.push(h("p", { class: "co-cmp-note" }, t("coach.cmp.master.out", {}, lang)));
+      foot.push(h("p", { class: "co-cmp-note" }, t(context.masterName ? "coach.cmp.master.out" : "coach.cmp.game.out", { name: context.masterName || "" }, lang)));
     }
     const note = noteText(context.masterNote, lang);
     if (note) {
@@ -1096,6 +1226,7 @@
       h("p", { class: "co-caption" }, t("coach.winChance", {}, lang)),
       h("ul", { class: "co-cmp" }, items),
       foot,
+      helpBlock("co-help-cmp", ["coach.help.winChance", "coach.help.eval"], lang),
     ], "co-compare");
   }
 
@@ -1116,7 +1247,15 @@
     } else {
       body = h("p", { class: "co-empty" }, t("coach.insight.unknown", { best: context.best && context.best.san ? context.best.san : "-" }, lang));
     }
-    return card([eyebrow(t("coach.section.why", {}, lang), "lightbulb"), body], "co-why");
+    // What kind of position this was (sacrifice, only move...): told now that the answer is in, not before.
+    const theme = themeInfo(context.classicKind, lang);
+    const parts = [eyebrow(t("coach.section.why", {}, lang), "lightbulb"), body];
+    if (theme) {
+      parts.push(h("div", { class: "co-theme" },
+        h("p", { class: "co-theme-head" }, h("span", { class: "co-theme-label" }, t("coach.theme.title", {}, lang)), plainChip(theme.label, "gold")),
+        theme.hint ? h("p", { class: "co-theme-hint" }, theme.hint) : null));
+    }
+    return card(parts, "co-why");
   }
 
   // ---------- Concepts ----------
@@ -1141,7 +1280,8 @@
     const height = Number(root.innerHeight) || 800;
     const width = Number(root.innerWidth) || 1280;
     const beside = width > 640 && height < 560;
-    const boardSize = beside ? Math.max(140, Math.min(300, height - 230)) : 300;
+    // On a short phone (320x568) a 300px board would leave one line of the lesson visible: it gives up size first.
+    const boardSize = beside ? Math.max(140, Math.min(300, height - 230)) : Math.max(180, Math.min(300, height - 360, width - 64));
     const board = typeof kit.miniBoard === "function"
       ? kit.miniBoard(concept.fen, {
         size: boardSize, orientation: concept.fen && concept.fen.split(" ")[1] === "b" ? "b" : "w", coords: !beside,
@@ -1292,6 +1432,7 @@
       eyebrow(t("coach.section.lines", {}, lang), "columns"),
       h("p", { class: "co-caption" }, `${caption} · ${t("coach.lines.hint", {}, lang)}`),
       list,
+      helpBlock("co-help-lines", ["coach.help.engine"], lang),
     ], "co-lines");
   }
 
@@ -1393,12 +1534,15 @@
       isWinner ? h("span", { class: "co-player-crown" }, icon("trophy", 13), t("coach.duel.winnerTag", {}, lang)) : null,
       h("div", { class: "co-player-head" },
         h("span", { class: "co-player-avatar", "aria-hidden": "true" }, initials),
-        h("h3", { class: "co-player-name" }, answer.name)),
+        h("h3", { class: "co-player-name", title: answer.name }, answer.name)),
       h("div", { class: "co-player-gauge" }, gaugeNode(points, max, 84, info.tone, "")),
       h("p", { class: "co-player-q" }, h("span", { class: "co-glyph", "aria-hidden": "true" }, info.glyph), h("span", null, info.label)),
       h("p", { class: "co-player-move" }, answer.uci ? answer.san : t("coach.duel.noMove", {}, lang)),
       insight ? h("p", { class: "co-player-why" }, insight.text) : null,
-      reward && reward.xp > 0 ? h("p", { class: "co-player-xp" }, t("coach.chip.xp", { xp: reward.xp }, lang)) : null);
+      reward && reward.xp > 0 ? h("p", { class: "co-player-xp" }, t("coach.chip.xp", { xp: reward.xp }, lang)) : null,
+      // Celebrations belong to the card of the player who earned them (a toast over the play screen would hide the verdict).
+      reward && reward.levelUp ? h("p", { class: "co-player-new" }, icon("sparkles", 14), h("span", null, t("coach.level.up", {}, lang))) : null,
+      ...(reward ? reward.unlocked : []).map((entry) => h("p", { class: "co-player-new" }, icon("star", 14), h("span", null, `${t("coach.achievement", {}, lang)}: ${entry.name}`))));
   }
 
   function renderDuel(el, context, api) {
@@ -1459,16 +1603,21 @@
     return h("div", { class: "co-sum-stat" }, h("dt", null, label), h("dd", null, value));
   }
 
-  function breakdownCard(summary, lang) {
-    if (!summary.segments.length) return null;
-    const bar = h("div", { class: "co-seg", role: "img", "aria-label": t("coach.sum.breakdownAria", {}, lang) },
-      summary.segments.map((segment) => h("span", { class: "co-seg-part", "data-q": segment.code, style: { flexGrow: String(segment.count) }, title: `${segment.info.label}: ${segment.count}` })));
-    const legend = h("ul", { class: "co-legend-list" }, summary.segments.map((segment) => h("li", { class: "co-legend-item", "data-q": segment.code },
+  // The bar and its legend for a list of { code, count, info } segments (one player, or the solo session).
+  function segmentsBlock(segments, lang, ariaLabel) {
+    const bar = h("div", { class: "co-seg", role: "img", "aria-label": ariaLabel || t("coach.sum.breakdownAria", {}, lang) },
+      segments.map((segment) => h("span", { class: "co-seg-part", "data-q": segment.code, style: { flexGrow: String(segment.count) }, title: `${segment.info.label}: ${segment.count}` })));
+    const legend = h("ul", { class: "co-legend-list" }, segments.map((segment) => h("li", { class: "co-legend-item", "data-q": segment.code },
       h("span", { class: "co-legend-swatch", "aria-hidden": "true" }),
       h("span", { class: "co-glyph", "aria-hidden": "true" }, segment.info.glyph),
       h("span", { class: "co-legend-label" }, segment.info.label),
       h("strong", { class: "co-legend-count" }, String(segment.count)))));
-    return card([eyebrow(t("coach.sum.breakdown", {}, lang), "chart"), bar, legend], "co-breakdown");
+    return [bar, legend];
+  }
+
+  function breakdownCard(summary, lang) {
+    if (!summary.segments.length) return null;
+    return card([eyebrow(t("coach.sum.breakdown", {}, lang), "chart"), ...segmentsBlock(summary.segments, lang)], "co-breakdown");
   }
 
   function summaryRewards(summary, lang) {
@@ -1541,14 +1690,36 @@
         h("span", { class: "co-pos-foot" }, foot)));
   }
 
+  // One player of a duel: their own points, accuracy, hits, how their moves went, and what they earned.
+  function duelistCard(summary, side, lang) {
+    const info = summary.duel.players[side];
+    const winner = summary.duel.winner === side;
+    const max = Math.max(1, summary.maxPoints / 2);
+    const earned = summary.rewards && Array.isArray(summary.rewards.players) ? summary.rewards.players[side] : null;
+    const unlocked = earned && Array.isArray(earned.unlocked) ? earned.unlocked.filter((entry) => entry && entry.name) : [];
+    const earnedLines = [];
+    if (earned && earned.xp > 0) earnedLines.push(h("p", { class: "co-player-xp" }, t("coach.chip.xp", { xp: earned.xp }, lang)));
+    if (unlocked.length) {
+      earnedLines.push(h("p", { class: "co-sum-duelnew" }, icon("star", 14), h("span", null, `${t("coach.sum.achievements", {}, lang)}: ${unlocked.map((entry) => entry.name).join(", ")}`)));
+    }
+    return h("li", { class: cls("co-sum-duelist", winner && "is-winner"), "data-player": String(side + 1) },
+      winner ? h("span", { class: "co-player-crown" }, icon("trophy", 13), t("coach.duel.winnerTag", {}, lang)) : null,
+      h("h3", { class: "co-sum-duelname", title: info.name }, info.name),
+      h("div", { class: "co-sum-duelgauge" }, gaugeNode(info.score, max, 104, winner ? "gold" : "good", "")),
+      h("p", { class: "co-caption" }, t("coach.sum.duelAcc", { acc: formatNumber(info.accuracy, lang, 0) }, lang)),
+      h("p", { class: "co-caption" }, t("coach.sum.hits", { hits: info.hits, total: info.total }, lang)),
+      info.segments.length ? h("div", { class: "co-sum-duelmix" }, ...segmentsBlock(info.segments, lang, `${info.name}: ${t("coach.sum.breakdownAria", {}, lang)}`)) : null,
+      ...earnedLines);
+  }
+
   function renderSummary(el, summary, api) {
     if (!el || !getDoc() || !summary) return;
     const opts = api || {};
     const lang = langOf(summary.lang || opts.lang);
     clear(el);
     const duel = summary.mode === "duel" && summary.duel;
-    const gaugeValue = duel ? Math.max(summary.duel.scores[0], summary.duel.scores[1]) : summary.accuracy;
-    const gaugeMax = duel ? Math.max(1, summary.maxPoints / 2) : 100;
+    if (el.classList && typeof el.classList.toggle === "function") el.classList.toggle("co-summary-duel", Boolean(duel));
+    const gaugeValue = summary.accuracy;
     const heroCopy = [
       h("p", { class: "co-eyebrow co-eyebrow-gold" }, t(duel ? "coach.sum.titleDuel" : "coach.sum.title", {}, lang)),
       h("h2", { class: "co-sum-title", tabindex: "-1", "data-focus": "" }, duel
@@ -1556,35 +1727,28 @@
         : t(`coach.sum.tone.${summary.tone}`, {}, lang)),
       summary.title ? h("p", { class: "co-sum-sub" }, summary.title) : null,
     ];
-    let heroVisual;
-    if (duel) {
-      heroVisual = h("div", { class: "co-sum-duel" }, [0, 1].map((side) => h("div", { class: cls("co-sum-duelist", summary.duel.winner === side && "is-winner") },
-        summary.duel.winner === side ? h("span", { class: "co-player-crown" }, icon("trophy", 13), t("coach.sum.winner", { name: "" }, lang).trim()) : null,
-        h("p", { class: "co-sum-duelname" }, summary.duel.names[side]),
-        gaugeNode(summary.duel.scores[side], Math.max(1, summary.maxPoints / 2), 104, summary.duel.winner === side ? "gold" : "good", ""),
-        h("p", { class: "co-caption" }, t("coach.sum.duelAcc", { acc: formatNumber(summary.duel.accuracy[side], lang, 0) }, lang)))));
-    } else {
-      heroVisual = h("div", { class: "co-sum-gauge" }, gaugeNode(gaugeValue, gaugeMax, 150, summary.gaugeTone, t("coach.sum.accuracy", {}, lang)));
-    }
+    // A duel shows no merged points or hits (they belong to two people): the positions played and the time, then one card each.
     const stats = h("dl", { class: "co-sum-stats" },
-      statBlock(t("coach.sum.points", {}, lang), t("coach.sum.of", { points: formatNumber(summary.points, lang), max: formatNumber(summary.maxPoints, lang, 0) }, lang)),
-      statBlock(t("coach.sum.positions", {}, lang), t("coach.sum.hits", { hits: summary.hits, total: summary.positions }, lang)),
+      duel ? null : statBlock(t("coach.sum.points", {}, lang), t("coach.sum.of", { points: formatNumber(summary.points, lang), max: formatNumber(summary.maxPoints, lang, 0) }, lang)),
+      statBlock(t("coach.sum.positions", {}, lang), duel ? String(summary.positions) : t("coach.sum.hits", { hits: summary.hits, total: summary.positions }, lang)),
       summary.durationMs > 0 ? statBlock(t("coach.sum.time", {}, lang), formatDuration(summary.durationMs, lang)) : null);
-    const nodes = [
-      h("section", { class: cls("co-sum-hero", duel && "co-sum-hero-duel"), "data-tone": summary.tone }, heroVisual, h("div", { class: "co-sum-copy" }, heroCopy, stats)),
-      summary.noMorePositions ? h("p", { class: "co-note co-note-info", role: "note" }, icon("info", 16), h("span", null, t("coach.sum.noMore", {}, lang))) : null,
-      breakdownCard(summary, lang),
-      // A duel is not recorded as progress of one person: no experience card.
-      duel ? null : summaryRewards(summary, lang),
-    ];
+    const heroVisual = duel ? null : h("div", { class: "co-sum-gauge" }, gaugeNode(gaugeValue, 100, 150, summary.gaugeTone, t("coach.sum.accuracy", {}, lang)));
+    const hero = h("section", { class: cls("co-sum-hero", duel && "co-sum-hero-duel"), "data-tone": summary.tone }, heroVisual, h("div", { class: "co-sum-copy" }, heroCopy, stats));
+    const note = summary.noMorePositions ? h("p", { class: "co-note co-note-info", role: "note" }, icon("info", 16), h("span", null, t("coach.sum.noMore", {}, lang))) : null;
+    const players = duel ? h("ol", { class: "co-sum-duel", "aria-label": t("coach.section.duel", {}, lang) }, [0, 1].map((side) => duelistCard(summary, side, lang))) : null;
+    // Columns on a wide screen: the verdict and the mix of moves on the left, what the session earned on the right (the tall
+    // one: every achievement is listed), and the positions as a row of their own under both: no half-empty column. On a
+    // phone they simply stack in this order. A duel is not recorded as progress of one person: no experience card, no merged mix.
+    const main = h("div", { class: "co-sum-col co-sum-main" }, [hero, note, players, duel ? null : breakdownCard(summary, lang)].filter(Boolean));
+    const aside = duel ? null : h("div", { class: "co-sum-col co-sum-aside" }, [summaryRewards(summary, lang)]);
     const grid = summary.rounds.length
       ? h("section", { class: "co-sum-positions", "aria-label": t("coach.sum.list", {}, lang) },
         eyebrow(t("coach.sum.list", {}, lang), "columns"),
         h("ul", { class: "co-pos-grid" }, summary.rounds.map((round) => positionCard(summary, round, lang, opts))))
       : null;
-    const left = h("div", { class: "co-sum-col co-sum-main" }, nodes.filter(Boolean));
-    el.appendChild(left);
-    if (grid) el.appendChild(h("div", { class: "co-sum-col co-sum-side" }, grid));
+    el.appendChild(main);
+    if (aside && aside.children.length) el.appendChild(aside);
+    if (grid) el.appendChild(grid);
   }
 
   // The buttons of the footer: play again / rematch, review, share, home. The static
@@ -1609,7 +1773,15 @@
       }));
     }
     const secondary = [];
-    if (opts.canReview) {
+    const reviewers = summary.mode === "duel" && Array.isArray(opts.reviewPlayers) ? opts.reviewPlayers.filter((player) => player && player.name) : null;
+    if (reviewers) {
+      // A duel: each profile's notebook is reviewed on its own (the guest has none), never "the active profile's" for both.
+      reviewers.forEach((player, index) => {
+        secondary.push(make(t("coach.sum.reviewPlayer", { name: player.name }, lang), {
+          kind: "secondary", icon: "book", id: `summary-review-btn-${index + 1}`, onClick: () => opts.onReview && opts.onReview(player.profileId),
+        }));
+      });
+    } else if (opts.canReview) {
       secondary.push(make(t("coach.sum.review", {}, lang), { kind: "secondary", icon: "book", id: "summary-review-btn", onClick: () => opts.onReview && opts.onReview() }));
     }
     secondary.push(make(t("coach.sum.share", {}, lang), { kind: "secondary", icon: "external", id: "summary-share-btn", onClick: () => opts.onShare && opts.onShare() }));

@@ -1053,11 +1053,33 @@
     return Array.isArray(body) ? body : [body];
   }
 
+  // The aria-describedby value for a dialog: true -> the body's id; a string is an id (or a list of ids); an Element
+  // is referenced by its id (one is given if it has none); an array combines those. Anything else -> no description.
+  function describedByIds(spec, bodyId) {
+    if (spec === true) return bodyId;
+    const parts = [];
+    (Array.isArray(spec) ? spec : [spec]).forEach((item) => {
+      if (typeof item === "string" && item.trim()) {
+        parts.push(item.trim());
+      } else if (item && typeof item === "object" && typeof item.setAttribute === "function") {
+        if (!item.id) {
+          modalState.seq += 1;
+          item.id = `ui-modal-desc-${modalState.seq}`;
+        }
+        parts.push(item.id);
+      }
+    });
+    return parts.join(" ");
+  }
+
   // options: { title, body (string | Node | array), actions: [{ label, kind:
   // "primary"|"secondary"|"danger"|"ghost", value, onClick(handle) -> false keeps
   // it open, autofocus, closes: true }], onClose(result), dismissible: true,
   // size: "sm"|"md"|"lg", variant: "modal"|"sheet", initialFocus: Element,
-  // describedBy: bool }. Returns { el, close(result), closed: Promise<result> }.
+  // describedBy: true (the whole body) | an id | an Element | an array of ids/Elements (the node(s) that carry the message,
+  // e.g. the consequence paragraph above a confirm field) | false; an alertdialog is described by its body unless told
+  // otherwise, because a screen reader must read WHAT the alert says when it opens, not only its title }.
+  // Returns { el, close(result), closed: Promise<result> }.
   function modal(options) {
     const opts = options || {};
     const doc = getDoc();
@@ -1117,7 +1139,8 @@
     };
     if (head && opts.title) dialogAttrs["aria-labelledby"] = titleId;
     else if (opts.ariaLabel) dialogAttrs["aria-label"] = String(opts.ariaLabel);
-    if (opts.describedBy) dialogAttrs["aria-describedby"] = bodyId;
+    const describedBy = describedByIds(opts.describedBy === undefined ? opts.role === "alertdialog" : opts.describedBy, bodyId);
+    if (describedBy) dialogAttrs["aria-describedby"] = describedBy;
 
     const dialog = h("div", dialogAttrs, variant === "sheet" ? h("span", { class: "sheet-handle", "aria-hidden": "true" }) : null, head, bodyEl, footer);
     const backdrop = h("div", { class: cls("modal-backdrop", variant === "sheet" && "is-sheet") }, dialog);

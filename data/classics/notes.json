@@ -1,5 +1,257 @@
 {
   "v": 1,
+  "names": {
+    "Adolf Anderssen": {
+      "es": "Adolf Anderssen",
+      "en": "Adolf Anderssen"
+    },
+    "Akiba Rubinstein": {
+      "es": "Akiba Rubinstein",
+      "en": "Akiba Rubinstein"
+    },
+    "Alexander Alekhine": {
+      "es": "Alexander Alekhine",
+      "en": "Alexander Alekhine"
+    },
+    "Anatoly Karpov": {
+      "es": "Anatoli Kárpov",
+      "en": "Anatoly Karpov"
+    },
+    "Aron Nimzowitsch": {
+      "es": "Aron Nimzowitsch",
+      "en": "Aron Nimzowitsch"
+    },
+    "Bent Larsen": {
+      "es": "Bent Larsen",
+      "en": "Bent Larsen"
+    },
+    "Boris Spassky": {
+      "es": "Boris Spassky",
+      "en": "Boris Spassky"
+    },
+    "Curt von Bardeleben": {
+      "es": "Curt von Bardeleben",
+      "en": "Curt von Bardeleben"
+    },
+    "David Bronstein": {
+      "es": "David Bronstein",
+      "en": "David Bronstein"
+    },
+    "Deep Blue": {
+      "es": "Deep Blue",
+      "en": "Deep Blue"
+    },
+    "Donald Byrne": {
+      "es": "Donald Byrne",
+      "en": "Donald Byrne"
+    },
+    "Duke Karl of Brunswick and Count Isouard": {
+      "es": "el duque Carlos de Brunswick y el conde Isouard",
+      "en": "Duke Karl of Brunswick and Count Isouard"
+    },
+    "Edward Lasker": {
+      "es": "Edward Lasker",
+      "en": "Edward Lasker"
+    },
+    "Emanuel Lasker": {
+      "es": "Emanuel Lasker",
+      "en": "Emanuel Lasker"
+    },
+    "Frank James Marshall": {
+      "es": "Frank James Marshall",
+      "en": "Frank James Marshall"
+    },
+    "Friedrich Saemisch": {
+      "es": "Friedrich Sämisch",
+      "en": "Friedrich Sämisch"
+    },
+    "Garry Kasparov": {
+      "es": "Garry Kaspárov",
+      "en": "Garry Kasparov"
+    },
+    "Georg Rotlewi": {
+      "es": "Georg Rotlewi",
+      "en": "Georg Rotlewi"
+    },
+    "George Alan Thomas": {
+      "es": "George Alan Thomas",
+      "en": "George Alan Thomas"
+    },
+    "Ian Nepomniachtchi": {
+      "es": "Ian Nepomniachtchi",
+      "en": "Ian Nepomniachtchi"
+    },
+    "Jan Timman": {
+      "es": "Jan Timman",
+      "en": "Jan Timman"
+    },
+    "Jean Dufresne": {
+      "es": "Jean Dufresne",
+      "en": "Jean Dufresne"
+    },
+    "Johann Hermann Bauer": {
+      "es": "Johann Hermann Bauer",
+      "en": "Johann Hermann Bauer"
+    },
+    "Jose Raul Capablanca": {
+      "es": "José Raúl Capablanca",
+      "en": "José Raúl Capablanca"
+    },
+    "Lev Polugaevsky": {
+      "es": "Lev Polugaevsky",
+      "en": "Lev Polugaevsky"
+    },
+    "Levon Aronian": {
+      "es": "Levon Aronian",
+      "en": "Levon Aronian"
+    },
+    "Lionel Kieseritzky": {
+      "es": "Lionel Kieseritzky",
+      "en": "Lionel Kieseritzky"
+    },
+    "Louis Paulsen": {
+      "es": "Louis Paulsen",
+      "en": "Louis Paulsen"
+    },
+    "Magnus Carlsen": {
+      "es": "Magnus Carlsen",
+      "en": "Magnus Carlsen"
+    },
+    "Mikhail Botvinnik": {
+      "es": "Mikhail Botvinnik",
+      "en": "Mikhail Botvinnik"
+    },
+    "Mikhail Tal": {
+      "es": "Mikhail Tal",
+      "en": "Mikhail Tal"
+    },
+    "Nigel Short": {
+      "es": "Nigel Short",
+      "en": "Nigel Short"
+    },
+    "Paul Morphy": {
+      "es": "Paul Morphy",
+      "en": "Paul Morphy"
+    },
+    "Rashid Nezhmetdinov": {
+      "es": "Rashid Nezhmetdinov",
+      "en": "Rashid Nezhmetdinov"
+    },
+    "Richard Reti": {
+      "es": "Richard Réti",
+      "en": "Richard Réti"
+    },
+    "Robert James Fischer": {
+      "es": "Robert James Fischer",
+      "en": "Robert James Fischer"
+    },
+    "Savielly Tartakower": {
+      "es": "Savielly Tartakower",
+      "en": "Savielly Tartakower"
+    },
+    "Stepan Levitsky": {
+      "es": "Stepan Levitsky",
+      "en": "Stepan Levitsky"
+    },
+    "Veselin Topalov": {
+      "es": "Veselin Topalov",
+      "en": "Veselin Topalov"
+    },
+    "Viswanathan Anand": {
+      "es": "Viswanathan Anand",
+      "en": "Viswanathan Anand"
+    },
+    "Wilhelm Steinitz": {
+      "es": "Wilhelm Steinitz",
+      "en": "Wilhelm Steinitz"
+    }
+  },
+  "events": {
+    "18th DSB Congress, Masters": {
+      "es": "18.º Congreso de la DSB (maestros)",
+      "en": "18th DSB Congress, Masters"
+    },
+    "18th RSFSR Championship": {
+      "es": "18.º Campeonato de la RSFSR",
+      "en": "18th RSFSR Championship"
+    },
+    "1st American Chess Congress": {
+      "es": "1.er Congreso Americano de Ajedrez",
+      "en": "1st American Chess Congress"
+    },
+    "27th USSR Championship": {
+      "es": "27.º Campeonato de la URSS",
+      "en": "27th USSR Championship"
+    },
+    "AVRO": {
+      "es": "Torneo AVRO",
+      "en": "AVRO tournament"
+    },
+    "Amsterdam": {
+      "es": "Torneo de Ámsterdam",
+      "en": "Amsterdam tournament"
+    },
+    "Bled": {
+      "es": "Torneo de Bled",
+      "en": "Bled tournament"
+    },
+    "Candidates semifinal match": {
+      "es": "Match de semifinales de Candidatos",
+      "en": "Candidates semifinal match"
+    },
+    "Casual game": {
+      "es": "Partida amistosa",
+      "en": "Casual game"
+    },
+    "Copenhagen": {
+      "es": "Torneo de Copenhague",
+      "en": "Copenhagen tournament"
+    },
+    "Hastings": {
+      "es": "Torneo de Hastings",
+      "en": "Hastings tournament"
+    },
+    "Hoogovens": {
+      "es": "Torneo Hoogovens",
+      "en": "Hoogovens tournament"
+    },
+    "IBM Man-Machine match": {
+      "es": "Match hombre contra máquina de IBM",
+      "en": "IBM Man-Machine match"
+    },
+    "Interpolis": {
+      "es": "Torneo Interpolis",
+      "en": "Interpolis tournament"
+    },
+    "Lodz": {
+      "es": "Torneo de Łódź",
+      "en": "Łódź tournament"
+    },
+    "New York": {
+      "es": "Torneo de Nueva York",
+      "en": "New York tournament"
+    },
+    "Tal Memorial": {
+      "es": "Memorial Tal",
+      "en": "Tal Memorial"
+    },
+    "Tata Steel": {
+      "es": "Torneo Tata Steel",
+      "en": "Tata Steel tournament"
+    },
+    "Third Rosenwald Trophy": {
+      "es": "Tercer Trofeo Rosenwald",
+      "en": "Third Rosenwald Trophy"
+    },
+    "USSR vs Rest of the World": {
+      "es": "URSS contra el Resto del Mundo",
+      "en": "USSR vs Rest of the World"
+    },
+    "World Championship match": {
+      "es": "Match por el Campeonato Mundial",
+      "en": "World Championship match"
+    }
+  },
   "games": {
     "opera-1858": {
       "title": {
@@ -32,7 +284,7 @@
           "ply": 18,
           "san": "Nxb5",
           "note": {
-            "es": "Sacrificio de caballo: 10.Nxb5 cxb5 11.Bxb5+ abre líneas contra el rey y mantiene la iniciativa.",
+            "es": "Sacrificio de caballo: 10.Cxb5 cxb5 11.Axb5+ abre líneas contra el rey y mantiene la iniciativa.",
             "en": "Knight sacrifice: 10.Nxb5 cxb5 11.Bxb5+ opens lines against the king and keeps the initiative."
           }
         },
@@ -40,7 +292,7 @@
           "ply": 24,
           "san": "Rxd7",
           "note": {
-            "es": "Morphy entrega la calidad para clavar al último defensor: 13.Rxd7 Rxd7 14.Rd1.",
+            "es": "Morphy entrega la calidad para clavar al último defensor: 13.Txd7 Txd7 14.Td1.",
             "en": "Morphy gives up the exchange to pin the last defender: 13.Rxd7 Rxd7 14.Rd1."
           }
         },
@@ -48,7 +300,7 @@
           "ply": 30,
           "san": "Qb8+",
           "note": {
-            "es": "El famoso sacrificio de dama: 16.Qb8+ Nxb8 17.Rd8# es mate.",
+            "es": "El famoso sacrificio de dama: 16.Db8+ Cxb8 17.Td8# es mate.",
             "en": "The famous queen sacrifice: 16.Qb8+ Nxb8 17.Rd8# is checkmate."
           }
         }
@@ -86,7 +338,7 @@
           "ply": 40,
           "san": "Nxg7+",
           "note": {
-            "es": "Comienza el final: 21.Nxg7+ Kd8 y viene el sacrificio de dama 22.Qf6+.",
+            "es": "Comienza el final: 21.Cxg7+ Rd8 y viene el sacrificio de dama 22.Df6+.",
             "en": "The finish begins: 21.Nxg7+ Kd8 and the queen sacrifice 22.Qf6+ follows."
           }
         },
@@ -94,7 +346,7 @@
           "ply": 42,
           "san": "Qf6+",
           "note": {
-            "es": "Sacrificio de dama: 22.Qf6+ Nxf6 23.Be7# es mate con dos caballos y un alfil.",
+            "es": "Sacrificio de dama: 22.Df6+ Cxf6 23.Ae7# es mate con dos caballos y un alfil.",
             "en": "Queen sacrifice: 22.Qf6+ Nxf6 23.Be7# is mate with two knights and a bishop."
           }
         }
@@ -132,7 +384,7 @@
           "ply": 38,
           "san": "Rxe7+",
           "note": {
-            "es": "Primer sacrificio de la combinación final: 20.Rxe7+ Nxe7 abre el camino a 21.Qxd7+.",
+            "es": "Primer sacrificio de la combinación final: 20.Txe7+ Cxe7 abre el camino a 21.Dxd7+.",
             "en": "First sacrifice of the final combination: 20.Rxe7+ Nxe7 opens the way for 21.Qxd7+."
           }
         },
@@ -140,7 +392,7 @@
           "ply": 40,
           "san": "Qxd7+",
           "note": {
-            "es": "Sacrificio de dama: tras 21...Kxd7 sigue 22.Bf5+ Ke8 23.Bd7+ Kf8 24.Bxe7#.",
+            "es": "Sacrificio de dama: tras 21...Rxd7 sigue 22.Af5+ Re8 23.Ad7+ Rf8 24.Axe7#.",
             "en": "Queen sacrifice: after 21...Kxd7 comes 22.Bf5+ Ke8 23.Bd7+ Kf8 24.Bxe7#."
           }
         }
@@ -152,7 +404,7 @@
         "en": "Morphy's Queen Sacrifice"
       },
       "blurb": {
-        "es": "Partida del primer Congreso de Ajedrez de Estados Unidos (Nueva York, 1857), ganado por Paul Morphy. Con negras, en una Partida de los Cuatro Caballos, Morphy convirtió su mejor desarrollo en un ataque sobre el flanco de rey con el sacrificio de dama 17...Qxf3 y ganó por la fuerza contra Louis Paulsen.",
+        "es": "Partida del primer Congreso de Ajedrez de Estados Unidos (Nueva York, 1857), ganado por Paul Morphy. Con negras, en una Partida de los Cuatro Caballos, Morphy convirtió su mejor desarrollo en un ataque sobre el flanco de rey con el sacrificio de dama 17...Dxf3 y ganó por la fuerza contra Louis Paulsen.",
         "en": "A game from the first American Chess Congress (New York, 1857), won by Paul Morphy. With Black in a Four Knights Game, Morphy turned his better development into a kingside attack with the queen sacrifice 17...Qxf3 and won by force against Louis Paulsen."
       },
       "opening": {
@@ -178,7 +430,7 @@
           "ply": 33,
           "san": "Qxf3",
           "note": {
-            "es": "El sacrificio de dama: 17...Qxf3! 18.gxf3 Rg6+ y el ataque de torre y alfil decide la partida.",
+            "es": "El sacrificio de dama: 17...Dxf3! 18.gxf3 Tg6+ y el ataque de torre y alfil decide la partida.",
             "en": "The queen sacrifice: 17...Qxf3! 18.gxf3 Rg6+ and the attack with rook and bishop decides the game."
           }
         },
@@ -198,7 +450,7 @@
         "en": "Lasker versus Bauer, Amsterdam 1889"
       },
       "blurb": {
-        "es": "Jugada en la primera ronda del torneo de Ámsterdam de 1889, al comienzo de la carrera de Emanuel Lasker. Lasker sacrificó los dos alfiles (15.Bxh7+ y 17.Bxg7) para destruir el refugio del rey negro y luego llevó una torre al ataque con 19.Rf3. Es el ejemplo clásico del doble sacrificio de alfil.",
+        "es": "Jugada en la primera ronda del torneo de Ámsterdam de 1889, al comienzo de la carrera de Emanuel Lasker. Lasker sacrificó los dos alfiles (15.Axh7+ y 17.Axg7) para destruir el refugio del rey negro y luego llevó una torre al ataque con 19.Tf3. Es el ejemplo clásico del doble sacrificio de alfil.",
         "en": "Played in the first round of the 1889 Amsterdam tournament, early in Emanuel Lasker's career. Lasker sacrificed both bishops (15.Bxh7+ and 17.Bxg7) to strip the cover from the black king, then lifted a rook into the attack with 19.Rf3. It is the classic example of the double bishop sacrifice."
       },
       "opening": {
@@ -224,7 +476,7 @@
           "ply": 28,
           "san": "Bxh7+",
           "note": {
-            "es": "Primer sacrificio de alfil: 15.Bxh7+ Kxh7 16.Qxh5+ Kg8.",
+            "es": "Primer sacrificio de alfil: 15.Axh7+ Rxh7 16.Dxh5+ Rg8.",
             "en": "First bishop sacrifice: 15.Bxh7+ Kxh7 16.Qxh5+ Kg8."
           }
         },
@@ -232,7 +484,7 @@
           "ply": 32,
           "san": "Bxg7",
           "note": {
-            "es": "Segundo alfil sacrificado: 17.Bxg7! Kxg7 18.Qg4+ deja al rey negro sin protección.",
+            "es": "Segundo alfil sacrificado: 17.Axg7! Rxg7 18.Dg4+ deja al rey negro sin protección.",
             "en": "The second bishop goes too: 17.Bxg7! Kxg7 18.Qg4+ leaves the black king unprotected."
           }
         }
@@ -244,7 +496,7 @@
         "en": "Steinitz versus von Bardeleben, Hastings 1895"
       },
       "blurb": {
-        "es": "Jugada el 17 de agosto de 1895, en la décima ronda del torneo de Hastings. Steinitz llevó una torre por la séptima fila hasta 25.Rxh7+ y, según el relato tradicional, von Bardeleben no se rindió en el tablero sino que abandonó la sala (los detalles varían según la fuente y el episodio ha sido cuestionado por los historiadores). La partida quedó registrada 1-0.",
+        "es": "Jugada el 17 de agosto de 1895, en la décima ronda del torneo de Hastings. Steinitz llevó una torre por la séptima fila hasta 25.Txh7+ y, según el relato tradicional, von Bardeleben no se rindió en el tablero sino que abandonó la sala (los detalles varían según la fuente y el episodio ha sido cuestionado por los historiadores). La partida quedó registrada 1-0.",
         "en": "Played on 17 August 1895, in round 10 of the Hastings tournament. Steinitz took a rook along the seventh rank up to 25.Rxh7+ and, according to the traditional account, von Bardeleben did not resign at the board but left the room (details vary between sources and historians have questioned the episode). The game is recorded as 1-0."
       },
       "opening": {
@@ -270,7 +522,7 @@
           "ply": 42,
           "san": "Rxe7+",
           "note": {
-            "es": "Comienza el paseo de la torre por la séptima fila: 22.Rxe7+ Kf8 23.Rf7+ Kg8 24.Rg7+ Kh8 25.Rxh7+.",
+            "es": "Comienza el paseo de la torre por la séptima fila: 22.Txe7+ Rf8 23.Tf7+ Rg8 24.Tg7+ Rh8 25.Txh7+.",
             "en": "The rook walk along the seventh rank begins: 22.Rxe7+ Kf8 23.Rf7+ Kg8 24.Rg7+ Kh8 25.Rxh7+."
           }
         },
@@ -316,7 +568,7 @@
           "ply": 43,
           "san": "Rxc3",
           "note": {
-            "es": "22...Rxc3!! captura el caballo y deja la dama en h4 sin protección: tras 23.gxh4 llega 23...Rd2!",
+            "es": "22...Txc3!! captura el caballo y deja la dama en h4 sin protección: tras 23.gxh4 llega 23...Td2!",
             "en": "22...Rxc3!! captures the knight and leaves the queen en prise on h4: after 23.gxh4 comes 23...Rd2!"
           }
         },
@@ -324,7 +576,7 @@
           "ply": 45,
           "san": "Rd2",
           "note": {
-            "es": "Sacrificio de torre: 23...Rd2! 24.Qxd2 Bxe4+ y el alfil cobra con jaque.",
+            "es": "Sacrificio de torre: 23...Td2! 24.Dxd2 Axe4+ y el alfil cobra con jaque.",
             "en": "Rook sacrifice: 23...Rd2! 24.Qxd2 Bxe4+ and the bishop collects with check."
           }
         },
@@ -332,7 +584,7 @@
           "ply": 49,
           "san": "Rh3",
           "note": {
-            "es": "Última jugada registrada: 25...Rh3 y las blancas se rindieron.",
+            "es": "Última jugada registrada: 25...Th3 y las blancas se rindieron.",
             "en": "The last recorded move: 25...Rh3 and White resigned."
           }
         }
@@ -344,8 +596,8 @@
         "en": "Réti's Mate"
       },
       "blurb": {
-        "es": "Partida de Viena, 1910, publicada en el Schachjahrbuch de ese año. Réti sacrificó la dama con 9.Qd8+; 10.Bg5+ es jaque doble y 11.Bd8 da mate. Tartakower llamó a 11.Bd8 «un mate espléndido»; Irving Chernev la consideró «probablemente la miniatura más famosa de todas».",
-        "en": "A game from Vienna, 1910, published in the Schachjahrbuch of that year. Réti sacrificed his queen with 9.Qd8+; 10.Bg5+ is a double check and 11.Bd8 mates. Tartakower called 11.Bd8 “a splendid mate”; Irving Chernev thought it “probably the most famous of all miniature games”."
+        "es": "Partida amistosa de Viena, 1910, publicada en el Schachjahrbuch de ese año. Réti sacrificó la dama con 9.Dd8+; 10.Ag5+ es jaque doble y 11.Ad8 da mate. Tartakower llamó a 11.Ad8 «un mate espléndido»; Irving Chernev la consideró «probablemente la partida miniatura más famosa de todas».",
+        "en": "A casual game from Vienna, 1910, published in the Schachjahrbuch of that year. Réti sacrificed his queen with 9.Qd8+; 10.Bg5+ is a double check and 11.Bd8 mates. Tartakower called 11.Bd8 “a splendid mate”; Irving Chernev thought it “probably the most famous of all miniature games”."
       },
       "opening": {
         "es": "Defensa Caro-Kann",
@@ -364,14 +616,14 @@
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Reti.pgn)",
         "Score identical move for move in github.com/AlwaysLearningNewStuff/Chess (reti_tartakower_1910.pgn) and github.com/mertcalkan/Python-Specific-Chess-Base-Filtering",
         "Facts (Vienna, 1910, the month is not in the scores, Schachjahrbuch 1910, quotes of Tartakower and Chernev as given in the source): web search summaries of https://www.chesshistory.com/winter/extra/retitartakower.html",
-        "Fact-check note (2026-09-30): the month was dropped (not in the scores); the Tartakower and Chernev quotes and the Schachjahrbuch publication could not be re-checked against a second source"
+        "Fact-check note (2026-09-30): Edward Winter's page (search summary) confirms the 'Freipartie' (casual game), both quotes and the Schachjahrbuch für 1910 (Ansbach 1911). The month is not sourced, so the date is year-only"
       ],
       "moments": [
         {
           "ply": 16,
           "san": "Qd8+",
           "note": {
-            "es": "Sacrificio de dama: 9.Qd8+! Kxd8 obliga al rey a ir a la trampa.",
+            "es": "Sacrificio de dama: 9.Dd8+! Rxd8 obliga al rey a ir a la trampa.",
             "en": "Queen sacrifice: 9.Qd8+! Kxd8 forces the king into the trap."
           }
         },
@@ -379,7 +631,7 @@
           "ply": 18,
           "san": "Bg5+",
           "note": {
-            "es": "Jaque doble del alfil y la torre: 10.Bg5+ Kc7 11.Bd8# es mate.",
+            "es": "Jaque doble del alfil y la torre: 10.Ag5+ Rc7 11.Ad8# es mate.",
             "en": "Double check from bishop and rook: 10.Bg5+ Kc7 11.Bd8# is checkmate."
           }
         }
@@ -391,7 +643,7 @@
         "en": "Edward Lasker versus Thomas"
       },
       "blurb": {
-        "es": "Partida amistosa jugada en Londres en 1912 entre Edward Lasker (no confundir con Emanuel) y sir George Thomas, que sería dos veces campeón británico. Con 11.Qxh7+ Lasker sacrificó la dama y persiguió al rey negro por todo el tablero hasta darle mate en g1 con 18.Kd2.",
+        "es": "Partida amistosa jugada en Londres en 1912 entre Edward Lasker (no confundir con Emanuel) y sir George Thomas, que sería dos veces campeón británico. Con 11.Dxh7+ Lasker sacrificó la dama y persiguió al rey negro por todo el tablero hasta darle mate en g1 con 18.Rd2.",
         "en": "A casual game played in London in 1912 between Edward Lasker (not to be confused with Emanuel) and Sir George Thomas, who would later win the British championship twice. With 11.Qxh7+ Lasker sacrificed his queen and chased the black king across the whole board until 18.Kd2 mated it on g1."
       },
       "opening": {
@@ -417,7 +669,7 @@
           "ply": 20,
           "san": "Qxh7+",
           "note": {
-            "es": "Sacrificio de dama: 11.Qxh7+! Kxh7 12.Nxf6+ Kh6 13.Neg4+ empieza la cacería del rey.",
+            "es": "Sacrificio de dama: 11.Dxh7+! Rxh7 12.Cxf6+ Rh6 13.Ceg4+ empieza la cacería del rey.",
             "en": "Queen sacrifice: 11.Qxh7+! Kxh7 12.Nxf6+ Kh6 13.Neg4+ starts the king hunt."
           }
         },
@@ -425,7 +677,7 @@
           "ply": 34,
           "san": "Kd2",
           "note": {
-            "es": "Mate con el propio rey: 18.Kd2# descubre el jaque de la torre.",
+            "es": "Mate con el propio rey: 18.Rd2# descubre el jaque de la torre.",
             "en": "Mate with the king itself: 18.Kd2# uncovers the rook's check."
           }
         }
@@ -437,7 +689,7 @@
         "en": "The Gold Coins Game"
       },
       "blurb": {
-        "es": "Jugada el 20 de julio de 1912 en el torneo maestro del Congreso de la DSB en Breslau. Marshall respondió con 23...Qg3!!, que deja la dama atacada de tres maneras distintas sin que las blancas tengan defensa; Levitsky se rindió. Según la leyenda, los espectadores cubrieron el tablero de monedas de oro.",
+        "es": "Jugada el 20 de julio de 1912 en el torneo maestro del Congreso de la DSB en Breslau. Marshall respondió con 23...Dg3!!, que deja la dama atacada de tres maneras distintas sin que las blancas tengan defensa; Levitsky se rindió. Según la leyenda, los espectadores cubrieron el tablero de monedas de oro.",
         "en": "Played on 20 July 1912 in the masters tournament of the DSB Congress in Breslau. Marshall answered with 23...Qg3!!, leaving his queen attacked three ways with no defence for White; Levitsky resigned. According to legend, the spectators showered the board with gold coins."
       },
       "opening": {
@@ -462,7 +714,7 @@
           "ply": 45,
           "san": "Qg3",
           "note": {
-            "es": "23...Qg3!! deja la dama atacada tres veces, pero cualquier captura pierde: las blancas se rindieron.",
+            "es": "23...Dg3!! deja la dama atacada tres veces, pero cualquier captura pierde: las blancas se rindieron.",
             "en": "23...Qg3!! leaves the queen attacked three times, yet every capture loses: White resigned."
           }
         }
@@ -474,8 +726,8 @@
         "en": "Capablanca versus the Marshall Attack"
       },
       "blurb": {
-        "es": "Primera ronda del torneo de Nueva York de 1918. Marshall guardaba desde hacía años su nuevo gambito en la Apertura Española y lo estrenó contra Capablanca, que sobrevivió al fuerte ataque y ganó. La victoria marcó el tono de un torneo en el que Capablanca no perdió ninguna partida.",
-        "en": "Round one of the New York 1918 tournament. Marshall had kept his new Ruy Lopez gambit in reserve for years and unveiled it against Capablanca, who survived the strong attack and won. The win set the tone for a tournament in which Capablanca did not lose a game."
+        "es": "Primera ronda del torneo de Nueva York de 1918. Marshall jugó contra Capablanca el contraataque que hoy lleva su nombre; se suele decir que lo tenía guardado desde hacía años, pero eso no está probado. Capablanca sobrevivió al fuerte ataque y ganó, y terminó el torneo invicto: 10½ puntos de 12.",
+        "en": "Round one of the New York 1918 tournament. Marshall played against Capablanca the counter-attack that now bears his name; it is often said he had saved it for years, but that is unproven. Capablanca survived the strong attack and won, and finished the tournament unbeaten with 10½ points out of 12."
       },
       "opening": {
         "es": "Apertura Española, Ataque Marshall",
@@ -493,7 +745,8 @@
       "sources": [
         "Score: github.com/DHTMLGoodies/dhtmlchess (pgn/greatgames.pgn) and github.com/adeludedperson/smart-chessboard (capablanca-marshall-1918.pgn), identical, 38 moves",
         "PGN Mentor (PgnMentor/Capablanca.pgn) and github.com/calvicius/rsChessPgn2LaTex_pdf give the same game up to 35.Bxf7+ (the last two moves are missing there)",
-        "Facts (New York 1918, first round, Marshall's new gambit, Capablanca won): web search summaries of https://en.wikipedia.org/wiki/Frank_Marshall_(chess_player), https://www.chess.com/article/view/frank-marshall-part-5-a-radical-change and https://chesshistory.com/winter/extra/marshallgambit.html"
+        "Facts (New York 1918, first round, Marshall's new gambit, Capablanca won): web search summaries of https://en.wikipedia.org/wiki/Frank_Marshall_(chess_player), https://www.chess.com/article/view/frank-marshall-part-5-a-radical-change and https://chesshistory.com/winter/extra/marshallgambit.html",
+        "Fact-check note (2026-09-30): 'kept for years' is unproven (Edward Winter), now worded as such; round 1 and Capablanca's unbeaten 10½/12 (+9 =3) confirmed in search summaries of Wikipedia, chess.com and ChessBase"
       ],
       "moments": []
     },
@@ -540,8 +793,8 @@
         "en": "Capablanca versus Tartakower, New York 1924"
       },
       "blurb": {
-        "es": "Un ejemplo de técnica de final del campeón del mundo Capablanca en el gran torneo de Nueva York de 1924. En un final difícil entregó dos peones, con jaque, para apoyar su peón pasado y llevar el rey al ataque, y ganó pese a estar dos peones abajo durante un tramo. Se cita desde entonces en los libros de finales.",
-        "en": "An endgame showpiece by world champion Capablanca at the great New York 1924 tournament. In a difficult ending he gave up two pawns, with check, to support his passed pawn and march his king into the attack, and won despite being two pawns down for a stretch. It has been cited in endgame books ever since."
+        "es": "Un ejemplo de técnica de final del campeón del mundo Capablanca en el gran torneo de Nueva York de 1924. En un final difícil entregó dos peones, con jaque, para apoyar su peón pasado y llevar el rey al ataque, y ganó pese a estar dos peones abajo durante un tramo. Suele citarse en libros de finales.",
+        "en": "An endgame showpiece by world champion Capablanca at the great New York 1924 tournament. In a difficult ending he gave up two pawns, with check, to support his passed pawn and march his king into the attack, and won despite being two pawns down for a stretch. It is often cited in endgame books."
       },
       "opening": {
         "es": "Defensa Holandesa",
@@ -566,7 +819,7 @@
           "ply": 66,
           "san": "Bxf5",
           "note": {
-            "es": "34.Bxf5! cambia el alfil por el caballo y prepara la marcha del rey: 34...gxf5 35.Kg3!",
+            "es": "34.Axf5! cambia el alfil por el caballo y prepara la marcha del rey: 34...gxf5 35.Rg3!",
             "en": "34.Bxf5! trades bishop for knight and prepares the king's march: 34...gxf5 35.Kg3!"
           }
         },
@@ -574,7 +827,7 @@
           "ply": 68,
           "san": "Kg3",
           "note": {
-            "es": "El rey se lanza al ataque: 35...Rxc3+ 36.Kh4 Rf3 37.g6; las blancas ganan aun con dos peones menos.",
+            "es": "El rey se lanza al ataque: 35...Txc3+ 36.Rh4 Tf3 37.g6; las blancas ganan aun con dos peones menos.",
             "en": "The king joins the attack: 35...Rxc3+ 36.Kh4 Rf3 37.g6; White is winning even two pawns down."
           }
         }
@@ -605,14 +858,15 @@
       "sources": [
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Bled1931.pgn)",
         "Score identical move for move in github.com/AlwaysLearningNewStuff/Chess, github.com/gbtami/JvR-archive (www.endgame.nl/bled1931.pgn) and github.com/chris-moreton/rivalchess-pgn (Bled1931.pgn)",
-        "Facts (Bled 1931, French Defence, won in 19 moves, Alekhine won both games against Nimzowitsch): web search summaries of https://www.chess.com/blog/kahns/a-century-of-chess-bled-1931 and https://en.wikipedia.org/wiki/Bled_1931_chess_tournament"
+        "Facts (Bled 1931, French Defence, won in 19 moves, Alekhine won both games against Nimzowitsch): web search summaries of https://www.chess.com/blog/kahns/a-century-of-chess-bled-1931 and https://en.wikipedia.org/wiki/Bled_1931_chess_tournament",
+        "Fact-check note (2026-09-30): both wins over Nimzowitsch re-confirmed (19 moves, then 36 moves; Alekhine did not lose a game at Bled)"
       ],
       "moments": [
         {
           "ply": 34,
           "san": "Rd8+",
           "note": {
-            "es": "Jaque de torre protegido por el alfil de g5: 18.Rd8+ Kf7 19.Qxh5 y las blancas ganan claramente.",
+            "es": "Jaque de torre protegido por el alfil de g5: 18.Td8+ Rf7 19.Dxh5 y las blancas ganan claramente.",
             "en": "A rook check protected by the bishop on g5: 18.Rd8+ Kf7 19.Qxh5 and White is clearly winning."
           }
         }
@@ -624,7 +878,7 @@
         "en": "Botvinnik versus Capablanca, AVRO 1938"
       },
       "blurb": {
-        "es": "Jugada el 22 de noviembre de 1938 en Rotterdam, dentro del torneo AVRO. Botvinnik sacrificó dos piezas (30.Ba3 y 31.Nh5+) en una larga combinación contra Capablanca, el excampeón del mundo, que perdió esta partida. Es una de las partidas más conocidas de Botvinnik.",
+        "es": "Jugada el 22 de noviembre de 1938 en Rotterdam, dentro del torneo AVRO. Botvinnik sacrificó dos piezas (30.Aa3 y 31.Ch5+) en una larga combinación contra Capablanca, el excampeón del mundo, que perdió esta partida. Es una de las partidas más conocidas de Botvinnik.",
         "en": "Played on 22 November 1938 in Rotterdam, as part of the AVRO tournament. Botvinnik sacrificed two pieces (30.Ba3 and 31.Nh5+) in a long combination against Capablanca, the former world champion, who lost the game. It is one of Botvinnik's best-known games."
       },
       "opening": {
@@ -643,14 +897,15 @@
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/AVRO1938.pgn)",
         "Score identical move for move in github.com/DHTMLGoodies/dhtmlchess, github.com/chris-moreton/rivalchess-pgn, github.com/number7/chess-api and github.com/gbtami/JvR-archive (www.endgame.nl/avro1938.pgn)",
         "Facts (22 November 1938, Rotterdam, Nimzo-Indian, two-piece sacrifice 30.Ba3 and 31.Nh5+): web search summaries of https://en.wikipedia.org/wiki/Botvinnik_versus_Capablanca,_AVRO_1938",
-        "Fact-check note (2026-09-30): The earlier quote attributed to Kasparov and the claim 'most brilliant of the tournament' were dropped because no source was found"
+        "Fact-check note (2026-09-30): The earlier quote attributed to Kasparov and the claim 'most brilliant of the tournament' were dropped because no source was found",
+        "Fact-check note (2026-09-30): Rotterdam and round 11 re-confirmed in a search summary of the Wikipedia game page"
       ],
       "moments": [
         {
           "ply": 58,
           "san": "Ba3",
           "note": {
-            "es": "30.Ba3! desvía a la dama negra y prepara el sacrificio de caballo.",
+            "es": "30.Aa3! desvía a la dama negra y prepara el sacrificio de caballo.",
             "en": "30.Ba3! deflects the black queen and prepares the knight sacrifice."
           }
         },
@@ -658,7 +913,7 @@
           "ply": 60,
           "san": "Nh5+",
           "note": {
-            "es": "31.Nh5+! gxh5 32.Qg5+ abre la posición del rey negro: comienza la combinación decisiva.",
+            "es": "31.Ch5+! gxh5 32.Dg5+ abre la posición del rey negro: comienza la combinación decisiva.",
             "en": "31.Nh5+! gxh5 32.Qg5+ exposes the black king: the decisive combination begins."
           }
         },
@@ -666,7 +921,7 @@
           "ply": 64,
           "san": "Qxf6+",
           "note": {
-            "es": "33.Qxf6+ Kg8 34.e7 y el peón de e7 amenaza con coronar.",
+            "es": "33.Dxf6+ Rg8 34.e7 y el peón de e7 amenaza con coronar.",
             "en": "33.Qxf6+ Kg8 34.e7 and the pawn on e7 threatens to promote."
           }
         }
@@ -678,8 +933,8 @@
         "en": "Nezhmetdinov's Immortal"
       },
       "blurb": {
-        "es": "Jugada en Sochi, en el 18.º campeonato de la RSFSR (1958). Nezhmetdinov, con negras, sacrificó la dama y casi todo su ejército contra el futuro gran maestro Polugaevsky, y el rey blanco fue empujado hasta a5. Es una de las partidas de ataque más antologadas del siglo XX.",
-        "en": "Played in Sochi at the 18th RSFSR Championship (1958). Playing Black, Nezhmetdinov sacrificed his queen and most of his army against the future grandmaster Polugaevsky, and the white king was driven all the way to a5. It is one of the most anthologised attacking games of the 20th century."
+        "es": "Jugada en Sochi, en el 18.º campeonato de la RSFSR (1958). Nezhmetdinov, con negras, sacrificó la dama contra el futuro gran maestro Polugaevsky y siguió atacando hasta empujar al rey blanco hasta a5. Se la conoce como «la Inmortal de Nezhmetdinov».",
+        "en": "Played in Sochi at the 18th RSFSR Championship (1958). Playing Black, Nezhmetdinov sacrificed his queen against the future grandmaster Polugaevsky and kept attacking until the white king was driven all the way to a5. It is known as “Nezhmetdinov's Immortal”."
       },
       "opening": {
         "es": "Defensa India Antigua (Variante Ucraniana)",
@@ -696,14 +951,15 @@
       "sources": [
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Polugaevsky.pgn)",
         "Score identical move for move in github.com/jcarolus/android-chess, github.com/anandjoshi91/cdn-assets and github.com/tsoj/chessattackingscore",
-        "Facts (Sochi 1958, RSFSR Championship, Old Indian Ukrainian Variation, queen sacrifice, white king driven to a5): web search summaries of https://www.chess.com/article/chasing-the-king-part-2 and https://chessdailynews.com/?p=5969"
+        "Facts (Sochi 1958, RSFSR Championship, Old Indian Ukrainian Variation, queen sacrifice, white king driven to a5): web search summaries of https://www.chess.com/article/chasing-the-king-part-2 and https://chessdailynews.com/?p=5969",
+        "Fact-check note (2026-09-30): 'queen and almost his whole army' (the material trace shows the queen only) and 'one of the most anthologised' (unsourced) were dropped; the 18th edition and the name 'Nezhmetdinov's Immortal' were re-confirmed; the month is not sourced, so the date is year-only"
       ],
       "moments": [
         {
           "ply": 47,
           "san": "Rxf4",
           "note": {
-            "es": "24...Rxf4!: Nezhmetdinov deja su dama en h2 y sigue atacando: 25.Rxh2 Rf3+ arrastra al rey blanco.",
+            "es": "24...Txf4!: Nezhmetdinov deja su dama en h2 y sigue atacando: 25.Txh2 Tf3+ arrastra al rey blanco.",
             "en": "24...Rxf4!: Nezhmetdinov leaves his queen on h2 and keeps attacking: 25.Rxh2 Rf3+ drags the white king out."
           }
         },
@@ -711,7 +967,7 @@
           "ply": 57,
           "san": "Nexd3+",
           "note": {
-            "es": "Captura con jaque descubierto del alfil: 29...Nexd3+ 30.Kc4 d5+ persigue al rey hacia la banda de dama.",
+            "es": "Captura con jaque descubierto del alfil: 29...Cexd3+ 30.Rc4 d5+ persigue al rey hacia la banda de dama.",
             "en": "A capture with a discovered check from the bishop: 29...Nexd3+ 30.Kc4 d5+ chases the king towards the queenside."
           }
         }
@@ -741,14 +997,15 @@
       "sources": [
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Spassky.pgn)",
         "Score identical move for move in github.com/jcarolus/android-chess and github.com/nmstoker/ChessMatchViewer (spassky_bronstein_1960.pgn)",
-        "Facts (27th USSR Championship, Leningrad 1960, round 16, King's Gambit, knight sacrifice, link to the 1963 film): web search summaries of https://en.wikipedia.org/wiki/1960_USSR_Chess_Championship and https://en.chessbase.com/post/spassky-plays-the-king-s-gambit"
+        "Facts (27th USSR Championship, Leningrad 1960, round 16, King's Gambit, knight sacrifice, link to the 1963 film): web search summaries of https://en.wikipedia.org/wiki/1960_USSR_Chess_Championship and https://en.chessbase.com/post/spassky-plays-the-king-s-gambit",
+        "Date note (2026-09-30): the PGN Mentor copy carries only the year; the day was not confirmed, so the tag keeps the month (the championship ran 26 Jan-27 Feb 1960 and this was round 16 of 19)"
       ],
       "moments": [
         {
           "ply": 30,
           "san": "Nxf7",
           "note": {
-            "es": "Sacrificio de caballo: 16.Nxf7! exf1=Q+ 17.Rxf1 y las blancas quedan con un ataque decisivo.",
+            "es": "Sacrificio de caballo: 16.Cxf7! exf1=D+ 17.Txf1 y las blancas quedan con un ataque decisivo.",
             "en": "Knight sacrifice: 16.Nxf7! exf1=Q+ 17.Rxf1 and White has a decisive attack."
           }
         }
@@ -760,7 +1017,7 @@
         "en": "The Game of the Century"
       },
       "blurb": {
-        "es": "Jugada el 17 de octubre de 1956 en el Tercer Trofeo Rosenwald de Nueva York, un torneo reservado a doce de los mejores jugadores de Estados Unidos. Bobby Fischer, de 13 años, sacrificó la dama con 17...Be6 y consiguió a cambio una torre, dos alfiles y un peón, con un ataque que terminó en mate. Contra Donald Byrne ganó el premio de belleza del torneo y Hans Kmoch la bautizó «la Partida del Siglo».",
+        "es": "Jugada el 17 de octubre de 1956 en el Tercer Trofeo Rosenwald de Nueva York, un torneo reservado a doce de los mejores jugadores de Estados Unidos. Bobby Fischer, de 13 años, sacrificó la dama con 17...Ae6 y consiguió a cambio una torre, dos alfiles y un peón, con un ataque que terminó en mate. Contra Donald Byrne ganó el premio de belleza del torneo y Hans Kmoch la bautizó «la Partida del Siglo».",
         "en": "Played on 17 October 1956 at the Third Rosenwald Trophy in New York, a tournament limited to twelve of the best players in the United States. Thirteen-year-old Bobby Fischer sacrificed his queen with 17...Be6 and got a rook, two bishops and a pawn in return, with an attack that ended in checkmate. Against Donald Byrne he won the tournament's brilliancy prize, and Hans Kmoch dubbed the game “The Game of the Century”."
       },
       "opening": {
@@ -786,7 +1043,7 @@
           "ply": 21,
           "san": "Na4",
           "note": {
-            "es": "11...Na4! ataca a la dama en c5 y al caballo de c3, y abre la combinación.",
+            "es": "11...Ca4! ataca a la dama en c5 y al caballo de c3, y abre la combinación.",
             "en": "11...Na4! attacks the queen on c5 and the knight on c3, and opens the combination."
           }
         },
@@ -794,7 +1051,7 @@
           "ply": 33,
           "san": "Be6",
           "note": {
-            "es": "17...Be6!! ofrece la dama: 18.Bxb6 Bxc4+ 19.Kg1 Ne2+ 20.Kf1 Nxd4+ y las negras ganan.",
+            "es": "17...Ae6!! ofrece la dama: 18.Axb6 Axc4+ 19.Rg1 Ce2+ 20.Rf1 Cxd4+ y las negras ganan.",
             "en": "17...Be6!! offers the queen: 18.Bxb6 Bxc4+ 19.Kg1 Ne2+ 20.Kf1 Nxd4+ and Black wins."
           }
         },
@@ -802,7 +1059,7 @@
           "ply": 35,
           "san": "Bxc4+",
           "note": {
-            "es": "Comienza el molino de caballo: ...Ne2+, ...Nxd4+, ...Ne2+ y ...Nc3+ con jaques seguidos.",
+            "es": "Comienza el molino de caballo: ...Ce2+, ...Cxd4+, ...Ce2+ y ...Cc3+ con jaques seguidos.",
             "en": "The knight windmill begins: ...Ne2+, ...Nxd4+, ...Ne2+ and ...Nc3+, check after check."
           }
         }
@@ -832,7 +1089,8 @@
       "sources": [
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Tal.pgn)",
         "Score identical move for move in github.com/anandjoshi91/cdn-assets (tal_larsen_1965.pgn) and github.com/tsoj/chessattackingscore; the copy in github.com/DHTMLGoodies/dhtmlchess differs from move 18 and was not used",
-        "Facts (Candidates semifinal, Bled, 23 July to 8 August 1965, game 10, Scheveningen, Tal won): web search summaries of a chessgames.com game page listing and of chess.com's lesson \"A Personal Look At Mikhail Tal's Games\""
+        "Facts (Candidates semifinal, Bled, 23 July to 8 August 1965, game 10, Scheveningen, Tal won): web search summaries of a chessgames.com game page listing and of chess.com's lesson \"A Personal Look At Mikhail Tal's Games\"",
+        "Date note (2026-09-30): the day of game 10 was not confirmed; the tag keeps the month (the match ran 23 July-8 August 1965)"
       ],
       "moments": []
     },
@@ -869,7 +1127,7 @@
           "ply": 29,
           "san": "g2",
           "note": {
-            "es": "15...g2!: el peón ataca la torre de h1 y amenaza coronar; 16.Rf1 Qh4+ 17.Kd1 gxf1=Q+.",
+            "es": "15...g2!: el peón ataca la torre de h1 y amenaza coronar; 16.Tf1 Dh4+ 17.Rd1 gxf1=D+.",
             "en": "15...g2!: the pawn attacks the rook on h1 and threatens to promote; 16.Rf1 Qh4+ 17.Kd1 gxf1=Q+."
           }
         },
@@ -877,7 +1135,7 @@
           "ply": 31,
           "san": "Qh4+",
           "note": {
-            "es": "16...Qh4+! da jaque y prepara la coronación: tras 17.Kd1 llega 17...gxf1=Q+.",
+            "es": "16...Dh4+! da jaque y prepara la coronación: tras 17.Rd1 llega 17...gxf1=D+.",
             "en": "16...Qh4+! gives check and prepares the promotion: after 17.Kd1 comes 17...gxf1=Q+."
           }
         }
@@ -914,12 +1172,12 @@
     },
     "karpov-kasparov-1985-g16": {
       "title": {
-        "es": "Karpov contra Kaspárov, partida 16 (1985)",
+        "es": "Kárpov contra Kaspárov, partida 16 (1985)",
         "en": "Karpov versus Kasparov, game 16 (1985)"
       },
       "blurb": {
-        "es": "Partida 16 del match por el título mundial de 1985 en Moscú, jugada el 15 de octubre. Kaspárov, con negras en una Siciliana Taimanov, colocó un caballo en d3 tras un gambito de peón y las piezas de Karpov no lograron coordinarse. Con esta victoria tomó la delantera del match; suele considerarse la mejor partida entre ambos.",
-        "en": "Game 16 of the 1985 World Championship match in Moscow, played on 15 October. Playing Black in a Sicilian Taimanov, Kasparov planted a knight on d3 after a pawn gambit and Karpov's pieces never managed to coordinate. The win gave him the lead in the match; it is often considered the best game between the two."
+        "es": "Partida 16 del match por el título mundial de 1985 en Moscú, jugada el 15 de octubre. Kaspárov, con negras en una Siciliana Taimanov, colocó un caballo en d3 tras un gambito de peón y las piezas de Kárpov no lograron coordinarse. Con esta victoria tomó la delantera del match; suele considerarse una de las mejores partidas de ese match.",
+        "en": "Game 16 of the 1985 World Championship match in Moscow, played on 15 October. Playing Black in a Sicilian Taimanov, Kasparov planted a knight on d3 after a pawn gambit and Karpov's pieces never managed to coordinate. The win gave him the lead in the match; it is often considered one of the best games of that match."
       },
       "opening": {
         "es": "Defensa Siciliana (Variante Taimanov)",
@@ -936,14 +1194,15 @@
       "sources": [
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Kasparov.pgn)",
         "Score identical move for move in github.com/anandjoshi91/cdn-assets (karpov_kasparov_1985.pgn), github.com/RTS-Technology-Solutions/rts-chess-engine and github.com/DHTMLGoodies/dhtmlchess",
-        "Facts (game 16, Moscow, 15 October 1985, Sicilian Taimanov, 16...Nd3 and 17.Nab1, Kasparov took the lead): web search summaries of https://books.chessbase.com/de/modern-classics/karpov-kasparov-1985 and https://csmonitor.com/1985/1106/lchs06.html"
+        "Facts (game 16, Moscow, 15 October 1985, Sicilian Taimanov, 16...Nd3 and 17.Nab1, Kasparov took the lead): web search summaries of https://books.chessbase.com/de/modern-classics/karpov-kasparov-1985 and https://csmonitor.com/1985/1106/lchs06.html",
+        "Fact-check note (2026-09-30): 'took the lead in game 16' re-checked: Wikipedia's match summary (Kasparov equalised in game 11, led from game 16) and the Christian Science Monitor headline 'The game that gave the lead to challenger Kasparov'; 'the best game' softened"
       ],
       "moments": [
         {
           "ply": 31,
           "san": "Nd3",
           "note": {
-            "es": "16...Nd3!: el caballo se instala en d3 y las piezas blancas nunca llegan a coordinarse.",
+            "es": "16...Cd3!: el caballo se instala en d3 y las piezas blancas nunca llegan a coordinarse.",
             "en": "16...Nd3!: the knight settles on d3 and White's pieces never manage to coordinate."
           }
         },
@@ -951,7 +1210,7 @@
           "ply": 67,
           "san": "Nf2+",
           "note": {
-            "es": "34...Nf2+! 35.Rxf2 Bxd3 gana la dama blanca y decide la partida.",
+            "es": "34...Cf2+! 35.Txf2 Axd3 gana la dama blanca y decide la partida.",
             "en": "34...Nf2+! 35.Rxf2 Bxd3 wins the white queen and decides the game."
           }
         }
@@ -963,8 +1222,8 @@
         "en": "Kasparov's Immortal"
       },
       "blurb": {
-        "es": "Jugada el 20 de enero de 1999 en la cuarta ronda del torneo Hoogovens de Wijk aan Zee, en una Defensa Pirc. Con 24.Rxd4!! Kaspárov inició una serie de tres sacrificios de torre que llevó al rey de Topalov hasta la primera fila. Suele nombrársela entre las mejores partidas de ataque de su carrera.",
-        "en": "Played on 20 January 1999 in round four of the Hoogovens tournament in Wijk aan Zee, in a Pirc Defence. With 24.Rxd4!! Kasparov began a series of three rook sacrifices that drove Topalov's king all the way to the first rank. It is widely counted among the finest attacking games of his career."
+        "es": "Jugada el 20 de enero de 1999 en la cuarta ronda del torneo Hoogovens de Wijk aan Zee, en una Defensa Pirc. Con 24.Txd4!! Kaspárov inició un ataque de sacrificios y jaques que llevó al rey de Topalov desde c7 hasta d1, atravesando todo el tablero. Suele nombrársela entre las mejores partidas de ataque de su carrera.",
+        "en": "Played on 20 January 1999 in round four of the Hoogovens tournament in Wijk aan Zee, in a Pirc Defence. With 24.Rxd4!! Kasparov began an attack of sacrifices and checks that drove Topalov's king from c7 all the way to d1, across the whole board. It is widely counted among the finest attacking games of his career."
       },
       "opening": {
         "es": "Defensa Pirc",
@@ -982,31 +1241,32 @@
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Kasparov.pgn)",
         "Score identical move for move in github.com/anandjoshi91/cdn-assets, github.com/RTS-Technology-Solutions/rts-chess-engine, github.com/growthatpro/app-sightreadchess and github.com/tsoj/chessattackingscore",
         "Facts (20 January 1999, round 4, Hoogovens, Pirc, 24.Rxd4, three rook sacrifices): web search summaries of https://en.wikipedia.org/wiki/Kasparov%27s_Immortal and https://en.chessbase.com/newsroom/post/throwback-thursday-kasparov-wijjk-1999",
-        "Fact-check note (2026-09-30): The brilliancy-prize claim could not be confirmed and was dropped"
+        "Fact-check note (2026-09-30): The brilliancy-prize claim could not be confirmed and was dropped",
+        "Fact-check note (2026-09-30): the material trace (js/chess.js) shows only 24.Rxd4 (and later 37.Rd7) giving up a rook; 25.Re7+ and 30.Rxb7 are a check and a capture, so 'three rook sacrifices' became 'sacrifices and checks'; the king walk c7-d1 was replayed"
       ],
       "moments": [
         {
           "ply": 46,
           "san": "Rxd4",
           "note": {
-            "es": "Primer sacrificio de torre: 24.Rxd4!! cxd4 25.Re7+ inicia la cacería del rey.",
-            "en": "First rook sacrifice: 24.Rxd4!! cxd4 25.Re7+ begins the king hunt."
+            "es": "Sacrificio de torre: 24.Txd4!! cxd4 25.Te7+ inicia la cacería del rey.",
+            "en": "Rook sacrifice: 24.Rxd4!! cxd4 25.Re7+ begins the king hunt."
           }
         },
         {
           "ply": 48,
           "san": "Re7+",
           "note": {
-            "es": "Segundo sacrificio de torre: 25.Re7+ Kb6 26.Qxd4+ Kxa5 27.b4+.",
-            "en": "Second rook sacrifice: 25.Re7+ Kb6 26.Qxd4+ Kxa5 27.b4+."
+            "es": "El ataque sigue con jaques: 25.Te7+ Rb6 26.Dxd4+ Rxa5 27.b4+.",
+            "en": "The attack goes on with checks: 25.Re7+ Kb6 26.Qxd4+ Kxa5 27.b4+."
           }
         },
         {
           "ply": 58,
           "san": "Rxb7",
           "note": {
-            "es": "Tercer sacrificio de torre: 30.Rxb7! Qc4 31.Qxf6 mantiene el ataque.",
-            "en": "Third rook sacrifice: 30.Rxb7! Qc4 31.Qxf6 keeps the attack going."
+            "es": "30.Txb7! captura un alfil y deja la torre a tiro de la dama; tras 30...Dc4 31.Dxf6 el ataque sigue.",
+            "en": "30.Rxb7! takes a bishop and leaves the rook en prise to the queen; after 30...Qc4 31.Qxf6 the attack goes on."
           }
         }
       ]
@@ -1042,7 +1302,7 @@
           "ply": 64,
           "san": "Kf4",
           "note": {
-            "es": "La marcha del rey: 31.Kh2 32.Kg3 33.Kf4! con damas y torres todavía en el tablero.",
+            "es": "La marcha del rey: 31.Rh2 32.Rg3 33.Rf4! con damas y torres todavía en el tablero.",
             "en": "The king walk: 31.Kh2 32.Kg3 33.Kf4! with queens and rooks still on the board."
           }
         },
@@ -1050,7 +1310,7 @@
           "ply": 66,
           "san": "Kg5",
           "note": {
-            "es": "34.Kg5 amenaza Kh6 y Qg7#; el rey blanco llegó hasta el corazón del enroque negro y Timman se rindió.",
+            "es": "34.Rg5 amenaza Rh6 y Dg7#; el rey blanco llegó hasta el corazón del enroque negro y Timman se rindió.",
             "en": "34.Kg5 threatens Kh6 and Qg7#; the white king has reached the heart of Black's position and Timman resigned."
           }
         }
@@ -1062,8 +1322,8 @@
         "en": "Kasparov versus Anand, Riga 1995"
       },
       "blurb": {
-        "es": "Partida del torneo Memorial Tal de Riga de 1995, que ganó Kaspárov. Con blancas resucitó el Gambito Evans, una apertura casi ausente del ajedrez de élite desde hacía un siglo, y derrotó a Viswanathan Anand en 25 jugadas.",
-        "en": "A game from the 1995 Tal Memorial in Riga, which Kasparov won. With White he revived the Evans Gambit, an opening almost absent from top-level chess for a century, and beat Viswanathan Anand in 25 moves."
+        "es": "Partida del torneo Memorial Tal de Riga de 1995, que ganó Kaspárov. Con blancas recurrió al Gambito Evans, una apertura que se veía muy poco en la élite, y derrotó a Viswanathan Anand en 25 jugadas; la partida provocó un breve renacer de ese gambito.",
+        "en": "A game from the 1995 Tal Memorial in Riga, which Kasparov won. With White he turned to the Evans Gambit, an opening rarely seen among the elite, and beat Viswanathan Anand in 25 moves; the game prompted a brief revival of the gambit."
       },
       "opening": {
         "es": "Gambito Evans",
@@ -1082,7 +1342,7 @@
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Kasparov.pgn)",
         "Score identical move for move in github.com/RTS-Technology-Solutions/rts-chess-engine (100_golden_games.pgn) and github.com/CalvoM/pgn (a Lichess study export)",
         "Facts (Tal Memorial, Riga 1995, Evans Gambit, won in 25 moves, revival of the opening): web search summaries of https://en.chessbase.com/post/evans-gambit-evergreen-opening and https://en.wikipedia.org/wiki/1995_in_chess",
-        "Fact-check note (2026-09-30): The time control was not confirmed, and the earlier 'debate' sentence was dropped, unsourced"
+        "Fact-check note (2026-09-30): Wikipedia's 'Evans Gambit' says the 25-move win 'prompted a brief revival'; 'almost absent for a century' is not sourced precisely and became 'rarely seen'. The time control is still unconfirmed (a search summary calls the event a PCA 'Super Classic'), so none is stated"
       ],
       "moments": []
     },
@@ -1111,15 +1371,16 @@
       "sources": [
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Kasparov.pgn)",
         "Score identical move for move in github.com/niklasf/python-chess (data/pgn/kasparov-deep-blue-1997.pgn), github.com/wspeirs/nnpychess and github.com/frankkopp/FrankyUCIChessEngine",
-        "Facts (11 May 1997, game 6, score 2½-2½ before it, Caro-Kann, 7...h6, resignation after 19 moves): web search summaries of https://en.wikipedia.org/wiki/Deep_Blue_versus_Kasparov,_1997,_Game_6 and https://www.chessprogramming.org/Kasparov_versus_Deep_Blue_1997"
+        "Facts (11 May 1997, game 6, score 2½-2½ before it, Caro-Kann, 7...h6, resignation after 19 moves): web search summaries of https://en.wikipedia.org/wiki/Deep_Blue_versus_Kasparov,_1997,_Game_6 and https://www.chessprogramming.org/Kasparov_versus_Deep_Blue_1997",
+        "Fact-check note (2026-09-30): the English moment note now says the same as the Spanish one (the sequence 8.Nxe6 Qe7 9.O-O fxe6 10.Bg6+ Kd8 is the game and was replayed)"
       ],
       "moments": [
         {
           "ply": 14,
           "san": "Nxe6",
           "note": {
-            "es": "Sacrificio de caballo: 8.Nxe6! aprovecha 7...h6, impide el enroque de las negras y deja a su rey en el centro.",
-            "en": "Knight sacrifice: 8.Nxe6! exploits 7...h6 and tears apart Black's position."
+            "es": "Sacrificio de caballo: 8.Cxe6! aprovecha 7...h6. Tras 8...De7 9.O-O fxe6 10.Ag6+ el rey negro queda en el centro y ya no puede enrocar.",
+            "en": "Knight sacrifice: 8.Nxe6! exploits 7...h6. After 8...Qe7 9.O-O fxe6 10.Bg6+ Black's king is stuck in the centre and can no longer castle."
           }
         }
       ]
@@ -1169,8 +1430,8 @@
         "en": "Carlsen versus Nepomniachtchi, game 6 (2021)"
       },
       "blurb": {
-        "es": "Sexta partida del Campeonato del Mundo de 2021 en Dubái, jugada el 3 de diciembre. Con 136 jugadas y 7 horas y 45 minutos, es la más larga de la historia de los campeonatos del mundo: superó a las 124 de la quinta partida Korchnoi-Karpov (Baguio 1978). Carlsen ganó tras una larga lucha y se puso 3½-2½ arriba en el match.",
-        "en": "Game six of the 2021 World Championship in Dubai, played on 3 December. At 136 moves and 7 hours 45 minutes it is the longest game in world championship history, beating the 124 moves of Korchnoi-Karpov game five (Baguio 1978). Carlsen won after a long struggle and went 3½-2½ up in the match."
+        "es": "Sexta partida del Campeonato del Mundo de 2021 en Dubái, jugada el 3 de diciembre. Con 136 jugadas y casi ocho horas de juego, es la más larga de la historia de los campeonatos del mundo hasta ahora: superó a las 124 de la quinta partida Kórchnoi-Kárpov (Baguio 1978). Carlsen ganó tras una larga lucha y se puso 3½-2½ arriba en el match.",
+        "en": "Game six of the 2021 World Championship in Dubai, played on 3 December. At 136 moves and nearly eight hours of play it is, so far, the longest game in world championship history, beating the 124 moves of Korchnoi-Karpov game five (Baguio 1978). Carlsen won after a long struggle and went 3½-2½ up in the match."
       },
       "opening": {
         "es": "Apertura de peón de dama (montaje catalán)",
@@ -1187,7 +1448,8 @@
       "sources": [
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Carlsen.pgn)",
         "Score identical move for move in github.com/mehmetmars7/Efficient-Missed-Points-For-Chess and github.com/rahulan-c/wcc-updates (a Lichess broadcast export)",
-        "Facts (3 December 2021, Dubai, 136 moves, 7 h 45 min, longest WCh game, last move 136.Ng7, previous record 124 moves): web search summaries of https://en.wikipedia.org/wiki/Carlsen_versus_Nepomniachtchi,_World_Chess_Championship_2021,_Game_6"
+        "Facts (3 December 2021, Dubai, 136 moves, 7 h 45 min, longest WCh game, last move 136.Ng7, previous record 124 moves): web search summaries of https://en.wikipedia.org/wiki/Carlsen_versus_Nepomniachtchi,_World_Chess_Championship_2021,_Game_6",
+        "Fact-check note (2026-09-30): 'so far' added (the record can be broken); duration given as 'nearly eight hours' because sources differ (7 h 45 min and 7 h 47 min)"
       ],
       "moments": []
     }

@@ -58,7 +58,7 @@
     radial-gradient(560px 260px at 0 0, rgba(221, 167, 52, 0.11), transparent 70%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0) 46%);
 }
-.notebook-due { display: grid; gap: var(--space-3); align-content: start; min-width: 0; }
+.notebook-due { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); align-content: start; min-width: 0; }
 .notebook-due-figure {
   display: flex;
   flex-wrap: wrap;
@@ -106,7 +106,9 @@
 .notebook-start { min-width: 15rem; }
 .notebook-hint { margin: 0; max-width: 46ch; color: var(--color-text-muted); font-size: var(--text-sm); line-height: var(--lh-normal); }
 
-.notebook-size { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+/* The label wraps above the control when they do not fit side by side (a 320px phone, or a larger text size): the "20" of
+   5 / 10 / 20 was cut off there (QA VIS-009). */
+.notebook-size { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-width: 0; }
 .notebook-size-label { color: var(--color-text-muted); font-size: var(--text-sm); font-weight: 600; }
 .notebook-size-seg > button { min-width: 3.2rem; padding: 0 var(--space-3); }
 
@@ -408,12 +410,15 @@
   .notebook-start { min-width: 0; width: 100%; }
   .notebook-cta { flex-direction: column; align-items: stretch; }
   .notebook-size { justify-content: space-between; }
+  .notebook-size-seg { flex: 1 1 11rem; }
+  .notebook-size-seg > button { flex: 1 1 0; min-width: 0; }
   .notebook-tools-row { grid-template-columns: minmax(0, 1fr); }
   .notebook-stat { padding: var(--space-3); }
   .notebook-stat-value { font-size: var(--text-2xl); }
   .notebook-steps { grid-template-columns: minmax(0, 1fr); }
   .notebook-concept { grid-template-columns: minmax(0, 1fr); }
-  .notebook-concept-board { max-width: 220px; }
+  /* One column: the board is centred and as wide as the dialog allows (it used to hug the left edge at 220px). */
+  .notebook-concept-board { width: 100%; max-width: 280px; margin-inline: auto; }
   .notebook-list-head { grid-template-columns: minmax(0, 1fr); }
   .notebook-move { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .notebook-card-foot { grid-template-columns: minmax(0, 1fr); }

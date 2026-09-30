@@ -360,11 +360,6 @@
    or a larger text size, because the query is in rem) the three choices stack as full-width rows instead of clipping a label
    (QA VIS-002 / CNT-027 / A11Y-006). */
 .progress-ach-card { container: progress-ach / inline-size; }
-@container progress-ach (max-width: 18rem) {
-  .progress-ach-filter { display: grid; width: 100%; border-radius: var(--radius-lg); }
-  .progress-ach-filter > button { width: 100%; }
-  .progress-ach-filter > * + * { border-left: 0; border-top: 1px solid var(--color-hairline-strong); }
-}
 .progress-ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
 .progress-ach {
   display: grid;
@@ -440,6 +435,30 @@
 .progress-gap-need { margin: 2px 0 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: var(--lh-normal); }
 .progress-empty-actions { display: flex; }
 
+/* ── Wide screens: no empty areas (QA VIS-024) ──
+   The heatmap keeps a readable size (its cells are square) and the three numbers become a panel that fills the rest of the
+   card, like the "your improvement" panel of the trend card. */
+@media (min-width: 900px) {
+  .progress-activity-body { display: grid; grid-template-columns: minmax(0, 30rem) minmax(0, 1fr); align-items: stretch; gap: var(--space-6) var(--space-8); }
+  .progress-activity-body > .progress-heat { max-width: none; }
+  .progress-activity-facts {
+    align-content: center;
+    gap: 0;
+    padding: var(--space-2) var(--space-6);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-xl);
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .progress-activity-facts > .progress-fact { padding: var(--space-4) 0; }
+  .progress-activity-facts > .progress-fact + .progress-fact { border-top: 1px solid var(--color-hairline); }
+}
+/* Three cards side by side: the shortest one (the quality legend) spreads its rows over the height the others need. */
+@media (min-width: 1100px) {
+  .progress-breakdowns > .progress-quality { grid-template-rows: auto auto minmax(0, 1fr); }
+  .progress-breakdowns > .progress-quality .progress-legend { grid-auto-rows: minmax(0, 1fr); align-content: stretch; max-width: none; }
+  .progress-breakdowns > .progress-quality .progress-legend-item + .progress-legend-item { border-top: 1px solid var(--color-hairline); }
+}
+
 /* ── Breakpoints ── */
 @media (max-width: 1099px) {
   .progress-breakdowns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -473,6 +492,12 @@
 }
 @media (max-width: 400px) {
   .progress-stat-hint { display: none; }
+}
+/* After the breakpoints on purpose: it must win over `.progress-ach-filter { display: flex }` of the phone rule above. */
+@container progress-ach (max-width: 18rem) {
+  .progress-ach-filter { display: grid; width: 100%; border-radius: var(--radius-lg); }
+  .progress-ach-filter > button { width: 100%; }
+  .progress-ach-filter > * + * { border-left: 0; border-top: 1px solid var(--color-hairline-strong); }
 }
 @media (prefers-reduced-motion: reduce) {
   .progress-pt-dot,

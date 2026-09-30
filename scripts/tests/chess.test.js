@@ -16,7 +16,9 @@ const { Chess, files, uciToMove, moveToUci, moveToSan, sanToMove } = chessApi;
 // ---------- API surface ----------
 
 assert.strictEqual(globalThis.Ludus.chess, chessApi, "js/chess.js registers itself as Ludus.chess");
-assert.deepStrictEqual(Object.keys(chessApi).sort(), ["Chess", "files", "moveToSan", "moveToUci", "sanToMove", "uciToMove"]);
+assert.deepStrictEqual(Object.keys(chessApi).sort(), [
+  "Chess", "NOTATION_STYLES", "SPANISH_LETTERS", "files", "localizeSan", "moveToSan", "moveToUci", "notationStyle", "sanToMove", "spokenSan", "uciToMove",
+]);
 assert.deepStrictEqual(files, ["a", "b", "c", "d", "e", "f", "g", "h"]);
 assert.strictEqual(Chess.START_FEN, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 assert.strictEqual(typeof Chess.isValidFen, "function");
@@ -397,6 +399,105 @@ PERFT_CASES.forEach(({ name, fen, counts }) => {
 
   const total = (fen) => new Chess(fen).board.reduce((sum, piece) => sum + Chess.pieceValue(piece), 0);
   assert.strictEqual(total(Chess.START_FEN), 78, "each side has 39 points at the start");
+}
+
+// ---------- Notation: localizeSan / notationStyle / spokenSan ----------
+
+{
+  const { localizeSan, notationStyle, spokenSan } = chessApi;
+  const fixed = [
+    ["Nf3", "Cf3"], ["Bb5", "Ab5"], ["Rg1", "Tg1"], ["Qxf7#", "Dxf7#"], ["Kf1", "Rf1"], ["Nxg7+", "Cxg7+"],
+    ["Rad1", "Tad1"], ["N5f3", "C5f3"], ["Qh4xe1+", "Dh4xe1+"], ["e4", "e4"], ["exd5", "exd5"], ["bxc3", "bxc3"],
+    ["e8=Q+", "e8=D+"], ["axb8=N", "axb8=C"], ["h1=R", "h1=T"], ["g8=B#", "g8=A#"],
+    ["O-O", "O-O"], ["O-O-O+", "O-O-O+"],
+  ];
+  fixed.forEach(([english, spanish]) => {
+    assert.strictEqual(localizeSan(english, "es", { style: "auto" }), spanish, `es: ${english}`);
+    assert.strictEqual(localizeSan(english, "en", { style: "auto" }), english, `en: ${english} is unchanged`);
+    assert.strictEqual(localizeSan(english, "en", { style: "spanish" }), spanish, `style spanish wins over an English UI: ${english}`);
+    assert.strictEqual(localizeSan(english, "es", { style: "english" }), english, `style english wins over a Spanish UI: ${english}`);
+  });
+  assert.strictEqual(localizeSan("", "es"), "");
+  assert.strictEqual(localizeSan(null, "es"), "");
+  assert.strictEqual(localizeSan(undefined, "es"), "");
+  assert.strictEqual(localizeSan("Rg1", "fr", { style: "auto" }), "Rg1", "unknown languages read English letters");
+  assert.strictEqual(localizeSan("Rg1", "es-AR", { style: "auto" }), "Tg1", "regional Spanish is Spanish");
+
+  assert.deepStrictEqual(chessApi.NOTATION_STYLES, ["auto", "english", "spanish"]);
+  assert.strictEqual(notationStyle("es", { style: "auto" }), "spanish");
+  assert.strictEqual(notationStyle("en", { style: "auto" }), "english");
+  assert.strictEqual(notationStyle("en", { style: "spanish" }), "spanish");
+  assert.strictEqual(notationStyle("es", { style: "english" }), "english");
+
+  // The stored setting is what the UI follows (Settings is loaded at call time, never at load time).
+  const saved = globalThis.Ludus.Settings;
+  try {
+    globalThis.Ludus.Settings = { get: (path) => (path === "notation.style" ? "spanish" : undefined) };
+    assert.strictEqual(localizeSan("Nf3", "en"), "Cf3", "setting spanish, English UI");
+    globalThis.Ludus.Settings = { get: () => "english" };
+    assert.strictEqual(localizeSan("Nf3", "es"), "Nf3", "setting english, Spanish UI");
+    globalThis.Ludus.Settings = { get: () => "auto" };
+    assert.strictEqual(localizeSan("Nf3", "es"), "Cf3", "setting auto follows the language");
+    globalThis.Ludus.Settings = { get: () => { throw new Error("storage blocked"); } };
+    assert.strictEqual(localizeSan("Nf3", "es"), "Cf3", "a Settings failure degrades to auto");
+    globalThis.Ludus.Settings = { get: () => "klingon" };
+    assert.strictEqual(localizeSan("Nf3", "en"), "Nf3", "an unknown stored value degrades to auto");
+  } finally {
+    if (saved === undefined) delete globalThis.Ludus.Settings;
+    else globalThis.Ludus.Settings = saved;
+  }
+
+  // Every SAN of the 28 classic games (and every legal move of a few middlegames): localizing loses
+  // nothing (the inverse map restores the English SAN exactly), "R" only ever means the king,
+  // and nothing but the piece letters changes.
+  const inverse = {};
+  Object.keys(chessApi.SPANISH_LETTERS).forEach((english) => { inverse[chessApi.SPANISH_LETTERS[english]] = english; });
+  assert.strictEqual(new Set(Object.values(chessApi.SPANISH_LETTERS)).size, 5, "the mapping is injective");
+  const sans = [];
+  try {
+    require(path.resolve(__dirname, "..", "..", "js", "data", "classics.data.js"));
+    (globalThis.Ludus.ClassicsData.games || []).forEach((game) => {
+      const board = new Chess(game.startFen || Chess.START_FEN);
+      game.moves.forEach((text) => {
+        const move = sanToMove(text, board);
+        if (!move) return;
+        sans.push(moveToSan(board, move));
+        board.makeMove(move);
+      });
+    });
+  } catch (error) {
+    // The classics file is optional for this test; the fixed list above still runs.
+  }
+  ["r3k2r/pp3ppp/2n1bn2/2bqp3/3P4/2N1BN2/PPQ1BPPP/R3K2R w KQkq - 0 1", "4k3/P6P/8/8/8/8/p6p/4K3 w - - 0 1",
+    "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4"].forEach((fen) => {
+    const board = new Chess(fen);
+    board.generateMoves().forEach((move) => sans.push(moveToSan(board, move)));
+  });
+  assert.ok(sans.length > 500, `the corpus of SANs is big enough (${sans.length})`);
+  assert.ok(sans.some((san) => /^K/.test(san)) && sans.some((san) => /=[QRBN]/.test(san)) && sans.some((san) => san === "O-O"), "the corpus has king moves, promotions and castling");
+  sans.forEach((san) => {
+    const spanish = localizeSan(san, "es", { style: "auto" });
+    assert.strictEqual(spanish.length, san.length, `same length: ${san}`);
+    assert.strictEqual(spanish.replace(/^[RDTAC]/, (letter) => inverse[letter]).replace(/=([RDTAC])/, (m, letter) => `=${inverse[letter]}`), san, `nothing lost: ${san} -> ${spanish}`);
+    assert.ok(!/^[KQBN]/.test(spanish) && !/=[KQBN]/.test(spanish), `no English piece letter is left: ${spanish}`);
+    assert.strictEqual(/^R/.test(spanish), /^K/.test(san), `R means the king and only the king: ${san} -> ${spanish}`);
+    assert.strictEqual(spanish.replace(/[RDTAC]/g, "*"), san.replace(/[KQRBN]/g, "*"), `only piece letters change: ${san}`);
+    assert.strictEqual(localizeSan(san, "en", { style: "auto" }), san, `English is untouched: ${san}`);
+  });
+
+  // Words for a screen reader.
+  assert.strictEqual(spokenSan("Nxf3+", "es"), "caballo captura en f3, jaque");
+  assert.strictEqual(spokenSan("Rg1", "en"), "rook to g1");
+  assert.strictEqual(spokenSan("Rg1", "es"), "torre a g1");
+  assert.strictEqual(spokenSan("Kf1", "es"), "rey a f1", "a king move says rey, not R");
+  assert.strictEqual(spokenSan("Qxf7#", "en"), "queen takes f7, checkmate");
+  assert.strictEqual(spokenSan("O-O", "es"), "enroque corto");
+  assert.strictEqual(spokenSan("O-O-O+", "en"), "castles queenside, check");
+  assert.strictEqual(spokenSan("e8=Q+", "en"), "pawn to e8, promotes to queen, check");
+  assert.strictEqual(spokenSan("exd5", "es"), "peón desde e captura en d5");
+  assert.strictEqual(spokenSan("Rad1", "en"), "rook from a, to d1");
+  assert.strictEqual(spokenSan("hola", "es"), "hola", "text that is not SAN comes back unchanged");
+  sans.forEach((san) => assert.ok(spokenSan(san, "es") !== san || /^[a-h]/.test(san) === false, `every SAN has a spoken form: ${san}`));
 }
 
 console.log("chess.test.js passed");

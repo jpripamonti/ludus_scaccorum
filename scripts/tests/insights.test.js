@@ -27,6 +27,16 @@ function analyze(fen, userUci, bestUci, extra) {
   return result;
 }
 
+// The engine's line for a move: what the coach has in `lines` (compact form, UCI moves).
+function line(...pv) {
+  return { uci: pv[0], score: 300, pv };
+}
+
+// analyze() with the engine's principal variation of the best move.
+function analyzeLine(fen, userUci, pv, extra) {
+  return analyze(fen, userUci, pv[0], Object.assign({ lines: [line(...pv)] }, extra));
+}
+
 function message(result, tag) {
   return result.messages.find((entry) => entry.tag === tag);
 }
@@ -72,8 +82,10 @@ assert.strictEqual(tagLabelKey("no_such_tag"), "insight.tag.other", "unknown tag
   // Messages that state something the board (or an exact search) proves; the
   // rest interpret ("looks like", "may", ...) and must be hedged.
   const FACTS = new Set(["insight.allows_mate.san", "insight.missed_mate.san", "insight.missed_mate.forced",
-    "insight.missed_check", "insight.missed_promotion", "insight.time_trouble", "insight.time_trouble.out",
-    "insight.pin", "insight.discovered", "insight.outpost", "insight.open_file", "insight.open_file.seventh"]);
+    "insight.missed_check", "insight.missed_check.after", "insight.missed_promotion", "insight.time_trouble", "insight.time_trouble.out",
+    "insight.pin", "insight.discovered", "insight.outpost", "insight.open_file", "insight.open_file.seventh",
+    // what the engine's own line shows (the wording already says "line"), and what the tool could not find
+    "insight.slower_mate", "insight.no_clear_reason", "insight.no_clear_reason.big"]);
   let rendered = 0;
   ["es", "en"].forEach((lang) => {
     Object.keys(STRINGS[lang]).filter((key) => !notMessages.test(key)).forEach((key) => {
@@ -109,8 +121,62 @@ assert.strictEqual(tagLabelKey("no_such_tag"), "insight.tag.other", "unknown tag
 }
 
 assert.strictEqual(positionFeatures("8/5k2/8/3P4/8/8/8/6K1 w - - 0 1").phase, "endgame");
-assert.strictEqual(positionFeatures("3q2k1/5ppp/8/8/8/8/5PPP/R2Q2K1 w - - 0 1").phase, "middlegame", "two queens and a rook: 23 points of non-pawn material");
+assert.strictEqual(positionFeatures("3q2k1/5ppp/8/8/8/8/5PPP/R2Q2K1 w - - 0 1").phase, "endgame", "queen and rook against a queen: three pieces left");
 assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").material, { w: 5, b: 0, diff: 5 });
+
+// ---------- gamePhase: the one classifier of the app (COR-001) ----------
+
+{
+  const { gamePhase } = Insights;
+  assert.strictEqual(typeof gamePhase, "function");
+  const phaseOf = (fen) => gamePhase(fen);
+  assert.strictEqual(phaseOf(Chess.START_FEN), "opening", "the start position");
+  assert.strictEqual(phaseOf("r1bqkbnr/1ppp1ppp/p1n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4"), "opening", "Ruy Lopez, move 4");
+  assert.strictEqual(phaseOf("r1bq1rk1/pp2bppp/2n1pn2/2pp4/3P1B2/2PBPN2/PP1N1PPP/R2QK2R w KQ - 0 9"), "opening", "every piece still at home-ish, move 9");
+  assert.strictEqual(phaseOf("r1bq1rk1/pp2bppp/2n1pn2/2pp4/3P1B2/2PBPN2/PP1N1PPP/R2QK2R w KQ - 0 14"), "middlegame", "the same pieces at move 14 are a middlegame");
+  assert.strictEqual(phaseOf("rnb1kbnr/ppp2ppp/8/3pp3/8/2N2N2/PPPPPPPP/R1BQKB1R w KQkq - 0 4".replace("PPPPPPPP", "PPPP1PPP")), "opening");
+  assert.strictEqual(phaseOf("r1b1kb1r/ppp2ppp/2n2n2/8/3P4/2N2N2/PP3PPP/R1B1KB1R w KQkq - 0 8"), "middlegame", "queens traded on move 7: 44 points, still plenty of pieces");
+  // Endgames: bare kings and pawns, rook endings, queen endings, minor-piece endings.
+  ["8/8/8/8/8/5k2/8/5K2 w - - 0 60", "4k3/8/4K3/4P3/8/8/8/8 w - - 0 50", "1K1k4/1P6/8/8/8/8/r7/2R5 w - - 0 70",
+    "8/8/1k6/8/8/2K5/8/7Q w - - 0 70", "6k1/5ppp/8/8/8/8/5PPP/3R2K1 w - - 0 40", "8/5pk1/6p1/3bn3/8/6P1/5PK1/3B1N2 w - - 0 50",
+    "r3r1k1/5ppp/8/8/8/8/5PPP/R3R1K1 w - - 0 30", "3q2k1/5ppp/8/8/8/8/5PPP/R2Q2K1 w - - 0 30"].forEach((fen) => {
+    assert.strictEqual(phaseOf(fen), "endgame", fen);
+  });
+  // Middlegames that used to be called "opening" or "endgame" (COR-001): heavy pieces, move 20+.
+  assert.strictEqual(phaseOf("r2q1rk1/1b1nbppp/p2ppn2/1p6/3NP3/1BN1BP2/PPPQ2PP/2KR3R w - - 0 15"), "middlegame");
+  assert.strictEqual(phaseOf("2rq1rk1/pp2bppp/2n1pn2/3p4/3P4/2NBPN2/PP2QPPP/2R2RK1 w - - 0 14"), "middlegame");
+  assert.strictEqual(phaseOf("r4rk1/1bq2ppp/p2bpn2/1p6/3NP3/1BN1B3/PPP1QPPP/R4RK1 w - - 0 16"), "middlegame", "queens and rooks on, 22 moves in");
+  // Inputs: FEN, Chess, the 64 cells (with and without a move number), garbage.
+  assert.strictEqual(gamePhase(new Chess()), "opening");
+  assert.strictEqual(gamePhase(new Chess().board), "opening", "a board with no move number: material alone");
+  assert.strictEqual(gamePhase(new Chess().board, 25), "middlegame", "...and the move number when it is given");
+  assert.strictEqual(gamePhase("not a fen"), "middlegame", "unusable input is the neutral phase");
+  assert.strictEqual(gamePhase(null), "middlegame");
+  assert.strictEqual(gamePhase({}), "middlegame");
+  assert.strictEqual(positionFeatures(Chess.START_FEN).phase, gamePhase(Chess.START_FEN), "positionFeatures uses the same function");
+
+  // The 248 classic training positions: a real spread, and the data's own `phase` field agrees.
+  try {
+    delete require.cache[require.resolve(path.join(jsDir, "data", "classics.data.js"))];
+    require(path.join(jsDir, "data", "classics.data.js"));
+    const games = globalThis.Ludus.ClassicsData.games;
+    const counts = { opening: 0, middlegame: 0, endgame: 0 };
+    let agree = 0;
+    let total = 0;
+    games.forEach((game) => game.positions.forEach((position) => {
+      const phase = gamePhase(position.fen);
+      counts[phase] += 1;
+      total += 1;
+      if (phase === position.phase) agree += 1;
+    }));
+    assert.ok(total >= 240, `the classics have ${total} positions`);
+    assert.ok(counts.opening >= 20 && counts.middlegame >= 100 && counts.endgame >= 8, `a spread of phases: ${JSON.stringify(counts)}`);
+    assert.ok(agree / total >= 0.95, `the classics data phase field agrees on ${agree}/${total}`);
+    console.log(`  (gamePhase on the classics: ${JSON.stringify(counts)}, agreement with the data field ${agree}/${total})`);
+  } catch (error) {
+    if (error && error.code !== "MODULE_NOT_FOUND") throw error;
+  }
+}
 
 {
   // Hanging: the rook is attacked by the queen and only the king's distance matters.
@@ -160,7 +226,7 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
   const bishop = analyze("4k3/8/p7/8/8/8/4B3/4K3 w - - 0 1", "e2b5", "e1d2");
   assert.strictEqual(bishop.messages[0].key, "insight.hangs_piece.moved", "a bishop walking into a pawn capture");
   assert.deepStrictEqual({ piece: bishop.messages[0].raw.piece, sq: bishop.messages[0].raw.sq }, { piece: "B", sq: "b5" });
-  assert.strictEqual(text(bishop, "hangs_piece", "es"), "Después de Bb5+, tu alfil en b5 parece quedar sin protección, así que probablemente perdés material.");
+  assert.strictEqual(text(bishop, "hangs_piece", "es"), "Después de Ab5+, tu alfil en b5 parece quedar sin protección, así que probablemente perdés material.");
 
   const cheaper = analyze("4k3/8/p7/8/8/2NB4/8/4K3 w - - 0 1", "c3b5", "e1d2");
   assert.strictEqual(cheaper.messages[0].raw.why, "cheaper", "defended by the bishop, but a pawn wins the exchange");
@@ -230,10 +296,10 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
     fen: "5r1k/6pp/7N/8/8/8/Q7/K7 w - - 0 1", userUci: "a1b1", bestUci: "a2g8",
     assessment: { isBest: false, winLossPct: 60, reason: "missed_mate", bestScore: 98000, userScore: 300 },
   });
-  assert.ok(deep.tags.includes("missed_mate") && deep.tags.includes("sacrifice_best"), "the queen sacrifice starts the mate");
+  assert.ok(deep.tags.includes("missed_mate") && !deep.tags.includes("sacrifice_best"), "the mate says it all: the queen sacrifice is a step of the same line");
   assert.strictEqual(message(deep, "missed_mate").key, "insight.missed_mate.forced");
   assert.strictEqual(message(deep, "missed_mate").raw.n, 2);
-  assert.ok(/mate in 2/.test(text(deep, "missed_mate")));
+  assert.ok(/mate in 2 moves or fewer/.test(text(deep, "missed_mate")), "a mate length is an upper bound");
   assert.ok(!deep.tags.includes("quiet_best") && !deep.tags.includes("endgame_technique"), "a forced mate silences the strategic remarks");
 
   const hint = analyzeChoice({
@@ -246,37 +312,47 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
 
 // Tactical patterns in the best move.
 {
-  const fork = analyze("r3k3/8/8/1N6/8/8/P7/4K3 w - - 0 1", "e1e2", "b5c7");
+  const FORK = "r3k3/8/8/1N6/8/8/P7/4K3 w - - 0 1";
+  const fork = analyzeLine(FORK, "e1e2", ["b5c7", "e8d7", "c7a8"]);
   assert.ok(fork.tags.includes("fork_available"));
+  // The geometry alone is not enough: without an engine line that wins something, nothing is said.
+  assert.ok(!analyze(FORK, "e1e2", "b5c7").tags.includes("fork_available"), "no engine line, no fork claim");
+  assert.ok(!analyzeLine(FORK, "e1e2", ["b5c7", "e8d7", "c7b5"]).tags.includes("fork_available"), "a line that gives the knight back does not win the rook");
+  assert.ok(!analyzeLine(FORK, "e1e2", ["b5c7", "e8d7"]).tags.includes("fork_available"), "two plies cannot show the win of the forked piece");
   assert.ok(!fork.tags.includes("missed_check"), "the fork explains the check");
   assert.ok(fork.conceptIds.includes("fork"));
   assert.deepStrictEqual(message(fork, "fork_available").raw.targets, [{ p: "K", sq: "e8" }, { p: "R", sq: "a8" }]);
   assert.ok(/fork/.test(text(fork, "fork_available")) && /rook on a8/.test(text(fork, "fork_available")));
   assert.ok(/doble ataque/.test(text(fork, "fork_available", "es")) && /torre en a8/.test(text(fork, "fork_available", "es")));
 
-  const queenFork = analyze("4k3/8/q7/1N6/8/8/P7/4K3 w - - 0 1", "e1e2", "b5c7");
+  const queenFork = analyzeLine("4k3/8/q7/1N6/8/8/P7/4K3 w - - 0 1", "e1e2", ["b5c7", "e8d7", "c7a6"]);
   assert.ok(queenFork.tags.includes("fork_available"));
 
   // A "fork" whose forking piece can just be taken is not a fork.
-  const unsafe = analyze("r2qk3/8/8/1N6/8/8/P7/4K3 w - - 0 1", "e1e2", "b5c7");
+  const unsafe = analyzeLine("r2qk3/8/8/1N6/8/8/P7/4K3 w - - 0 1", "e1e2", ["b5c7", "d8c7", "e1d1"]);
   assert.ok(!unsafe.tags.includes("fork_available"), "the queen on d8 simply takes the knight on c7");
-  assert.ok(analyze("r3k3/1p6/8/1N6/8/8/P7/4K3 w - - 0 1", "e1e2", "b5c7").tags.includes("fork_available"), "a pawn on b7 does not cover c7");
+  assert.ok(analyzeLine("r3k3/1p6/8/1N6/8/8/P7/4K3 w - - 0 1", "e1e2", ["b5c7", "e8d7", "c7a8"]).tags.includes("fork_available"), "a pawn on b7 does not cover c7");
 
-  const skewer = analyze("3k3q/8/8/8/8/8/8/R3K3 w - - 0 1", "e1e2", "a1a8");
+  const skewer = analyzeLine("3k3q/8/8/8/8/8/8/R3K3 w - - 0 1", "e1e2", ["a1a8", "d8d7", "a8h8"]);
   assert.ok(skewer.tags.includes("pin_or_skewer"));
   assert.strictEqual(message(skewer, "pin_or_skewer").key, "insight.skewer");
   assert.strictEqual(message(skewer, "pin_or_skewer").raw.behind, "Q");
   assert.ok(skewer.conceptIds.includes("skewer"));
 
-  const pin = analyze("4k3/8/2n5/8/8/8/4B3/4K3 w - - 0 1", "e1d1", "e2b5");
+  const pin = analyzeLine("4k3/8/2n5/8/8/8/4B3/4K3 w - - 0 1", "e1d1", ["e2b5", "e8d8", "b5c6"]);
   assert.strictEqual(message(pin, "pin_or_skewer").key, "insight.pin");
   assert.deepStrictEqual({ p: message(pin, "pin_or_skewer").raw.pinned, sq: message(pin, "pin_or_skewer").raw.sq }, { p: "N", sq: "c6" });
   assert.ok(pin.conceptIds.includes("pin"));
 
-  const discovered = analyze("4k3/5q2/8/4N3/8/8/8/4R1K1 w - - 0 1", "g1g2", "e5f7");
-  assert.ok(discovered.tags.includes("discovered_attack"));
-  assert.ok(discovered.tags.includes("missed_capture"), "it also wins the queen");
+  // The knight takes the queen with a discovered check: one explanation is enough, and the capture is the concrete one.
+  const capture = analyzeLine("4k3/5q2/8/4N3/8/8/8/4R1K1 w - - 0 1", "g1g2", ["e5f7", "e8f7", "g1f1"]);
+  assert.deepStrictEqual(capture.tags, ["missed_capture"], "a capture that wins the queen explains the discovered check too");
+  const DISCOVERED = "4k3/8/3q4/4N3/8/8/8/4R1K1 w - - 0 1";
+  const discovered = analyzeLine(DISCOVERED, "g1g2", ["e5c4", "e8f7", "c4d6"]);
+  assert.ok(discovered.tags.includes("discovered_attack"), "Nc4+ uncovers the rook's check and attacks the queen");
   assert.ok(discovered.conceptIds.includes("discovered_attack"));
+  assert.ok(!analyze(DISCOVERED, "g1g2", "e5c4").tags.includes("discovered_attack"), "no engine line, no claim");
+  assert.ok(!analyzeLine(DISCOVERED, "g1g2", ["e5c4", "e8f7", "g1f1"]).tags.includes("discovered_attack"), "the line does not win the queen");
 }
 
 // Sacrifices, quiet moves, checks, promotions.
@@ -294,12 +370,21 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
   const forcing = analyze("4k3/p7/8/8/8/8/8/R3K3 w - - 0 1", "a1a7", "e1f1");
   assert.ok(forcing.tags.includes("quiet_best"));
   assert.strictEqual(message(forcing, "quiet_best").key, "insight.quiet_best.generic");
-  const plain = analyze("4k3/p7/8/8/8/8/8/R3K3 w - - 0 1", "e1d1", "e1f1");
+  const plain = analyze("4k3/p7/8/8/8/8/8/R3K3 w - - 0 1", "e1d1", "e1f1", { assessment: { isBest: false, winLossPct: 5 } });
   assert.deepStrictEqual(plain.tags, [], "two quiet moves: nothing to teach");
   assert.strictEqual(plain.messages[0].key, "insight.no_clear_reason", "we say so instead of inventing a reason");
+  // When the move was clearly worse we do not reassure: no "it may only be positional".
+  const clearlyWorse = analyze("4k3/p7/8/8/8/8/8/R3K3 w - - 0 1", "e1d1", "e1f1");
+  assert.strictEqual(clearlyWorse.messages[0].key, "insight.no_clear_reason.big");
+  assert.ok(!/positional/i.test(renderMessage(clearlyWorse.messages[0], "en")) && !/posicional/i.test(renderMessage(clearlyWorse.messages[0], "es")));
+  assert.ok(/clearly better/.test(renderMessage(clearlyWorse.messages[0], "en")));
 
+  // A check that leads nowhere is not worth a habit tip (CNT-009): the tag needs an engine line that wins or mates.
   const check = analyze("4k3/8/8/8/8/8/8/4KB2 w - - 0 1", "e1d2", "f1b5");
-  assert.deepStrictEqual(check.tags, ["missed_check"]);
+  assert.deepStrictEqual(check.tags, [], "Bb5+ wins nothing");
+  assert.strictEqual(check.messages[0].key, "insight.no_clear_reason.big");
+  const harmless = analyzeLine("4k3/8/8/8/8/8/8/4KB2 w - - 0 1", "e1d2", ["f1b5", "e8e7", "e1d2"]);
+  assert.deepStrictEqual(harmless.tags, [], "a line that wins nothing does not make the check matter");
 
   const promotion = analyze("8/4P1k1/8/8/8/8/8/4K3 w - - 0 1", "e1d2", "e7e8q");
   assert.deepStrictEqual(promotion.tags, ["missed_promotion"]);
@@ -388,8 +473,8 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
 // ---------- analyzeChoice: shape, limits, robustness ----------
 
 {
-  const rich = analyze("r3k3/8/8/1N6/8/8/P7/4K3 w - - 0 1", "e1e2", "b5c7");
-  assert.ok(rich.messages.length >= 1 && rich.messages.length <= 4, "at most four messages");
+  const rich = analyzeLine("r3k3/8/8/1N6/8/8/P7/4K3 w - - 0 1", "e1e2", ["b5c7", "e8d7", "c7a8"]);
+  assert.ok(rich.messages.length >= 1 && rich.messages.length <= 3, "at most three messages");
   assert.strictEqual(rich.phase, "endgame");
   rich.messages.forEach((entry) => {
     assert.strictEqual(typeof entry.key, "string");
@@ -402,9 +487,9 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
   });
   assert.deepStrictEqual(rich.tags, ["fork_available"], "the a2 pawn was already attacked before Ke2: too minor to blame on the move");
 
-  // At most 4 messages even when many tags fire; the strongest come first.
+  // At most 3 messages even when many tags fire; the strongest come first.
   const many = analyze("r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4", "f3g5", "e1g1", { timing: { timedOut: true } });
-  assert.ok(many.messages.length <= 4);
+  assert.ok(many.messages.length <= 3);
   assert.strictEqual(many.tags[0], "development");
   assert.strictEqual(many.tags[many.tags.length - 1], "time_trouble", "time comes last");
 
@@ -416,9 +501,9 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
   // Language handling: messages carry language-neutral raw params.
   i18n.setLanguage("es", { persist: false });
   const inSpanish = analyze("4k3/8/8/3b4/8/8/8/3RK3 w - - 0 1", "e1e2", "d1d5");
-  assert.strictEqual(i18n.t(inSpanish.messages[0].key, inSpanish.messages[0].params), "Rxd5 parece ganar el alfil en d5, que está sin protección.");
+  assert.strictEqual(i18n.t(inSpanish.messages[0].key, inSpanish.messages[0].params), "Txd5 parece ganar el alfil en d5, que está sin protección.", "Spanish notation: T is the rook");
   assert.strictEqual(renderMessage(inSpanish.messages[0], "en"), "Rxd5 looks like it wins the bishop on d5, which has no protection.");
-  assert.deepStrictEqual(renderMessages(inSpanish.messages, "es"), ["Rxd5 parece ganar el alfil en d5, que está sin protección."]);
+  assert.deepStrictEqual(renderMessages(inSpanish.messages, "es"), ["Txd5 parece ganar el alfil en d5, que está sin protección."]);
   i18n.setLanguage("en", { persist: false });
   assert.strictEqual(renderMessage(inSpanish.messages[0]), "Rxd5 looks like it wins the bishop on d5, which has no protection.", "defaults to the current language");
 

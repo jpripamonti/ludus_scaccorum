@@ -302,6 +302,11 @@
   --board-hl: rgba(255,214,80,0.50);
   --board-coord-on-light: #5b3c20;
   --board-coord-on-dark: #2a190b;
+  /* The legal-move dot and the capture ring (css/board.css). A graphical object that is the ONLY visual cue for where a
+     piece may go needs 3:1 against the square it sits on (WCAG 1.4.11): a near-black dot, a little stronger on the
+     mid-tone dark squares (measured per theme, see scripts/e2e/shell.js). */
+  --board-dot-on-light: rgba(10, 7, 3, 0.6);
+  --board-dot-on-dark: rgba(10, 7, 3, 0.78);
 }
 
 @supports (color: oklch(50% 0.1 0)) {
@@ -372,6 +377,7 @@
   --board-hl: rgba(250,220,90,0.55);
   --board-coord-on-light: #3f4f34;
   --board-coord-on-dark: #f4f9ee;
+  --board-dot-on-dark: rgba(10, 7, 3, 0.9);
 }
 [data-board-theme="slate"] {
   --board-light: #cdd1d8;
@@ -381,6 +387,7 @@
   --board-hl: rgba(255,214,80,0.55);
   --board-coord-on-light: #3b424c;
   --board-coord-on-dark: #fbfcfd;
+  --board-dot-on-dark: rgba(10, 7, 3, 0.9);
 }
 /* Highest contrast between the squares and between each piece colour and its
    square: white squares vs mid grey, so both black and white pieces read. */
@@ -392,6 +399,7 @@
   --board-hl: rgba(0,110,255,0.42);
   --board-coord-on-light: #111111;
   --board-coord-on-dark: #000000;
+  --board-dot-on-dark: rgba(10, 7, 3, 0.85);
 }
 
 /* ── High contrast (a11y.contrast = "high", data-contrast on <html>) ──
@@ -404,6 +412,8 @@
   --color-hairline:        rgba(255,255,255,0.30);
   --color-hairline-strong: rgba(255,255,255,0.55);
   --focus-ring-width: 4px;
+  --board-dot-on-light: rgba(10, 7, 3, 0.85);
+  --board-dot-on-dark: rgba(10, 7, 3, 0.95);
 }
 
 /* ── Base ── */
@@ -492,7 +502,8 @@ body.playing-mode { --page-gutter: 0px; }
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   background: var(--color-surface-2);
-  overflow: hidden;
+  /* Not overflow:hidden: the buttons paint nothing outside the pill (the selected pill is inset inside each one), and
+     clipping cut the keyboard focus ring of ES / EN to two side arcs. */
 }
 
 .language-switch-btn {

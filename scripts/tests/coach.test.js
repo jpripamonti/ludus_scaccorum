@@ -932,6 +932,283 @@ test("renderSummaryActions: play again, review and share come and go, the home b
   assert.strictEqual(doc.getElementById("summary-menu-btn"), home, "the static home button is never rebuilt");
 });
 
+// ---------- The QA pass on the play screen ----------
+
+test("verdict: a move as good as the best never claims to be the best (CNT-002)", () => {
+  const env = createEnv({ language: "en" });
+  const { Coach } = env;
+  // d4 is listed second, 0.3 points of win chance below e4: inside the tolerance band, so "Perfect", but not the engine's first move.
+  const second = makeContext(env, [makeAnswer(env, { uci: "d2d4", san: "d4" })], { master: null, masterName: "" });
+  const answer = second.answers[0];
+  assert.strictEqual(answer.assessment.qualityCode, "perfect");
+  assert.strictEqual(answer.assessment.isBest, true, "inside the band");
+  assert.strictEqual(Coach.verdictKey(second, answer).key, "coach.verdict.equivalent");
+  ["en", "es"].forEach((lang) => {
+    const sentence = Coach.verdictText(second, answer, lang);
+    assert.ok(sentence.includes("e4"), `${lang}: names the move the engine lists first`);
+    assert.ok(!/found the best move|encontraste la mejor/i.test(sentence), `${lang}: does not say that it was the best move: ${sentence}`);
+  });
+  // The same move as the master, while the engine prefers another by a hair.
+  const master = makeContext(env, [makeAnswer(env, { uci: "d2d4", san: "d4" })], { master: { uci: "d2d4", san: "d4", score: 25, rank: 2 }, masterName: "Morphy" });
+  const found = Coach.verdictKey(master, master.answers[0]);
+  assert.strictEqual(found.key, "coach.verdict.masterSameEquivalent");
+  assert.strictEqual(found.params.master, "Morphy");
+  assert.strictEqual(found.params.best, "e4");
+  assert.ok(!/: the best move\.$/.test(Coach.verdictText(master, master.answers[0], "en")));
+  // When it really is the engine's first move the plain sentences stay.
+  const best = makeContext(env, [makeAnswer(env, { uci: "e2e4", san: "e4" })], { master: { uci: "e2e4", san: "e4", score: 30 }, masterName: "Morphy" });
+  assert.strictEqual(Coach.verdictKey(best, best.answers[0]).key, "coach.verdict.masterSame");
+  // Brilliant and great have their own equivalents.
+  const context = { best: { uci: "e2e4", san: "e4", score: 30 } };
+  assert.strictEqual(Coach.verdictKey(context, { uci: "d2d4", assessment: { qualityCode: "brilliant" } }).key, "coach.verdict.brilliantEquivalent");
+  assert.strictEqual(Coach.verdictKey(context, { uci: "d2d4", assessment: { qualityCode: "great" } }).key, "coach.verdict.greatEquivalent");
+  assert.strictEqual(Coach.verdictKey(context, { uci: "e2e4", assessment: { qualityCode: "great" } }).key, "coach.verdict.great");
+});
+
+test("verdict: 'great' does not claim it was the only move (CNT-004) and 'dubious' needs an advantage to give up (CNT-008)", () => {
+  const { Coach } = createEnv({ language: "en" });
+  ["en", "es"].forEach((lang) => {
+    const great = Coach.verdictText({ best: { uci: "e2e4", san: "e4", score: 30 } }, { uci: "e2e4", assessment: { qualityCode: "great" } }, lang);
+    assert.ok(!/only one|única|the only/i.test(great), `${lang}: ${great}`);
+    assert.ok(/worse|peores/i.test(great), `${lang}: says what the threshold measures (the rest were clearly worse)`);
+  });
+  const dubious = (score) => ({ context: { best: { uci: "e2e4", san: "e4", score } }, answer: { uci: "a2a3", assessment: { qualityCode: "dubious" } } });
+  // An edge (+0.50 or more for the mover): the old sentence is true.
+  assert.strictEqual(Coach.verdictKey(dubious(80).context, dubious(80).answer).key, "coach.verdict.dubious");
+  // Level, or worse: there is no advantage to give up.
+  [0, 30, -120].forEach((score) => assert.strictEqual(Coach.verdictKey(dubious(score).context, dubious(score).answer).key, "coach.verdict.dubiousNoEdge", `score ${score}`));
+  // An unknown score does not assume an edge either.
+  assert.strictEqual(Coach.verdictKey({ best: { uci: "e2e4", san: "e4" } }, dubious(0).answer).key, "coach.verdict.dubiousNoEdge");
+  ["en", "es"].forEach((lang) => assert.ok(!/advantage|ventaja/i.test(Coach.verdictText(dubious(0).context, dubious(0).answer, lang))));
+});
+
+test("a missed mate that still wins is said so: the sentence, the title and the bars agree (CNT-007)", () => {
+  const env = createEnv({ language: "en" });
+  const { Coach, doc, Ludus } = env;
+  const el = doc.createElement("div");
+  doc.body.appendChild(el);
+  // Best is mate in 3; the answer keeps +8.94 (a 96% win chance) but is not a mate.
+  const mateLines = [{ uci: "e2e4", score: Ludus.Scoring.encodeScore({ type: "mate", value: 3 }) }, { uci: "d2d4", score: 894 }, { uci: "a2a3", score: -300 }];
+  const winning = makeContext(env, [makeAnswer(env, { uci: "d2d4", san: "d4", lines: mateLines })], { best: { uci: "e2e4", san: "Qh4+", score: mateLines[0].score }, master: null, masterName: "" });
+  const answer = winning.answers[0];
+  assert.strictEqual(answer.assessment.reason, "missed_mate");
+  assert.ok(answer.assessment.points < 10, "a missed mate is never worth full points");
+  const found = Coach.verdictKey(winning, answer, "en");
+  assert.strictEqual(found.key, "coach.verdict.missedMateWinning");
+  assert.strictEqual(found.params.eval, "+8.94");
+  assert.strictEqual(Coach.verdictKey(winning, answer, "es").params.eval, "+8,94", "the decimal comma");
+  assert.ok(/still winning/.test(Coach.verdictText(winning, answer, "en")) && /Seguías ganando/.test(Coach.verdictText(winning, answer, "es")));
+  Coach.renderRound(el, winning, { lang: "en" });
+  // The title keeps the one vocabulary of the quality ladder (Scoring); the fact that it was a missed mate is a chip.
+  assert.ok(text(first(el, "co-hero-title")).includes(Coach.qualityInfo(answer.assessment.qualityCode, "en").label));
+  assert.ok(/Missed mate/.test(text(first(el, "co-chips"))), text(first(el, "co-chips")));
+  const bars = all(first(el, "co-compare"), "co-bar-pct").map(text);
+  assert.ok(bars.includes("96%") && bars.includes("100%"), `the bars show what the sentence says: ${bars}`);
+  // A missed mate that throws the win away keeps the plain wording.
+  const lost = makeContext(env, [makeAnswer(env, { uci: "a2a3", san: "a3", lines: mateLines })], { best: { uci: "e2e4", san: "Qh4+", score: mateLines[0].score }, master: null, masterName: "" });
+  assert.strictEqual(Coach.verdictKey(lost, lost.answers[0], "en").key, "coach.verdict.missed_mate");
+  Coach.renderRound(el, lost, { lang: "en" });
+  assert.ok(/Missed mate/.test(text(first(el, "co-chips"))));
+  // An assessment stored before Scoring set the flag is judged from the score of the move.
+  const legacy = { uci: "d2d4", userScore: 894, assessment: { reason: "missed_mate", qualityCode: "blunder" } };
+  assert.strictEqual(Coach.verdictKey({ best: { san: "Qh4+" } }, legacy, "en").key, "coach.verdict.missedMateWinning");
+});
+
+test("compare card: the note adds up with the bars it sits under, says what a win chance is and whose move was whose (CNT-012, UX-016)", () => {
+  const env = createEnv({ language: "en" });
+  const { Coach, doc, Ludus } = env;
+  const el = doc.createElement("div");
+  doc.body.appendChild(el);
+  // Scores whose win chances round apart: 67.4 and 61.6 -> bars 67% and 62%, the raw gap 5.8 used to print "6".
+  const lines = [{ uci: "e2e4", score: 240 }, { uci: "d2d4", score: 200 }, { uci: "a2a3", score: 185 }, { uci: "h2h3", score: -100 }];
+  [["a2a3", "a3"], ["h2h3", "h3"]].forEach(([uci, san]) => {
+    const context = makeContext(env, [makeAnswer(env, { uci, san, lines })], { best: { uci: "e2e4", san: "e4", score: 240 }, master: null, masterName: "" });
+    Coach.renderRound(el, context, { lang: "en" });
+    const bars = all(first(el, "co-compare"), "co-bar-pct").map(text).map((value) => Number(value.replace("%", "")));
+    const note = all(first(el, "co-compare"), "co-cmp-note").map(text).find((value) => /win chance/.test(value));
+    const match = /from (\d+)% to (\d+)% \((\d+) points? less/.exec(note || "");
+    assert.ok(match, `the loss note says where it goes from and to: ${note}`);
+    const [best, user, gap] = match.slice(1).map(Number);
+    assert.strictEqual(gap, best - user, "the points are the difference of the two numbers printed");
+    assert.deepStrictEqual([best, user], [Math.round(Ludus.Scoring.winPercent(240)), Math.round(Ludus.Scoring.winPercent(uci === "a2a3" ? 185 : -100))]);
+    assert.ok(bars.includes(best) && bars.includes(user), "and they are the numbers of the bars");
+  });
+  // A move inside the tolerance band says "as good as the best", with no loss.
+  const equal = makeContext(env, [makeAnswer(env, { uci: "d2d4", san: "d4" })], { master: null, masterName: "" });
+  Coach.renderRound(el, equal, { lang: "en" });
+  const notes = all(first(el, "co-compare"), "co-cmp-note").map(text);
+  assert.ok(notes.some((value) => /as good as the best/i.test(value)), notes.join(" | "));
+  assert.ok(!notes.some((value) => /drops from/.test(value)));
+  // "Win chance" and the signed numbers are explained in a disclosure that a touch can open, and it stays open.
+  const button = first(first(el, "co-compare"), "co-help-btn");
+  const body = first(first(el, "co-compare"), "co-help-body");
+  assert.ok(button && body && button.tagName === "BUTTON", "a real button");
+  assert.strictEqual(button.getAttribute("aria-expanded"), "false");
+  assert.strictEqual(button.getAttribute("aria-controls"), body.getAttribute("id"));
+  assert.ok(body.hasAttribute("hidden"));
+  assert.ok(/estimate, not a real probability/.test(text(body)) && /positive favours you/.test(text(body)), text(body));
+  button.click();
+  assert.strictEqual(button.getAttribute("aria-expanded"), "true");
+  assert.ok(!body.hasAttribute("hidden") || body.hidden === false);
+  Coach.renderRound(el, equal, { lang: "en" });
+  assert.strictEqual(first(first(el, "co-compare"), "co-help-btn").getAttribute("aria-expanded"), "true", "drawn again (next position) it is still open");
+  first(first(el, "co-compare"), "co-help-btn").click();
+  // Stockfish and its depth are explained too.
+  assert.ok(/Stockfish is the chess program/.test(text(first(el, "co-lines"))));
+  // Whose move was it: the master's, or the one of the person's own game.
+  const named = makeContext(env, [makeAnswer(env, { uci: "e2e4", san: "e4" })], { master: { uci: "d2d4", san: "d4", score: 25, rank: 2 }, masterName: "Morphy" });
+  Coach.renderRound(el, named, { lang: "en" });
+  assert.ok(text(first(el, "co-compare")).includes("Morphy's move was the engine's number 2 choice."));
+  const own = makeContext(env, [makeAnswer(env, { uci: "e2e4", san: "e4" })], { master: { uci: "d2d4", san: "d4", score: 25, rank: 2 }, masterName: "" });
+  Coach.renderRound(el, own, { lang: "en" });
+  assert.ok(text(first(el, "co-compare")).includes("The move from your game was the engine's number 2 choice."));
+  const out = makeContext(env, [makeAnswer(env, { uci: "e2e4", san: "e4" })], { master: { uci: "c2c3", san: "c3", score: -40 }, masterName: "" });
+  Coach.renderRound(el, out, { lang: "en" });
+  assert.ok(/from your game was not among the engine's top choices/.test(text(first(el, "co-compare"))));
+});
+
+test("the position card keeps its idea to itself until the answer is in (UX-017)", () => {
+  const env = createEnv({ language: "en" });
+  const { Coach, doc, Ludus } = env;
+  const el = doc.createElement("div");
+  doc.body.appendChild(el);
+  const position = { fen: START_FEN, source: "classic", meta: { event: "Opera game", players: "Morphy, Paul vs Duke", year: 1858, moveNumber: 10, sideToMove: "w" }, classic: { kind: "sacrifice", note: { en: "x", es: "y" } } };
+  const model = Coach.positionModel({ position, session: { kind: "classic" }, lang: "en" });
+  assert.ok(model.kind && model.kind.label, "the model still knows the kind (the result uses it)");
+  Coach.renderThinking(el, model, {});
+  const thinking = text(el);
+  assert.ok(!thinking.includes(Ludus.Classics.kindLabel("sacrifice", "en")), "no kind chip before the move");
+  assert.ok(!thinking.includes(Ludus.Classics.kindHint("sacrifice", "en")), "no sentence about what the position is about");
+  assert.ok(thinking.includes("Opera game") && thinking.includes("10"), "the event and the move number stay");
+  // After the answer the theme is told, with its sentence.
+  const context = makeContext(env, [makeAnswer(env, { uci: "e2e4", san: "e4" })], { classicKind: "sacrifice" });
+  Coach.renderRound(el, context, { lang: "en" });
+  const why = text(first(el, "co-why"));
+  assert.ok(why.includes(Ludus.Classics.kindLabel("sacrifice", "en")) && why.includes(Ludus.Classics.kindHint("sacrifice", "en")), why);
+  // No kind, no line (own games).
+  Coach.renderRound(el, makeContext(env, [makeAnswer(env, { uci: "e2e4", san: "e4" })]), { lang: "en" });
+  assert.strictEqual(all(el, "co-theme").length, 0);
+  // The "only move" sentence makes no claim the engine's numbers can contradict.
+  assert.ok(!/only one move keeps/i.test(Ludus.Classics.kindHint("only-move", "en")) && !/solo una jugada mantiene/i.test(Ludus.Classics.kindHint("only-move", "es")));
+});
+
+test("the backup engine is said next to the score, and first in the thinking panel (VIS-014)", () => {
+  const env = createEnv({ language: "en" });
+  const { Coach, doc } = env;
+  const el = doc.createElement("div");
+  doc.body.appendChild(el);
+  const model = Coach.positionModel({ position: { fen: START_FEN, meta: {} }, session: { kind: "classic" }, lang: "en" });
+  Coach.renderThinking(el, model, { backupEngine: true });
+  assert.ok(el.children[0].classList.contains("co-note-warn"), "the notice is the first row of the panel, above the fold on a phone");
+  const context = makeContext(env, [makeAnswer(env, { uci: "e2e4", san: "e4" })], { engine: { source: "local", depth: 3 } });
+  Coach.renderRound(el, context, { lang: "en" });
+  assert.ok(/Backup engine: estimate/.test(text(first(el, "co-chips"))), "a chip in the hero, visible in the collapsed sheet");
+  Coach.renderRound(el, makeContext(env, [makeAnswer(env, { uci: "e2e4", san: "e4" })]), { lang: "en" });
+  assert.ok(!/Backup engine/.test(text(first(el, "co-chips"))));
+});
+
+test("a duel summary keeps the two players apart: their own points, hits and moves, and one review button each (UX-020)", () => {
+  const env = createEnv({ language: "en" });
+  const { Coach, doc } = env;
+  const el = doc.createElement("div");
+  doc.body.appendChild(el);
+  const rounds = [
+    { index: 0, fen: START_FEN, side: "w", quality: "perfect", points: 10, hit: true, players: [{ name: "Ana", points: 10, quality: "perfect", accuracy: 100, hit: true }, { name: "Beto", points: 1, quality: "blunder", accuracy: 10, hit: false }] },
+    { index: 1, fen: START_FEN, side: "w", quality: "good", points: 8, hit: true, players: [{ name: "Ana", points: 8, quality: "good", accuracy: 80, hit: true }, { name: "Beto", points: 2, quality: "bad", accuracy: 20, hit: false }] },
+  ];
+  const summary = Coach.summaryModel({
+    record: { kind: "classic", mode: "duel", positions: 2, maxPoints: 40, points: 21, durationMs: 60000, byQuality: { perfect: 1, good: 1, blunder: 1, bad: 1 }, duel: { names: ["Ana", "Beto"], scores: [18, 3] } },
+    rounds, mode: "duel", lang: "en",
+    rewards: { players: [{ xp: 150, unlocked: [{ id: "a", name: "First steps" }] }, { xp: 0, unlocked: [] }] },
+  });
+  const players = summary.duel.players;
+  assert.strictEqual(players.length, 2);
+  assert.deepStrictEqual([players[0].hits, players[0].total, players[1].hits, players[1].total], [2, 2, 0, 2]);
+  assert.strictEqual(players[0].accuracy, 90);
+  sameData(players[1].segments.map((segment) => segment.code).sort(), ["bad", "blunder"], "each has their own mix, not the merged one");
+  Coach.renderSummary(el, summary, { lang: "en" });
+  const hero = text(first(el, "co-sum-hero"));
+  assert.ok(!/points/i.test(hero) && !/hits/i.test(hero), `no merged points or hits over two people: ${hero}`);
+  assert.ok(hero.includes("Ana wins") && hero.includes("1 min"), "the winner, the time");
+  const cards = all(el, "co-sum-duelist");
+  assert.strictEqual(cards.length, 2);
+  assert.ok(text(cards[0]).includes("2 of 2 hits") && text(cards[1]).includes("0 of 2 hits"), "hits per player");
+  assert.ok(text(cards[0]).includes("+150 XP") && text(cards[0]).includes("First steps"), "what Ana earned, on Ana's card");
+  assert.ok(!text(cards[1]).includes("First steps"));
+  assert.strictEqual(all(cards[0], "co-seg").length, 1, "a bar of her own");
+  assert.strictEqual(all(el, "co-breakdown").length, 0, "no merged bar");
+  assert.ok(el.classList.contains("co-summary-duel"));
+  assert.ok(!/sum-rewards/.test(el.children.map((child) => child.getAttribute("class")).join(" ")), "no experience card");
+  // One review button per profile player, each calling back with that profile.
+  const actions = doc.createElement("div");
+  const home = doc.createElement("button");
+  home.setAttribute("id", "summary-menu-btn");
+  actions.appendChild(home);
+  doc.body.appendChild(actions);
+  const reviewed = [];
+  Coach.renderSummaryActions(actions, summary, {
+    canReplay: true, canReview: true, onReview: (id) => reviewed.push(id), onPlayAgain: () => {}, onShare: () => {},
+    reviewPlayers: [{ name: "Ana", profileId: "p_ana" }, { name: "Beto", profileId: "p_beto" }],
+  });
+  const buttons = findAll(actions, (node) => node.tagName === "BUTTON").map((node) => [node.getAttribute("id"), text(node)]);
+  assert.deepStrictEqual(buttons.map((entry) => entry[0]), ["summary-again-btn", "summary-review-btn-1", "summary-review-btn-2", "summary-share-btn", "summary-menu-btn"]);
+  assert.ok(buttons[1][1].includes("Ana") && buttons[2][1].includes("Beto"));
+  doc.getElementById("summary-review-btn-2").click();
+  doc.getElementById("summary-review-btn-1").click();
+  assert.deepStrictEqual(reviewed, ["p_beto", "p_ana"]);
+  assert.strictEqual(actions.getAttribute("data-tail"), "even");
+  // Only the players who have cards get a button; nobody: none (the single button of the active profile is for solo).
+  Coach.renderSummaryActions(actions, summary, { canReplay: false, canReview: true, onReview: () => {}, reviewPlayers: [{ name: "Ana", profileId: "p_ana" }] });
+  assert.deepStrictEqual(findAll(actions, (node) => node.tagName === "BUTTON").map((node) => node.getAttribute("id")), ["summary-review-btn-1", "summary-share-btn", "summary-menu-btn"]);
+  Coach.renderSummaryActions(actions, summary, { canReplay: false, canReview: true, onReview: () => {}, reviewPlayers: [] });
+  assert.deepStrictEqual(findAll(actions, (node) => node.tagName === "BUTTON").map((node) => node.getAttribute("id")), ["summary-share-btn", "summary-menu-btn"]);
+  // Share text: the match, not a merged mix.
+  assert.ok(!/blunder|perfect/i.test(Coach.shareText(summary, "en")));
+});
+
+test("a duel round card lists what its own player earned: celebrations live in the panel, not in a toast (VIS-008, UX-019)", () => {
+  const env = createEnv({ language: "en" });
+  const { Coach, doc, Ludus } = env;
+  const el = doc.createElement("div");
+  doc.body.appendChild(el);
+  const ana = makeAnswer(env, { uci: "e2e4", san: "e4", name: "Ana" });
+  const beto = Object.assign(makeAnswer(env, { uci: "a2a3", san: "a3", name: "Beto" }), { playerIndex: 1 });
+  const context = makeContext(env, [ana, beto]);
+  context.rewards = [{ xpGained: 60, level: Ludus.Profile.levelFor(400), levelUp: true, card: null, unlocked: [{ id: "a", name: "First steps" }] }, null];
+  Coach.renderDuel(el, context, { lang: "en" });
+  const cards = all(el, "co-player");
+  assert.ok(text(cards[0]).includes("Level up!") && text(cards[0]).includes("Achievement unlocked: First steps"), text(cards[0]));
+  assert.ok(!text(cards[1]).includes("Level up!"));
+  // The solo card lists them as it always did.
+  const solo = makeContext(env, [makeAnswer(env, { uci: "e2e4", san: "e4" })]);
+  solo.rewards = context.rewards.slice(0, 1);
+  Coach.renderRound(el, solo, { lang: "en" });
+  assert.ok(text(first(el, "co-rewards")).includes("Level up!") && text(first(el, "co-rewards")).includes("First steps"));
+});
+
+test("the summary is laid out in regions a wide screen can fill: verdict and mix, rewards, then the positions as a row (VIS-017)", () => {
+  const env = createEnv({ language: "en" });
+  const { Coach, doc } = env;
+  const el = doc.createElement("div");
+  doc.body.appendChild(el);
+  Coach.renderSummary(el, Coach.summaryModel({ record: RECORD, rounds: summaryRounds(), lang: "en", rewards: { xp: 10, cards: 0, unlocked: [] } }), { lang: "en" });
+  const regions = el.children.map((child) => child.getAttribute("class"));
+  assert.deepStrictEqual(regions, ["co-sum-col co-sum-main", "co-sum-col co-sum-aside", "co-sum-positions"].map((value) => value), regions.join(" | "));
+  assert.ok(first(first(el, "co-sum-main"), "co-sum-hero") && first(first(el, "co-sum-main"), "co-breakdown"), "the verdict and the mix together");
+  assert.ok(first(first(el, "co-sum-aside"), "co-sum-rewards"), "the rewards on their own");
+  assert.strictEqual(all(first(el, "co-sum-positions"), "co-pos").length, 3);
+  assert.ok(!el.classList.contains("co-summary-duel"), "drawn again as a solo summary it is no longer a duel layout");
+});
+
+test("the quality glyph is never tiny and the scroll region has an inset focus ring (VIS-015, A11Y-009)", () => {
+  const css = fs.readFileSync(path.join(repoRoot, "css/coach.css"), "utf8");
+  const glyph = /\.co-glyph \{([^}]*)\}/.exec(css);
+  assert.ok(glyph && /font-size:\s*max\(0\.6875rem/.test(glyph[1]), "at least 11px: it was 0.5em of the parent, 7.5px in the legend");
+  assert.ok(!/font-size:\s*0\.5em/.test(glyph[1]));
+  const ring = /\.co-scroll:focus-visible \{([^}]*)\}/.exec(css);
+  assert.ok(ring && /outline-offset:\s*-\d/.test(ring[1]) && /mask-image:\s*none/.test(ring[1]), "the ring is drawn inside the clipped panel and the fade does not cut it");
+});
+
 test("the coach degrades: no kit, no document, no target and empty data never throw", () => {
   // No kit: the gauge and chips fall back to plain nodes.
   const bare = createEnv({ language: "en", withKit: false });

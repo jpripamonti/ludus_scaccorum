@@ -11,21 +11,30 @@
 //       hanging:{w:[sq],b:[sq]}, hangingDetail:{w:[{sq,piece,loss,why}],b:[...]},
 //       passedPawns:{w:[sq],b:[sq]}, backRankWeak:{w,b},
 //       kings:{w:{sq,shield,openFiles,halfOpenFiles},b:{...}} }
-//   Insights.analyzeChoice({ fen, userUci, bestUci, assessment?, lines?, masterUci?,
+//   Insights.analyzeChoice({ fen, userUci, bestUci, assessment?, lines?, userPv?, masterUci?,
 //                            timing?:{timeSpentMs,limitMs,timedOut}, timeTrouble? })
 //       -> { tags:[tag], phase, messages:[{key, params, tag, raw}], conceptIds:[id],
 //            verdict:"same"|"equivalent"|"close"|"worse"|"nomove"|"unknown",
 //            features:{best, user} (see moveFeatures), error? }
 //     Never throws (on internal failure `error` is set and the rest is empty).
 //     `assessment` is the Scoring assessment (isBest, winLossPct, reason,
-//     userScore, bestScore); without it the engine `lines` decide whether the
-//     user's move was about as good. `masterUci` is accepted for contract
-//     compatibility and not used yet. userUci null = no move (timeout / skip).
-//     A perfect answer (user played best) or an equivalent one gets no
-//     tags except "solid" for the equivalent one; nothing is invented.
-//   Insights.moveFeatures(fen, uci) -> null | { uci, san, piece, from, to, capture,
-//       captured, promotion, castle, check, mate, quiet, sacrifice, gain, loss }
-//     `sacrifice` is what the scoring layer needs for the "brilliant" quality.
+//     userScore, bestScore, mateExtraMoves); without it the engine `lines`
+//     decide whether the user's move was about as good. `lines` also carry the
+//     engine's principal variations (`pv`, UCI moves): every claim that says a
+//     move "wins" or "loses" material is checked against the material along
+//     that line (see "Evidence"); `userPv` is the engine's line after the
+//     user's move when it is not one of `lines` (app.js has it from the
+//     restricted search). `masterUci` is accepted for contract compatibility
+//     and not used yet. userUci null = no move (timeout / skip).
+//     A perfect answer (user played best) gets no tags; an equivalent or close
+//     one gets only "solid"; nothing is invented.
+//   Insights.moveFeatures(fen, uci, { lines?, pv? }?) -> null | { uci, san, piece, from, to,
+//       capture, captured, promotion, castle, check, mate, quiet, sacrifice, gain, loss }
+//     `sacrifice` is what the scoring layer needs for the "brilliant" quality;
+//     it follows the engine line when `lines`/`pv` are given and the reply to the
+//     move alone otherwise.
+//   Insights.gamePhase(fen | Chess | cells[, fullmove]) -> "opening"|"middlegame"|"endgame"
+//     The one game-phase classifier of the app (see "Phase" below).
 //   Insights.renderMessage(message, lang?) / renderMessages(messages, lang?)
 //     -> plain text (never HTML: escape it before putting it in markup). Uses the
 //     language-neutral `message.raw`, so a message built in one language can be
@@ -60,17 +69,34 @@
 //   and "attacked more often than defended". It is the threat view: the
 //   opponent is treated as being to move, whoever's turn it really is.
 //
-//   Sacrifice. After the move, the opponent's best exchange on the destination
-//   square wins `loss` pawn units (least valuable LEGAL capturer first, SEE
-//   above); the move itself captured `gain` pawn units (captured piece plus,
-//   for a promotion, the promoted piece minus the pawn). The move is a
-//   sacrifice when it is not checkmate, the moved piece is not the king and
-//   loss - gain >= 2 (a minor piece for a pawn, an exchange, a queen for
-//   anything, ...). Giving up a single pawn is a gambit, not a sacrifice.
+//   Evidence. A sentence that says a move wins or loses material is only
+//   written when the material along the engine's line agrees. The line is
+//   played on the board (`traceLine`) and after every ply the captures that are
+//   hanging at that moment are settled with a legal-move quiescence search
+//   (captures, promotions and check evasions, stand pat otherwise); the result
+//   is the mover's material change against the start, in pawn units. A line
+//   "wins material" when it ends at least 1.5 units up (1 for a plain capture)
+//   or in checkmate, and "loses material" when it ends at least 2 down. Without
+//   a line of three or more plies only the settled reply to the move is known,
+//   which is enough for a plain capture and too little for a fork, a pin or a
+//   discovered attack (those say nothing then). The same trace defines the next
+//   two terms.
 //
-//   Phase. Same material rule as getGamePhase() in app.js (both sides' non-pawn
-//   material: <= 10 or <= 1 queen -> endgame, >= 24 -> opening, else
-//   middlegame), so the phase recorded here matches the rest of the app.
+//   Sacrifice. The move is not checkmate, the moved piece is not the king and
+//   the settled material of its line (or of the reply to it, without a line)
+//   falls at least 2 units below the start at some ply within the first six
+//   (a minor piece for a pawn, an exchange, a queen for a mating attack, ...).
+//   Giving up a single pawn is a gambit, not a sacrifice. It does not matter
+//   whether the material comes back: a sacrifice that is recouped is still
+//   one, and a capture that is simply recaptured never is.
+//
+//   Phase. Total non-pawn material of both sides (N 3, B 3, R 5, Q 9; 62 at the
+//   start), how many pieces are left and the move number: endgame when that
+//   material is 16 or less, or only four pieces or fewer remain, or there are no
+//   queens and it is 26 or less; opening while it is 50 or more (at most one
+//   minor piece traded) up to move 10; everything else is middlegame. The
+//   classics builder (scripts/build-classics.js) uses the same rule for its
+//   `phase` field and app.js takes its phase from here.
 (function (root, factory) {
   const api = factory(root);
   root.Ludus = root.Ludus || {};
@@ -88,23 +114,46 @@
     "quiet_best", "sacrifice_best", "back_rank", "fork_available", "pin_or_skewer",
     "discovered_attack", "missed_promotion", "development", "king_safety",
     "endgame_technique", "open_file", "outpost", "trade_when_ahead",
-    "time_trouble", "solid",
+    "time_trouble", "solid", "loses_material", "tactic_available",
   ]);
 
   // Lower number = shown first. Tags that explain a concrete loss come first.
   const PRIORITY = {
-    allows_mate: 10, missed_mate: 12, hangs_piece: 20, missed_capture: 30,
+    allows_mate: 10, missed_mate: 12, hangs_piece: 20, loses_material: 22, missed_capture: 30,
     fork_available: 32, pin_or_skewer: 34, discovered_attack: 36, back_rank: 38,
-    sacrifice_best: 40, missed_promotion: 42, missed_check: 50, king_safety: 52,
+    sacrifice_best: 40, missed_promotion: 42, tactic_available: 44, missed_check: 50, king_safety: 52,
     development: 54, open_file: 56, outpost: 57, trade_when_ahead: 58,
     endgame_technique: 60, quiet_best: 70, time_trouble: 80, solid: 90,
   };
 
-  const MAX_MESSAGES = 4;
-  // A move losing less than this many win-percentage points is "close": we do
-  // not go looking for faults in it.
+  // Three messages are plenty (two when a mate explains the answer): the ones
+  // that follow say the same thing again or dilute it.
+  const MAX_MESSAGES = 3;
+  const MAX_MATE_MESSAGES = 2;
+  // Two independent 1.5 s searches of the same move differ by 1.9 win% on
+  // average (measured on the 28 classic games, docs/SCORING.md section 15), so a
+  // sentence that says "as good as the best move" needs a margin: under 1.5
+  // points it is called solid (8% of those were more than 3.5 worse in a second
+  // search, against 15% with the old 3-point line); between 1.5 and 3 the move is
+  // only "close"; from 3 up we start explaining what went wrong.
+  const EQUIVALENT_LOSS_PCT = 1.5;
   const CLOSE_LOSS_PCT = 3;
-  const EQUIVALENT_LOSS_PCT = 1;
+  // "Clearly better" (and the wording that goes with it) starts here.
+  const BIG_LOSS_PCT = 8;
+  // A claim about a mate length is only made when it is reliable: the engine
+  // reports a mate it may have shortened later, never one that is shorter, so
+  // "in N or fewer" holds; a mate against the user from a short search is only
+  // trusted up to 6 (measured: every claim up to 6 held, most beyond 7 did not).
+  const MAX_MISSED_MATE_CLAIM = 8;
+  const MAX_ALLOWED_MATE_CLAIM = 6;
+  // Material (pawn units) an engine line has to win for a sentence to say so.
+  const WIN_CLAIM = 1.5;
+  const LOSS_CLAIM = 2;
+  const SACRIFICE_MIN = 2;
+  const TRACE_PLIES = 8;
+  const SACRIFICE_PLIES = 6;
+  const QS_DEPTH = 6;
+  const QS_NODE_LIMIT = 40000; // per traceLine call
 
   // ---------------------------------------------------------------------------
   // Strings (Spanish rioplatense "vos" + English)
@@ -123,11 +172,12 @@
       "insight.why.outnumbered": "recibe más ataques que defensas",
 
       "insight.allows_mate.san": "Después de {san}, el rival tiene {reply}, que es mate. Revisá sus jugadas forzadas antes de mover.",
-      "insight.allows_mate.forced": "{san} probablemente permite un mate forzado en {n}. Revisá primero todas las jugadas forzadas del rival.",
-      "insight.allows_mate.generic": "{san} parece permitir un mate forzado. Mirá todos los jaques del rival antes de mover.",
+      "insight.allows_mate.forced": "{san} probablemente permite un mate forzado en {n} jugadas o menos. Revisá primero las jugadas forzadas del rival.",
+      "insight.allows_mate.generic": "{san} parece dejarte ante un ataque decisivo, quizá un mate forzado. Mirá todos los jaques del rival antes de mover.",
       "insight.missed_mate.san": "{best} era mate. Cuando el rey rival tiene pocas casillas, mirá primero los jaques.",
-      "insight.missed_mate.forced": "{best} empieza un mate forzado en {n}. Los jaques y las jugadas forzadas merecen la primera mirada.",
+      "insight.missed_mate.forced": "{best} empieza un mate forzado en {n} jugadas o menos. Los jaques y las jugadas forzadas merecen la primera mirada.",
       "insight.missed_mate.generic": "Parecía haber un mate forzado empezando con {best}. Mirá primero jaques y jugadas forzadas.",
+      "insight.slower_mate": "Tu jugada también lleva a un mate forzado, pero {best} llega antes. Cuando veas un mate, contá si hay uno más corto.",
       "insight.hangs_piece.moved": "Después de {san}, tu {piece} en {sq} {why}, así que probablemente perdés material.",
       "insight.hangs_piece.left": "Tu {piece} en {sq} ya estaba en peligro ({why}) y {san} quizá no lo resolvió.",
       "insight.hangs_piece.exposed": "Después de {san}, tu {piece} en {sq} {why}. Quizá la jugada abrió una línea o quitó un defensor.",
@@ -140,9 +190,12 @@
       "insight.discovered": "{best} descubre un ataque: {sliderDef} en {sq} ahora ataca {targetDef} en {sq2}.",
       "insight.back_rank.exploit": "El rey rival parece encerrado en su fila de fondo: {best} puede aprovecharlo.",
       "insight.back_rank.own": "Tu fila de fondo parece frágil: el rey no tiene casilla de escape. Una jugada de peón (ventana) puede ayudar.",
-      "insight.sacrifice_best": "{best} parece un sacrificio: entrega material a propósito. Calculalo antes de descartarlo.",
+      "insight.sacrifice_best": "{best} parece un sacrificio: entrega material a propósito. Calculalo con cuidado y mirá qué recupera después.",
       "insight.missed_promotion": "{best} corona un peón. Un peón a un paso de coronar merece la primera mirada.",
       "insight.missed_check": "{best} da jaque. Antes de jugar algo tranquilo, conviene mirar todos los jaques.",
+      "insight.missed_check.after": "Antes de jugar {san}, conviene mirar todos los jaques: {best} da jaque.",
+      "insight.tactic_available": "Después de {best}, la línea del motor parece ganar material: unos {n} puntos (peón 1, pieza 3, torre 5, dama 9).",
+      "insight.loses_material": "Después de {san}, la línea del motor parece costarte material: unos {n} puntos. Mirá qué puede capturar o atacar el rival.",
       "insight.king_safety.pawn": "Mover el peón de {sq} puede debilitar el refugio que rodea a tu rey.",
       "insight.king_safety.king": "{san} saca al rey de su refugio, y eso puede dejarlo expuesto.",
       "insight.king_safety.castle": "{best} es enroque: el rey sigue en el centro y ponerlo a salvo parece urgente.",
@@ -158,10 +211,12 @@
       "insight.quiet_best.saves": "{best} es una jugada tranquila que parece salvar tu {piece} en {sq}, que estaba en peligro.",
       "insight.quiet_best.threat": "{best} es una jugada tranquila que parece amenazar {targetDef} en {sq}.",
       "insight.quiet_best.generic": "{best} es tranquila: sin captura ni jaque. Mejorar una pieza puede valer más que una jugada forzada.",
-      "insight.time_trouble": "Te faltó tiempo acá. Con el reloj en contra, mirá primero jaques, capturas y amenazas.",
+      "insight.time_trouble": "Usaste casi todo el tiempo. Con el reloj en contra, mirá primero jaques, capturas y amenazas.",
       "insight.time_trouble.out": "Se acabó el tiempo antes de que movieras. Con el reloj en contra, mirá primero jaques, capturas y amenazas.",
       "insight.solid": "No es la primera opción del motor, pero {san} parece una alternativa sólida, casi igual de buena.",
-      "insight.no_clear_reason": "El motor prefiere {best}, pero ninguna táctica simple lo explica. La diferencia puede ser posicional.",
+      "insight.close": "{san} parece quedar cerca de {best}: la diferencia es chica, del orden del margen de error del motor.",
+      "insight.no_clear_reason": "El motor prefiere {best}, pero no encontramos un motivo sencillo: puede ser posicional o una táctica más profunda.",
+      "insight.no_clear_reason.big": "{best} era claramente mejor, pero no hallamos un motivo sencillo. Antes de mover, mirá las capturas, jaques y amenazas del rival.",
 
       "insight.tag.hangs_piece": "Pieza colgada",
       "insight.tag.missed_capture": "Captura perdida",
@@ -170,7 +225,7 @@
       "insight.tag.missed_check": "Jaque perdido",
       "insight.tag.quiet_best": "Mejor jugada tranquila",
       "insight.tag.sacrifice_best": "Sacrificio",
-      "insight.tag.back_rank": "Fila de fondo",
+      "insight.tag.back_rank": "Mate del pasillo",
       "insight.tag.fork_available": "Doble ataque",
       "insight.tag.pin_or_skewer": "Clavada o ensartada",
       "insight.tag.discovered_attack": "Ataque descubierto",
@@ -183,6 +238,8 @@
       "insight.tag.trade_when_ahead": "Cambiar cuando ganás",
       "insight.tag.time_trouble": "Apuro de tiempo",
       "insight.tag.solid": "Alternativa sólida",
+      "insight.tag.loses_material": "Pierde material",
+      "insight.tag.tactic_available": "Táctica disponible",
       "insight.tag.other": "Otro motivo",
     },
     en: {
@@ -197,11 +254,12 @@
       "insight.why.outnumbered": "is attacked more often than it is defended",
 
       "insight.allows_mate.san": "After {san}, the opponent has {reply}, which is checkmate. Check their forcing replies before you move.",
-      "insight.allows_mate.forced": "{san} probably allows a forced mate in {n}. Check every forcing reply from the opponent first.",
-      "insight.allows_mate.generic": "{san} looks like it allows a forced checkmate. Check every check the opponent has before moving.",
+      "insight.allows_mate.forced": "{san} probably allows a forced mate in {n} moves or fewer. Check every forcing reply from the opponent first.",
+      "insight.allows_mate.generic": "{san} looks like it leaves you facing a decisive attack, perhaps a forced mate. Check every check the opponent has before moving.",
       "insight.missed_mate.san": "{best} was checkmate. When the enemy king is short of squares, look at checks first.",
-      "insight.missed_mate.forced": "{best} starts a forced mate in {n}. Checks and forcing moves deserve the first look.",
+      "insight.missed_mate.forced": "{best} starts a forced mate in {n} moves or fewer. Checks and forcing moves deserve the first look.",
       "insight.missed_mate.generic": "There looked to be a forced mate starting with {best}. Look at checks and forcing moves first.",
+      "insight.slower_mate": "Your move also leads to a forced mate, but {best} gets there sooner. When you see a mate, count whether a shorter one exists.",
       "insight.hangs_piece.moved": "After {san}, your {piece} on {sq} {why}, so you probably lose material.",
       "insight.hangs_piece.left": "Your {piece} on {sq} was already in danger ({why}) and {san} may not have solved that.",
       "insight.hangs_piece.exposed": "After {san}, your {piece} on {sq} {why}. The move may have opened a line or removed a defender.",
@@ -214,9 +272,12 @@
       "insight.discovered": "{best} uncovers an attack: {sliderDef} on {sq} now attacks {targetDef} on {sq2}.",
       "insight.back_rank.exploit": "The enemy king looks boxed in on its back rank: {best} may exploit that.",
       "insight.back_rank.own": "Your back rank looks fragile: the king has no escape square. A pawn move (luft) may help.",
-      "insight.sacrifice_best": "{best} looks like a sacrifice: it gives up material on purpose. Calculate it before dismissing it.",
+      "insight.sacrifice_best": "{best} looks like a sacrifice: it gives up material on purpose. Calculate it carefully and check what it wins back.",
       "insight.missed_promotion": "{best} promotes a pawn. A pawn one step from queening deserves the first look.",
       "insight.missed_check": "{best} gives check. Before quiet moves, it is worth looking at every check.",
+      "insight.missed_check.after": "Before you play {san}, it is worth looking at every check: {best} gives check.",
+      "insight.tactic_available": "After {best}, the engine's line looks like it wins material: about {n} points (pawn 1, minor piece 3, rook 5, queen 9).",
+      "insight.loses_material": "After {san}, the engine's line looks like it costs you material: about {n} points. Check what your opponent can capture or attack.",
       "insight.king_safety.pawn": "Moving the pawn on {sq} may weaken the shelter around your king.",
       "insight.king_safety.king": "{san} walks the king out of its shelter, which may leave it exposed.",
       "insight.king_safety.castle": "{best} castles: the king is still in the centre, and getting it to safety looks urgent.",
@@ -232,10 +293,12 @@
       "insight.quiet_best.saves": "{best} is a quiet move that seems to rescue your {piece} on {sq}, which was in danger.",
       "insight.quiet_best.threat": "{best} is a quiet move that seems to threaten {targetDef} on {sq}.",
       "insight.quiet_best.generic": "{best} is quiet: no capture, no check. Improving a piece can beat a forcing move.",
-      "insight.time_trouble": "You were short on time here. Under the clock, scan checks, captures and threats first.",
+      "insight.time_trouble": "You used almost all of the clock. Under the time pressure, scan checks, captures and threats first.",
       "insight.time_trouble.out": "Time ran out before you moved. Under the clock, scan checks, captures and threats first.",
       "insight.solid": "Not the engine's first choice, but {san} looks like a solid alternative, nearly as good.",
-      "insight.no_clear_reason": "The engine prefers {best}, but no simple tactic explains it. The difference may be positional.",
+      "insight.close": "{san} looks close to {best}: the gap is small, about the size of the engine's margin of error.",
+      "insight.no_clear_reason": "The engine prefers {best}, but we could not find a simple reason: it may be positional or a deeper tactic.",
+      "insight.no_clear_reason.big": "{best} was clearly better, but we found no simple reason. Before moving, check your opponent's captures, checks and threats.",
 
       "insight.tag.hangs_piece": "Hanging piece",
       "insight.tag.missed_capture": "Missed capture",
@@ -257,6 +320,8 @@
       "insight.tag.trade_when_ahead": "Trade when ahead",
       "insight.tag.time_trouble": "Time trouble",
       "insight.tag.solid": "Solid alternative",
+      "insight.tag.loses_material": "Loses material",
+      "insight.tag.tactic_available": "Tactic available",
       "insight.tag.other": "Other reason",
     },
   };
@@ -265,6 +330,17 @@
   // localized noun ("knight") and the noun with its article ("the knight",
   // key + "Def").
   const PIECE_KEYS = ["piece", "target", "slider", "pinned", "front", "behind"];
+  // Raw parameters that hold a move in SAN. They stay English in `raw` and are
+  // written with the person's piece letters (R = rey in Spanish notation) only
+  // when a message is rendered: Ludus.chess.localizeSan follows the language and
+  // the notation setting at that moment.
+  const SAN_KEYS = ["best", "san", "reply"];
+
+  // The tags that say what the best move WINS; an answer gets one of them (two
+  // that say "it wins something" repeat each other or, worse, differ).
+  const TACTIC_TAGS = ["missed_capture", "fork_available", "pin_or_skewer", "discovered_attack", "tactic_available"];
+  // Any tag that already explains the best move tactically: "tactic_available" is only the fallback.
+  const EXPLAINING_TAGS = TACTIC_TAGS.concat(["sacrifice_best", "missed_promotion", "back_rank", "missed_check"]);
 
   // Concept ids (js/concepts.js) that explain each tag.
   const CONCEPT_FOR_TAG = {
@@ -320,8 +396,17 @@
     return own === undefined ? key : interpolate(own, params);
   }
 
-  // Raw params keep language-neutral codes (piece letters, squares); this
-  // expands them to text for one language.
+  function localizeSan(san, lang) {
+    const api = root.Ludus && root.Ludus.chess;
+    try {
+      return api && typeof api.localizeSan === "function" ? api.localizeSan(san, lang) : san;
+    } catch (error) {
+      return san;
+    }
+  }
+
+  // Raw params keep language-neutral codes (piece letters, squares, English
+  // SAN); this expands them to text for one language.
   function localizeParams(raw, lang) {
     const out = {};
     Object.keys(raw || {}).forEach((key) => {
@@ -339,6 +424,8 @@
           : `${parts.slice(0, -1).join(", ")}${joiner}${parts[parts.length - 1]}`;
       } else if (key === "why" && typeof value === "string") {
         out.why = translate(`insight.why.${value}`, null, lang);
+      } else if (SAN_KEYS.includes(key) && typeof value === "string") {
+        out[key] = localizeSan(value, lang);
       } else {
         out[key] = value;
       }
@@ -599,22 +686,187 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Evidence: material settled along an engine line
+  // ---------------------------------------------------------------------------
+
+  const QS_MATE = -99; // value for the side to move when it is checkmated inside the quiescence search
+  const MATE_DELTA = 50; // a settled change beyond this is a checkmate, not material
+
+  function balanceFor(cells, color) {
+    let total = 0;
+    for (let i = 0; i < 64; i += 1) {
+      const piece = cells[i];
+      if (piece) total += colorOf(piece) === color ? materialValue(piece) : -materialValue(piece);
+    }
+    return total;
+  }
+
+  // Captures and promotions of the side to move (pseudo-legal), richest victim first.
+  function forcingMoves(pos) {
+    const out = [];
+    for (let i = 0; i < 64; i += 1) {
+      const piece = pos.board[i];
+      if (!piece || colorOf(piece) !== pos.turn) continue;
+      for (const move of pos.generatePieceMoves(i, piece)) {
+        if (move.capture || move.enPassant || move.promotion) out.push(move);
+      }
+    }
+    out.sort((a, b) => (materialValue(pos.board[b.to]) - materialValue(pos.board[a.to]))
+      || (materialValue(a.piece) - materialValue(b.piece)));
+    return out;
+  }
+
+  // Material the side to move can secure with captures alone, over LEGAL moves:
+  // it may stand pat unless it is in check, and then every evasion is tried.
+  let qsNodes = 0;
+  function quiesce(pos, alpha, beta, depth) {
+    const color = pos.turn;
+    const inCheck = pos.inCheck(color);
+    const stand = balanceFor(pos.board, color);
+    // A runaway capture tree (a position full of hanging pieces) settles at the
+    // material on the board rather than freeze the page.
+    if (depth <= 0 || (qsNodes += 1) > QS_NODE_LIMIT) return stand;
+    let moves;
+    let best;
+    if (inCheck) {
+      moves = pos.generateMoves();
+      if (!moves.length) return QS_MATE;
+      best = -999;
+    } else {
+      if (stand >= beta) return stand;
+      if (stand > alpha) alpha = stand;
+      moves = forcingMoves(pos);
+      best = stand;
+    }
+    for (const move of moves) {
+      const next = pos.clone();
+      next.makeMove(move);
+      if (!inCheck && next.inCheck(color)) continue; // pseudo-legal: leaves the own king attacked
+      const score = -quiesce(next, -beta, -alpha, depth - 1);
+      if (score > best) best = score;
+      if (score > alpha) alpha = score;
+      if (alpha >= beta) break;
+    }
+    return best;
+  }
+
+  // `color`'s material after `pos` is left to the captures that are hanging.
+  function settledFor(pos, color) {
+    const value = quiesce(pos, -999, 999, QS_DEPTH);
+    return pos.turn === color ? value : -value;
+  }
+
+  // Plays `pv` (UCI moves from `chess`) and returns what the mover has won (+)
+  // or lost (-) against the start after each ply, settled as above:
+  //   { deltas, plies, end, min, mate, matedSelf }
+  // A checkmate anywhere on the line sets `mate` (of the opponent) or
+  // `matedSelf` and stops the trace; material numbers are clamped to +-50.
+  function traceLine(chess, pv, maxPlies) {
+    qsNodes = 0;
+    const mover = chess.turn;
+    const base = balanceFor(chess.board, mover);
+    const limit = Math.min(Array.isArray(pv) ? pv.length : 0, maxPlies || TRACE_PLIES);
+    const deltas = [];
+    let mate = false;
+    let matedSelf = false;
+    let pos = chess;
+    for (let i = 0; i < limit; i += 1) {
+      const move = findLegalMove(pos.generateMoves(), pv[i]);
+      if (!move) break;
+      pos = pos.clone();
+      pos.makeMove(move);
+      const delta = settledFor(pos, mover) - base;
+      if (delta >= MATE_DELTA) {
+        mate = true;
+        deltas.push(MATE_DELTA);
+        break;
+      }
+      if (delta <= -MATE_DELTA) {
+        matedSelf = true;
+        deltas.push(-MATE_DELTA);
+        break;
+      }
+      deltas.push(delta);
+    }
+    return {
+      deltas,
+      plies: deltas.length,
+      end: deltas.length ? deltas[deltas.length - 1] : 0,
+      min: deltas.length ? Math.min(...deltas) : 0,
+      mate,
+      matedSelf,
+    };
+  }
+
+  // The engine's line for `uci` (the first move must match), or null.
+  function pvForMove(lines, uci) {
+    if (!Array.isArray(lines) || !uci) return null;
+    for (const line of lines) {
+      const pv = line && Array.isArray(line.pv) ? line.pv.filter((move) => typeof move === "string") : null;
+      const first = line && typeof line.uci === "string" ? line.uci : pv && pv[0];
+      if (pv && pv.length && first === uci && pv[0] === uci) return pv;
+    }
+    return null;
+  }
+
+  // What the line of a described move shows. Without a line of its own the
+  // move is followed by its settled reply only (`deep` false).
+  function evidenceOf(desc) {
+    return memo(desc, "evidence", () => {
+      const pv = desc.pv && desc.pv[0] === desc.uci ? desc.pv : [desc.uci];
+      const trace = traceLine(desc.root, pv, desc.traceLimit || TRACE_PLIES);
+      trace.deep = trace.plies >= 3;
+      return trace;
+    });
+  }
+
+  // Does the line back "this move wins about `need` pawn units"?
+  function winsMaterial(desc, need, allowShallow) {
+    const evidence = evidenceOf(desc);
+    if (evidence.mate) return true;
+    return (evidence.deep || allowShallow === true) && evidence.end >= need;
+  }
+
+  // ---------------------------------------------------------------------------
   // Static position features
   // ---------------------------------------------------------------------------
 
-  function gamePhase(cells) {
+  // The game phase ("Phase" in the header comment): material of both sides
+  // (62 at the start), pieces left, queens and, for "opening", the move number.
+  // `input` is a FEN, a Chess instance or the 64 cells of a board; a board with
+  // no move number (`fullmove` undefined) can still be an opening on material alone.
+  // Anything unusable is "middlegame", the phase that changes nothing downstream.
+  function gamePhase(input, fullmove) {
+    let cells = null;
+    let move = Number.isFinite(fullmove) ? fullmove : NaN;
+    try {
+      if (typeof input === "string") {
+        const chess = new (chessApi().Chess)(normalizeFen(input));
+        cells = chess.board;
+        if (!Number.isFinite(move)) move = chess.fullmove;
+      } else if (input && Array.isArray(input.board)) {
+        cells = input.board;
+        if (!Number.isFinite(move)) move = Number(input.fullmove);
+      } else if (Array.isArray(input) && input.length === 64) {
+        cells = input;
+      }
+    } catch (error) {
+      cells = null;
+    }
+    if (!cells) return "middlegame";
     let nonPawn = 0;
     let queens = 0;
+    let pieces = 0;
     for (const piece of cells) {
       if (!piece) continue;
       const type = typeOf(piece);
+      if (type === "P" || type === "K") continue;
+      pieces += 1;
+      nonPawn += MATERIAL_VALUE[type];
       if (type === "Q") queens += 1;
-      if (type === "N" || type === "B") nonPawn += 3;
-      if (type === "R") nonPawn += 5;
-      if (type === "Q") nonPawn += 9;
     }
-    if (nonPawn <= 10 || queens <= 1) return "endgame";
-    if (nonPawn >= 24) return "opening";
+    if (nonPawn <= 16 || pieces <= 4 || (queens === 0 && nonPawn <= 26)) return "endgame";
+    if (nonPawn >= 50 && (!Number.isFinite(move) || move <= 10)) return "opening";
     return "middlegame";
   }
 
@@ -803,7 +1055,7 @@
       fen: chess.fen(),
       turn: chess.turn,
       fullmove: chess.fullmove,
-      phase: gamePhase(cells),
+      phase: gamePhase(chess),
       material: materialOf(cells),
       legalCount: legal.length,
       inCheck: chess.inCheck(chess.turn),
@@ -840,8 +1092,9 @@
       && (!promo || (move.promotion && move.promotion.toLowerCase() === promo))) || null;
   }
 
-  // Everything cheap we know about a move, plus the position after it.
-  function describeMove(chess, move) {
+  // Everything cheap we know about a move, plus the position after it. `pv` is
+  // the engine's line for the move (UCI, starting with it) when there is one.
+  function describeMove(chess, move, pv) {
     const { moveToSan, moveToUci } = chessApi();
     const after = chess.clone();
     after.makeMove(move);
@@ -873,6 +1126,8 @@
       mate: /#$/.test(san),
       gain,
       after,
+      root: chess,
+      pv: Array.isArray(pv) && pv.length ? pv : null,
       cache: {},
     };
   }
@@ -901,8 +1156,18 @@
     return desc.gain - destLoss(desc);
   }
 
+  // The settled material of the move's line dips at least SACRIFICE_MIN below
+  // the start within the first SACRIFICE_PLIES plies, counted from the opponent's
+  // actual reply on (the first ply alone assumes the opponent takes what is on
+  // offer, and a poisoned pawn is bait, not a sacrifice). With no line, only the
+  // settled reply to the move itself can be looked at.
   function isSacrifice(desc) {
-    return memo(desc, "sacrifice", () => !desc.mate && desc.piece !== "K" && destLoss(desc) - desc.gain >= 2);
+    return memo(desc, "sacrifice", () => {
+      if (desc.mate || desc.piece === "K") return false;
+      const evidence = evidenceOf(desc);
+      const seen = evidence.plies >= 2 ? evidence.deltas.slice(1, SACRIFICE_PLIES) : evidence.deltas;
+      return seen.length > 0 && Math.min(...seen) <= -SACRIFICE_MIN;
+    });
   }
 
   function isQuiet(desc) {
@@ -1057,6 +1322,11 @@
     const { userUci, bestUci, assessment, lines } = input;
     if (!userUci) return { verdict: "nomove", lossPct: null };
     if (userUci === bestUci) return { verdict: "same", lossPct: 0 };
+    // A forced mate that was missed or allowed is never "nearly as good", however
+    // little win% the numbers say it cost (the win% curve saturates at +10 pawns).
+    if (assessment && (assessment.reason === "missed_mate" || assessment.reason === "allows_mate")) {
+      return { verdict: "worse", lossPct: Number.isFinite(assessment.winLossPct) ? assessment.winLossPct : null };
+    }
     if (assessment && assessment.isBest === true) return { verdict: "equivalent", lossPct: assessment.winLossPct };
     let lossPct = null;
     if (assessment && Number.isFinite(assessment.winLossPct)) {
@@ -1110,9 +1380,13 @@
         && backRankWeak(user.after.board, mover);
       if (isBackRankMate) pushCandidate(list, "back_rank", "insight.back_rank.own", {});
     } else if (ctx.allowsMateHint) {
+      // A length is only claimed when it is reliable (see MAX_ALLOWED_MATE_CLAIM).
       const mate = ctx.allowsMateHint;
-      if (mate.n) pushCandidate(list, "allows_mate", "insight.allows_mate.forced", { san: user.san, n: mate.n }, { concept: null });
-      else pushCandidate(list, "allows_mate", "insight.allows_mate.generic", { san: user.san }, { concept: null });
+      if (mate.n && mate.n <= MAX_ALLOWED_MATE_CLAIM) {
+        pushCandidate(list, "allows_mate", "insight.allows_mate.forced", { san: user.san, n: mate.n }, { concept: null });
+      } else {
+        pushCandidate(list, "allows_mate", "insight.allows_mate.generic", { san: user.san }, { concept: null });
+      }
     }
 
     // Leaving material en prise, unless the best move gives up as much.
@@ -1131,13 +1405,27 @@
       }
       if (userNet >= 1 && userNet > bestNet) {
         const kind = hangingClass(ctx.beforeThreats, worst, user);
+        // When the engine's own line after the user's move is known and keeps the
+        // material (a counter-capture the exchange count cannot see), the piece
+        // is not really lost and we say nothing about it.
+        const userLine = user.pv ? evidenceOf(user) : null;
+        const refuted = Boolean(userLine && userLine.deep && !userLine.matedSelf && userLine.end > -1);
         // A pawn that was already under attack before the move is too minor to
         // blame on a move that may have dealt with bigger things.
-        if (!(kind === "left" && worst.piece === "P")) {
+        if (!refuted && !(kind === "left" && worst.piece === "P")) {
           pushCandidate(list, "hangs_piece", `insight.hangs_piece.${kind}`, {
             san: user.san, piece: worst.piece, sq: worst.sq, why: worst.why,
           });
         }
+      }
+    }
+
+    // Material lost further down the engine's line (a fork, a pin, a combination
+    // that a one-capture exchange count cannot see). Needs the engine's line.
+    if (!list.some((entry) => entry.tag === "hangs_piece") && user.pv) {
+      const line = evidenceOf(user);
+      if (line.deep && !line.matedSelf && line.end <= -LOSS_CLAIM) {
+        pushCandidate(list, "loses_material", "insight.loses_material", { san: user.san, n: Math.round(-line.end) });
       }
     }
 
@@ -1169,9 +1457,13 @@
     if (best.mate) {
       pushCandidate(list, "missed_mate", "insight.missed_mate.san", { best: best.san }, { concept: null });
     } else if (ctx.missedMateHint) {
+      // "In N or fewer": the engine may have found a shorter mate later, never a longer one.
       const mate = ctx.missedMateHint;
-      if (mate.n) pushCandidate(list, "missed_mate", "insight.missed_mate.forced", { best: best.san, n: mate.n }, { concept: null });
-      else pushCandidate(list, "missed_mate", "insight.missed_mate.generic", { best: best.san }, { concept: null });
+      if (mate.n && mate.n <= MAX_MISSED_MATE_CLAIM) {
+        pushCandidate(list, "missed_mate", "insight.missed_mate.forced", { best: best.san, n: mate.n }, { concept: null });
+      } else {
+        pushCandidate(list, "missed_mate", "insight.missed_mate.generic", { best: best.san }, { concept: null });
+      }
     }
 
     // Back rank: a rook or queen check against a king boxed in on its back rank.
@@ -1180,25 +1472,36 @@
       pushCandidate(list, "back_rank", "insight.back_rank.exploit", { best: best.san });
     }
 
-    // Winning material by capture.
+    // Winning material by capture. The exchange count on the square says it
+    // wins; the material settled after the capture, and along the engine's line,
+    // has to say so too (a capture that walks into a fork, or that the engine
+    // gives back a move later, is not "winning material").
     if (best.capture && !best.mate) {
       const net = moveNet(best);
       if (net >= 1 && net > userNet) {
         const targetIdx = best.capturedIdx;
-        const defenders = attackersOf(cells, targetIdx, opponent).length;
-        let key = "insight.missed_capture.win";
-        if (defenders === 0) key = "insight.missed_capture.free";
-        else if (seeValue(cells[best.fromIdx]) < seeValue(cells[targetIdx])) key = "insight.missed_capture.cheaper";
-        pushCandidate(list, "missed_capture", key, { best: best.san, target: best.captured, sq: sqOf(targetIdx) });
+        const evidence = evidenceOf(best);
+        const need = best.captured === "P" ? 1 : 2;
+        if (evidence.plies >= 1 && (evidence.mate || (evidence.deltas[0] >= need && evidence.end >= 1))) {
+          const defenders = attackersOf(cells, targetIdx, opponent).length;
+          let key = "insight.missed_capture.win";
+          if (defenders === 0) key = "insight.missed_capture.free";
+          else if (seeValue(cells[best.fromIdx]) < seeValue(cells[targetIdx])) key = "insight.missed_capture.cheaper";
+          pushCandidate(list, "missed_capture", key, { best: best.san, target: best.captured, sq: sqOf(targetIdx) });
+        }
       }
     }
 
     if (!best.mate) {
-      const bestFork = forkOf(best);
+      // A fork, pin, skewer or discovered attack is only named when the engine's
+      // line really wins material (or mates) after it: the geometry alone is
+      // often just a check or a harmless attack.
+      const pays = winsMaterial(best, WIN_CLAIM);
+      const bestFork = pays ? forkOf(best) : null;
       if (bestFork && !(user && forkOf(user))) {
         pushCandidate(list, "fork_available", "insight.fork", { best: best.san, piece: bestFork.piece, targets: bestFork.targets });
       }
-      const bestPin = pinOf(best);
+      const bestPin = pays ? pinOf(best) : null;
       if (bestPin && !(user && pinOf(user))) {
         if (bestPin.kind === "pin") {
           pushCandidate(list, "pin_or_skewer", "insight.pin", { best: best.san, pinned: bestPin.front.p, sq: bestPin.front.sq }, { concept: "pin" });
@@ -1208,7 +1511,7 @@
           }, { concept: "skewer" });
         }
       }
-      const bestDisc = discoveredOf(chess, best);
+      const bestDisc = pays ? discoveredOf(chess, best) : null;
       if (bestDisc && !(user && discoveredOf(chess, user))) {
         pushCandidate(list, "discovered_attack", "insight.discovered", {
           best: best.san, slider: bestDisc.slider, sq: bestDisc.sq, target: bestDisc.target, sq2: bestDisc.sq2,
@@ -1220,8 +1523,15 @@
       if (best.promotion && !(user && user.promotion)) {
         pushCandidate(list, "missed_promotion", "insight.missed_promotion", { best: best.san }, { concept: null });
       }
-      if (best.check && !(user && user.check)) {
-        pushCandidate(list, "missed_check", "insight.missed_check", { best: best.san }, { concept: null });
+      // A check is only worth a habit tip when it leads somewhere (mate or a
+      // material win along the line); a learner who captured or promoted is not
+      // told to look before "quiet" moves.
+      if (best.check && !(user && user.check) && pays) {
+        if (user && !isQuiet(user)) {
+          pushCandidate(list, "missed_check", "insight.missed_check.after", { best: best.san, san: user.san }, { concept: null });
+        } else {
+          pushCandidate(list, "missed_check", "insight.missed_check", { best: best.san }, { concept: null });
+        }
       }
     }
 
@@ -1311,6 +1621,17 @@
         }
       }
     }
+
+    // None of the above named what the engine's line wins after the best move:
+    // say how much (mates and checks have their own messages). Only from a line
+    // of three or more plies, and not when the user's own line wins as much.
+    if (!best.mate && !list.some((entry) => EXPLAINING_TAGS.includes(entry.tag))) {
+      const line = evidenceOf(best);
+      const userLine = user && user.pv ? evidenceOf(user) : null;
+      if (!line.mate && line.deep && line.end >= LOSS_CLAIM && !(userLine && userLine.deep && userLine.end >= line.end - 1)) {
+        pushCandidate(list, "tactic_available", "insight.tactic_available", { best: best.san, n: Math.round(line.end) }, { concept: null });
+      }
+    }
   }
 
   function isOutpost(desc) {
@@ -1346,33 +1667,66 @@
     });
   }
 
-  // Drop tags that would only repeat or dilute a stronger explanation.
+  // Drop tags that would only repeat or dilute a stronger explanation, and keep
+  // a single tactical explanation of the best move: two that say "it wins
+  // something" are the same advice twice and, when they differ, the learner
+  // cannot tell which to trust.
   function suppress(list) {
     const has = (tag) => list.some((entry) => entry.tag === tag);
     const drop = (...tags) => {
       for (let i = list.length - 1; i >= 0; i -= 1) if (tags.includes(list[i].tag)) list.splice(i, 1);
     };
+    const mateFact = has("missed_mate") || has("allows_mate");
     if (list.some((entry) => entry.key === "insight.missed_mate.san")) {
       drop("missed_capture", "fork_available", "pin_or_skewer", "discovered_attack", "sacrifice_best", "missed_promotion",
-        "missed_check", "king_safety", "development", "open_file", "outpost", "trade_when_ahead", "endgame_technique", "quiet_best");
+        "missed_check", "tactic_available", "king_safety", "development", "open_file", "outpost", "trade_when_ahead",
+        "endgame_technique", "quiet_best");
     } else if (has("missed_mate")) {
-      drop("king_safety", "development", "open_file", "outpost", "trade_when_ahead", "endgame_technique", "quiet_best");
+      // The mate already says everything the checks, captures and sacrifices on
+      // the way to it could: they are steps of the same line.
+      drop("missed_capture", "fork_available", "pin_or_skewer", "discovered_attack", "sacrifice_best", "missed_promotion",
+        "missed_check", "tactic_available", "king_safety", "development", "open_file", "outpost", "trade_when_ahead",
+        "endgame_technique", "quiet_best");
+    }
+    if (mateFact) drop("quiet_best", "loses_material");
+    if (has("hangs_piece")) {
+      drop("loses_material");
+      // "Your piece was already in danger" goes well with "this move rescues it";
+      // any other quiet-move remark next to a hanging piece is just noise.
+      const rescue = list.some((entry) => entry.key === "insight.hangs_piece.left")
+        && list.some((entry) => entry.key === "insight.quiet_best.saves");
+      if (!rescue) drop("quiet_best");
     }
     if (has("missed_capture") || has("fork_available") || has("pin_or_skewer") || has("discovered_attack") || has("back_rank")) {
       drop("missed_check");
     }
     if (["missed_capture", "fork_available", "pin_or_skewer", "discovered_attack", "sacrifice_best", "development", "open_file",
-      "outpost", "trade_when_ahead", "endgame_technique", "missed_promotion", "back_rank"].some(has)
+      "outpost", "trade_when_ahead", "endgame_technique", "missed_promotion", "back_rank", "tactic_available"].some(has)
       || list.some((entry) => entry.key === "insight.king_safety.castle")) {
       drop("quiet_best");
     }
     if (has("missed_capture")) drop("trade_when_ahead");
+    // One tactical explanation of the best move, the most concrete first (the
+    // list is sorted by priority before this runs).
+    let seenTactic = false;
+    for (let i = 0; i < list.length; i += 1) {
+      if (!TACTIC_TAGS.includes(list[i].tag)) continue;
+      if (seenTactic) {
+        list.splice(i, 1);
+        i -= 1;
+      }
+      seenTactic = true;
+    }
   }
 
   function emptyResult(extra) {
     return Object.assign({
       tags: [], phase: "middlegame", messages: [], conceptIds: [], verdict: "unknown", features: { best: null, user: null },
     }, extra || {});
+  }
+
+  function moveToUciSafe(move) {
+    return chessApi().moveToUci(move);
   }
 
   function publicMove(desc) {
@@ -1390,13 +1744,21 @@
     const chess = new Chess(normalizeFen(input.fen));
     const mover = chess.turn;
     const legal = chess.generateMoves();
-    const phase = gamePhase(chess.board);
+    const phase = gamePhase(chess);
     const assessment = input.assessment && typeof input.assessment === "object" ? input.assessment : null;
 
     const bestMove = findLegalMove(legal, input.bestUci);
     const userMove = input.userUci ? findLegalMove(legal, input.userUci) : null;
-    const best = bestMove ? describeMove(chess, bestMove) : null;
-    const user = userMove ? describeMove(chess, userMove) : null;
+    // The engine's lines for both moves, when we were given them: what every
+    // claim about material is checked against (see "Evidence" above).
+    const lineOf = (move, extra) => {
+      if (!move) return null;
+      const uci = moveToUciSafe(move);
+      if (Array.isArray(extra) && extra[0] === uci) return extra.filter((entry) => typeof entry === "string");
+      return pvForMove(input.lines, uci);
+    };
+    const best = bestMove ? describeMove(chess, bestMove, lineOf(bestMove, null)) : null;
+    const user = userMove ? describeMove(chess, userMove, lineOf(userMove, input.userPv)) : null;
 
     const judged = judge({
       userUci: user ? user.uci : null,
@@ -1414,7 +1776,14 @@
       && timing.timeSpentMs >= 0.85 * timing.limitMs;
 
     if (verdict === "equivalent" || verdict === "close") {
-      pushCandidate(list, "solid", "insight.solid", { san: user.san }, { late: true, concept: null });
+      if (assessment && assessment.mateExtraMoves > 0 && best) {
+        // Both moves mate (or win by force); the user's is just slower.
+        pushCandidate(list, "solid", "insight.slower_mate", { best: best.san }, { late: true, concept: null });
+      } else if (verdict === "close" && best) {
+        pushCandidate(list, "solid", "insight.close", { san: user.san, best: best.san }, { late: true, concept: null });
+      } else {
+        pushCandidate(list, "solid", "insight.solid", { san: user.san }, { late: true, concept: null });
+      }
     } else if (verdict === "worse" || verdict === "nomove") {
       const ctx = {
         chess, mover, phase, best, user,
@@ -1441,6 +1810,7 @@
       } else if ((slow || input.timeTrouble === true) && user) {
         pushCandidate(list, "time_trouble", "insight.time_trouble", {}, { late: true, concept: null });
       }
+      list.sort((a, b) => a.priority - b.priority);
       suppress(list);
     }
 
@@ -1453,20 +1823,25 @@
     });
 
     // Strong explanations first; a filler (a generic remark) only when there is
-    // nothing better; then the "late" notes (time, solid). One message per tag.
+    // nothing better; then the "late" notes (time, solid). One message per tag,
+    // three at most (two when a forced mate explains the answer).
     const chosen = [];
     const usedTags = new Set();
-    const take = (entry) => {
-      if (usedTags.has(entry.tag) || chosen.length >= MAX_MESSAGES) return;
+    const strongLimit = list.some((entry) => entry.tag === "missed_mate" || entry.tag === "allows_mate") ? MAX_MATE_MESSAGES : MAX_MESSAGES;
+    const take = (entry, limit) => {
+      if (usedTags.has(entry.tag) || chosen.length >= limit) return;
       usedTags.add(entry.tag);
       chosen.push(entry);
     };
-    list.filter((entry) => !entry.late).forEach(take);
-    if (!chosen.length) list.filter((entry) => entry.filler).forEach(take);
+    list.filter((entry) => !entry.late).forEach((entry) => take(entry, strongLimit));
+    if (!chosen.length) list.filter((entry) => entry.filler).forEach((entry) => take(entry, strongLimit));
     if (!chosen.length && (verdict === "worse" || verdict === "nomove") && best) {
-      chosen.push({ tag: null, key: "insight.no_clear_reason", raw: { best: best.san }, concept: null });
+      // We do not know why. Say so; and when the move was clearly worse do not
+      // reassure with "it may only be positional".
+      const big = verdict === "worse" && Number.isFinite(judged.lossPct) && judged.lossPct >= BIG_LOSS_PCT;
+      chosen.push({ tag: null, key: big ? "insight.no_clear_reason.big" : "insight.no_clear_reason", raw: { best: best.san }, concept: null });
     }
-    list.filter((entry) => entry.late && !entry.filler).forEach(take);
+    list.filter((entry) => entry.late && !entry.filler).forEach((entry) => take(entry, MAX_MESSAGES));
     result.tags = tags;
     result.messages = chosen.map((entry) => ({
       key: entry.key,
@@ -1495,13 +1870,19 @@
   // Public: facts about a single move in a position (or null when the FEN or
   // the move is unusable). `sacrifice` is the flag the scoring layer needs for
   // the "brilliant" quality.
-  function moveFeatures(fen, uci) {
+  // `options.lines` (the engine's lines of the position) or `options.pv` (the
+  // line of this move) make `sacrifice` follow the engine line; without them it
+  // only looks at the settled reply to the move.
+  function moveFeatures(fen, uci, options) {
     try {
       const { Chess } = chessApi();
       const chess = new Chess(normalizeFen(fen));
       const move = findLegalMove(chess.generateMoves(), uci);
       if (!move) return null;
-      return publicMove(describeMove(chess, move));
+      const opts = options && typeof options === "object" ? options : {};
+      const moveUci = moveToUciSafe(move);
+      const pv = Array.isArray(opts.pv) && opts.pv[0] === moveUci ? opts.pv.filter((entry) => typeof entry === "string") : pvForMove(opts.lines, moveUci);
+      return publicMove(describeMove(chess, move, pv));
     } catch (error) {
       return null;
     }
@@ -1533,7 +1914,8 @@
     tagLabelKey,
     renderMessage,
     renderMessages,
+    gamePhase,
     // Exposed for tests and for other modules that need the same board logic.
-    internals: { seeSwap, attackersOf, gamePhase, backRankWeak, passedPawnIndices, STRINGS, localizeParams },
+    internals: { seeSwap, attackersOf, backRankWeak, passedPawnIndices, traceLine, settledFor, STRINGS, localizeParams },
   };
 });

@@ -44,8 +44,10 @@ function localScriptsFromHtml(html) {
   return found;
 }
 
+// js/boot.js is the head-of-page guard (it flags <html> for the stylesheets and probes the browser): it has
+// nothing to do with the app modules these tests load and has its own test (boot.test.js), so it is left out.
 function localScripts() {
-  return localScriptsFromHtml(fs.readFileSync(path.join(repoRoot, "index.html"), "utf8"));
+  return localScriptsFromHtml(fs.readFileSync(path.join(repoRoot, "index.html"), "utf8")).filter((file) => file !== "js/boot.js");
 }
 
 function load(options = {}) {

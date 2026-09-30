@@ -68,8 +68,12 @@
   display: flex;
   align-items: center;
   gap: 0;
-  margin-left: var(--space-1);
   min-width: 0;
+  /* The nav scrolls sideways at extreme text sizes (overflow-x below), and a scroll container clips on BOTH axes: the
+     keyboard ring (3px + 2px offset) of the links was cut top and bottom. The padding gives the ring room inside the
+     scroller and the equal negative margin leaves the layout exactly as it was. */
+  padding: 6px;
+  margin: -6px -6px -6px calc(var(--space-1) - 6px);
 }
 .sh-nav-link {
   position: relative;
@@ -395,6 +399,9 @@
   .sh-tab .sh-nav-label { overflow: hidden; max-width: 100%; text-overflow: ellipsis; }
 
   body[data-shell="on"] { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-5)); }
+  /* The fixed tab bar covers the bottom of the viewport: a control reached by Tab is scrolled ABOVE it, not under it
+     (WCAG 2.4.11 Focus Not Obscured). The header is handled by scroll-padding-top in styles.css. */
+  html:has(body[data-shell="on"]) { scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-4)); }
   body[data-shell="on"] .toast-stack { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-3)); }
 }
 
@@ -407,11 +414,15 @@
   }
 }
 @container sh (min-width: 24rem) {
-  body[data-shell="minimal"] .sh-brand-word { display: inline; }
+  body[data-shell="minimal"] .sh-brand-word,
+  html:not([data-returning]) body:not([data-shell]) .sh-brand-word { display: inline; }
 }
 
-/* ── Landing: the header floats over the hero, only brand and language ── */
-body[data-shell="minimal"] .sh-header {
+/* ── Landing: the header floats over the hero, only brand and language ──
+   A first-time visitor's page is the landing before any script has run (body[data-shell] is still unset and js/boot.js has
+   not flagged the visit as returning), so the very first layout is already the final one: no header jump when the shell mounts. */
+body[data-shell="minimal"] .sh-header,
+html:not([data-returning]) body:not([data-shell]) .sh-header {
   position: absolute;
   inset: 0 0 auto;
   border-bottom-color: transparent;
@@ -420,8 +431,11 @@ body[data-shell="minimal"] .sh-header {
   backdrop-filter: none;
 }
 body[data-shell="minimal"] .sh-nav,
-body[data-shell="minimal"] .sh-status { display: none; }
-body[data-shell="minimal"] .language-switch { background: rgba(9, 16, 25, 0.55); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+body[data-shell="minimal"] .sh-status,
+html:not([data-returning]) body:not([data-shell]) .sh-nav,
+html:not([data-returning]) body:not([data-shell]) .sh-status { display: none; }
+body[data-shell="minimal"] .language-switch,
+html:not([data-returning]) body:not([data-shell]) .language-switch { background: rgba(9, 16, 25, 0.55); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
 
 /* ── Hidden on the play screen ── */
 body[data-shell="off"] .sh-header,
@@ -430,4 +444,5 @@ body[data-screen="game"] .sh-header,
 body[data-screen="game"] .sh-tabbar { display: none; }
 
 /* The app column starts below the sticky header; the landing hero starts at 0. */
-body[data-shell="minimal"] .app { padding-top: 0; }
+body[data-shell="minimal"] .app,
+html:not([data-returning]) body:not([data-shell]) .app { padding-top: 0; }

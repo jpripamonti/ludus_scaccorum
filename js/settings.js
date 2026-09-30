@@ -77,6 +77,7 @@
     entry("board", "board.lastMove", "boolean", true),
     entry("board", "board.animation", "enum", "auto", { options: ["auto", "on", "off"] }),
     entry("board", "board.drag", "boolean", true),
+    entry("board", "board.confirmMove", "enum", "off", { options: ["off", "touch", "always"] }),
     // Piece letters in written moves (Ludus.chess.localizeSan reads it): "auto" follows the language.
     entry("board", "notation.style", "enum", "auto", { options: ["auto", "english", "spanish"] }),
     entry("sound", "sound.enabled", "boolean", true),
@@ -85,7 +86,7 @@
     entry("clock", "clock.mode", "enum", "timed", { options: ["timed", "untimed"] }),
     entry("clock", "clock.seconds", "number", 90, { min: 5, max: 360, step: 1, unit: "s", showWhen: { path: "clock.mode", value: "timed" } }),
     entry("engine", "engine.strength", "enum", "balanced", { options: ["fast", "balanced", "deep", "custom"] }),
-    entry("engine", "engine.movetimeMs", "number", 1500, { min: 300, max: 10000, step: 100, unit: "ms", showWhen: { path: "engine.strength", value: "custom" } }),
+    entry("engine", "engine.movetimeMs", "number", 1500, { min: 300, max: 3500, step: 100, unit: "ms", showWhen: { path: "engine.strength", value: "custom" } }),
     entry("engine", "engine.multiPv", "number", 3, { min: 1, max: 5, step: 1 }),
     entry("scoring", "scoring.model", "enum", "precision", { options: ["precision", "tiers"] }),
     entry("scoring", "scoring.strictness", "enum", "standard", { options: ["relaxed", "standard", "strict"] }),
@@ -96,6 +97,7 @@
     entry("a11y", "a11y.textScale", "enum", 1, { options: [1, 1.15, 1.3] }),
     entry("a11y", "a11y.contrast", "enum", "normal", { options: ["normal", "high"] }),
     entry("a11y", "a11y.motion", "enum", "auto", { options: ["auto", "reduce"] }),
+    entry("a11y", "a11y.shortcuts", "boolean", true),
   ]);
 
   const BY_PATH = new Map(SCHEMA.map((spec) => [spec.path, spec]));
@@ -222,6 +224,7 @@
     "board.lastMove": [["Resaltar la última jugada", "Highlight the last move"], ["Pinta el origen y el destino de la última jugada.", "Tints the origin and destination of the last move."]],
     "board.animation": [["Animación de piezas", "Piece animation"], ["Automática respeta la configuración de tu sistema.", "Automatic follows your system setting."]],
     "board.drag": [["Arrastrar piezas", "Drag pieces"], ["Además de tocar origen y destino, podés arrastrar la pieza.", "Besides tapping origin and destination, you can drag the piece."]],
+    "board.confirmMove": [["Confirmar la jugada", "Confirm the move"], ["Pide un “Confirmar” antes de puntuar la jugada, para que un dedo que se resbala no te cueste puntos. “Con el dedo” lo pide solo al tocar la pantalla.", "Asks for a “Confirm” before the move is scored, so a slipping finger does not cost you points. “With a finger” only asks when you touch the screen."]],
     "notation.style": [["Letras de las piezas", "Piece letters"], ["Cómo se escriben las jugadas. Automático sigue el idioma: en español la R es el rey, la D la dama, la T la torre, la A el alfil y la C el caballo.", "How moves are written. Automatic follows the language: in Spanish notation R is the king, D the queen, T the rook, A the bishop and C the knight."]],
     "sound.enabled": [["Sonidos", "Sounds"], ["Efectos al mover, capturar y acertar.", "Effects for moves, captures and good answers."]],
     "sound.volume": [["Volumen", "Volume"], ["Qué tan fuertes suenan los efectos.", "How loud the effects are."]],
@@ -229,7 +232,7 @@
     "clock.mode": [["Reloj por jugada", "Move clock"], ["Con tiempo, cada posición tiene un límite; sin tiempo, pensás tranquilo.", "Timed gives each position a limit; untimed lets you think freely."]],
     "clock.seconds": [["Segundos por jugada", "Seconds per move"], ["Cuánto tiempo tenés para elegir tu jugada.", "How long you have to choose your move."]],
     "engine.strength": [["Profundidad del análisis", "Analysis depth"], ["Más profundo es más preciso, pero tarda más en cada posición.", "Deeper is more accurate but takes longer per position."]],
-    "engine.movetimeMs": [["Tiempo de análisis", "Analysis time"], ["Milisegundos que el motor piensa en cada posición.", "Milliseconds the engine thinks on each position."]],
+    "engine.movetimeMs": [["Tiempo de análisis", "Analysis time"], ["Milisegundos que el motor piensa en cada búsqueda, hasta 3500: una ronda suma varias búsquedas y tiene su propio tope.", "Milliseconds the engine thinks on each search, up to 3500: a round adds several searches and has a cap of its own."]],
     "engine.multiPv": [["Jugadas candidatas", "Candidate moves"], ["Cuántas líneas compara el motor; con más se detectan mejor las jugadas únicas.", "How many lines the engine compares; more helps spot only-moves."]],
     "scoring.model": [["Modelo de puntaje", "Scoring model"], ["Precisión da puntos según qué tan cerca estuvo tu jugada; por niveles da puntos fijos por categoría.", "Precision scores how close your move was; tiers gives fixed points per category."]],
     "scoring.strictness": [["Exigencia", "Strictness"], ["Qué tanto castiga alejarse de la mejor jugada.", "How harshly moving away from the best move is punished."]],
@@ -240,6 +243,7 @@
     "a11y.textScale": [["Tamaño del texto", "Text size"], ["Agranda el texto de toda la app.", "Makes all text in the app larger."]],
     "a11y.contrast": [["Contraste", "Contrast"], ["Refuerza bordes y colores para leer mejor.", "Strengthens borders and colors for easier reading."]],
     "a11y.motion": [["Movimiento", "Motion"], ["Reducir quita animaciones y transiciones.", "Reduce removes animations and transitions."]],
+    "a11y.shortcuts": [["Atajos de teclado", "Keyboard shortcuts"], ["Las letras H, N, E, B y M funcionan en la pantalla de juego. Apagalas si escribís por voz o las pulsás sin querer.", "The letters H, N, E, B and M work on the play screen. Turn them off if you use speech input or press them by accident."]],
   };
 
   const OPTION_TEXT = {
@@ -248,6 +252,7 @@
       forest: ["Bosque", "Forest"], slate: ["Pizarra", "Slate"], contrast: ["Alto contraste", "High contrast"],
     },
     "board.animation": { auto: ["Automática", "Automatic"], on: ["Activada", "On"], off: ["Desactivada", "Off"] },
+    "board.confirmMove": { off: ["No", "No"], touch: ["Con el dedo", "With a finger"], always: ["Siempre", "Always"] },
     "notation.style": { auto: ["Según el idioma", "Follow the language"], english: ["Inglesas (K Q R B N)", "English (K Q R B N)"], spanish: ["Españolas (R D T A C)", "Spanish (R D T A C)"] },
     "clock.mode": { timed: ["Con tiempo", "Timed"], untimed: ["Sin tiempo", "Untimed"] },
     "engine.strength": {

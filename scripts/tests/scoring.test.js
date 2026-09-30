@@ -474,30 +474,82 @@ test("bestMode masters: the master's move counts as best within 3%, only when it
 
 // ---------- mate rules ----------
 
-test("mate: missing a forced mate is blunder-class with reason missed_mate", () => {
+test("mate: missing a forced mate costs a fixed amount on top of the win% given up; a blunder only when the win is thrown away (COR-011)", () => {
+  // A move that throws the win away is still a blunder with reason missed_mate (under 2 points, like any blunder).
   ["standard", "relaxed", "strict"].forEach((strictness) => {
-    [50, 300, 900, -200].forEach((user) => {
+    [50, 150, -200].forEach((user) => {
       const r = score(mate(3), user, { settings: { strictness } });
       assert.strictEqual(r.reason, "missed_mate", `${strictness} ${user}`);
-      assert.strictEqual(r.qualityCode, "blunder");
-      assert.ok(r.points <= 1, `${strictness} ${user}: ${r.points}`);
+      assert.strictEqual(r.qualityCode, "blunder", `${strictness} ${user}`);
+      assert.ok(r.points <= 2, `${strictness} ${user}: ${r.points}`);
       assert.ok(r.cpLoss >= 1200);
       assert.strictEqual(r.isBest, false);
+      assert.strictEqual(r.keptWin, false, "the move is not winning any more");
     });
   });
-  // Even a tiny cp gap to the alternative does not rescue it.
-  const nearlyWinning = score(mate(2), 950);
-  assert.strictEqual(nearlyWinning.reason, "missed_mate");
-  assert.ok(nearlyWinning.points <= 1);
+  // A move that keeps the win is far from hanging the queen, but it never scores as if nothing was missed.
+  const longMate = score(mate(6), 950);
+  assert.strictEqual(longMate.reason, "missed_mate");
+  assert.strictEqual(longMate.keptWin, true);
+  assert.strictEqual(longMate.qualityCode, "interesting", "a clean miss of a long mate is an inaccuracy");
+  assert.ok(longMate.points > 4.5 && longMate.points < 6.5, `mate in 6 missed, +9.50 kept: ${longMate.points}`);
+  const shortMate = score(mate(2), 950);
+  assert.strictEqual(shortMate.keptWin, true);
+  assert.strictEqual(shortMate.qualityCode, "dubious", "missing a mate in two costs more than missing a mate in six");
+  assert.ok(shortMate.points > 3 && shortMate.points < longMate.points, `mate in 2 missed: ${shortMate.points}`);
+  assert.ok(shortMate.winLossPct < 4, "the win% the move gives up is small: the deduction is the miss itself");
+  // Nothing is missed when the best is a plain +10: the same move is almost perfect.
+  assert.ok(score(1000, 950).points > 9, "the same +9.50 without a mate to find is nearly perfect");
+  // Monotone: the more of the advantage the move keeps, the more points, for every mate length and strictness.
+  ["standard", "relaxed", "strict"].forEach((strictness) => {
+    [1, 2, 3, 6, 12].forEach((n) => {
+      let previous = -1;
+      for (let user = -800; user <= 2000; user += 25) {
+        const r = score(mate(n), user, { settings: { strictness } });
+        assert.strictEqual(r.reason, "missed_mate");
+        assert.ok(r.points >= previous - 1e-9, `${strictness} M${n} ${user}: ${r.points} after ${previous}`);
+        previous = r.points;
+      }
+    });
+  });
+  // A better move in the lines wins over the miss: only the mating move is best.
+  assert.strictEqual(score(mate(3), 900).isBest, false);
+  // The kept-win flag follows +3.00.
+  assert.strictEqual(score(mate(3), 350).keptWin, true);
+  assert.strictEqual(score(mate(3), 250).keptWin, false);
+  // Labels and explanation: the sentence fits the assessment.
+  assert.ok(Scoring.reasonLabel("missed_mate", "en", shortMate).includes("still winning"));
+  assert.ok(Scoring.reasonLabel("missed_mate", "es", shortMate).includes("sigue ganando"));
+  assert.ok(!Scoring.reasonLabel("missed_mate", "en", score(mate(3), 50)).includes("still winning"));
+  assert.ok(!Scoring.reasonLabel("missed_mate", "en").includes("still winning"), "no assessment: the plain sentence (true in both cases)");
   // Playing the mating move is perfect; another mating move as fast is too.
   const found = assess({ lines: [{ uci: "e2e4", score: mate(2) }, { uci: "d2d4", score: 300 }], userUci: "e2e4" });
   assert.strictEqual(found.reason, "ok");
   assert.strictEqual(found.points, 10);
   assert.strictEqual(found.qualityCode, "great", "the only mating move is a great move");
+  assert.strictEqual(found.keptWin, false);
   const equalMate = assess({ lines: [{ uci: "e2e4", score: mate(1) }, { uci: "d2d4", score: mate(1) }], userUci: "d2d4" });
   assert.strictEqual(equalMate.points, 10);
   assert.strictEqual(equalMate.isBest, true);
   assert.strictEqual(equalMate.onlyMove, false, "two mating moves: neither is the only move");
+});
+
+test("labels: a move that scores 10.0 is always perfect, and the words are one ladder (CNT-014)", () => {
+  // 1.01% loss with a 1% band: the points round to 10.0, so the label must not say "very good".
+  const almost = assess({ lines: [{ uci: "e2e4", score: 0 }, { uci: "d2d4", score: -50 }], userUci: "d2d4", settings: { tolerancePct: 0.5 } });
+  for (let cp = 0; cp <= 40; cp += 1) {
+    const r = score(0, -cp);
+    if (r.points === 10) assert.strictEqual(r.qualityCode, "perfect", `${cp} cp -> ${r.points} ${r.qualityCode}`);
+    if (r.qualityCode === "perfect") assert.strictEqual(r.points, 10, `${cp} cp`);
+  }
+  assert.ok(almost.points < 10);
+  assert.strictEqual(CONSTANTS.PERFECT_E, 0.06);
+  // One ladder, worst to best.
+  const ladder = ["blunder", "bad", "dubious", "interesting", "good", "very_good", "perfect"];
+  const words = { es: ["Error grave", "Error", "Dudosa", "Imprecisa", "Buena", "Muy buena", "Perfecta"], en: ["Serious mistake", "Mistake", "Dubious", "Inaccuracy", "Good", "Very good", "Perfect"] };
+  ["es", "en"].forEach((lang) => ladder.forEach((code, i) => assert.strictEqual(Scoring.qualityLabel(code, lang), words[lang][i], `${lang} ${code}`)));
+  assert.strictEqual(new Set(words.en).size, 7);
+  assert.ok(ladder.every((code) => !/interest|interes/i.test(Scoring.qualityLabel(code, "en")) && !/interes/i.test(Scoring.qualityLabel(code, "es"))), "no positive word for a clear loss");
 });
 
 test("mate: allowing a mate is blunder-class with reason allows_mate", () => {
@@ -859,7 +911,9 @@ test("fuzz: invariants hold for random inputs (seeded)", () => {
     assert.ok(Number.isFinite(r.bestScore) && r.bestUci === lines[0].uci, label);
     if (input.hintsUsed === 3) assert.strictEqual(r.points, 0, label);
     if (r.qualityCode === "no_move") assert.strictEqual(r.points, 0, label);
-    if (r.reason === "allows_mate" || r.reason === "missed_mate") assert.ok(r.points <= 1 && r.qualityCode === "blunder", label);
+    if (r.reason === "allows_mate") assert.ok(r.points <= 1 && r.qualityCode === "blunder", label);
+    if (r.reason === "missed_mate") assert.ok(r.isBest === false && !["brilliant", "great", "perfect", "very_good"].includes(r.qualityCode) && r.points <= 8, label);
+    if (r.keptWin) assert.ok(r.reason === "missed_mate", label);
     if (r.isBest) assert.ok(r.reason === "ok" && !r.needsEvaluation && r.mateExtraMoves === 0, label);
     if (r.needsEvaluation) assert.strictEqual(r.userScore, null, label);
     if (r.qualityCode === "brilliant" || r.qualityCode === "great") assert.ok(r.isBest && input.hintsUsed === 0 && r.rawPoints === 10, label);
@@ -938,12 +992,12 @@ test("UI text is registered in Spanish and English through Ludus.i18n", () => {
   const env = load({ app: false, scripts: ["js/ludus.js", "js/scoring.js"] });
   const { i18n, Scoring: loaded } = env.Ludus;
   const es = {
-    brilliant: "Brillante", great: "Gran jugada", perfect: "Perfecta", very_good: "Muy buena", good: "Buena", interesting: "Interesante",
-    dubious: "Dudosa", bad: "Mala", blunder: "Error grave", no_move: "Sin jugada",
+    brilliant: "Brillante", great: "Gran jugada", perfect: "Perfecta", very_good: "Muy buena", good: "Buena", interesting: "Imprecisa",
+    dubious: "Dudosa", bad: "Error", blunder: "Error grave", no_move: "Sin jugada",
   };
   const en = {
-    brilliant: "Brilliant", great: "Great move", perfect: "Perfect", very_good: "Very good", good: "Good", interesting: "Interesting",
-    dubious: "Dubious", bad: "Bad", blunder: "Serious mistake", no_move: "No move",
+    brilliant: "Brilliant", great: "Great move", perfect: "Perfect", very_good: "Very good", good: "Good", interesting: "Inaccuracy",
+    dubious: "Dubious", bad: "Mistake", blunder: "Serious mistake", no_move: "No move",
   };
   QUALITY_CODES.forEach((code) => {
     assert.strictEqual(i18n.t(`quality.${code}`, {}, "es"), es[code], `es ${code}`);
@@ -1015,7 +1069,7 @@ function buildDocTables() {
   out.push("`E` is the effective loss (`(win% loss - band) * k`). Points are the precision-model points exactly at the boundary; the cp column is the loss that reaches it from an equal position (0.00).", "");
   out.push("| label | E up to | win% loss up to | about cp loss (from 0.00) | points at the boundary | tiers-model points |");
   out.push("| --- | ---: | ---: | ---: | ---: | ---: |");
-  out.push(`| perfect | 0 | ${DEFAULTS.tolerancePct.toFixed(1)} | ${cpForLoss(DEFAULTS.tolerancePct)} | 10.0 | 10 |`);
+  out.push(`| perfect | ${CONSTANTS.PERFECT_E} | ${(DEFAULTS.tolerancePct + CONSTANTS.PERFECT_E).toFixed(2)} | ${cpForLoss(DEFAULTS.tolerancePct + CONSTANTS.PERFECT_E)} | 10.0 | 10 |`);
   CONSTANTS.LABEL_LIMITS.forEach(([label, limit]) => {
     const winLoss = DEFAULTS.tolerancePct + limit;
     const points = Math.round(accuracyFromLoss(winLoss, {}) / 10 * 10) / 10;
@@ -1031,8 +1085,12 @@ function buildDocTables() {
   mateRow("best is mate in 2, you play it", assess({ lines: mateLines(mate(3)), userUci: "e2e4" }));
   mateRow("best is mate in 2, you play another mate in 2", assess({ lines: [{ uci: "e2e4", score: mate(2) }, { uci: "d2d4", score: mate(2) }], userUci: "d2d4" }));
   [3, 4, 6, 10, 30].forEach((n) => mateRow(`best is mate in 2, you mate in ${n}`, assess({ lines: mateLines(mate(n)), userUci: "d2d4" })));
+  mateRow("best is mate in 2, you play +9.50 (missed mate, still winning)", assess({ lines: mateLines(mate(3)), userUci: "a2a3", userScore: 950 }));
+  mateRow("best is mate in 2, you play +5.00 (missed mate, still winning)", assess({ lines: mateLines(mate(3)), userUci: "a2a3", userScore: 500 }));
   mateRow("best is mate in 2, you play +3.00 (missed mate)", assess({ lines: mateLines(mate(3)), userUci: "g1f3" }));
-  mateRow("best is mate in 2, you play +9.50 (missed mate)", assess({ lines: mateLines(mate(3)), userUci: "a2a3", userScore: 950 }));
+  mateRow("best is mate in 6, you play +9.50 (missed mate, still winning)", assess({ lines: [{ uci: "e2e4", score: mate(6) }, { uci: "d2d4", score: 300 }], userUci: "a2a3", userScore: 950 }));
+  mateRow("best is mate in 6, you play +5.00 (missed mate, still winning)", assess({ lines: [{ uci: "e2e4", score: mate(6) }, { uci: "d2d4", score: 300 }], userUci: "a2a3", userScore: 500 }));
+  mateRow("best is mate in 6, you play +1.00 (the win is gone)", assess({ lines: [{ uci: "e2e4", score: mate(6) }, { uci: "d2d4", score: 300 }], userUci: "a2a3", userScore: 100 }));
   mateRow("best is +0.50, you play a move that gets mated in 2", assess({ lines: [{ uci: "e2e4", score: 50 }, { uci: "d2d4", score: 20 }], userUci: "a2a3", userScore: mate(-2) }));
   mateRow("every move is mated: best is -M5, you allow -M2", assess({ lines: [{ uci: "e2e4", score: mate(-5) }, { uci: "d2d4", score: mate(-2) }], userUci: "d2d4" }));
 

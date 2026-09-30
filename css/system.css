@@ -100,6 +100,28 @@ hr {
 
 body.ui-scroll-lock { overflow: hidden; }
 
+/* ── Boot guards: js/boot.js flags <html> before the first paint ── */
+
+/* A returning visitor never sees the first-visit hero: until the router shows a screen (body[data-screen] is set) the
+   page is the header and a quiet skeleton of the home hub, so nothing flashes and nothing jumps when Home arrives.
+   If the router does show the landing (data-screen="landing") this rule stops applying by itself. */
+html[data-returning] body:not([data-screen]) #landing-screen { display: none; }
+html[data-returning] body:not([data-screen]) .app::before,
+html[data-returning] body:not([data-screen]) .app::after {
+  content: "";
+  display: block;
+  border-radius: var(--radius-2xl);
+  background: linear-gradient(90deg, var(--color-surface-2) 0%, var(--color-surface-3) 50%, var(--color-surface-2) 100%);
+  background-size: 220% 100%;
+  animation: ui-shimmer 1.5s ease-in-out infinite;
+}
+html[data-returning] body:not([data-screen]) .app::before { min-height: 15rem; }
+html[data-returning] body:not([data-screen]) .app::after { min-height: 9rem; }
+
+/* Framed by another page (clickjacking) or a browser too old for the app: everything but the boot notice is hidden. */
+html[data-framed] body > :not(#boot-notice),
+html[data-unsupported] body > :not(#boot-notice) { display: none !important; }
+
 /* Screens are the routed sections of index.html (#screen-home, ...). */
 .screen {
   min-width: 0;
@@ -718,7 +740,14 @@ a.chip:hover,
   color: var(--color-gold);
   box-shadow: inset 0 0 0 1px var(--color-gold-dim);
 }
-.segmented > :focus-visible { outline-offset: -3px; }
+/* The pill clips what is drawn outside it, so the keyboard ring sits INSIDE each segment. The global ring rule
+   (styles.css) reads --focus-ring-offset; a custom property, unlike an outline-offset declaration, cannot lose a
+   specificity fight against that rule (it did, and the ring of the first segment was invisible). The end segments
+   follow the pill's curve so the inner ring does not poke out of the rounded corners. */
+.segmented > * { --focus-ring-offset: -3px; }
+.segmented > :first-child { border-radius: var(--radius-pill) 0 0 var(--radius-pill); }
+.segmented > :last-child { border-radius: 0 var(--radius-pill) var(--radius-pill) 0; }
+.segmented > :only-child { border-radius: var(--radius-pill); }
 
 /* ── Forms ── */
 .field { display: grid; gap: 6px; min-width: 0; }
@@ -1468,7 +1497,9 @@ body:has(.modal-backdrop:not(.is-closing)) .toast-stack:not(:has(.toast-list[rol
 
 /* ── Reduced motion: the OS preference and the in-app setting (data-motion="reduce") ── */
 @media (prefers-reduced-motion: reduce) {
-  .skeleton { animation: none; }
+  .skeleton,
+  html[data-returning] .app::before,
+  html[data-returning] .app::after { animation: none; }
   .spinner { animation: none; border-color: var(--color-gold); }
   .progress-indeterminate .progress-bar { animation: none; width: 100% !important; opacity: 0.5; }
   .btn:active:not(:disabled):not([aria-disabled="true"]) { transform: none; }
@@ -1492,3 +1523,89 @@ html[data-motion="reduce"] a.card:hover,
 html[data-motion="reduce"] button.card:hover,
 html[data-motion="reduce"] .wizard-choice-card:hover,
 html[data-motion="reduce"] .wizard-size-chip:hover { transform: none !important; }
+
+/* ── Forced colours (Windows High Contrast and other forced-colors: active modes) ──
+   The browser drops every author colour, and with it everything that said "selected", "current" or "how full":
+   fills, gold text, the ::after underlines, box-shadow rings. What is left is the ARIA state, which a sighted person
+   cannot see. So each state gets back a mark drawn in SYSTEM colours (Highlight / HighlightText / CanvasText), which the
+   browser keeps: a filled control for "selected", a bar in Highlight for "current", a Highlight fill inside an outlined
+   track for "how full". The selectors of the screens' own classes (coach, museum, settings, account, progress) are
+   listed here on purpose, so one block holds the whole rule and the screen files stay free of mode-specific CSS. The screen files load after this
+   one, so every declaration is !important: this is the one place where that is the right tool (an accessibility mode
+   override that must beat any later state rule). */
+@media (forced-colors: active) {
+  /* Selected / pressed / checked / current: a Highlight fill with its paired text colour. */
+  .segmented > [aria-pressed="true"],
+  .segmented > [aria-checked="true"],
+  .segmented > [aria-selected="true"],
+  .segmented > .is-selected,
+  .chip[aria-pressed="true"],
+  .chip.is-selected,
+  .language-switch-btn[aria-checked="true"]::before,
+  .ld-lang-btn[aria-checked="true"],
+  .wizard-choice-card.is-selected,
+  .wizard-size-chip.is-selected,
+  .settings-nav-btn[aria-current="true"],
+  .progress-switch[aria-pressed="true"],
+  .museum-era-link[aria-current="location"],
+  .account-profile.is-active,
+  .sh-pop-row.is-active,
+  .co-dock-btn[aria-pressed="true"],
+  .co-duel-side.is-active,
+  .co-line.is-selected,
+  .co-line[aria-pressed="true"],
+  .co-tok[aria-current="step"] {
+    forced-color-adjust: none;
+    background-color: Highlight !important;
+    border-color: Highlight !important;
+    color: HighlightText !important;
+  }
+  /* Whatever sits inside a filled control reads in the paired colour (an icon or a count with its own colour would
+     otherwise be forced to the page text colour, on top of the fill). */
+  .segmented > [aria-pressed="true"] *,
+  .segmented > [aria-checked="true"] *,
+  .segmented > [aria-selected="true"] *,
+  .segmented > .is-selected *,
+  .chip[aria-pressed="true"] *,
+  .chip.is-selected *,
+  .ld-lang-btn[aria-checked="true"] *,
+  .wizard-choice-card.is-selected *,
+  .wizard-size-chip.is-selected *,
+  .settings-nav-btn[aria-current="true"] *,
+  .progress-switch[aria-pressed="true"] *,
+  .museum-era-link[aria-current="location"] *,
+  .account-profile.is-active *,
+  .sh-pop-row.is-active *,
+  .co-dock-btn[aria-pressed="true"] *,
+  .co-duel-side.is-active *,
+  .co-line.is-selected *,
+  .co-line[aria-pressed="true"] *,
+  .co-tok[aria-current="step"] * { color: inherit !important; }
+  .language-switch-btn[aria-checked="true"] { forced-color-adjust: none; color: HighlightText !important; }
+
+  /* Current page / tab: the underline (a painted ::after) and the bar on top of a bottom tab come back in Highlight, and
+     the word is bold, so the mark is not a colour alone. */
+  .sh-nav-link.is-active::after,
+  .sh-tab.is-active::before,
+  .tab[aria-selected="true"]::after,
+  .tabs [role="tab"][aria-selected="true"]::after { background-color: Highlight !important; }
+  .sh-nav-link.is-active,
+  .sh-tab.is-active,
+  .tab[aria-selected="true"],
+  .tabs [role="tab"][aria-selected="true"] { font-weight: 800 !important; }
+  .sh-nav-link.is-active::after { height: 3px !important; }
+
+  /* "How full": an outlined track and a Highlight fill. */
+  .progress-track,
+  .co-bar,
+  .sh-xp,
+  .wizard-progress-track { border: 1px solid CanvasText !important; }
+  .progress-track > .progress-bar,
+  .co-bar-fill,
+  .sh-xp-bar,
+  .wizard-progress-bar { background: Highlight !important; }
+  .ring-track,
+  .gauge-track { stroke: GrayText !important; }
+  .ring-arc,
+  .gauge-arc { stroke: Highlight !important; }
+}

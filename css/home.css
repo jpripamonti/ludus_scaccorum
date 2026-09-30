@@ -28,7 +28,7 @@
 .ld-hero-bg {
   /* Declared here (not as a token in styles.css): a url() inside a custom
      property resolves against the stylesheet that USES it, so the path is
-     written relative to css/. WebP first, JPEG for browsers without image-set(). */
+     written relative to css/. JPEG for browsers without image-set() / WebP. */
   --ld-photo: url("../assets/landing/maestro.jpg");
   position: absolute;
   inset: 0;
@@ -39,11 +39,32 @@
     linear-gradient(180deg, rgba(4, 8, 14, 0.62) 0%, rgba(4, 8, 14, 0) 24%),
     var(--ld-photo) 80% 58% / cover no-repeat,
     #0b1118;
-  animation: ld-bg-in 1.8s var(--ease-out) both;
+  /* Short on purpose: the photograph is the largest paint of the page, a long fade delays it. */
+  animation: ld-bg-in 0.8s var(--ease-out) both;
 }
+/* WebP in three sizes, picked by screen density (image-set resolution descriptors) and, through the media query,
+   by layout: a phone shows the picture at 72% of its height, a desktop covers the whole hero. The 2816 px original
+   is only for 2x/3x screens (it decodes to ~17 MB). js/boot.js preloads exactly these candidates (same media
+   queries, same descriptors) for first-time visitors, so keep the two lists in step. */
 @supports (background-image: image-set(url("../assets/landing/maestro.webp") type("image/webp"))) {
   .ld-hero-bg {
-    --ld-photo: image-set(url("../assets/landing/maestro.webp") type("image/webp"), url("../assets/landing/maestro.jpg") type("image/jpeg"));
+    --ld-photo: image-set(
+      url("../assets/landing/maestro-2000.webp") type("image/webp") 1x,
+      url("../assets/landing/maestro.webp") type("image/webp") 2x,
+      url("../assets/landing/maestro.jpg") type("image/jpeg") 1x
+    );
+  }
+}
+@media (max-width: 899px) {
+  @supports (background-image: image-set(url("../assets/landing/maestro.webp") type("image/webp"))) {
+    .ld-hero-bg {
+      --ld-photo: image-set(
+        url("../assets/landing/maestro-1280.webp") type("image/webp") 1x,
+        url("../assets/landing/maestro-2000.webp") type("image/webp") 2x,
+        url("../assets/landing/maestro.webp") type("image/webp") 3x,
+        url("../assets/landing/maestro.jpg") type("image/jpeg") 1x
+      );
+    }
   }
 }
 

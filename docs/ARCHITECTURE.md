@@ -142,7 +142,7 @@ to `Ludus.i18n.t(key)`. `app.js`'s `setLanguage()` calls
 `profile:changed {profileId}` · `session:started {session}` ·
 `round:completed {round}` · `session:completed {session}` ·
 `notebook:changed {count, due}` · `achievement:unlocked {achievement}` ·
-`auth:changed {status}`
+`auth:changed {status}` · `storage:failed {reason, key, at}` (once per page load, see section 11)
 
 ## 5. Chess primitives
 
@@ -363,6 +363,27 @@ XP: `round(points × 10)` per position + streak/daily bonuses. Levels are
 chess-themed (`Peón → Caballo → Alfil → Torre → Dama → Rey → Gran Maestro` with
 sub-levels), thresholds in code, titles registered via i18n.
 
+QA fixes (F6, authoritative over the text above):
+
+- **Hints are not passes.** A review (a round of source `notebook`, or `notebook.grade(id, acc, now, { hintsUsed })`) that used ANY hint
+  (`hintsUsed >= 1`) does not advance or clear the card: it is graded as a failed review (box 1, due tomorrow). The achievements that say "you found
+  it" (`first_perfect`, `only_move`, `sacrifice`, `mate_found`, `hot_streak`) only count rounds with `hintsUsed === 0`; their descriptions say
+  "sin pistas / without hints".
+- **Played is not solved.** A round that was skipped, timed out or closed by the last hint (`qualityCode "no_move"`, `timedOut`, `hintsUsed 3`) counts
+  as a position PLAYED (`stats().totalPositions`, unchanged) but not SOLVED: `stats().solvedPositions` (new) is what `first_round`, `positions_100` and
+  `positions_500` measure, such a round does not count as a source for `explorer`, and a classic session whose `byQuality` says every position was
+  `no_move` is not a completed classic (`first_classic`, `classics_10`). Rounds older than the 600-round window cannot be told apart in the XP ledger
+  and stay counted as solved.
+- **Named profiles are never redirected.** `recordRound`, `recordSession` (also a duel whose `profileIds` are all gone), `notebook.add` and
+  `daily.complete` with a `profileId` that is not in the index return `false` / `null` with `lastError() === "unknown-profile"` (text: `Profile.errorKey`);
+  nothing is written and no "Player" is created. An omitted `profileId` (`undefined`, `null`, `""`) still means the active profile.
+- **Storage health.** `Profile.storageStatus()` -> `{ ok, available, reason: "" | "blocked" | "quota", failures, unsavedRounds, unsavedSessions,
+  lastFailureAt, lastFailureKey, recovered }` (`available` = `Ludus.storage.available`, so false when site data is blocked from the start; `ok` is about the
+  last write; the counters are since the page loaded). The first failed operation of a page load (and `attach()` when storage is unusable from the
+  start) emits ONE bus event `storage:failed` `{ reason, key, at }`; a screen that mounts later reads `storageStatus()`. `recordRound` / `recordSession`
+  keep returning `false` with `lastError() === "storage"`, which is how the game core knows a round was not saved. Nothing ever throws.
+- The default profile name is `Participante` / `Player` (neutral; existing profiles keep the name they were created with).
+
 ## 12. Facts, reader, audio
 
 * `Facts.all() / byCategory(cat) / pick({exclude, category, lang}) / timeline()`.
@@ -397,6 +418,30 @@ for display only and is never treated as proof of identity by us: the Drive
 appdata scope is what actually authorises access to the data. See
 `docs/GOOGLE_SIGNIN.md` for the one-time setup the site owner must do.
 
+**First link is an explicit step (QA fix SEC-005 / SEC-006 / SEC-016, authoritative over the text above).** Signing in links nothing, uploads nothing
+and downloads nothing: `signIn()` resolves `{ ok, user, linkRequired }`, and `Auth.state()` gained `linkedProfiles: [{ id, name }]` (the local profiles
+linked to the signed-in account, normally one: an account has ONE cloud profile) and `linkRequired` (a user is known and none is linked). Until a profile
+is linked `syncNow()` answers `{ ok: false, error: "link-required" }` (not an error status, no network) and no automatic sync is scheduled. A profile
+linked by an earlier version or session keeps syncing right after the sign-in without asking again. The account UI drives the choice:
+
+- `Auth.remoteSummary()` -> `{ ok, exists, profiles: [{ id, name, rounds, sessions, notebook, xp, updatedAt }] }`: a read-only look at what this account's
+  Drive already holds (only entries linked to this account), to say "Drive already has progress for 'Ana' (120 positions)" before asking. Names are plain
+  data: escape them.
+- `Auth.linkProfile(profileId)` -> "save THIS local profile to my Drive": links it (`Profile.setGoogleSub`) and runs the first sync (merge with what the Drive
+  holds + upload). Resolves `{ ok, linked: true, profileId, imported, uploaded, created }`; when the link was made but the sync could not run (session to
+  reconnect) it is `{ ok: false, error, linked: true }` and the sync runs after the next sign-in. Failures: `not-signed-in`, `profile-not-found`,
+  `linked-elsewhere` (the profile belongs to another Google account; never taken over silently), `already-linked` (`profileId` = the profile already
+  linked: one per account, call `unlinkProfile` first), `link-failed` (the store refused, e.g. storage full), `profile-unavailable`.
+- `Auth.unlinkProfile(profileId)` -> `{ ok, profileId }`: stops syncing it (the local profile and the Drive copy stay as they are).
+- `Auth.importFromDrive()` -> "bring my Drive progress to this device" (first sign-in on a second device): downloads the account's profile and imports it
+  (it arrives linked), uploads nothing, resolves like `syncNow()` (`empty: true` when the Drive has nothing for this account); a device that already holds
+  `Profile.constants.MAX_PROFILES` profiles answers `{ ok: false, error: "import-failed", detail: "limit" }`. With a profile already linked it is a plain sync.
+
+Sync itself only imports entries of the downloaded document whose `googleSub` is the signed-in account (other or missing `googleSub` are dropped, and dropped
+from the file when it is rewritten), and refuses a document with more than `Auth.constants.MAX_REMOTE_PROFILES` (16) entries as `bad-remote` (size was
+already capped by `Profile.constants.MAX_IMPORT_CHARS`). Error texts added: `auth.error.link-required|linked-elsewhere|already-linked|link-failed|profile-not-found`.
+With no `googleClientId` the module removes a stale `ludus.auth.v1` hint the first time it is asked anything.
+
 ## 14. Classics (`js/classics.js` + `js/data/classics.data.js`)
 
 `scripts/build-classics.js` reads `data/classics/*.pgn` + `data/classics/notes.json`,
@@ -406,6 +451,15 @@ and writes `js/data/classics.data.js` (`Ludus.ClassicsData = { v, engine, games:
 `Ludus.Classics`: `load()` (lazy `loadScript`), `list()`, `get(id)`,
 `positions(gameId, {count, side, maxDifficulty})` → `Position[]` (each with
 `reference.lines`), `daily(dateKey)` → deterministic Position, `random(count, {exclude})`.
+
+Addendum (QA pass, backward compatible; details in `docs/CLASSICS_DATA.md`, "Display names, events and
+quoted moves"): the data also carries `names` and `events`, tables keyed by the raw PGN tag with the
+`{es, en}` display form of each person and event (`white`/`black`/`event` stay the raw, stable tags).
+`Classics.displayName(raw, lang)` and `Classics.displayEvent(raw, lang)` read them (unknown input comes
+back unchanged), `Classics.list()` items carry `display: {white, black, event}`, and
+`Classics.localizeQuotedMoves(text, textLang)` re-spells the moves quoted inside a blurb or note for the
+notation setting (`Ludus.chess.localizeSan`). The Spanish texts quote moves with Spanish piece letters
+(R D T A C), the English ones with K Q R B N. Dates are year-only unless confirmed.
 
 ## 15. Screens (`js/ui/*.js`)
 

@@ -50,8 +50,10 @@
   const CURVE_SCALE = 1.8;
 
   // Label thresholds, in E units (effective loss, strictness already applied):
-  // E == 0 perfect; <= 2 very_good; <= 4.5 good; <= 8 interesting; <= 12
-  // dubious; <= 19 bad; above that blunder.
+  // E <= PERFECT_E perfect; <= 2 very_good; <= 4.5 good; <= 8 interesting (shown
+  // as "Inaccuracy"); <= 12 dubious; <= 19 bad (shown as "Mistake"); above that
+  // blunder ("Serious mistake"). The codes are stable ids stored in profiles;
+  // only the words the person reads were made one ladder (CNT-014).
   const LABEL_LIMITS = Object.freeze([
     ["very_good", 2],
     ["good", 4.5],
@@ -64,11 +66,26 @@
     brilliant: 10, great: 10, perfect: 10, very_good: 7.5, good: 5, interesting: 2.5, dubious: 0, bad: 0, blunder: 0,
   });
 
-  const ONLY_MOVE_GAP_PCT = 12; // best beats the second line by this many win% -> "only move"
+  const ONLY_MOVE_GAP_PCT = 12; // best beats EVERY other line by this many win% -> "only move" (others clearly worse)
   const MASTER_TOLERANCE_PCT = 3; // bestMode "masters": the master's move counts within this loss
   const UNKNOWN_MOVE_MARGIN_PCT = 8; // move not in the lines and no userScore: worst line minus this
   const UNKNOWN_MOVE_MARGIN_CP = 80;
-  const MATE_BLUNDER_MAX_ACCURACY = 10; // missing / allowing a mate never scores above 1.0 point
+  // Effective loss E that still rounds to 10.0 points (accuracy >= 99.5): a move
+  // that scores 10.0 is always "perfect", whatever the tolerance band says.
+  const PERFECT_E = 0.06;
+  const MATE_BLUNDER_MAX_ACCURACY = 10; // ALLOWING a mate never scores above 1.0 point
+  // MISSING a forced mate (COR-011). The win% curve saturates at +-10 pawns, so a
+  // move that keeps +9.5 loses almost nothing next to a mate and would score 9;
+  // the miss itself therefore costs a fixed effective loss on top of the win%
+  // the move gave up: 8 when the mate was in one or two (looking for checks is
+  // the first habit), 6 for a longer one. A clean miss that keeps the win lands
+  // on "inaccuracy" (about 5 to 6 points); the more of the win the move throws
+  // away, the further down the ladder, and it is a blunder only when the move
+  // really loses the win. `keptWin` says whether the move is still winning.
+  const MISSED_MATE_E_SHORT = 8;
+  const MISSED_MATE_E_LONG = 6;
+  const MISSED_MATE_SHORT_MOVES = 2;
+  const KEPT_WIN_PCT = 75; // win% (about +3.00) from which a move "still wins"
   const MATE_SLOWER_STEP_E = 0.75; // effective loss per extra move of a slower (still winning) mate
   const MATE_SLOWER_CAP_E = 6; // ...capped, so a slower mate is never worse than "interesting"
   const MAX_CP_LOSS = 2500;
@@ -299,7 +316,7 @@
   }
 
   function labelForEffectiveLoss(effectiveLoss) {
-    if (effectiveLoss <= EPS) return "perfect";
+    if (effectiveLoss <= PERFECT_E) return "perfect";
     for (let i = 0; i < LABEL_LIMITS.length; i += 1) {
       if (effectiveLoss <= LABEL_LIMITS[i][1]) return LABEL_LIMITS[i][0];
     }
@@ -365,6 +382,7 @@
       needsEvaluation: false,
       isMasterMove: false,
       mateExtraMoves: 0,
+      keptWin: false,
       hintCost: 0,
     };
   }
@@ -412,12 +430,13 @@
     const bestDecoded = bestLine ? decodeScore(bestLine.score) : null;
     const bestMateWin = Boolean(bestDecoded && bestDecoded.kind === "mate" && bestDecoded.mateMoves > 0);
     if (bestLine && second) {
-      const secondDecoded = decodeScore(second.score);
-      const secondMateWin = Boolean(secondDecoded && secondDecoded.kind === "mate" && secondDecoded.mateMoves > 0);
       result.gapToSecondPct = round2(bestWin - winPercent(second.score));
-      // Finding the only mating move is an only move even when the runner-up
-      // is also "winning" on paper.
-      result.onlyMove = result.gapToSecondPct >= ONLY_MOVE_GAP_PCT || (bestMateWin && !secondMateWin);
+      // "Only move" = EVERY other line (second is the best of them) gives up at
+      // least ONLY_MOVE_GAP_PCT of the win chance. It used to count the only
+      // mating move too when the runner-up was "not a mate", but a runner-up that
+      // keeps +9 is not materially worse, and "the others were clearly worse"
+      // was then false (CNT-004).
+      result.onlyMove = result.gapToSecondPct >= ONLY_MOVE_GAP_PCT;
     }
 
     // No move, timeout, skip: nothing to measure.
@@ -488,23 +507,26 @@
     }
     result.reason = reason;
     result.mateExtraMoves = mateExtra;
-    const mateBlunder = reason === "allows_mate" || reason === "missed_mate";
+    const allowsMate = reason === "allows_mate";
+    const missedMate = reason === "missed_mate";
+    result.keptWin = missedMate && userWin >= KEPT_WIN_PCT;
 
     // Best or equivalent?
     const band = bandFor(settings, result.isMasterMove);
     const inBand = loss <= band + EPS;
-    result.isBest = !provisional && !mateBlunder && mateExtra === 0 && inBand;
+    result.isBest = !provisional && !allowsMate && !missedMate && mateExtra === 0 && inBand;
 
     // Effective loss and accuracy.
     const excess = Math.max(0, loss - band);
     let effective = excess * k;
     if (mateExtra > 0) effective += k * Math.min(MATE_SLOWER_CAP_E, MATE_SLOWER_STEP_E * mateExtra);
+    if (missedMate) effective += k * (bestDecoded.mateMoves <= MISSED_MATE_SHORT_MOVES ? MISSED_MATE_E_SHORT : MISSED_MATE_E_LONG);
     let accuracy = curve(effective);
-    if (mateBlunder) accuracy = Math.min(accuracy, MATE_BLUNDER_MAX_ACCURACY);
+    if (allowsMate) accuracy = Math.min(accuracy, MATE_BLUNDER_MAX_ACCURACY);
     result.accuracy = round1(accuracy);
 
     // Label.
-    let quality = mateBlunder ? "blunder" : labelForEffectiveLoss(effective);
+    let quality = allowsMate ? "blunder" : labelForEffectiveLoss(effective);
     if (result.isBest && effective <= EPS && hintsUsed === 0) {
       if (isSacrifice) quality = "brilliant";
       else if (result.onlyMove) quality = "great";
@@ -567,13 +589,14 @@
       "quality.perfect": "Perfecta",
       "quality.very_good": "Muy buena",
       "quality.good": "Buena",
-      "quality.interesting": "Interesante",
+      "quality.interesting": "Imprecisa",
       "quality.dubious": "Dudosa",
-      "quality.bad": "Mala",
+      "quality.bad": "Error",
       "quality.blunder": "Error grave",
       "quality.no_move": "Sin jugada",
       "scoring.reason.allows_mate": "Esta jugada permite un mate.",
       "scoring.reason.missed_mate": "Había un mate forzado y no lo jugaste.",
+      "scoring.reason.missed_mate.kept": "Había un mate forzado y no lo jugaste, aunque tu jugada sigue ganando. Un mate perdido cuesta puntos igual.",
       "scoring.reason.timeout": "Se acabó el tiempo.",
       "scoring.reason.skip": "Salteaste esta posición.",
       "scoring.reason.no_move": "No elegiste ninguna jugada.",
@@ -587,13 +610,14 @@
       "quality.perfect": "Perfect",
       "quality.very_good": "Very good",
       "quality.good": "Good",
-      "quality.interesting": "Interesting",
+      "quality.interesting": "Inaccuracy",
       "quality.dubious": "Dubious",
-      "quality.bad": "Bad",
+      "quality.bad": "Mistake",
       "quality.blunder": "Serious mistake",
       "quality.no_move": "No move",
       "scoring.reason.allows_mate": "This move allows a checkmate.",
       "scoring.reason.missed_mate": "There was a forced mate and you missed it.",
+      "scoring.reason.missed_mate.kept": "There was a forced mate and you missed it, although your move is still winning. A missed mate still costs points.",
       "scoring.reason.timeout": "Time ran out.",
       "scoring.reason.skip": "You skipped this position.",
       "scoring.reason.no_move": "No move was chosen.",
@@ -628,10 +652,15 @@
   }
 
   // A one-sentence explanation for the assessment's reason, "" when there is
-  // nothing special to say.
-  function reasonLabel(reason, lang) {
+  // nothing special to say. Pass the assessment as the third argument to get the
+  // sentence that fits it: a missed mate after which the move is still winning
+  // (`keptWin`) says so instead of sounding like a lost game.
+  function reasonLabel(reason, lang, assessment) {
     const known = ["allows_mate", "missed_mate", "timeout", "skip", "no_move"];
-    return known.includes(reason) ? text(`scoring.reason.${reason}`, {}, lang) : "";
+    if (!known.includes(reason)) return "";
+    const key = reason === "missed_mate" && assessment && assessment.keptWin === true
+      ? "scoring.reason.missed_mate.kept" : `scoring.reason.${reason}`;
+    return text(key, {}, lang);
   }
 
   const CONSTANTS = Object.freeze({
@@ -649,6 +678,11 @@
     UNKNOWN_MOVE_MARGIN_PCT,
     UNKNOWN_MOVE_MARGIN_CP,
     MATE_BLUNDER_MAX_ACCURACY,
+    PERFECT_E,
+    MISSED_MATE_E_SHORT,
+    MISSED_MATE_E_LONG,
+    MISSED_MATE_SHORT_MOVES,
+    KEPT_WIN_PCT,
     MATE_SLOWER_STEP_E,
     MATE_SLOWER_CAP_E,
     MAX_CP_LOSS,

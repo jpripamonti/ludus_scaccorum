@@ -64,6 +64,9 @@ const wizardStepErrorEl = document.getElementById("wizard-step-error");
 const wizardSourceErrorEl = document.getElementById("wizard-source-error");
 const wizardSourceCtaEl = document.getElementById("wizard-source-cta");
 const wizardRetryUserBtn = document.getElementById("wizard-retry-user-btn");
+const wizardRetryDownloadBtn = document.getElementById("wizard-retry-download-btn");
+const analysisElapsedEl = document.getElementById("analysis-elapsed");
+const analysisCancelBtn = document.getElementById("analysis-cancel-btn");
 const wizardSwitchPlatformBtn = document.getElementById("wizard-switch-platform-btn");
 const wizardClearCacheBtn = document.getElementById("wizard-clear-cache-btn");
 const wizardClearCacheStatusEl = document.getElementById("wizard-clear-cache-status");
@@ -90,6 +93,12 @@ const positionSearchFactsEl = document.getElementById("position-search-facts");
 const analysisFactsEl = document.getElementById("analysis-facts");
 const hintBtn = document.getElementById("hint-btn");
 const hintBtnLabelEl = document.getElementById("hint-btn-label");
+// The hints and the two-tap confirmations speak through a live region of their own: the clock's
+// one is overwritten by its own milestones (60, 30, 10 s), which could swallow a hint.
+const hintAnnounceEl = document.getElementById("hint-announce");
+const confirmMoveBtn = document.getElementById("confirm-move-btn");
+const confirmMoveLabelEl = document.getElementById("confirm-move-label");
+const skipBtnLabelEl = document.getElementById("skip-btn-label");
 // The play header, the turn strip and the coach panel (index.html, css/coach.css).
 const sessionDotsEl = document.getElementById("session-dots");
 const playScoreEl = document.getElementById("play-score");
@@ -199,7 +208,27 @@ const RECENT_FACTS_MAX = 12;
 const OVERLAY_FACTS_DELAY_MS = 900;
 const MISTAKE_SEARCH_TIME_BUDGET_MS = 25000;
 const MISTAKE_SEARCH_CANDIDATE_BUDGET = 400;
-const CLOCK_TICK_MS = 100;
+// The round clock wakes once per displayed second (just after the digits change), not ten
+// times a second, and sleeps while the page is hidden (see scheduleClockTick).
+const CLOCK_TICK_MARGIN_MS = 4;
+// A second tap within this window is the same tap (a double click is not a second hint), and
+// a destructive action (skip, reveal) is armed by a first tap and done by a second one within
+// the confirmation window.
+const HINT_TAP_GAP_MS = 450;
+const CONFIRM_TAP_WINDOW_MS = 4000;
+// Lichess asks clients to pause a full minute after a 429.
+const RATE_LIMIT_PAUSE_MS = 60000;
+// The strong engine: the download has no wall-clock limit, only a stall limit (no byte for this
+// long); a session that answers before it is up waits while bytes keep arriving, up to a ceiling.
+const ENGINE_DOWNLOAD_STALL_MS = 12000;
+const ENGINE_WAIT_CEILING_MS = 75000;
+const ENGINE_FILE_URL = "vendor/stockfish-18-lite-single.wasm";
+// What a first-ever session gets: no clock (the instructions come first), see firstRunUntimed().
+const FIRST_RUN_STORAGE_KEY = "ludus.firstRun.v1";
+// The last username typed per provider, kept in this browser only (forgotten with the saved games).
+const LAST_USER_STORAGE_KEY = "ludus.lastUser.v1";
+// A session in progress, kept for this tab only (sessionStorage): a reload offers to go on.
+const SESSION_PROGRESS_STORAGE_KEY = "ludus.sessionProgress.v1";
 const LANGUAGE_STORAGE_KEY = "ludus.language";
 // First-visit flag: the landing page is only for someone who has never been here.
 const SEEN_STORAGE_KEY = "ludus.seen.v1";
@@ -273,7 +302,8 @@ const TRANSLATIONS = {
     "play.key.master": "Maestro",
     "buttons.cancelSearch": "Cancelar búsqueda",
     "confirm.restartTitle": "¿Volver al inicio?",
-    "confirm.restartToSetup": "Si volvés al inicio se borran las posiciones de esta sesión y el puntaje acumulado. ¿Volver igual?",
+    "confirm.restartToSetup": "Lo que respondiste hasta ahora ({answered}) queda guardado en tu progreso y en tu cuaderno, pero no vas a ver el resumen de esta sesión. ¿Volver al inicio igual?",
+    "confirm.restartToSetup.none": "Todavía no respondiste ninguna posición, así que no se pierde nada. ¿Volver al inicio?",
     "confirm.restartAccept": "Volver al inicio",
     "confirm.restartCancel": "Seguir jugando",
     "wizard.title": "Configuración guiada",
@@ -309,21 +339,23 @@ const TRANSLATIONS = {
     "wizard.step3.timerAriaLabel": "Tiempo por ronda",
     "wizard.step3.timerCustom": "Personalizado (5 a 360 segundos)",
     "wizard.step3.sessionSummary": "Resumen de la sesión",
-    "wizard.step3.analysisPrompt": "Tocá “Comenzar sesión” para buscar errores.",
+    "wizard.step3.analysisPrompt": "Tocá “Comenzar sesión”. Descargamos tus partidas y buscamos tus errores: puede tardar hasta un minuto.",
+    "wizard.step3.clockNote": "Este tiempo vale solo para esta sesión. Tu reloj de siempre se cambia en Ajustes.",
+    "wizard.step3.noLimit": "Sin tiempo",
+    "wizard.step3.noLimitHint": "Pensás sin reloj en esta sesión.",
+    "wizard.step3.timerShort": "Con menos de 30 segundos casi no alcanza para pensar.",
     "wizard.validation.chooseMode": "Elegí si querés jugar solo/a o contra alguien.",
     "wizard.validation.fillDuelNames": "Completá ambos nombres para el duelo.",
     "wizard.validation.duelNameMax": "Los nombres del duelo pueden tener hasta 20 caracteres.",
     "wizard.validation.choosePlatform": "Elegí Lichess o Chess.com.",
     "wizard.validation.enterUsername": "Ingresá tu nombre de usuario para continuar.",
-    "wizard.validation.invalidUsername": "El usuario debe tener 3 a 30 caracteres (letras, números, _ o -).",
+    "wizard.validation.invalidUsername": "El usuario de {provider} tiene de {min} a {max} caracteres: letras, números, _ o -.",
     "wizard.validation.chooseCount": "Elegí una cantidad entre 1 y 200 posiciones.",
     "wizard.validation.ready": "Configuración lista para comenzar la sesión.",
     "wizard.status.currentStep": "Configurá el paso actual para continuar.",
     "wizard.status.answerQuestions": "Respondé las preguntas para preparar tu sesión.",
     "wizard.status.nextSession": "Configurá tu próxima sesión paso a paso.",
     "wizard.status.modeSourceOptions": "Configurá modo, fuente y opciones de análisis.",
-    "wizard.status.nextStep": "Perfecto. Seguimos con el siguiente paso.",
-    "wizard.status.sourceStep": "Perfecto. Seguimos con la fuente de partidas.",
     "compat.gameFormat.solo": "Modo estudio (1 jugador)",
     "compat.gameFormat.duel": "Modo duelo (2 jugadores)",
     "players.default1": "Jugador 1",
@@ -374,25 +406,50 @@ const TRANSLATIONS = {
     "piece.blackRook": "torre negra",
     "piece.blackQueen": "dama negra",
     "piece.blackKing": "rey negro",
+    "piece.def.whitePawn": "el peón blanco",
+    "piece.def.whiteKnight": "el caballo blanco",
+    "piece.def.whiteBishop": "el alfil blanco",
+    "piece.def.whiteRook": "la torre blanca",
+    "piece.def.whiteQueen": "la dama blanca",
+    "piece.def.whiteKing": "el rey blanco",
+    "piece.def.blackPawn": "el peón negro",
+    "piece.def.blackKnight": "el caballo negro",
+    "piece.def.blackBishop": "el alfil negro",
+    "piece.def.blackRook": "la torre negra",
+    "piece.def.blackQueen": "la dama negra",
+    "piece.def.blackKing": "el rey negro",
     "promotion.chooseTitle": "Elegí a qué pieza coronar",
-    "common.sourceError": "No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma.",
-    "common.sourceErrorWithDetail": "No pudimos obtener partidas de ese usuario. Revisá el nombre o cambiá de plataforma. ({error})",
-    "network.timeout": "La conexión tardó demasiado. Probá de nuevo en unos segundos.",
-    "network.failed": "No se pudo conectar con el proveedor. Probá de nuevo o usá la última base guardada si existe.",
-    "network.rateLimited": "El proveedor limitó las consultas. Esperá un momento antes de reintentar.",
-    "network.responseTooLarge": "La respuesta del proveedor es demasiado grande y fue rechazada por seguridad. Probá de nuevo más tarde.",
-    "network.cancelled": "Descarga cancelada.",
-    "privacy.remoteFetchConfirm": "Vamos a pedirle a {provider} las partidas públicas de {user}. El pedido sale desde tu navegador directamente hacia ese sitio: esta app no tiene servidor propio. Vamos a guardar en este navegador el texto de esas partidas, tu nombre de usuario y algunos datos de cada partida (resultado, fecha) durante hasta 7 días, para no tener que volver a descargarlos la próxima vez; podés borrarlos cuando quieras con “Borrar datos guardados de partidas”. En una computadora compartida, cualquier otra persona que use este navegador podría ver esos datos durante esos 7 días. ¿Continuar?",
-    "privacy.remoteFetchCancelled": "Consulta cancelada. No se enviaron datos al proveedor.",
+    "common.sourceError": "No pudimos traer las partidas. Probá de nuevo en un rato.",
+    "network.responseTooLarge": "La respuesta de {provider} es demasiado grande y la rechazamos por seguridad. Probá de nuevo más tarde.",
+    "download.error.notFound": "No encontramos a {user} en {provider}. Revisá cómo está escrito el usuario o probá con la otra plataforma.",
+    "download.error.noGames": "{user} no tiene partidas públicas de los últimos 12 meses en {provider}. Probá con otro usuario o con la otra plataforma.",
+    "download.error.rateLimited": "{provider} nos pidió ir más despacio. Volvemos a intentar solos en {seconds} {seconds?segundo|segundos}.",
+    "download.error.rateLimitedNow": "{provider} nos pidió ir más despacio. Probá de nuevo en un rato.",
+    "download.error.server": "{provider} no está respondiendo bien ahora (error {status}). Probá de nuevo en unos minutos.",
+    "download.error.offline": "Parece que no tenés conexión. Conectate y probá de nuevo.",
+    "download.error.network": "No pudimos comunicarnos con {provider}. Revisá tu conexión y probá de nuevo.",
+    "download.error.timeout": "{provider} tardó demasiado en responder. Probá de nuevo en un momento.",
+    "download.error.malformed": "No pudimos leer las partidas que mandó {provider}. Probá de nuevo más tarde o con la otra plataforma.",
+    "download.error.unknown": "Algo salió mal al traer las partidas. Probá de nuevo.",
+    "download.error.consentUnavailable": "No pudimos mostrar la confirmación de privacidad, así que no descargamos nada. Recargá la página y probá de nuevo.",
+    "download.retry": "Probar de nuevo",
+    "download.cancel": "Cancelar",
+    "download.elapsed": "Hace {seconds} s que estamos trabajando. Traer un año de partidas puede llevar hasta un minuto.",
+    "download.elapsedLong": "Hace {seconds} s. Sigue en marcha: {provider} a veces tarda. Podés cancelar cuando quieras.",
+    "download.cancelled": "Cancelaste la descarga. No guardamos nada.",
+    "download.cancelledSearch": "Cancelaste la búsqueda.",
+    "download.lastUser": "Usuario recordado en este navegador. Se borra con “Borrar datos guardados de partidas”.",
+    "privacy.remoteFetchConfirm": "Vamos a pedirle a {provider} las partidas públicas de {user}. El pedido sale directo de tu navegador a ese sitio: esta app no tiene servidor propio. Guardamos esas partidas y tu usuario en este navegador hasta 7 días para no descargarlas de nuevo; podés borrarlas con “Borrar datos guardados de partidas”. En una computadora compartida, otra persona podría verlas. ¿Continuar?",
+    "privacy.remoteFetchCancelled": "Consulta cancelada. No se enviaron datos a {provider}.",
     "privacy.remoteFetchTitle": "Consultar partidas públicas",
     "privacy.remoteFetchAccept": "Aceptar",
     "privacy.remoteFetchCancel": "Cancelar",
     "privacy.remoteFetchUsernameLabel": "Volvé a escribir el usuario para confirmar",
     "privacy.remoteFetchUsernameMismatch": "El usuario no coincide. Escribilo exactamente igual para confirmar.",
-    "provider.usingCachedBase": "Usando base guardada de {provider} para {user}: {games} partida(s).",
-    "provider.throttleWait": "Esperá {seconds} segundo(s) antes de descargar partidas de nuevo. Así no sobrecargamos el servicio.",
-    "provider.throttleHourly": "Ya se descargaron partidas {max} veces en la última hora. Probá de nuevo en unos {minutes} minuto(s).",
-    "provider.usingStaleCachedBase": "No pudimos actualizar la base. Usando la última base guardada de {provider} para {user}: {games} partida(s).",
+    "provider.usingCachedBase": "Usamos la base guardada de {provider} para {user}: {games} {games?partida|partidas}.",
+    "provider.throttleWait": "Esperá {seconds} {seconds?segundo|segundos} antes de descargar de nuevo, así no sobrecargamos el servicio.",
+    "provider.throttleHourly": "Ya se descargaron partidas {max} veces en la última hora. Probá de nuevo en unos {minutes} {minutes?minuto|minutos}.",
+    "provider.usingStaleCachedBase": "No pudimos actualizar la base. Usamos la última guardada de {provider} para {user}: {games} {games?partida|partidas}.",
     "time.classical": "Clásico",
     "time.rapid": "Rápido",
     "time.daily": "Diario",
@@ -405,16 +462,19 @@ const TRANSLATIONS = {
     "game.searchingNext": "Buscando próxima posición...",
     "game.positionFound": "Posición encontrada",
     "game.handoff.genericTitle": "Cambio de turno",
-    "game.handoff.genericSubtitle": "Toca para revelar",
+    "game.handoff.genericSubtitle": "Tocá para revelar",
     "game.handoff.title": "Pasale el dispositivo a {player}",
-    "game.handoff.subtitle": "Tocá para ver la posición. La jugada de {other} queda oculta.",
+    "game.handoff.subtitle": "Tocá para ver la posición y empezar tu reloj. La jugada de {other} queda oculta.",
+    "game.ready.title": "{player}, preparate",
+    "game.ready.subtitle": "{other} espera su turno sin mirar. Tu reloj empieza cuando toques la pantalla.",
+    "play.ready.eyebrow": "Posición {current} de {total}",
     "game.positionMeta": "{players} · Resultado {result} · Jugada {move} · Año {year}",
     "game.turnWhite": "Juegan las blancas",
     "game.turnBlack": "Juegan las negras",
     "game.duelHint": "Competitivo local: ambos jugadores reciben exactamente las mismas posiciones y tiempo.",
     "game.soloHint": "Entrenamiento individual con puntaje total acumulado.",
-    "game.studyMode": "Modo estudio",
-    "game.localDuel": "Modo duelo ({a} vs {b})",
+    "game.studyMode": "Solo",
+    "game.localDuel": "Duelo ({a} vs {b})",
     "game.summaryMode": "Modo",
     "game.summaryPlatform": "Plataforma",
     "game.summaryUser": "Usuario",
@@ -431,60 +491,52 @@ const TRANSLATIONS = {
     "game.noMorePositions": "No se encontraron más posiciones.",
     "game.searchCancelled": "Búsqueda cancelada. Podés volver a buscar la próxima posición cuando quieras.",
     "game.sessionHintCitizen": "Objetivo de sesión: {target} posiciones. Detectadas: {detected}.",
-    "game.sessionHintEngineer": "Objetivo de sesión: {target} posiciones. Sistema: {system}. Detectadas por ahora: {detected}. Analizadas: {analyzed}/{total}.",
+    "game.sessionHintEngineer": "Objetivo de sesión: {target} posiciones. Puntaje: {system}. Detectadas por ahora: {detected}. Analizadas: {analyzed}/{total}.",
     "overlay.evaluatingBoth": "Evaluando jugadas de ambos jugadores...",
     "overlay.evaluatingYours": "Evaluando tu jugada...",
     "overlay.difficultyBudget": "Dificultad {label} · {budget}",
     "overlay.progressLabel": "{pct}% · {elapsed}s / {total}s",
     "overlay.searchingNext": "Buscando próxima posición...",
     "analysis.metrics.zero": "Totales: 0 | Analizadas: 0 | Detectadas: 0",
-    "analysis.metrics.engineer": "Posiciones totales: {total} | Posiciones analizadas: {done} | Posiciones detectadas (>= umbral): {detected}",
+    "analysis.metrics.engineer": "Posiciones totales: {total} | Posiciones analizadas: {done} | Posiciones con un error mayor al umbral: {detected}",
     "analysis.progressLabel": "{pct}% ({done}/{total}){extra}",
     "analysis.extra.detectedRepeated": "Posición detectada (repetida)",
     "analysis.extra.evaluatingCandidate": "Evaluando {ordinal}/{total}",
     "analysis.extra.detected": "Posición detectada",
-    "analysis.extra.searchingError": "Buscando error",
+    "analysis.extra.searchingError": "Buscando un error",
     "analysis.extra.finished": "Búsqueda finalizada",
     "analysis.extra.cancelled": "Búsqueda cancelada",
-    "analysis.status.reused": "{prefix}Posición detectada ({count}). Se reutiliza partida por falta de alternativas.",
-    "analysis.status.candidate": "{prefix}Analizando candidata {ordinal}/{total}. Detectadas: {detected}.",
-    "analysis.status.ready": "{prefix}Posición detectada ({count}). Podés jugar.",
-    "analysis.status.continuity": "{prefix}Posición detectada ({count}). Se priorizó continuidad de sesión.",
-    "analysis.status.noFresh": "{prefix}Posición detectada ({count}). No hubo más partidas nuevas en el umbral.",
-    "analysis.status.noMore": "{prefix}No quedan más posiciones en el umbral.",
+    "analysis.status.reused": "Posición detectada ({count}). Se reutiliza una partida por falta de alternativas.",
+    "analysis.status.candidate": "Analizando candidata {ordinal}/{total}. Detectadas: {detected}.",
+    "analysis.status.ready": "Posición detectada ({count}). Podés jugar.",
+    "analysis.status.continuity": "Posición detectada ({count}). Se priorizó seguir con la sesión.",
+    "analysis.status.noFresh": "Posición detectada ({count}). No quedaban partidas nuevas con errores para entrenar.",
+    "analysis.status.noMore": "No quedan más posiciones con errores para entrenar.",
     "analysis.status.prepareBase": "Preparando base online de {provider}...",
     "analysis.status.prepareEngine": "Preparando el motor de análisis...",
     "analysis.status.localEngineNotice": "El motor fuerte todavía no está listo: por ahora se usa el de respaldo, que analiza menos a fondo.",
     "analysis.status.shuffle": "Barajando {games} partidas y buscando primera posición para {player}...",
     "analysis.status.firstReady": "Primera posición detectada. Ya podés jugar.",
-    "analysis.status.error": "Error durante el análisis: {error}",
+    "analysis.status.failed": "Algo salió mal al analizar tus partidas. Probá de nuevo.",
     "analysis.status.roundError": "Error al evaluar la ronda: {error}",
-    "provider.readyToDownload": "Listo para descargar partidas cuando toques “Comenzar sesión”.",
+    "provider.readyToDownload": "Listo. Tocá “Siguiente”: las partidas se descargan recién cuando empieza la sesión.",
     "provider.baseReady": "Base lista para {username}.{warning}",
-    "provider.sourceLoaded": "Fuente: {provider} ({username}) | {games} partida(s) cargadas.{warning}",
+    "provider.sourceLoaded": "Fuente: {provider} ({username}) | {games} {games?partida cargada|partidas cargadas}.{warning}",
     "provider.modeChangedRedownload": "Modo cambiado. La base online se descargará de nuevo al comenzar.",
-    "provider.enterLichessUser": "Ingresá un usuario de Lichess.",
     "provider.enterLichessContinue": "Ingresá un usuario de Lichess para continuar.",
-    "provider.enterChesscomUser": "Ingresá un usuario de Chess.com.",
     "provider.enterChesscomContinue": "Ingresá un usuario de Chess.com para continuar.",
     "provider.protocolLichess": "Protocolo modo normal: se descargan partidas públicas del último año. Primero {preferred}; si no llega a {minSlowGames}, se completa con Blitz y, si aún falta base, con Bullet (no ideal) hasta {maxGames}.",
     "provider.protocolChesscom": "Protocolo modo normal: se descargan partidas públicas del último año desde archivos mensuales. Primero {preferred}; si no llega a {minSlowGames}, se completa con Blitz y, si aún falta base, con Bullet (no ideal) hasta {maxGames}.",
     "provider.downloadingFor": "Descargando para {user}. {protocol}",
-    "provider.searchingUpTo": "Buscando hasta {max} partida(s) de {user}: primero {preferred} (últimos 12 meses)...",
-    "provider.completingBlitz": "Se descargaron {count} partida(s) {preferred}. Completando con Blitz ({remaining} restantes)...",
+    "provider.searchingUpTo": "Buscando hasta {max} {max?partida|partidas} de {user}: primero {preferred} (últimos 12 meses)...",
+    "provider.completingBlitz": "Descargamos {count} {count?partida|partidas} de ritmo {preferred}. Completando con Blitz (faltan {remaining})...",
     "provider.bulletContextStillShort": "{user} no tiene suficientes partidas en {preferred}; tampoco alcanza con Blitz",
     "provider.bulletContextNoBlitz": "{user} no tiene suficientes partidas en {preferred} ni Blitz",
-    "provider.bulletAttempt": "Advertencia: {context}. Intentando completar con Bullet ({remaining} restantes)...",
+    "provider.bulletAttempt": "Advertencia: {context}. Intentando completar con Bullet (faltan {remaining})...",
     "provider.bulletCompleted": "Advertencia: {context}. Completamos con Bullet, pero no es ideal.",
-    "provider.readyBullet": "{warning} Listo: {total} partida(s) de {user}. {slow} en {preferred} + {blitz} Blitz + {bullet} Bullet (fallback).",
-    "provider.readyBlitz": "Listo: {total} partida(s) de {user}. {slow} en {preferred} + {blitz} Blitz (fallback).",
-    "provider.readyPreferred": "Listo: {total} partida(s) de {user} en {preferred}.",
-    "provider.chesscomReadArchiveError": "Chess.com respondió {status} al leer {url}.",
-    "provider.userNotFoundOrPrivate": "Usuario no encontrado o sin partidas públicas.",
-    "provider.lichessResponse": "Lichess respondió {status}",
-    "provider.chesscomResponse": "Chess.com respondió {status}",
-    "provider.noMonthlyArchives": "No hay archivos mensuales públicos en los últimos 12 meses.",
-    "provider.noGamesForFilters": "No se encontraron partidas públicas en los ritmos/filtros elegidos.",
+    "provider.readyBullet": "{warning} Listo: {total} {total?partida|partidas} de {user}: {slow} de ritmo {preferred} + {blitz} de Blitz + {bullet} de Bullet (como complemento).",
+    "provider.readyBlitz": "Listo: {total} {total?partida|partidas} de {user}: {slow} de ritmo {preferred} + {blitz} de Blitz (como complemento).",
+    "provider.readyPreferred": "Listo: {total} {total?partida|partidas} de {user} de ritmo {preferred}.",
     "provider.noPublicValidGames": "No encontramos partidas públicas válidas para ese usuario. Probá otro usuario o plataforma.",
     "provider.playerNotDetected": "No pudimos detectar el jugador en las partidas descargadas. Probá con otro usuario.",
     "provider.noAnalyzablePositions": "No encontramos posiciones analizables para ese usuario. Probá con otro usuario o plataforma.",
@@ -548,24 +600,25 @@ const TRANSLATIONS = {
     "play.key.master": "Master",
     "buttons.cancelSearch": "Cancel search",
     "confirm.restartTitle": "Go back to the start?",
-    "confirm.restartToSetup": "Going back to the start clears this session's positions and your running score. Go back anyway?",
+    "confirm.restartToSetup": "What you have answered so far ({answered}) stays saved in your progress and your notebook, but you will not see this session's summary. Go back to the start anyway?",
+    "confirm.restartToSetup.none": "You have not answered any position yet, so nothing is lost. Go back to the start?",
     "confirm.restartAccept": "Back to start",
     "confirm.restartCancel": "Keep playing",
     "wizard.title": "Guided setup",
-    "wizard.heading": "Let's build your session in 3 steps",
+    "wizard.heading": "Build your session in 3 steps",
     "wizard.stepIndicator": "Step {step} of {total}",
     "wizard.step1.question": "How do you want to play?",
     "wizard.step1.ariaLabel": "Game mode",
     "wizard.step1.solo": "Play solo",
     "wizard.step1.duel": "Play against someone",
     "wizard.step1.duelHint": "You take turns on this same device",
-    "wizard.step1.duelExplainer": "You'll share this device: each of you plays your turn and you compare scores at the end.",
+    "wizard.step1.duelExplainer": "You will share this device: each of you plays your turn and you compare scores at the end.",
     "wizard.step1.player1Label": "Player 1 name",
     "wizard.step1.player2Label": "Player 2 name",
     "wizard.step2.question": "Where should we get your games from?",
     "wizard.step2.help": "We will download public games from the last year to find positions.",
     "wizard.step2.howItWorks": "How does it work?",
-    "wizard.step2.howItWorksBody": "We look through your recent slow games (classical and rapid). If there aren't enough, we add blitz games. We only download as many as we need to build the positions you asked for.",
+    "wizard.step2.howItWorksBody": "We look through your recent slow games (classical and rapid). If there are not enough, we add blitz games. We only download as many as we need to build the positions you asked for.",
     "wizard.step2.platformAriaLabel": "Platform",
     "wizard.step2.lichess": "Lichess",
     "wizard.step2.chesscom": "Chess.com",
@@ -584,21 +637,23 @@ const TRANSLATIONS = {
     "wizard.step3.timerAriaLabel": "Time per round",
     "wizard.step3.timerCustom": "Custom (5 to 360 seconds)",
     "wizard.step3.sessionSummary": "Session summary",
-    "wizard.step3.analysisPrompt": "Tap “Start session” to look for mistakes.",
+    "wizard.step3.analysisPrompt": "Tap “Start session”. We download your games and look for your mistakes: it can take up to a minute.",
+    "wizard.step3.clockNote": "This time applies to this session only. Your usual clock is changed in Settings.",
+    "wizard.step3.noLimit": "No limit",
+    "wizard.step3.noLimitHint": "You think without a clock in this session.",
+    "wizard.step3.timerShort": "Under 30 seconds there is hardly time to think.",
     "wizard.validation.chooseMode": "Choose whether you want to play solo or against someone.",
     "wizard.validation.fillDuelNames": "Fill in both duel names.",
     "wizard.validation.duelNameMax": "Duel names can be up to 20 characters long.",
     "wizard.validation.choosePlatform": "Choose Lichess or Chess.com.",
     "wizard.validation.enterUsername": "Enter your username to continue.",
-    "wizard.validation.invalidUsername": "The username must be 3 to 30 characters long (letters, numbers, _ or -).",
+    "wizard.validation.invalidUsername": "A {provider} username has {min} to {max} characters: letters, numbers, _ or -.",
     "wizard.validation.chooseCount": "Choose a number between 1 and 200 positions.",
     "wizard.validation.ready": "Configuration is ready to start the session.",
     "wizard.status.currentStep": "Configure the current step to continue.",
     "wizard.status.answerQuestions": "Answer the questions to prepare your session.",
     "wizard.status.nextSession": "Set up your next session step by step.",
     "wizard.status.modeSourceOptions": "Configure mode, source, and analysis options.",
-    "wizard.status.nextStep": "Perfect. Let's move on to the next step.",
-    "wizard.status.sourceStep": "Perfect. Let's move on to the game source.",
     "compat.gameFormat.solo": "Study mode (1 player)",
     "compat.gameFormat.duel": "Duel mode (2 players)",
     "players.default1": "Player 1",
@@ -610,7 +665,7 @@ const TRANSLATIONS = {
     "players.genericUser": "user",
     "labels.clockTitle": "Clock",
     "labels.clockMilestone": "{seconds} seconds remaining.",
-    "labels.clockTimeUp": "Time's up.",
+    "labels.clockTimeUp": "Time is up.",
     "result.title": "Result",
     "result.boardToolsLabel": "Board tools",
     "scoring.system.simple.label": "Precision (0 to 10)",
@@ -649,25 +704,50 @@ const TRANSLATIONS = {
     "piece.blackRook": "black rook",
     "piece.blackQueen": "black queen",
     "piece.blackKing": "black king",
+    "piece.def.whitePawn": "the white pawn",
+    "piece.def.whiteKnight": "the white knight",
+    "piece.def.whiteBishop": "the white bishop",
+    "piece.def.whiteRook": "the white rook",
+    "piece.def.whiteQueen": "the white queen",
+    "piece.def.whiteKing": "the white king",
+    "piece.def.blackPawn": "the black pawn",
+    "piece.def.blackKnight": "the black knight",
+    "piece.def.blackBishop": "the black bishop",
+    "piece.def.blackRook": "the black rook",
+    "piece.def.blackQueen": "the black queen",
+    "piece.def.blackKing": "the black king",
     "promotion.chooseTitle": "Choose the promotion piece",
-    "common.sourceError": "We couldn't fetch games for that user. Check the username or switch platform.",
-    "common.sourceErrorWithDetail": "We couldn't fetch games for that user. Check the username or switch platform. ({error})",
-    "network.timeout": "The connection took too long. Try again in a few seconds.",
-    "network.failed": "Could not connect to the provider. Try again or use the last saved base if available.",
-    "network.rateLimited": "The provider rate-limited the request. Wait a moment before retrying.",
-    "network.responseTooLarge": "The provider's response is too large and was rejected for safety. Try again later.",
-    "network.cancelled": "Download cancelled.",
-    "privacy.remoteFetchConfirm": "We're going to ask {provider} for {user}'s public games. The request goes straight from your browser to that site: this app has no server of its own. We'll store the text of those games, your username, and some per-game details (result, date) in this browser for up to 7 days, so we don't have to download them again next time; you can delete them anytime with “Clear saved game data”. On a shared computer, anyone else using this browser could see that data during those 7 days. Continue?",
-    "privacy.remoteFetchCancelled": "Request cancelled. No data was sent to the provider.",
+    "common.sourceError": "We could not get the games. Try again in a little while.",
+    "network.responseTooLarge": "The response from {provider} is too large and we rejected it for safety. Try again later.",
+    "download.error.notFound": "We could not find {user} on {provider}. Check how the username is spelled or try the other platform.",
+    "download.error.noGames": "{user} has no public games from the last 12 months on {provider}. Try another user or the other platform.",
+    "download.error.rateLimited": "{provider} asked us to slow down. We will try again by ourselves in {seconds} {seconds?second|seconds}.",
+    "download.error.rateLimitedNow": "{provider} asked us to slow down. Try again in a little while.",
+    "download.error.server": "{provider} is not answering properly right now (error {status}). Try again in a few minutes.",
+    "download.error.offline": "You seem to be offline. Connect and try again.",
+    "download.error.network": "We could not reach {provider}. Check your connection and try again.",
+    "download.error.timeout": "{provider} took too long to answer. Try again in a moment.",
+    "download.error.malformed": "We could not read the games {provider} sent. Try again later or try the other platform.",
+    "download.error.unknown": "Something went wrong while getting the games. Try again.",
+    "download.error.consentUnavailable": "We could not show the privacy confirmation, so nothing was downloaded. Reload the page and try again.",
+    "download.retry": "Try again",
+    "download.cancel": "Cancel",
+    "download.elapsed": "We have been working for {seconds} s. Getting a year of games can take up to a minute.",
+    "download.elapsedLong": "{seconds} s so far. It is still running: {provider} is sometimes slow. You can cancel at any time.",
+    "download.cancelled": "You cancelled the download. Nothing was saved.",
+    "download.cancelledSearch": "You cancelled the search.",
+    "download.lastUser": "Username remembered in this browser. It is removed with “Clear saved game data”.",
+    "privacy.remoteFetchConfirm": "We are going to ask {provider} for the public games of {user}. The request goes straight from your browser to that site: this app has no server of its own. We keep those games and your username in this browser for up to 7 days so we do not download them again; you can delete them with “Clear saved game data”. On a shared computer, someone else could see them. Continue?",
+    "privacy.remoteFetchCancelled": "Request cancelled. No data was sent to {provider}.",
     "privacy.remoteFetchTitle": "Fetch public games",
     "privacy.remoteFetchAccept": "Accept",
     "privacy.remoteFetchCancel": "Cancel",
     "privacy.remoteFetchUsernameLabel": "Retype the username to confirm",
-    "privacy.remoteFetchUsernameMismatch": "The username doesn't match. Type it exactly to confirm.",
-    "provider.usingCachedBase": "Using saved {provider} base for {user}: {games} game(s).",
-    "provider.throttleWait": "Please wait {seconds} second(s) before downloading games again, so we do not overload the service.",
-    "provider.throttleHourly": "Games have already been downloaded {max} times in the last hour. Try again in about {minutes} minute(s).",
-    "provider.usingStaleCachedBase": "Could not refresh the base. Using the last saved {provider} base for {user}: {games} game(s).",
+    "privacy.remoteFetchUsernameMismatch": "The username does not match. Type it exactly to confirm.",
+    "provider.usingCachedBase": "Using the saved {provider} base for {user}: {games} {games?game|games}.",
+    "provider.throttleWait": "Please wait {seconds} {seconds?second|seconds} before downloading again, so we do not overload the service.",
+    "provider.throttleHourly": "Games were already downloaded {max} times in the last hour. Try again in about {minutes} {minutes?minute|minutes}.",
+    "provider.usingStaleCachedBase": "Could not refresh the base. Using the last saved {provider} base for {user}: {games} {games?game|games}.",
     "time.classical": "Classical",
     "time.rapid": "Rapid",
     "time.daily": "Daily",
@@ -682,14 +762,17 @@ const TRANSLATIONS = {
     "game.handoff.genericTitle": "Turn change",
     "game.handoff.genericSubtitle": "Tap to reveal",
     "game.handoff.title": "Pass the device to {player}",
-    "game.handoff.subtitle": "Tap to see the position. {other}'s move stays hidden.",
+    "game.handoff.subtitle": "Tap to see the position and start your clock. {other}'s move stays hidden.",
+    "game.ready.title": "{player}, get ready",
+    "game.ready.subtitle": "{other} waits for their turn without looking. Your clock starts when you tap the screen.",
+    "play.ready.eyebrow": "Position {current} of {total}",
     "game.positionMeta": "{players} · Result {result} · Move {move} · Year {year}",
     "game.turnWhite": "White to move",
     "game.turnBlack": "Black to move",
     "game.duelHint": "Competitive local mode: both players get exactly the same positions and time.",
     "game.soloHint": "Individual training with total accumulated score.",
-    "game.studyMode": "Study mode",
-    "game.localDuel": "Duel mode ({a} vs {b})",
+    "game.studyMode": "Solo",
+    "game.localDuel": "Duel ({a} vs {b})",
     "game.summaryMode": "Mode",
     "game.summaryPlatform": "Platform",
     "game.summaryUser": "User",
@@ -706,60 +789,52 @@ const TRANSLATIONS = {
     "game.noMorePositions": "No more positions were found.",
     "game.searchCancelled": "Search cancelled. You can look for the next position whenever you want.",
     "game.sessionHintCitizen": "Session target: {target} positions. Found: {detected}.",
-    "game.sessionHintEngineer": "Session target: {target} positions. System: {system}. Found so far: {detected}. Analyzed: {analyzed}/{total}.",
+    "game.sessionHintEngineer": "Session target: {target} positions. Scoring: {system}. Found so far: {detected}. Analyzed: {analyzed}/{total}.",
     "overlay.evaluatingBoth": "Evaluating both players' moves...",
     "overlay.evaluatingYours": "Evaluating your move...",
     "overlay.difficultyBudget": "Difficulty {label} · {budget}",
     "overlay.progressLabel": "{pct}% · {elapsed}s / {total}s",
     "overlay.searchingNext": "Searching next position...",
     "analysis.metrics.zero": "Totals: 0 | Analyzed: 0 | Found: 0",
-    "analysis.metrics.engineer": "Total positions: {total} | Analyzed positions: {done} | Found positions (>= threshold): {detected}",
+    "analysis.metrics.engineer": "Total positions: {total} | Analyzed positions: {done} | Positions with a mistake above the threshold: {detected}",
     "analysis.progressLabel": "{pct}% ({done}/{total}){extra}",
     "analysis.extra.detectedRepeated": "Position found (repeated)",
     "analysis.extra.evaluatingCandidate": "Evaluating {ordinal}/{total}",
     "analysis.extra.detected": "Position found",
-    "analysis.extra.searchingError": "Looking for error",
+    "analysis.extra.searchingError": "Looking for a mistake",
     "analysis.extra.finished": "Search finished",
     "analysis.extra.cancelled": "Search cancelled",
-    "analysis.status.reused": "{prefix}Position found ({count}). Reusing a game due to lack of alternatives.",
-    "analysis.status.candidate": "{prefix}Analyzing candidate {ordinal}/{total}. Found: {detected}.",
-    "analysis.status.ready": "{prefix}Position found ({count}). You can play now.",
-    "analysis.status.continuity": "{prefix}Position found ({count}). Session continuity was prioritized.",
-    "analysis.status.noFresh": "{prefix}Position found ({count}). There were no more fresh games above the threshold.",
-    "analysis.status.noMore": "{prefix}There are no more positions above the threshold.",
+    "analysis.status.reused": "Position found ({count}). Reusing a game because there are no alternatives.",
+    "analysis.status.candidate": "Analyzing candidate {ordinal}/{total}. Found: {detected}.",
+    "analysis.status.ready": "Position found ({count}). You can play now.",
+    "analysis.status.continuity": "Position found ({count}). We kept the session going.",
+    "analysis.status.noFresh": "Position found ({count}). There were no more fresh games with mistakes to train.",
+    "analysis.status.noMore": "There are no more positions with mistakes to train.",
     "analysis.status.prepareBase": "Preparing online base from {provider}...",
     "analysis.status.prepareEngine": "Getting the analysis engine ready...",
     "analysis.status.localEngineNotice": "The strong engine is not ready yet: the backup one is being used for now, and it looks less deeply.",
     "analysis.status.shuffle": "Shuffling {games} games and looking for the first position for {player}...",
     "analysis.status.firstReady": "First position found. You can start playing now.",
-    "analysis.status.error": "Error during analysis: {error}",
+    "analysis.status.failed": "Something went wrong while analyzing your games. Try again.",
     "analysis.status.roundError": "Error while evaluating the round: {error}",
-    "provider.readyToDownload": "Ready to download games when you tap “Start session”.",
+    "provider.readyToDownload": "Looks good. Tap “Next”: games are only downloaded when the session starts.",
     "provider.baseReady": "Base ready for {username}.{warning}",
-    "provider.sourceLoaded": "Source: {provider} ({username}) | {games} game(s) loaded.{warning}",
+    "provider.sourceLoaded": "Source: {provider} ({username}) | {games} {games?game|games} loaded.{warning}",
     "provider.modeChangedRedownload": "Mode changed. The online base will be downloaded again when you start.",
-    "provider.enterLichessUser": "Enter a Lichess username.",
     "provider.enterLichessContinue": "Enter a Lichess username to continue.",
-    "provider.enterChesscomUser": "Enter a Chess.com username.",
     "provider.enterChesscomContinue": "Enter a Chess.com username to continue.",
     "provider.protocolLichess": "Normal-mode protocol: public games from the last year are downloaded. First {preferred}; if it does not reach {minSlowGames}, Blitz is added and, if the base is still too small, Bullet (not ideal) is added up to {maxGames}.",
     "provider.protocolChesscom": "Normal-mode protocol: public games from the last year are downloaded from monthly archives. First {preferred}; if it does not reach {minSlowGames}, Blitz is added and, if the base is still too small, Bullet (not ideal) is added up to {maxGames}.",
     "provider.downloadingFor": "Downloading for {user}. {protocol}",
-    "provider.searchingUpTo": "Looking for up to {max} game(s) by {user}: first {preferred} (last 12 months)...",
-    "provider.completingBlitz": "{count} {preferred} game(s) were downloaded. Filling with Blitz ({remaining} left)...",
+    "provider.searchingUpTo": "Looking for up to {max} {max?game|games} by {user}: first {preferred} (last 12 months)...",
+    "provider.completingBlitz": "Downloaded {count} {count?game|games} ({preferred}). Filling up with Blitz ({remaining} to go)...",
     "provider.bulletContextStillShort": "{user} does not have enough games in {preferred}; Blitz is still not enough",
     "provider.bulletContextNoBlitz": "{user} does not have enough games in {preferred} or Blitz",
-    "provider.bulletAttempt": "Warning: {context}. Trying to fill with Bullet ({remaining} left)...",
+    "provider.bulletAttempt": "Warning: {context}. Trying to fill up with Bullet ({remaining} to go)...",
     "provider.bulletCompleted": "Warning: {context}. We filled with Bullet, but it is not ideal.",
-    "provider.readyBullet": "{warning} Ready: {total} game(s) from {user}. {slow} in {preferred} + {blitz} Blitz + {bullet} Bullet (fallback).",
-    "provider.readyBlitz": "Ready: {total} game(s) from {user}. {slow} in {preferred} + {blitz} Blitz (fallback).",
-    "provider.readyPreferred": "Ready: {total} game(s) from {user} in {preferred}.",
-    "provider.chesscomReadArchiveError": "Chess.com returned {status} while reading {url}.",
-    "provider.userNotFoundOrPrivate": "User not found or without public games.",
-    "provider.lichessResponse": "Lichess returned {status}",
-    "provider.chesscomResponse": "Chess.com returned {status}",
-    "provider.noMonthlyArchives": "There are no public monthly archives in the last 12 months.",
-    "provider.noGamesForFilters": "No public games were found for the selected time controls / filters.",
+    "provider.readyBullet": "{warning} Ready: {total} {total?game|games} from {user}: {slow} {preferred} + {blitz} Blitz + {bullet} Bullet (as a top-up).",
+    "provider.readyBlitz": "Ready: {total} {total?game|games} from {user}: {slow} {preferred} + {blitz} Blitz (as a top-up).",
+    "provider.readyPreferred": "Ready: {total} {total?game|games} from {user} ({preferred}).",
     "provider.noPublicValidGames": "We could not find valid public games for that user. Try another user or platform.",
     "provider.playerNotDetected": "We could not detect the player in the downloaded games. Try another user.",
     "provider.noAnalyzablePositions": "We could not find analyzable positions for that user. Try another user or platform.",
@@ -787,8 +862,28 @@ Ludus.i18n.register({
     "core.hint.next.2": "Pista: la casilla (-{pct}%)",
     "core.hint.next.3": "Mostrar la jugada (0 pts)",
     "core.hint.done": "Jugada revelada",
-    "core.hint.said.1": "Pista: mové el {piece} de {square}. Cuesta el {pct}% de los puntos.",
-    "core.hint.said.2": "Pista: mové el {piece} de {from} a {to}. Cuesta el {pct}% de los puntos.",
+    "core.hint.said.1": "Pista: mové {pieceDef} de {square}. Cuesta el {pct}% de los puntos.",
+    "core.hint.said.2": "Pista: mové {pieceDef} de {from} a {to}. Cuesta el {pct}% de los puntos.",
+    "core.hint.confirm": "Tocá de nuevo para ver la jugada: esta posición vale 0 puntos.",
+    "core.hint.confirmLabel": "Tocá de nuevo: 0 pts",
+    "core.skip.confirm": "Tocá de nuevo para omitir esta posición: vale 0 puntos.",
+    "core.skip.confirmLabel": "Tocá de nuevo para omitir",
+    "core.move.confirm": "Confirmar jugada",
+    "core.move.confirmSan": "Confirmar {san}",
+    "core.move.pending": "Elegiste {san}. Confirmala o elegí otra casilla.",
+    "core.clock.resumed": "El reloj sigue: te quedan {seconds} segundos.",
+    "core.firstRun.note": "Tocá una pieza y después su casilla. No se puntúa nada hasta que muevas. Esta primera sesión no tiene reloj.",
+    "core.resume.title": "Sesión interrumpida",
+    "core.resume.body": "Dejaste a medias “{title}”: respondiste {answered} de {total} posiciones y eso ya está guardado en tu progreso. ¿Seguís con las {remaining} que faltan?",
+    "core.resume.continue": "Seguir",
+    "core.resume.discard": "Ahora no",
+    "core.resume.note": "Tu última sesión se interrumpió. Lo que respondiste ({answered}) quedó guardado en tu progreso.",
+    "core.engine.unsupported": "Este navegador no puede usar el motor fuerte: analizamos con uno más simple, que mira menos a fondo.",
+    "core.engine.offline": "Sin conexión: por ahora analizamos con el motor de respaldo, que mira menos a fondo.",
+    "core.engine.downloading": "Descargando el motor de análisis: {pct} %",
+    "core.engine.slow": "El motor fuerte está tardando en llegar: seguimos con el de respaldo y la descarga sigue en segundo plano.",
+    "core.sound.on": "Sonido activado (queda guardado)",
+    "core.sound.off": "Sonido desactivado (queda guardado)",
     "core.hint.said.3": "Jugada revelada: {san}. Esta posición vale 0 puntos.",
     "core.hint.square.from": ", pista: pieza a mover",
     "core.hint.square.to": ", pista: casilla de destino",
@@ -818,8 +913,28 @@ Ludus.i18n.register({
     "core.hint.next.2": "Hint: the square (-{pct}%)",
     "core.hint.next.3": "Show the move (0 pts)",
     "core.hint.done": "Move revealed",
-    "core.hint.said.1": "Hint: move the {piece} on {square}. It costs {pct}% of the points.",
-    "core.hint.said.2": "Hint: move the {piece} from {from} to {to}. It costs {pct}% of the points.",
+    "core.hint.said.1": "Hint: move {pieceDef} on {square}. It costs {pct}% of the points.",
+    "core.hint.said.2": "Hint: move {pieceDef} from {from} to {to}. It costs {pct}% of the points.",
+    "core.hint.confirm": "Tap again to see the move: this position is worth 0 points.",
+    "core.hint.confirmLabel": "Tap again: 0 pts",
+    "core.skip.confirm": "Tap again to skip this position: it is worth 0 points.",
+    "core.skip.confirmLabel": "Tap again to skip",
+    "core.move.confirm": "Confirm move",
+    "core.move.confirmSan": "Confirm {san}",
+    "core.move.pending": "You chose {san}. Confirm it or choose another square.",
+    "core.clock.resumed": "The clock is running again: {seconds} seconds left.",
+    "core.firstRun.note": "Tap a piece, then its square. Nothing is scored until you move. This first session has no clock.",
+    "core.resume.title": "Interrupted session",
+    "core.resume.body": "You left “{title}” half way: you answered {answered} of {total} positions and that is already saved in your progress. Do you want to carry on with the {remaining} that are left?",
+    "core.resume.continue": "Carry on",
+    "core.resume.discard": "Not now",
+    "core.resume.note": "Your last session was interrupted. What you answered ({answered}) is saved in your progress.",
+    "core.engine.unsupported": "This browser cannot run the strong engine: we analyze with a simpler one, which looks less deeply.",
+    "core.engine.offline": "You are offline: for now we analyze with the backup engine, which looks less deeply.",
+    "core.engine.downloading": "Downloading the analysis engine: {pct}%",
+    "core.engine.slow": "The strong engine is slow to arrive: we carry on with the backup one and the download goes on in the background.",
+    "core.sound.on": "Sound on (saved)",
+    "core.sound.off": "Sound off (saved)",
     "core.hint.said.3": "Move revealed: {san}. This position is worth 0 points.",
     "core.hint.square.from": ", hint: piece to move",
     "core.hint.square.to": ", hint: destination square",
@@ -836,7 +951,7 @@ Ludus.i18n.register({
     "core.toast.achievements": "Achievements unlocked: {names}",
     "core.toast.achievementsMany": "{n} achievements unlocked",
     "core.session.own": "Your games: {user}",
-    "core.wizard.heading.2": "Let's build your session in 2 steps",
+    "core.wizard.heading.2": "Build your session in 2 steps",
     "core.session.default.own": "Your games",
     "core.session.default.classic": "Classic games",
     "core.session.default.review": "Mistake review",
@@ -864,8 +979,15 @@ function detectInitialLanguage() {
   const browserLanguages = Array.isArray(navigator.languages) && navigator.languages.length
     ? navigator.languages
     : [navigator.language];
-  const prefersEnglish = browserLanguages.some((entry) => String(entry || "").toLowerCase().startsWith("en"));
-  return prefersEnglish ? "en" : "es";
+  // Same rule as Ludus.i18n (js/ludus.js): the first Spanish or English entry of the
+  // browser's list wins, and a browser that asks for neither (French, German,
+  // Portuguese...) gets English: only a Spanish-speaking browser gets Spanish.
+  for (const entry of browserLanguages) {
+    const code = String(entry || "").toLowerCase();
+    if (code === "es" || code.startsWith("es-") || code.startsWith("es_")) return "es";
+    if (code === "en" || code.startsWith("en-") || code.startsWith("en_")) return "en";
+  }
+  return "en";
 }
 
 function saveLanguagePreference(language) {
@@ -948,21 +1070,16 @@ function normalizeTurnTimeSeconds(value, options = {}) {
   return clamp(Math.round(safeValue), MIN_TURN_TIME_SECONDS, MAX_TURN_TIME_SECONDS);
 }
 
-// The turn time is a setting now ("clock.seconds" in Ludus.Settings, which also
-// migrated the legacy "ludus.setup.v1" key once); the wizard just reads and
-// writes it. Without Settings (a broken load) the default keeps the wizard usable.
+// The usual turn time is a setting ("clock.seconds" in Ludus.Settings, which also migrated the
+// legacy "ludus.setup.v1" key once); the wizard starts from it and only reads it (what a wizard
+// chooses is for its own session). Without Settings (a broken load) the default keeps it usable.
 function loadSetupPreference() {
   return { turnTimeSeconds: normalizeTurnTimeSeconds(settingsGet("clock.seconds", DEFAULT_TURN_TIME_SECONDS)) };
 }
 
-function saveSetupPreference(turnTimeSeconds) {
-  settingsSet("clock.seconds", normalizeTurnTimeSeconds(turnTimeSeconds));
-}
-
 // When enabled, a downloaded PGN base is kept only in STATE for the current
 // session and never written to IndexedDB, so it does not outlive the tab.
-// No visible toggle wires into this yet (see FII-03 follow-up); it exists so
-// the behavior is ready once index.html grows a control for it.
+// The toggle lives in Settings > Privacy (js/ui/settings.js) through Ludus.game.savedDownloads.
 function loadNoPersistDownloadsPreference() {
   try {
     return window.localStorage.getItem(NO_PERSIST_DOWNLOADS_STORAGE_KEY) === "1";
@@ -979,11 +1096,17 @@ function saveNoPersistDownloadsPreference(enabled) {
   }
 }
 
+// "{name}" is replaced by the parameter; "{name?one|other}" picks a plural form by the
+// numeric value of that parameter (exactly 1 is "one"), so a count never reads "1 partidas" or
+// "game(s)" and the parameters stay plain numbers (a message kept for a language switch
+// is drawn again in the other language from the same numbers).
 function interpolate(text, params = {}) {
-  return String(text || "").replace(/\{(\w+)\}/g, (_, key) => {
-    const value = params[key];
-    return value == null ? "" : String(value);
-  });
+  return String(text || "")
+    .replace(/\{(\w+)\?([^|{}]*)\|([^{}]*)\}/g, (_, key, one, other) => (Number(params[key]) === 1 ? one : other))
+    .replace(/\{(\w+)\}/g, (_, key) => {
+      const value = params[key];
+      return value == null ? "" : String(value);
+    });
 }
 
 // app.js keeps its own dictionary for the legacy strings; every key it does not
@@ -1067,6 +1190,9 @@ const STATE = {
   selection: null,
   legalMoves: [],
   pendingPromotion: null,
+  // A move chosen and waiting for "Confirm move" (board.confirmMove), and when a hint was last asked for.
+  pendingMove: null,
+  lastHintAt: 0,
   userMove: null,
   score: 0,
   // The strong engine (Ludus.Engine over a Worker) once it is up; until then, or
@@ -1090,7 +1216,8 @@ const STATE = {
   scoringSystem: DEFAULT_SCORING_SYSTEM,
   sourceMode: "lichess",
   remotePgnSources: [],
-  remoteConsent: { lichess: false, chesscom: false },
+  // Consent given in this page, per "provider|username" (see consentKey).
+  remoteConsent: {},
   userMode: "citizen",
   gameFormat: "solo",
   turnTimeSeconds: INITIAL_SETUP.turnTimeSeconds,
@@ -1119,9 +1246,25 @@ const STATE = {
     username: "",
     sessionSize: DEFAULT_CITIZEN_SESSION_SIZE,
     turnTimeSeconds: INITIAL_SETUP.turnTimeSeconds,
+    // The clock of the session the wizard is building ("timed" | "untimed"): starts from the setting, changes only this session.
+    clockMode: settingsGet("clock.mode", "timed") === "untimed" ? "untimed" : "timed",
     sourceError: null,
   },
-  timer: { intervalId: null, deadlineMs: 0, durationMs: 0, lastAnnouncedSeconds: null },
+  // The round clock. intervalId is the handle of the pending tick (null when no clock is
+  // counting down: untimed, stopped, or paused while the page is hidden); the time the page
+  // spends hidden is paused, not spent (pausedMs is what a round has been paused in total).
+  timer: {
+    intervalId: null,
+    running: false,
+    paused: false,
+    deadlineMs: 0,
+    durationMs: 0,
+    lastAnnouncedSeconds: null,
+    pausedAt: 0,
+    remainingAtPause: 0,
+    pausedMs: 0,
+    roundHiddenAt: 0,
+  },
   ui: {
     phase: "playing",
     // What the layout shows (data-phase of #game-layout): thinking | evaluating | handoff | result | summary.
@@ -1154,6 +1297,8 @@ const STATE = {
     currentPlayer: 0,
     roundResults: [null, null],
     handoffReady: false,
+    // The cover of a new duel position is up and the first player's clock has not started yet.
+    readyWait: false,
   },
 };
 
@@ -1604,14 +1749,11 @@ const POSITION_SEARCH_PROGRESS_MILESTONE_STEP = 25;
 // 25%, once per step, so it doesn't bury the board in ARIA chatter while
 // input is blocked.
 function announcePositionSearchProgressMilestone(pct, text) {
-  if (!positionSearchProgressAnnounceEl) return;
-  const step = Math.min(4, Math.floor(pct / POSITION_SEARCH_PROGRESS_MILESTONE_STEP));
+  // A wait of one to four seconds does not need four announcements: the title of the overlay is
+  // announced once when it opens (showPositionSearchOverlay), and the progress bar is a
+  // progressbar (aria-valuenow) for anyone who goes to look at it.
   const state = STATE.ui.positionSearchState;
-  if (state) {
-    if (state.announcedProgressStep === step) return;
-    state.announcedProgressStep = step;
-  }
-  positionSearchProgressAnnounceEl.textContent = text;
+  if (state) state.announcedProgressStep = Math.min(4, Math.floor(pct / POSITION_SEARCH_PROGRESS_MILESTONE_STEP));
 }
 
 function setPositionSearchProgress(ratio = null, label = "") {
@@ -1752,7 +1894,11 @@ function showPositionSearchOverlay(title, meta = "", options = {}) {
   if (positionSearchCancelBtnEl) {
     positionSearchCancelBtnEl.classList.toggle("hidden", !opts.cancellable);
   }
+  const wasShowing = positionSearchOverlayEl && !positionSearchOverlayEl.classList.contains("hidden");
   positionSearchOverlayEl.classList.remove("hidden");
+  // The overlay itself is not a live region (every progress update would read its whole card out
+  // again): its title is said once, when it opens.
+  if (!wasShowing) announcePlay(STATE.ui.positionSearchState.title || t("game.searchingNext"));
   syncOverlayFacts();
 }
 
@@ -2016,16 +2162,23 @@ function renderDuelResultPanels(context) {
 function coachApi() {
   let compact = false;
   let short = false;
+  let sideways = false;
+  let narrowSide = false;
   try {
     compact = typeof window.matchMedia === "function" && window.matchMedia("(max-width: 719px) and (orientation: portrait)").matches;
     short = compact && window.matchMedia("(max-height: 760px)").matches;
+    sideways = typeof window.matchMedia === "function" && window.matchMedia("(orientation: landscape) and (max-height: 520px)").matches;
+    // Board and panel side by side on a screen under 1280px: the panel is 340 to 390px wide, too narrow for the full gauge.
+    narrowSide = typeof window.matchMedia === "function" && window.matchMedia("(orientation: landscape) and (min-width: 560px) and (max-width: 1279px)").matches;
   } catch (error) {
     compact = false;
     short = false;
+    sideways = false;
+    narrowSide = false;
   }
   return {
-    // Under a board the size of a phone the gauge is smaller so the verdict fits the sheet.
-    gaugeSize: compact ? (short ? 72 : 84) : 116,
+    // Under a board the size of a phone (upright or on its side) the gauge is smaller so the verdict fits the sheet.
+    gaugeSize: compact ? (short ? 72 : 84) : sideways ? 84 : narrowSide ? 92 : 116,
     lang: STATE.language,
     pv: STATE.resultView.pv || null,
     onStep: stepEngineLine,
@@ -2219,7 +2372,10 @@ function renderPlayHeader() {
     const active = phase === "summary" ? -1 : currentUiPlayerIndex();
     [0, 1].forEach((index) => {
       const name = duelPlayerName(index);
-      if (duelNameEls[index]) duelNameEls[index].textContent = name;
+      if (duelNameEls[index]) {
+        duelNameEls[index].textContent = name;
+        duelNameEls[index].title = name;
+      }
       if (duelAvatarEls[index]) duelAvatarEls[index].textContent = initialsFromName(name, index === 0 ? "J1" : "J2");
       if (duelPointsEls[index]) duelPointsEls[index].textContent = formatPoints(STATE.duel.scores[index] || 0);
       if (duelSideEls[index]) {
@@ -2275,10 +2431,21 @@ function renderThinkingPanel(playerIndex = currentUiPlayerIndex()) {
       hintCosts: STATE.hintsEnabled ? [hintCostPercent(1), hintCostPercent(2)] : null,
       backupEngine: isUsingFallbackEngine(),
     });
+    prependFirstRunNote();
   } catch (error) {
     console.error("[Ludus] the position card failed to draw", error);
     coachThinkingEl.textContent = "";
   }
+}
+
+// The first position of the first session says how to play, at the top of the panel (on a phone
+// the rest of it is under the board): the clock does not start running out before it is read.
+function prependFirstRunNote() {
+  if (!coachThinkingEl || !STATE.session || !STATE.session.firstRun || STATE.index !== 0) return;
+  const util = ludusModule("util");
+  if (!util || typeof util.h !== "function" || typeof coachThinkingEl.insertBefore !== "function") return;
+  const note = util.h("p", { class: "t-small co-first-run", role: "note" }, t("core.firstRun.note"));
+  coachThinkingEl.insertBefore(note, coachThinkingEl.firstChild || null);
 }
 
 // The next button says what comes after this result, and the legend says what the
@@ -2292,11 +2459,27 @@ function updateNextButton() {
   renderKeyLegend();
 }
 
+function shortcutsEnabled() {
+  return Boolean(settingsGet("a11y.shortcuts", true));
+}
+
+// The keys are also told to assistive technology (the legend under the next button is decorative).
+function syncShortcutAttributes() {
+  const on = shortcutsEnabled();
+  [[hintBtn, "H"], [nextBtn, "N"], [resultAnalysisBtn, "E"], [revealBestBtn, "B"], [revealGameBtn, "M"]].forEach(([el, key]) => {
+    if (!el) return;
+    if (on) el.setAttribute("aria-keyshortcuts", key);
+    else el.removeAttribute("aria-keyshortcuts");
+  });
+}
+
 function renderKeyLegend() {
+  syncShortcutAttributes();
   if (!legendEl) return;
   const util = ludusModule("util");
   if (!util || typeof util.h !== "function") return;
   legendEl.textContent = "";
+  if (!shortcutsEnabled()) return;
   const entry = (key, label) => util.h("span", { class: "co-legend-entry" }, util.h("kbd", { class: "kbd" }, key), label);
   const reviewing = Boolean(STATE.resultView.review);
   legendEl.appendChild(entry("N", t("play.key.next")));
@@ -2313,7 +2496,7 @@ function syncSoundButton() {
   if (!soundBtn) return;
   const on = Boolean(settingsGet("sound.enabled", true));
   soundBtn.setAttribute("aria-pressed", on ? "true" : "false");
-  soundBtn.setAttribute("title", t(on ? "play.sound.on" : "play.sound.off"));
+  soundBtn.setAttribute("title", t(on ? "core.sound.on" : "core.sound.off"));
 }
 
 function formatClock(remainingMs) {
@@ -2330,6 +2513,7 @@ function resetDuelState() {
   STATE.duel.currentPlayer = 0;
   STATE.duel.roundResults = [null, null];
   STATE.duel.handoffReady = false;
+  STATE.duel.readyWait = false;
 }
 
 function applyGameFormat(format) {
@@ -2352,11 +2536,15 @@ function applyGameFormat(format) {
   renderPlayHeader();
 }
 
+// The clock the wizard offers is the clock of the session it is building, not a global setting:
+// choosing 180 s (or "no limit") here changes nothing else; the usual clock is changed in Settings.
+// The chip with 0 seconds is "no limit".
 function updateWizardTimerChipSelection(seconds = STATE.setupWizard.turnTimeSeconds) {
   let selectedChip = null;
+  const untimed = wizardClockIsUntimed();
   wizardTimerChipEls.forEach((chipEl) => {
     const chipSeconds = Number(chipEl.getAttribute("data-seconds")) || 0;
-    const selected = chipSeconds === seconds;
+    const selected = untimed ? chipSeconds === 0 : chipSeconds === seconds && chipSeconds > 0;
     chipEl.classList.toggle("is-selected", selected);
     chipEl.setAttribute("aria-checked", selected ? "true" : "false");
     if (selected) selectedChip = chipEl;
@@ -2371,8 +2559,12 @@ function setWizardTurnTimeSeconds(value, options = {}) {
   STATE.turnTimeSeconds = seconds;
   if (turnTimeSecondsEl) turnTimeSecondsEl.value = String(seconds);
   updateWizardTimerChipSelection(seconds);
-  if (!options.skipPersist) saveSetupPreference(seconds);
   return seconds;
+}
+
+function setWizardClockMode(mode) {
+  STATE.setupWizard.clockMode = mode === "untimed" ? "untimed" : "timed";
+  updateWizardTimerChipSelection();
 }
 
 function readDuelPlayersFromInputs() {
@@ -2386,17 +2578,20 @@ function readDuelPlayersFromInputs() {
 }
 
 function stopRoundTimer() {
-  if (STATE.timer.intervalId) {
-    clearInterval(STATE.timer.intervalId);
-    STATE.timer.intervalId = null;
+  const timer = STATE.timer;
+  if (timer.intervalId) {
+    clearTimeout(timer.intervalId);
+    timer.intervalId = null;
   }
+  timer.running = false;
+  timer.paused = false;
 }
 
 const CLOCK_ANNOUNCE_MILESTONES_SEC = [60, 30, 10, 0];
 
-// The clock's visible text updates every tick (CLOCK_TICK_MS), but announcing
-// that on every tick would drown out board/turn/result announcements. Only
-// these milestones reach the live region, and each one only once.
+// The clock's visible text changes once a second, but announcing that would drown out
+// board/turn/result announcements. Only these milestones reach the live region, and each
+// one only once.
 function announceClockMilestone(totalSeconds) {
   if (!soloClockAnnounceEl) return;
   if (!CLOCK_ANNOUNCE_MILESTONES_SEC.includes(totalSeconds)) return;
@@ -2418,76 +2613,187 @@ function isUntimedSession() {
 // the answer is in (dimmed, at the time it stopped) so the header does not move.
 const CLOCK_RING_LENGTH = 94.25;
 
-function updateRoundTimerUi(remainingMs = STATE.timer.deadlineMs - Date.now()) {
+// What the clock last wrote to the page: a tick that changes nothing writes nothing (the
+// digits change once a second, the ring a pixel at a time, the classes a few times a round),
+// so a round costs a handful of style recalculations per minute instead of ten per second.
+const clockPaint = {};
+
+function resetClockPaint() {
+  Object.keys(clockPaint).forEach((key) => {
+    delete clockPaint[key];
+  });
+}
+
+function paintClock(field, value, write) {
+  if (clockPaint[field] === value) return;
+  clockPaint[field] = value;
+  write(value);
+}
+
+function updateRoundTimerUi(remainingMs = clockRemainingMs()) {
   if (!soloClockRailEl || !soloClockValueEl) return;
 
   const context = STATE.resultView.context;
   const inSummary = Boolean(STATE.resultView.visible && context && context.kind === "session_summary");
   const showClock = document.body.classList.contains("playing-mode") && !inSummary;
-  soloClockRailEl.classList.toggle("hidden", !showClock);
+  paintClock("shown", showClock, (value) => soloClockRailEl.classList.toggle("hidden", !value));
   if (!showClock) return;
   const stopped = Boolean(STATE.resultView.visible);
-  soloClockRailEl.classList.toggle("is-stopped", stopped);
+  paintClock("stopped", stopped, (value) => soloClockRailEl.classList.toggle("is-stopped", value));
   if (stopped) return;
 
   const untimed = isUntimedSession();
-  soloClockRailEl.classList.toggle("is-untimed", untimed);
-  soloClockRailEl.setAttribute("aria-label", untimed ? t("core.clock.untimedAria") : t("labels.clockTitle"));
+  paintClock("untimed", untimed, (value) => soloClockRailEl.classList.toggle("is-untimed", value));
+  paintClock("label", untimed ? t("core.clock.untimedAria") : t("labels.clockTitle"), (value) => soloClockRailEl.setAttribute("aria-label", value));
   if (untimed) {
-    soloClockValueEl.textContent = "\u221E";
-    soloClockValueEl.setAttribute("title", t("core.clock.untimedAria"));
-    if (soloClockArcEl) soloClockArcEl.setAttribute("stroke-dashoffset", "0");
-    soloClockRailEl.classList.remove("urgency-mid", "urgency-high");
+    paintClock("text", "∞", (value) => {
+      soloClockValueEl.textContent = value;
+    });
+    paintClock("title", t("core.clock.untimedAria"), (value) => soloClockValueEl.setAttribute("title", value));
+    paintClock("offset", "0", (value) => {
+      if (soloClockArcEl) soloClockArcEl.setAttribute("stroke-dashoffset", value);
+    });
+    paintClock("urgency", "", () => soloClockRailEl.classList.remove("urgency-mid", "urgency-high"));
     return;
   }
-  soloClockValueEl.removeAttribute("title");
+  paintClock("title", "", () => soloClockValueEl.removeAttribute("title"));
 
   const duration = Math.max(1, STATE.timer.durationMs || Math.round(STATE.turnTimeSeconds * 1000));
   const safeRemaining = Math.max(0, remainingMs);
   const ratio = clamp(safeRemaining / duration, 0, 1);
 
-  soloClockValueEl.textContent = formatClock(safeRemaining);
-  if (soloClockArcEl) soloClockArcEl.setAttribute("stroke-dashoffset", String(Math.round(CLOCK_RING_LENGTH * (1 - ratio) * 100) / 100));
+  paintClock("text", formatClock(safeRemaining), (value) => {
+    soloClockValueEl.textContent = value;
+  });
+  paintClock("offset", String(Math.round(CLOCK_RING_LENGTH * (1 - ratio) * 100) / 100), (value) => {
+    if (soloClockArcEl) soloClockArcEl.setAttribute("stroke-dashoffset", value);
+  });
   announceClockMilestone(Math.ceil(safeRemaining / 1000));
-  soloClockRailEl.classList.remove("urgency-mid", "urgency-high");
-  if (ratio <= 0.2) {
-    soloClockRailEl.classList.add("urgency-high");
-  } else if (ratio <= 0.45) {
-    soloClockRailEl.classList.add("urgency-mid");
+  const urgency = ratio <= 0.2 ? "high" : ratio <= 0.45 ? "mid" : "";
+  paintClock("urgency", urgency, (value) => {
+    soloClockRailEl.classList.remove("urgency-mid", "urgency-high");
+    if (value) soloClockRailEl.classList.add("urgency-" + value);
+  });
+}
+
+function pageIsHidden() {
+  try {
+    return document.visibilityState === "hidden" || document.hidden === true;
+  } catch (error) {
+    return false;
   }
+}
+
+// Milliseconds left on the round clock (frozen while it is paused).
+function clockRemainingMs() {
+  const timer = STATE.timer;
+  return timer.paused ? timer.remainingAtPause : timer.deadlineMs - Date.now();
+}
+
+// True once the clock of the round on screen has run out, whether or not a tick has noticed
+// yet (a hidden tab, a busy page, a throttled timer): an answer that arrives after the
+// deadline is a timeout, whatever the next tick would have said.
+function roundClockExpired() {
+  const timer = STATE.timer;
+  return Boolean(timer.running && !timer.paused && Date.now() >= timer.deadlineMs);
+}
+
+// One tick per displayed second: the timer is set for the moment the digits change, so a
+// 90-second round wakes up 90 times instead of 900.
+function scheduleClockTick() {
+  const timer = STATE.timer;
+  if (timer.intervalId) {
+    clearTimeout(timer.intervalId);
+    timer.intervalId = null;
+  }
+  if (!timer.running || timer.paused) return;
+  const remaining = timer.deadlineMs - Date.now();
+  const untilNextSecond = remaining <= 0 ? 0 : remaining - Math.floor((remaining - 1) / 1000) * 1000;
+  timer.intervalId = setTimeout(onClockTick, untilNextSecond + CLOCK_TICK_MARGIN_MS);
+}
+
+function onClockTick() {
+  const timer = STATE.timer;
+  timer.intervalId = null;
+  if (!timer.running || timer.paused) return;
+  const remainingMs = timer.deadlineMs - Date.now();
+  if (remainingMs <= 0) {
+    updateRoundTimerUi(0);
+    stopRoundTimer();
+    if (!STATE.roundSubmitted && !STATE.isResolvingRound) {
+      void submitNoMove("timeout");
+    }
+    return;
+  }
+  updateRoundTimerUi(remainingMs);
+  scheduleClockTick();
+}
+
+// A phone locked, a call, a pulled-down notification or another app in front: the time the
+// page is hidden is not time the person had to think, so the clock stops and goes on from the
+// same second when the page comes back (a round must never be scored 0 for a locked screen).
+function pauseRoundTimer() {
+  const timer = STATE.timer;
+  if (timer.roundHiddenAt) return;
+  timer.roundHiddenAt = Date.now();
+  if (!timer.running || timer.paused) return;
+  timer.paused = true;
+  timer.pausedAt = Date.now();
+  timer.remainingAtPause = Math.max(0, timer.deadlineMs - timer.pausedAt);
+  if (timer.intervalId) {
+    clearTimeout(timer.intervalId);
+    timer.intervalId = null;
+  }
+}
+
+function resumeRoundTimer() {
+  const timer = STATE.timer;
+  if (!timer.roundHiddenAt) return;
+  const now = Date.now();
+  timer.pausedMs += Math.max(0, now - timer.roundHiddenAt);
+  timer.roundHiddenAt = 0;
+  if (!timer.running || !timer.paused) return;
+  timer.paused = false;
+  timer.deadlineMs = now + timer.remainingAtPause;
+  updateRoundTimerUi(timer.remainingAtPause);
+  scheduleClockTick();
+  announcePlay(t("core.clock.resumed", { seconds: Math.ceil(timer.remainingAtPause / 1000) }));
+}
+
+function onPageVisibilityChange() {
+  if (pageIsHidden()) pauseRoundTimer();
+  else resumeRoundTimer();
 }
 
 function startRoundTimer() {
   stopRoundTimer();
+  const timer = STATE.timer;
   STATE.roundStartedAt = Date.now();
+  timer.pausedMs = 0;
+  timer.roundHiddenAt = 0;
+  resetClockPaint();
   if (isUntimedSession()) {
     // Nothing counts down and nothing times out; the round is over when the
     // person answers, skips or takes the hint that shows the move.
-    STATE.timer.durationMs = 0;
-    STATE.timer.deadlineMs = 0;
-    STATE.timer.lastAnnouncedSeconds = null;
+    timer.durationMs = 0;
+    timer.deadlineMs = 0;
+    timer.lastAnnouncedSeconds = null;
     if (soloClockAnnounceEl) soloClockAnnounceEl.textContent = "";
     updateRoundTimerUi();
+    if (pageIsHidden()) pauseRoundTimer();
     return;
   }
   const durationMs = Math.round(normalizeTurnTimeSeconds(STATE.turnTimeSeconds) * 1000);
-  STATE.timer.durationMs = durationMs;
-  STATE.timer.deadlineMs = Date.now() + durationMs;
-  STATE.timer.lastAnnouncedSeconds = null;
+  timer.durationMs = durationMs;
+  timer.deadlineMs = Date.now() + durationMs;
+  timer.lastAnnouncedSeconds = null;
+  timer.running = true;
+  timer.paused = false;
+  timer.remainingAtPause = durationMs;
   if (soloClockAnnounceEl) soloClockAnnounceEl.textContent = "";
   updateRoundTimerUi(durationMs);
-  STATE.timer.intervalId = setInterval(() => {
-    const remainingMs = STATE.timer.deadlineMs - Date.now();
-    if (remainingMs <= 0) {
-      updateRoundTimerUi(0);
-      stopRoundTimer();
-      if (!STATE.roundSubmitted && !STATE.isResolvingRound) {
-        void submitNoMove("timeout");
-      }
-      return;
-    }
-    updateRoundTimerUi(remainingMs);
-  }, CLOCK_TICK_MS);
+  if (pageIsHidden()) pauseRoundTimer();
+  else scheduleClockTick();
 }
 
 function setUserMode(mode) {
@@ -2602,8 +2908,38 @@ function getEffectiveAnalysisConfig() {
   };
 }
 
+// Usernames: Lichess allows 2 to 30 characters, Chess.com 3 to 25 (letters, numbers, _ and -).
+const REMOTE_USERNAME_RULES = {
+  lichess: { min: 2, max: 30 },
+  chesscom: { min: 3, max: 25 },
+};
+
+function remoteUsernameRule(platform) {
+  return REMOTE_USERNAME_RULES[platform] || REMOTE_USERNAME_RULES.lichess;
+}
+
+function remoteUsernameIsValid(name, platform) {
+  const rule = remoteUsernameRule(platform);
+  return name.length >= rule.min && name.length <= rule.max && /^[A-Za-z0-9_-]+$/.test(name);
+}
+
+function usernameRuleText(platform) {
+  const rule = remoteUsernameRule(platform);
+  return t("wizard.validation.invalidUsername", { provider: providerLabel(platform), min: rule.min, max: rule.max });
+}
+
+// What a person types or pastes for "username": the name, "@name" (as it is written in chat and on
+// profiles) or the address of the profile (lichess.org/@/name, chess.com/member/name) all mean the same.
+function normalizeRemoteUsername(value) {
+  let text = String(value || "").trim();
+  if (!text) return "";
+  const profile = text.match(/(?:lichess\.org\/@\/|chess\.com\/member\/)([A-Za-z0-9_-]+)/i);
+  if (profile) text = profile[1];
+  return text.replace(/^@+/, "").trim();
+}
+
 function sanitizeWizardUsername(value) {
-  return String(value || "").trim();
+  return normalizeRemoteUsername(value);
 }
 
 function collectWizardConfig() {
@@ -2632,6 +2968,7 @@ function collectWizardConfig() {
     username,
     sessionSize,
     turnTimeSeconds,
+    clockMode: STATE.setupWizard.clockMode === "untimed" ? "untimed" : "timed",
   };
 }
 
@@ -2648,7 +2985,32 @@ function syncWizardToLegacyInputs() {
   setSourceMode(config.platform);
 }
 
+// The remedies a failure offers (index.html #wizard-source-cta): "retry" goes through the same download
+// again, "user" lets the person type another username, "platform" switches Lichess <-> Chess.com.
+// A validation problem of a field (an empty or impossible username) offers none: the field is the remedy.
+function setWizardSourceActions(actions) {
+  const wanted = Array.isArray(actions) ? actions : [];
+  const show = (btn, key) => {
+    if (btn) btn.classList.toggle("hidden", !wanted.includes(key));
+  };
+  show(wizardRetryDownloadBtn, "retry");
+  show(wizardRetryUserBtn, "user");
+  show(wizardSwitchPlatformBtn, "platform");
+  if (wizardSourceCtaEl) wizardSourceCtaEl.classList.toggle("hidden", wanted.length === 0);
+}
+
+let wizardCountdownTimer = null;
+
+function stopWizardCountdown() {
+  if (wizardCountdownTimer) {
+    clearInterval(wizardCountdownTimer);
+    wizardCountdownTimer = null;
+  }
+  if (wizardSourceErrorEl) wizardSourceErrorEl.setAttribute("aria-live", "polite");
+}
+
 function clearWizardSourceError() {
+  stopWizardCountdown();
   STATE.setupWizard.sourceError = null;
   if (wizardSourceErrorEl) {
     wizardSourceErrorEl.textContent = "";
@@ -2657,25 +3019,67 @@ function clearWizardSourceError() {
   if (wizardSourceCtaEl) wizardSourceCtaEl.classList.add("hidden");
   clearFieldInvalid(onlineUserInputEl, "wizard-source-error");
   clearFieldInvalid(wizardPlatformGroupEl, "wizard-source-error");
+  refreshOnlineStatus();
 }
 
 // field identifies which step-2 control the error is actually about
-// ("platform" or "username"), so only that control gets flagged invalid —
+// ("platform" or "username"), so only that control gets flagged invalid:
 // network/throttle errors (called without a field) just show the text.
-function showWizardSourceError(key = "common.sourceError", params = {}, field = null) {
+// options.actions: the remedy buttons that go with it (none by default for a field, see setWizardSourceActions;
+// both "another user / other platform" otherwise). options.seconds > 0 makes it a countdown: the text
+// counts down and, at zero, the download starts again by itself (a wait the person does not have to watch).
+function showWizardSourceError(key = "common.sourceError", params = {}, field = null, options = {}) {
+  stopWizardCountdown();
   const hasTranslation = Object.prototype.hasOwnProperty.call(TRANSLATIONS[preferredLocale()] || {}, key)
     || Object.prototype.hasOwnProperty.call(TRANSLATIONS.es || {}, key);
   const text = hasTranslation ? t(key, params) : String(key || "").trim();
-  STATE.setupWizard.sourceError = hasTranslation ? { key, params } : { raw: text };
+  const actions = Array.isArray(options.actions) ? options.actions : (field ? [] : ["user", "platform"]);
+  const seconds = Math.max(0, Math.round(Number(options.seconds) || 0));
+  STATE.setupWizard.sourceError = hasTranslation ? { key, params: { ...params }, field, actions, seconds } : { raw: text };
   if (wizardSourceErrorEl) {
     wizardSourceErrorEl.textContent = text;
     wizardSourceErrorEl.classList.remove("hidden");
   }
-  if (wizardSourceCtaEl) wizardSourceCtaEl.classList.remove("hidden");
+  // The message is the alert; the status line under the field goes quiet instead of saying it twice.
+  if (onlineStatusEl) onlineStatusEl.textContent = "";
+  setWizardSourceActions(actions);
   if (field === "username") setFieldInvalid(onlineUserInputEl, "wizard-source-error");
   else clearFieldInvalid(onlineUserInputEl, "wizard-source-error");
   if (field === "platform") setFieldInvalid(wizardPlatformGroupEl, "wizard-source-error");
   else clearFieldInvalid(wizardPlatformGroupEl, "wizard-source-error");
+  if (seconds > 0) startWizardCountdown();
+}
+
+// Counts the seconds of a wait down in the alert, says it once (not every second) to a screen reader, and
+// starts the download again at zero if the person is still where they were.
+function startWizardCountdown() {
+  const error = STATE.setupWizard.sourceError;
+  if (!error || !error.seconds || !wizardSourceErrorEl) return;
+  if (wizardSourceErrorEl) wizardSourceErrorEl.setAttribute("aria-live", "off");
+  announcePlay(wizardSourceErrorEl.textContent);
+  wizardCountdownTimer = setInterval(() => {
+    const current = STATE.setupWizard.sourceError;
+    if (!current || !current.seconds) {
+      stopWizardCountdown();
+      return;
+    }
+    current.seconds -= 1;
+    if (current.params && "seconds" in current.params) current.params.seconds = Math.max(1, current.seconds);
+    if (current.seconds <= 0) {
+      stopWizardCountdown();
+      retryWizardDownload();
+      return;
+    }
+    wizardSourceErrorEl.textContent = t(current.key, current.params);
+  }, 1000);
+}
+
+// "Try again": the same user, the same platform, the same choices, from the step that starts the download.
+function retryWizardDownload() {
+  if (STATE.ui.setupAnalyzing || !wizardStep3El) return;
+  clearWizardSourceError();
+  goToWizardStep(3);
+  void startSessionPipeline();
 }
 
 function clearWizardStepError() {
@@ -2744,9 +3148,9 @@ function renderWizardSummary() {
   ].join("");
 }
 
-// Untimed play is a setting; while it is on, the wizard has no round time to ask for.
+// "No limit" is a choice of the wizard too (it starts from the setting, and only for this session).
 function wizardClockIsUntimed() {
-  return settingsGet("clock.mode", "timed") === "untimed";
+  return STATE.setupWizard.clockMode === "untimed";
 }
 
 // A screen that already knows who plays (Ludus.game.openOwnGamesSetup) skips the
@@ -2775,10 +3179,21 @@ function renderWizardStep() {
   const shownStep = step - (firstStep - 1);
   const config = collectWizardConfig();
   renderWizardHeading();
-  const timerGroupEl = turnTimeSecondsEl && typeof turnTimeSecondsEl.closest === "function"
-    ? turnTimeSecondsEl.closest(".wizard-step-group")
+  // With "no limit" chosen the custom seconds have nothing to say; below 30 s the wizard warns
+  // that there is hardly time to think (it still allows it: some people train speed on purpose).
+  const untimedNow = wizardClockIsUntimed();
+  const customLabelEl = turnTimeSecondsEl && typeof turnTimeSecondsEl.parentNode?.querySelector === "function"
+    ? turnTimeSecondsEl.parentNode.querySelector('label[for="turn-time-seconds"]')
     : null;
-  if (timerGroupEl) timerGroupEl.classList.toggle("hidden", wizardClockIsUntimed());
+  [turnTimeSecondsEl, customLabelEl].forEach((el) => {
+    if (el) el.classList.toggle("hidden", untimedNow);
+  });
+  const clockNoteEl = document.getElementById("wizard-clock-note");
+  if (clockNoteEl) {
+    clockNoteEl.textContent = untimedNow
+      ? t("wizard.step3.noLimitHint")
+      : `${t("wizard.step3.clockNote")}${config.turnTimeSeconds < 30 ? ` ${t("wizard.step3.timerShort")}` : ""}`;
+  }
 
   wizardStepEls.forEach((stepEl, idx) => {
     if (!stepEl) return;
@@ -2845,7 +3260,6 @@ function renderWizardStep() {
 function validateWizardStep(step = STATE.setupWizard.step) {
   const config = collectWizardConfig();
   const safeStep = clamp(Number(step) || 1, 1, 3);
-  const usernamePattern = /^[A-Za-z0-9_-]{3,30}$/;
 
   if (safeStep >= 1) {
     if (config.mode !== "solo" && config.mode !== "duel") {
@@ -2869,8 +3283,8 @@ function validateWizardStep(step = STATE.setupWizard.step) {
     if (!config.username) {
       return { valid: false, reason: t("wizard.validation.enterUsername"), field: "username" };
     }
-    if (!usernamePattern.test(config.username)) {
-      return { valid: false, reason: t("wizard.validation.invalidUsername"), field: "username" };
+    if (!remoteUsernameIsValid(config.username, config.platform)) {
+      return { valid: false, reason: usernameRuleText(config.platform), field: "username" };
     }
   }
 
@@ -2905,10 +3319,10 @@ function resetSetupWizard({ mode = null, statusMessage = "", skipModeStep = fals
   STATE.setupWizard.platform = getRemoteProviderModeFromUi();
   STATE.setupWizard.username = sanitizeWizardUsername(onlineUserInputEl ? onlineUserInputEl.value : "");
   STATE.setupWizard.sessionSize = clamp(Number(sessionSizeEl ? sessionSizeEl.value : DEFAULT_CITIZEN_SESSION_SIZE) || DEFAULT_CITIZEN_SESSION_SIZE, 1, 200);
-  STATE.setupWizard.turnTimeSeconds = normalizeTurnTimeSeconds(
-    turnTimeSecondsEl ? turnTimeSecondsEl.value : STATE.setupWizard.turnTimeSeconds,
-    { fallback: STATE.setupWizard.turnTimeSeconds },
-  );
+  // A new wizard starts from the person's usual clock (Settings); what it changes stays in its session.
+  // (the very first session starts without a clock, see isFirstRun()).
+  STATE.setupWizard.clockMode = settingsGet("clock.mode", "timed") === "untimed" || isFirstRun() ? "untimed" : "timed";
+  setWizardTurnTimeSeconds(settingsGet("clock.seconds", DEFAULT_TURN_TIME_SECONDS));
   STATE.setupWizard.sourceError = null;
   clearWizardStepError();
   clearWizardSourceError();
@@ -2917,13 +3331,26 @@ function resetSetupWizard({ mode = null, statusMessage = "", skipModeStep = fals
   goToWizardStep(wizardFirstStep());
 }
 
-function sendWizardBackToSourceStep(key = "common.sourceError", params = {}) {
-  showWizardSourceError(key, params);
+// After a failure of the download or the search: back to the step where the remedy is (another user,
+// the other platform, or simply "try again"), with what happened said once, in the alert. options is
+// showWizardSourceError's (actions, seconds).
+function sendWizardBackToSourceStep(key = "common.sourceError", params = {}, options = {}) {
+  showWizardSourceError(key, params, null, options);
   STATE.ui.setupAnalyzing = false;
   setWizardFormControlsDisabled(false);
   if (analyzeBtn) analyzeBtn.disabled = false;
   goToWizardStep(2);
-  if (onlineUserInputEl) onlineUserInputEl.focus();
+  // The focus goes to the username (where the remedy usually is) without scrolling, and the alert with its
+  // buttons is brought to the middle of the screen: on a phone the tab bar would otherwise cover them.
+  if (onlineUserInputEl && typeof onlineUserInputEl.focus === "function") onlineUserInputEl.focus({ preventScroll: true });
+  const target = wizardSourceCtaEl && !wizardSourceCtaEl.classList.contains("hidden") ? wizardSourceCtaEl : wizardSourceErrorEl;
+  if (target && typeof target.scrollIntoView === "function") {
+    try {
+      target.scrollIntoView({ block: "center", behavior: "auto" });
+    } catch (error) {
+      // Scrolling is a courtesy.
+    }
+  }
 }
 
 // Inputs the user could still edit while a download/analysis is in flight.
@@ -2953,6 +3380,43 @@ function setWizardFormControlsDisabled(disabled) {
   wizardFormControlEls.forEach((el) => {
     if (el) el.disabled = disabled;
   });
+  // While the wizard works (downloading games, looking for mistakes) it can be cancelled from where the
+  // progress is, and says how long it has been at it.
+  if (analysisCancelBtn) analysisCancelBtn.classList.toggle("hidden", !disabled);
+  if (disabled) startWizardBusyTicker();
+  else stopWizardBusyTicker();
+}
+
+// Elapsed seconds under the progress bar once the wait stops being short, with what to expect: a year of
+// games is a few megabytes and the provider may be slow. Not a live region (it would chatter every second).
+let wizardBusyTimer = null;
+let wizardBusyStartedAt = 0;
+
+function renderWizardBusyText() {
+  if (!analysisElapsedEl) return;
+  const seconds = Math.max(0, Math.round((Date.now() - wizardBusyStartedAt) / 1000));
+  if (seconds < 8) {
+    analysisElapsedEl.textContent = "";
+    return;
+  }
+  analysisElapsedEl.textContent = seconds < 25
+    ? t("download.elapsed", { seconds })
+    : t("download.elapsedLong", { seconds, provider: providerLabel(STATE.sourceMode) });
+}
+
+function startWizardBusyTicker() {
+  stopWizardBusyTicker();
+  wizardBusyStartedAt = Date.now();
+  renderWizardBusyText();
+  wizardBusyTimer = setInterval(renderWizardBusyText, 1000);
+}
+
+function stopWizardBusyTicker() {
+  if (wizardBusyTimer) {
+    clearInterval(wizardBusyTimer);
+    wizardBusyTimer = null;
+  }
+  if (analysisElapsedEl) analysisElapsedEl.textContent = "";
 }
 
 function getSetupReadiness() {
@@ -2981,22 +3445,30 @@ function updateAnalyzeButtonState() {
   return readiness;
 }
 
+// The line under the username field says what is true of it NOW: empty, impossible for this platform,
+// a base that is already there, or fine. (An error in the alert silences it: see showWizardSourceError.)
+function refreshOnlineStatus() {
+  if (!onlineStatusEl || STATE.ui.setupAnalyzing || STATE.setupWizard.sourceError) return;
+  const config = collectWizardConfig();
+  const remote = hasAnyPgnSource(true) ? STATE.remotePgnSources[0] : null;
+  if (!config.username) {
+    onlineStatusEl.textContent = t("wizard.step2.enterUsername");
+  } else if (remote?.username) {
+    const warning = remoteWarningText(remote);
+    onlineStatusEl.textContent = t("provider.baseReady", { username: remote.username, warning: warning ? ` ${warning}` : "" });
+  } else if (!remoteUsernameIsValid(config.username, config.platform)) {
+    onlineStatusEl.textContent = usernameRuleText(config.platform);
+  } else {
+    onlineStatusEl.textContent = t("provider.readyToDownload");
+  }
+}
+
 function updatePgnSelectionUi() {
   const config = collectWizardConfig();
   const hasRemote = hasAnyPgnSource(true);
   const remote = hasRemote ? STATE.remotePgnSources[0] : null;
 
-  if (onlineStatusEl && !STATE.ui.setupAnalyzing && !STATE.setupWizard.sourceError) {
-    if (!config.username) {
-      onlineStatusEl.textContent = t("wizard.step2.enterUsername");
-    } else if (hasRemote && remote?.username) {
-      const warning = remoteWarningText(remote);
-      const warningText = warning ? ` ${warning}` : "";
-      onlineStatusEl.textContent = t("provider.baseReady", { username: remote.username, warning: warningText });
-    } else {
-      onlineStatusEl.textContent = t("provider.readyToDownload");
-    }
-  }
+  refreshOnlineStatus();
 
   if (configFilesStatusEl) {
     if (hasRemote && remote?.username) {
@@ -3101,6 +3573,7 @@ function openSetupFromLanding({ format = null, statusMessage = "", skipModeStep 
     statusMessage: statusMessage || t("wizard.status.currentStep"),
     skipModeStep,
   });
+  prefillLastUsername();
   updatePgnSelectionUi();
 }
 
@@ -3152,30 +3625,52 @@ async function yieldToUi() {
   await sleepMs(0);
 }
 
-function retryAfterMs(response) {
-  const raw = response?.headers?.get ? response.headers.get("Retry-After") : "";
-  if (!raw) return 0;
-  const numeric = Number(raw);
-  if (Number.isFinite(numeric)) return clamp(numeric * 1000, 0, 60000);
-  const dateMs = Date.parse(raw);
-  return Number.isFinite(dateMs) ? clamp(dateMs - Date.now(), 0, 60000) : 0;
+// What went wrong with a download, in terms the screen can act on (see remoteErrorView):
+// code is one of notFound | noGames | rateLimited | server | offline | network | timeout |
+// malformed | tooLarge | cancelled | consentCancelled | consentUnavailable | userMissing.
+// Nothing a person reads is ever taken from an exception's own message.
+class RemoteFetchError extends Error {
+  constructor(code, params = {}) {
+    super(code);
+    this.name = "RemoteFetchError";
+    this.code = code;
+    this.params = params;
+  }
 }
 
+// The pause a 429 asks for: its Retry-After (seconds, or a date) when the browser can read it,
+// else the minute Lichess asks clients to wait.
+function retryAfterMs(response) {
+  const raw = response?.headers?.get ? response.headers.get("Retry-After") : "";
+  if (!raw) return RATE_LIMIT_PAUSE_MS;
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric)) return clamp(numeric * 1000, 1000, 10 * 60000);
+  const dateMs = Date.parse(raw);
+  return Number.isFinite(dateMs) ? clamp(dateMs - Date.now(), 1000, 10 * 60000) : RATE_LIMIT_PAUSE_MS;
+}
+
+// GET with a timeout per attempt. A network failure or a 5xx is tried again (a short, growing pause);
+// a 429 never is: the provider asked for a pause and what to do is the caller's decision. The answer
+// of the server, whatever its status, comes back as a response; everything that stops one coming
+// back is a RemoteFetchError ("cancelled" when the signal was aborted, else timeout / offline / network).
 async function fetchWithTimeout(url, options = {}) {
   const timeoutMs = clamp(Number(options.timeoutMs) || REMOTE_FETCH_TIMEOUT_MS, 1000, 60000);
   const retries = clamp(Number(options.retries) || 0, 0, 4);
   const { timeoutMs: _timeoutMs, retries: _retries, signal: externalSignal, ...fetchOptions } = options;
-  let lastError = null;
+  let lastTimedOut = false;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     if (externalSignal?.aborted) break;
     const controller = typeof AbortController === "function" ? new AbortController() : null;
+    let timedOut = false;
     const timeout = controller
-      ? setTimeout(() => controller.abort(), timeoutMs)
+      ? setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, timeoutMs)
       : null;
-    // Bridges an external cancellation (session ended, download budget hit)
-    // into this attempt's own controller so the in-flight request actually
-    // stops, instead of only having its eventual result discarded.
+    // Bridges an external cancellation (session ended, download budget hit, the person pressed
+    // "cancel") into this attempt's own controller so the in-flight request actually stops.
     const onExternalAbort = () => controller && controller.abort();
     if (externalSignal && controller) externalSignal.addEventListener("abort", onExternalAbort);
     try {
@@ -3184,16 +3679,14 @@ async function fetchWithTimeout(url, options = {}) {
         signal: controller ? controller.signal : externalSignal,
       });
       if (timeout) clearTimeout(timeout);
-      const shouldRetryStatus = response.status === 429 || response.status >= 500;
-      if (shouldRetryStatus && attempt < retries) {
-        const delayMs = retryAfterMs(response) || (500 * (attempt + 1));
-        await sleepMs(delayMs);
+      if (response.status >= 500 && attempt < retries) {
+        await sleepMs(500 * (attempt + 1));
         continue;
       }
       return response;
     } catch (error) {
       if (timeout) clearTimeout(timeout);
-      lastError = error;
+      lastTimedOut = timedOut;
       if (externalSignal?.aborted) break;
       if (attempt < retries) {
         await sleepMs(500 * (attempt + 1));
@@ -3204,13 +3697,25 @@ async function fetchWithTimeout(url, options = {}) {
     }
   }
 
-  if (externalSignal?.aborted) {
-    throw new Error(t("network.cancelled"));
-  }
-  if (lastError?.name === "AbortError") {
-    throw new Error(t("network.timeout"));
-  }
-  throw new Error(t("network.failed"));
+  if (externalSignal?.aborted) throw new RemoteFetchError("cancelled");
+  if (lastTimedOut) throw new RemoteFetchError("timeout");
+  throw new RemoteFetchError(typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "network");
+}
+
+// The error a response that is not ok stands for: the user is not there (404), the provider asks for a
+// pause (429, with how long), or it is having trouble (anything else: its status goes with it).
+function remoteStatusError(response) {
+  if (response.status === 404) return new RemoteFetchError("notFound");
+  if (response.status === 429) return new RemoteFetchError("rateLimited", { retryAfterMs: retryAfterMs(response) });
+  return new RemoteFetchError("server", { status: response.status });
+}
+
+// Whatever stops a body from being read: cancelled, the connection dropping, or the wrong kind of body.
+function remoteBodyError(error, signal) {
+  if (error instanceof RemoteFetchError) return error;
+  if (signal?.aborted) return new RemoteFetchError("cancelled");
+  if (error && error.name === "AbortError") return new RemoteFetchError("timeout");
+  return new RemoteFetchError(typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "network");
 }
 
 // Rejects an oversized remote response before it is fully materialized in
@@ -3218,48 +3723,58 @@ async function fetchWithTimeout(url, options = {}) {
 // otherwise the body is read incrementally via its stream reader so a
 // response that lies about (or omits) its length is still capped by bytes
 // actually received. See REMOTE_RESPONSE_MAX_BYTES for the size rationale.
-async function readResponseTextWithLimit(response, maxBytes = REMOTE_RESPONSE_MAX_BYTES) {
+async function readResponseTextWithLimit(response, maxBytes = REMOTE_RESPONSE_MAX_BYTES, signal) {
   const declaredLength = Number(response.headers?.get?.("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
-    throw new Error(t("network.responseTooLarge"));
+    throw new RemoteFetchError("tooLarge");
   }
-  const hasStreamingBody = response.body && typeof response.body.getReader === "function"
-    && typeof TextDecoder === "function";
-  if (!hasStreamingBody) {
-    // Environment without a streaming body reader (older browser, or the
-    // stubbed test harness): the Content-Length check above still applies
-    // when the header is present; this is only reached without it.
-    const text = await response.text();
-    if (text.length > maxBytes) {
-      throw new Error(t("network.responseTooLarge"));
-    }
-    return text;
-  }
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder("utf-8");
-  let received = 0;
-  let result = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    received += value.byteLength;
-    if (received > maxBytes) {
-      try {
-        await reader.cancel();
-      } catch (error) {
-        // ignore cancel failures, we are already bailing out
+  try {
+    const hasStreamingBody = response.body && typeof response.body.getReader === "function"
+      && typeof TextDecoder === "function";
+    if (!hasStreamingBody) {
+      // Environment without a streaming body reader (older browser, or the
+      // stubbed test harness): the Content-Length check above still applies
+      // when the header is present; this is only reached without it.
+      const text = await response.text();
+      if (text.length > maxBytes) {
+        throw new RemoteFetchError("tooLarge");
       }
-      throw new Error(t("network.responseTooLarge"));
+      return text;
     }
-    result += decoder.decode(value, { stream: true });
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let received = 0;
+    let result = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > maxBytes) {
+        try {
+          await reader.cancel();
+        } catch (error) {
+          // ignore cancel failures, we are already bailing out
+        }
+        throw new RemoteFetchError("tooLarge");
+      }
+      result += decoder.decode(value, { stream: true });
+    }
+    result += decoder.decode();
+    return result;
+  } catch (error) {
+    throw remoteBodyError(error, signal);
   }
-  result += decoder.decode();
-  return result;
 }
 
-async function readResponseJsonWithLimit(response, maxBytes = REMOTE_RESPONSE_MAX_BYTES) {
-  const text = await readResponseTextWithLimit(response, maxBytes);
-  return JSON.parse(text);
+// A body that is not the JSON the provider documents (an HTML error page, a cut-off answer) is
+// "the games could not be read", never the parser's own complaint.
+async function readResponseJsonWithLimit(response, maxBytes = REMOTE_RESPONSE_MAX_BYTES, signal) {
+  const text = await readResponseTextWithLimit(response, maxBytes, signal);
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new RemoteFetchError("malformed");
+  }
 }
 
 function remotePgnCacheAvailable() {
@@ -3288,8 +3803,21 @@ function remotePgnCacheKey(provider, username, signature) {
   return `${safeProvider}|${safeUser}|${signature}`;
 }
 
+// What makes two downloads interchangeable: the same provider and the same kind of games. NOT how
+// many games a session asked for (changing 10 positions to 5 must not go back to the network): the
+// entry remembers how many it asked for (source.requestedMax) and serves any session that needs
+// no more than that, or any when the person simply has fewer games than were asked for.
 function cacheSignature(settings) {
   return JSON.stringify(settings, Object.keys(settings || {}).sort());
+}
+
+function cachedBaseCovers(entry, minRequested) {
+  const source = entry && entry.source;
+  if (!source) return false;
+  if (!Number.isFinite(minRequested)) return true;
+  const requested = Number(source.requestedMax);
+  if (!Number.isFinite(requested)) return false;
+  return requested >= minRequested || Number(source.games) < requested;
 }
 
 async function readCachedRemotePgn(cacheKey, options = {}) {
@@ -3306,6 +3834,10 @@ async function readCachedRemotePgn(cacheKey, options = {}) {
       }
       const ageMs = Date.now() - Number(entry.fetchedAt || 0);
       if (!options.allowStale && ageMs > REMOTE_PGN_CACHE_TTL_MS) {
+        resolve(null);
+        return;
+      }
+      if (!cachedBaseCovers(entry, options.minRequested)) {
         resolve(null);
         return;
       }
@@ -3385,10 +3917,13 @@ async function clearAllRemotePgnCache() {
 }
 
 // Courtesy limit on how often this browser hits the Lichess / Chess.com public
-// APIs. It only counts downloads that actually reach the network: anything
-// answered from the local cache is free. Stored in localStorage so a page
-// reload does not hand out a fresh allowance.
+// APIs. It only counts downloads that actually reached the network and worked: anything
+// answered from the local cache is free, and so is a request the provider refused (a wrong
+// username is not a reason to wait twenty seconds before correcting it). Stored in
+// localStorage so a page reload does not hand out a fresh allowance.
 const REMOTE_FETCH_THROTTLE_KEY = "ludus.remoteFetchThrottle.v1";
+// A 429 is a different thing: the provider itself asked for a pause, so nothing is sent to it until that is over.
+const REMOTE_FETCH_COOLDOWN_KEY = "ludus.remoteFetchCooldown.v1";
 const REMOTE_FETCH_MIN_GAP_MS = 20 * 1000;
 const REMOTE_FETCH_WINDOW_MS = 60 * 60 * 1000;
 const REMOTE_FETCH_MAX_PER_WINDOW = 12;
@@ -3413,17 +3948,45 @@ function writeRemoteFetchLog(timestamps) {
   }
 }
 
+// The pause a provider asked for, remembered per provider until it is over.
+function readRemoteCooldown(provider) {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(REMOTE_FETCH_COOLDOWN_KEY) || "{}");
+    const until = stored && Number(stored[provider]);
+    return Number.isFinite(until) && until > Date.now() ? until : 0;
+  } catch (error) {
+    return 0;
+  }
+}
+
+function recordRemoteCooldown(provider, pauseMs) {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(REMOTE_FETCH_COOLDOWN_KEY) || "{}");
+    const next = stored && typeof stored === "object" ? stored : {};
+    next[provider] = Date.now() + clamp(Number(pauseMs) || RATE_LIMIT_PAUSE_MS, 1000, 10 * 60000);
+    window.localStorage.setItem(REMOTE_FETCH_COOLDOWN_KEY, JSON.stringify(next));
+  } catch (error) {
+    // Only costs a second 429 if the person tries again at once.
+  }
+}
+
 // Returns null when a network download is allowed right now, or an object with
-// the translation key and params explaining how long the caller has to wait.
-function remoteFetchThrottleBlock() {
+// the translation key and params explaining how long the caller has to wait
+// (seconds is what a countdown can show and then retry by itself).
+function remoteFetchThrottleBlock(provider) {
   const now = Date.now();
+  const cooldownUntil = provider ? readRemoteCooldown(provider) : 0;
+  if (cooldownUntil) {
+    const seconds = Math.max(1, Math.ceil((cooldownUntil - now) / 1000));
+    return { key: "download.error.rateLimited", params: { provider: providerLabel(provider), seconds }, seconds };
+  }
   const recent = readRemoteFetchLog().filter((at) => now - at < REMOTE_FETCH_WINDOW_MS && at <= now);
   writeRemoteFetchLog(recent);
 
   const lastAt = recent.length ? Math.max(...recent) : 0;
   if (lastAt && now - lastAt < REMOTE_FETCH_MIN_GAP_MS) {
     const seconds = Math.max(1, Math.ceil((REMOTE_FETCH_MIN_GAP_MS - (now - lastAt)) / 1000));
-    return { key: "provider.throttleWait", params: { seconds } };
+    return { key: "provider.throttleWait", params: { seconds }, seconds };
   }
   if (recent.length >= REMOTE_FETCH_MAX_PER_WINDOW) {
     const oldest = Math.min(...recent);
@@ -3460,9 +4023,16 @@ function installRemotePgnSource(source, options = {}) {
 
 let consentModalOpen = false;
 
+function consentDialogAvailable() {
+  return Boolean(consentOverlayEl && consentOverlayAcceptBtn && consentOverlayCancelBtn);
+}
+
+// A question with a yes and a no. It fails CLOSED: without the dialog's markup nobody agreed to
+// anything, so the answer is no (a download must never start on a consent nobody gave). Only a
+// question with nothing irreversible behind it (options.allowWithoutDialog, leaving a session) goes on.
 function showConfirmModal(options = {}) {
-  if (!consentOverlayEl || !consentOverlayAcceptBtn || !consentOverlayCancelBtn) {
-    return Promise.resolve(true);
+  if (!consentDialogAvailable()) {
+    return Promise.resolve(options.allowWithoutDialog === true);
   }
   if (consentModalOpen) return Promise.resolve(false);
   consentModalOpen = true;
@@ -3563,8 +4133,15 @@ function showConfirmModal(options = {}) {
   });
 }
 
+// The consent is for one provider AND one username: having agreed to ask Lichess for one person's games
+// says nothing about another person's (the dialog names the user, and so does what is sent).
+function consentKey(provider, username) {
+  return `${provider}|${normalizeName(username)}`;
+}
+
 function confirmRemoteFetchConsent(provider, username) {
-  if (STATE.remoteConsent[provider]) return Promise.resolve(true);
+  const key = consentKey(provider, username);
+  if (STATE.remoteConsent[key]) return Promise.resolve(true);
   return showConfirmModal({
     title: t("privacy.remoteFetchTitle"),
     body: t("privacy.remoteFetchConfirm", {
@@ -3577,7 +4154,7 @@ function confirmRemoteFetchConsent(provider, username) {
     retypeLabel: t("privacy.remoteFetchUsernameLabel"),
     mismatchMessage: t("privacy.remoteFetchUsernameMismatch"),
   }).then((accepted) => {
-    if (accepted) STATE.remoteConsent[provider] = true;
+    if (accepted) STATE.remoteConsent[key] = true;
     return accepted;
   });
 }
@@ -4642,7 +5219,7 @@ function resetAnalysisProgress() {
   analysisMetricsEl.textContent = t("analysis.metrics.zero");
 }
 
-function updateNextSearchStatus(ctx, phaseText = "", ordinal = null) {
+function updateNextSearchStatus(ctx) {
   if (!roundStatusEl || !ctx) return;
   // Clear the text content since the central overlay already shows the "Searching" UI.
   roundStatusEl.textContent = "";
@@ -4721,19 +5298,20 @@ async function evaluateCandidateForMistake(candidate, ctx) {
 // Reports how the search ended, not only what it found. Cancelling and running
 // out of candidates both used to come back as nothing, so cancelling ended the
 // session as if there were no positions left.
-async function findNextMistake(ctx, extraStatusPrefix = "") {
-  const mistake = await searchNextMistake(ctx, extraStatusPrefix);
+async function findNextMistake(ctx, options = {}) {
+  const mistake = await searchNextMistake(ctx, options);
   if (mistake) return { status: "found", mistake };
   return { status: STATE.ui.searchCancelRequested ? "cancelled" : "exhausted", mistake: null };
 }
 
-async function searchNextMistake(ctx, extraStatusPrefix = "") {
+async function searchNextMistake(ctx, options = {}) {
   if (!ctx || STATE.analysisInProgress) return null;
   STATE.analysisInProgress = true;
   STATE.ui.searchCancelRequested = false;
   const searchStartedAt = Date.now();
   let evaluatedInThisSearch = 0;
-  const isNextSearch = String(extraStatusPrefix || "").trim().toLowerCase().startsWith("siguiente");
+  // The search for the position AFTER the first one runs over the board (the status text lives in its overlay).
+  const isNextSearch = Boolean(options && options.next);
   try {
     if (!Array.isArray(ctx.repeatMistakes)) ctx.repeatMistakes = [];
     if (ctx.cursor >= ctx.candidates.length && ctx.repeatMistakes.length > 0) {
@@ -4742,8 +5320,8 @@ async function searchNextMistake(ctx, extraStatusPrefix = "") {
       if (usedGames && Number.isInteger(fallback.gameIdx)) usedGames.add(fallback.gameIdx);
       ctx.detected += 1;
       updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.detectedRepeated"));
-      analysisStatusEl.textContent = t("analysis.status.reused", { prefix: extraStatusPrefix, count: ctx.detected });
-      if (isNextSearch) updateNextSearchStatus(ctx, "Posición detectada (repetida)");
+      analysisStatusEl.textContent = t("analysis.status.reused", { count: ctx.detected });
+      if (isNextSearch) updateNextSearchStatus(ctx);
       return fallback;
     }
 
@@ -4758,13 +5336,12 @@ async function searchNextMistake(ctx, extraStatusPrefix = "") {
       const candidate = ctx.candidates[ctx.cursor];
       const ordinal = ctx.cursor + 1;
       analysisStatusEl.textContent = t("analysis.status.candidate", {
-        prefix: extraStatusPrefix,
         ordinal,
         total: ctx.total,
         detected: ctx.detected,
       });
       updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.evaluatingCandidate", { ordinal, total: ctx.total }));
-      if (isNextSearch) updateNextSearchStatus(ctx, "Evaluando candidata", ordinal);
+      if (isNextSearch) updateNextSearchStatus(ctx);
       await yieldToUi();
 
       ctx.cursor += 1;
@@ -4787,8 +5364,8 @@ async function searchNextMistake(ctx, extraStatusPrefix = "") {
           if (usedGames) usedGames.add(gameIdx);
           ctx.detected += 1;
           updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.detected"));
-          analysisStatusEl.textContent = t("analysis.status.ready", { prefix: extraStatusPrefix, count: ctx.detected });
-          if (isNextSearch) updateNextSearchStatus(ctx, "Posición detectada");
+          analysisStatusEl.textContent = t("analysis.status.ready", { count: ctx.detected });
+          if (isNextSearch) updateNextSearchStatus(ctx);
           return mistake;
         }
 
@@ -4804,14 +5381,14 @@ async function searchNextMistake(ctx, extraStatusPrefix = "") {
         if (usedGames && Number.isInteger(fallback.gameIdx)) usedGames.add(fallback.gameIdx);
         ctx.detected += 1;
         updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.detectedRepeated"));
-        analysisStatusEl.textContent = t("analysis.status.continuity", { prefix: extraStatusPrefix, count: ctx.detected });
-        if (isNextSearch) updateNextSearchStatus(ctx, "Posición detectada (repetida)");
+        analysisStatusEl.textContent = t("analysis.status.continuity", { count: ctx.detected });
+        if (isNextSearch) updateNextSearchStatus(ctx);
         return fallback;
       }
 
       if (ctx.analyzed % 2 === 0) {
         updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.searchingError"));
-        if (isNextSearch) updateNextSearchStatus(ctx, "Buscando error");
+        if (isNextSearch) updateNextSearchStatus(ctx);
         await yieldToUi();
       }
     }
@@ -4822,20 +5399,20 @@ async function searchNextMistake(ctx, extraStatusPrefix = "") {
       if (usedGames && Number.isInteger(deferredRepeat.gameIdx)) usedGames.add(deferredRepeat.gameIdx);
       ctx.detected += 1;
       updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.detectedRepeated"));
-      analysisStatusEl.textContent = t("analysis.status.noFresh", { prefix: extraStatusPrefix, count: ctx.detected });
-      if (isNextSearch) updateNextSearchStatus(ctx, "Posición detectada (repetida)");
+      analysisStatusEl.textContent = t("analysis.status.noFresh", { count: ctx.detected });
+      if (isNextSearch) updateNextSearchStatus(ctx);
       return deferredRepeat;
     }
 
     if (STATE.ui.searchCancelRequested) {
       updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.cancelled"));
-      if (isNextSearch) updateNextSearchStatus(ctx, "Búsqueda cancelada");
+      if (isNextSearch) updateNextSearchStatus(ctx);
       return null;
     }
 
     updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.finished"));
-    analysisStatusEl.textContent = t("analysis.status.noMore", { prefix: extraStatusPrefix });
-    if (isNextSearch) updateNextSearchStatus(ctx, "Búsqueda finalizada");
+    analysisStatusEl.textContent = t("analysis.status.noMore");
+    if (isNextSearch) updateNextSearchStatus(ctx);
     return null;
   } finally {
     STATE.analysisInProgress = false;
@@ -4878,6 +5455,26 @@ function pieceAriaName(piece) {
     k: "piece.blackKing",
   };
   return keyByPiece[piece] ? t(keyByPiece[piece]) : t("board.empty");
+}
+
+// "la torre blanca" / "the white rook": the piece with its article, for a sentence that says
+// what to move ("mové la torre blanca": a bare name would need the article's gender in every language).
+function pieceDefiniteName(piece) {
+  const keyByPiece = {
+    P: "piece.def.whitePawn",
+    N: "piece.def.whiteKnight",
+    B: "piece.def.whiteBishop",
+    R: "piece.def.whiteRook",
+    Q: "piece.def.whiteQueen",
+    K: "piece.def.whiteKing",
+    p: "piece.def.blackPawn",
+    n: "piece.def.blackKnight",
+    b: "piece.def.blackBishop",
+    r: "piece.def.blackRook",
+    q: "piece.def.blackQueen",
+    k: "piece.def.blackKing",
+  };
+  return keyByPiece[piece] ? t(keyByPiece[piece]) : pieceAriaName(piece);
 }
 
 function boardSquareAriaLabel(squareName, piece, stateParts = []) {
@@ -5001,6 +5598,8 @@ function boardArrowList() {
   }
   const hint = visibleHintMove();
   if (hint && hint.showTo && !hintRevealsMove()) add("hint", hint);
+  // The move chosen and waiting for its confirmation is drawn as an arrow (board.confirmMove).
+  if (STATE.pendingMove && !resultShown) add("user", STATE.pendingMove);
   return list;
 }
 
@@ -5060,6 +5659,7 @@ function dropPieceOnBoard(from, to) {
 function cancelBoardSelection() {
   STATE.selection = null;
   STATE.legalMoves = [];
+  clearPendingMove();
   renderBoard();
 }
 
@@ -5111,6 +5711,9 @@ function startRound(options = {}) {
   if (isDuelMode() && !preserveDuelRoundResults) {
     STATE.duel.roundResults = [null, null];
   }
+  // From its second position on, a duel waits for the first player's tap before their clock starts (the position stays
+  // covered until then): the clock used to start the moment anybody pressed "Next position".
+  const duelReadyGate = isDuelMode() && !preserveDuelRoundResults && STATE.index > 0;
 
   STATE.board = new Chess(position.fen);
   setBoardPerspective(STATE.board.turn);
@@ -5121,7 +5724,13 @@ function startRound(options = {}) {
   STATE.isResolvingRound = false;
   STATE.revealed = { best: null, game: null, user: null, userAlt: null };
   STATE.duel.handoffReady = false;
+  STATE.duel.readyWait = false;
   resetHintState();
+  // A picker, a move waiting for its confirmation or an armed button from the round before never survive into this one.
+  closePromotionPicker({ skipFocusReturn: true });
+  STATE.pendingMove = null;
+  updateConfirmButton();
+  disarmConfirmations();
   setUiPhase("playing", false);
   hideHandoffOverlay();
   hidePositionSearchOverlay();
@@ -5131,15 +5740,19 @@ function startRound(options = {}) {
   renderPlayHeader();
   renderThinkingPanel();
   stopRoundTimer();
-  startRoundTimer();
+  if (!duelReadyGate) startRoundTimer();
   updateNextButton();
   nextBtn.disabled = true;
   skipBtn.disabled = false;
 
   renderBoard();
   updateHintButton();
-  focusBoardAfterRoundStart();
-  announcePlay(`${t("play.position", { current: STATE.index + 1, total: soloSessionTarget() })}. ${roundTurnEl ? roundTurnEl.textContent : ""}`);
+  if (duelReadyGate) {
+    beginDuelReadyGate();
+  } else {
+    focusBoardAfterRoundStart();
+    announcePlay(`${t("play.position", { current: STATE.index + 1, total: soloSessionTarget() })}. ${roundTurnEl ? roundTurnEl.textContent : ""}`);
+  }
   // The person is about to think for a while and the engine has nothing to do:
   // the analysis that scoring needs starts now, so the answer is scored almost at once.
   prefetchRoundReference(position);
@@ -5171,10 +5784,18 @@ function onSquareClick(square) {
         playAnalysisMove(move);
         return;
       }
+      if (moveNeedsConfirmation()) {
+        // A second tap on the square already chosen is the confirmation; another square changes the choice.
+        if (STATE.pendingMove && STATE.pendingMove.to === move.to) confirmPendingMove();
+        else stageMove(move);
+        return;
+      }
       submitUserMove(move);
       return;
     }
   }
+  // Anything but a destination drops the move that was waiting for its confirmation.
+  clearPendingMove();
 
   // Choosing the piece that is already chosen puts it back.
   if (STATE.selection === square) {
@@ -5269,8 +5890,15 @@ function choosePromotion(promotionLetter) {
   );
   closePromotionPicker({ skipFocusReturn: true });
   if (!chosen) return;
+  // A picker that outlived its round (it should have been closed with it) must never play its
+  // stale move into another position.
+  if (!pending.isAnalysisMode && (!STATE.board || STATE.roundSubmitted || STATE.isResolvingRound || nextBtn.disabled === false)) return;
   if (pending.isAnalysisMode) {
     playAnalysisMove(chosen);
+    return;
+  }
+  if (moveNeedsConfirmation()) {
+    stageMove(chosen);
     return;
   }
   submitUserMove(chosen);
@@ -5371,26 +5999,147 @@ function hintAvailable() {
 
 function updateHintButton() {
   if (!hintBtn) return;
-  hintBtn.classList.toggle("hidden", !STATE.hintsEnabled);
+  // While a move waits for its confirmation its button takes the hint's place in the dock.
+  hintBtn.classList.toggle("hidden", !STATE.hintsEnabled || Boolean(STATE.pendingMove));
   const nextLevel = Math.min(3, (STATE.hintsUsed || 0) + 1);
-  const label = (STATE.hintsUsed || 0) >= 3
-    ? t("core.hint.done")
-    : t(`core.hint.next.${nextLevel}`, { pct: hintCostPercent(nextLevel) });
+  let label;
+  if ((STATE.hintsUsed || 0) >= 3) label = t("core.hint.done");
+  else if (nextLevel === 3 && armedConfirmations.reveal) label = t("core.hint.confirmLabel");
+  else label = t(`core.hint.next.${nextLevel}`, { pct: hintCostPercent(nextLevel) });
   if (hintBtnLabelEl) hintBtnLabelEl.textContent = label;
   hintBtn.disabled = !hintAvailable();
 }
 
-// A hint is announced through the clock's polite live region (the round bar's
-// status): it is the one that is on screen and polite while a round is played,
-// and only pressing the hint button writes to it, so it stays quiet otherwise.
+// A hint is announced through a live region of its own (polite): only a hint, or the tap that
+// arms a confirmation, writes to it, so it stays quiet otherwise and the clock's milestones
+// cannot overwrite it.
 function announceHint(text) {
-  if (soloClockAnnounceEl) soloClockAnnounceEl.textContent = text;
+  const target = hintAnnounceEl || soloClockAnnounceEl;
+  if (!target) return;
+  target.textContent = "";
+  setTimeout(() => {
+    target.textContent = text;
+  }, 30);
+}
+
+// ---------- Guard rails against a slipping finger ----------
+// A move is played the moment its destination is tapped, which is right for a keyboard or a
+// mouse and costly on a phone. board.confirmMove ("off" | "touch" | "always") puts a "Confirm
+// move" step between choosing a destination and scoring it, and the two destructive buttons
+// (skip, and the last hint, which shows the move and ends the round for nothing) need a second
+// tap within a few seconds.
+
+let lastInputKind = "mouse";
+
+function noteInputKind(kind) {
+  lastInputKind = kind;
+}
+
+function moveNeedsConfirmation() {
+  const mode = settingsGet("board.confirmMove", "off");
+  if (mode === "always") return true;
+  return mode === "touch" && lastInputKind === "touch";
+}
+
+const armedConfirmations = { skip: 0, reveal: 0 };
+
+function refreshArmedLabels() {
+  if (skipBtn) {
+    const armed = Boolean(armedConfirmations.skip);
+    const label = skipBtnLabelEl || (typeof skipBtn.querySelector === "function" ? skipBtn.querySelector(".btn-label") : null);
+    if (label) label.textContent = t(armed ? "core.skip.confirmLabel" : "buttons.skipMove");
+    skipBtn.setAttribute("aria-label", t(armed ? "core.skip.confirm" : "play.skip.aria"));
+    skipBtn.classList.toggle("is-armed", armed);
+  }
+  updateHintButton();
+}
+
+function disarmConfirmations() {
+  ["skip", "reveal"].forEach((kind) => {
+    if (armedConfirmations[kind]) clearTimeout(armedConfirmations[kind]);
+    armedConfirmations[kind] = 0;
+  });
+  refreshArmedLabels();
+}
+
+// First tap: arms the action and says so (true only on the second tap within the window).
+function armConfirmation(kind, message) {
+  if (armedConfirmations[kind]) {
+    clearTimeout(armedConfirmations[kind]);
+    armedConfirmations[kind] = 0;
+    refreshArmedLabels();
+    return true;
+  }
+  armedConfirmations[kind] = setTimeout(() => {
+    armedConfirmations[kind] = 0;
+    refreshArmedLabels();
+  }, CONFIRM_TAP_WINDOW_MS);
+  refreshArmedLabels();
+  announceHint(message);
+  return false;
+}
+
+// The move chosen and waiting for "Confirm move" (board.confirmMove).
+function updateConfirmButton() {
+  const pending = STATE.pendingMove;
+  if (confirmMoveBtn) {
+    confirmMoveBtn.classList.toggle("hidden", !pending);
+    confirmMoveBtn.disabled = !pending;
+    if (pending && confirmMoveLabelEl && STATE.board) {
+      let san = "";
+      try {
+        san = moveToSan(STATE.board, pending);
+      } catch (error) {
+        san = "";
+      }
+      confirmMoveLabelEl.textContent = san ? t("core.move.confirmSan", { san }) : t("core.move.confirm");
+    }
+  }
+  updateHintButton();
+}
+
+function clearPendingMove() {
+  if (!STATE.pendingMove) return;
+  STATE.pendingMove = null;
+  updateConfirmButton();
+}
+
+function stageMove(move) {
+  STATE.pendingMove = move;
+  updateConfirmButton();
+  renderBoard();
+  let san = "";
+  try {
+    san = moveToSan(STATE.board, move);
+  } catch (error) {
+    san = "";
+  }
+  announceHint(t("core.move.pending", { san }));
+  // A keyboard user chose the destination with Enter: the confirmation is the next Tab stop, and Enter is on it.
+  if (lastInputKind === "keyboard" && confirmMoveBtn && typeof confirmMoveBtn.focus === "function") confirmMoveBtn.focus({ preventScroll: true });
+}
+
+function confirmPendingMove() {
+  const move = STATE.pendingMove;
+  if (!move) return;
+  STATE.pendingMove = null;
+  updateConfirmButton();
+  if (!STATE.board || STATE.roundSubmitted || STATE.isResolvingRound) return;
+  void submitUserMove(move);
 }
 
 // Ludus.game.hint(): asks for the next hint of the round on screen.
 // -> { level, from?, to?, uci? } (squares as "e2"), or null when no hint can be given now.
-function requestHint() {
+// A press of the hint button or of H (options.fromUi) is protected against slips: a second press
+// within a moment is the same press, and the level that shows the move needs a second, deliberate one.
+function requestHint(options = {}) {
   if (!hintAvailable()) return null;
+  if (options && options.fromUi) {
+    const now = Date.now();
+    if (now - (STATE.lastHintAt || 0) < HINT_TAP_GAP_MS) return null;
+    if ((STATE.hintsUsed || 0) >= 2 && !armConfirmation("reveal", t("core.hint.confirm"))) return null;
+    STATE.lastHintAt = now;
+  }
   const position = STATE.positions[STATE.index];
   const base = new Chess(position.fen);
   if (!STATE.hint) {
@@ -5411,17 +6160,18 @@ function requestHint() {
   STATE.hintsUsed = hint.level;
   const from = Chess.indexToSquare(hint.from);
   const to = Chess.indexToSquare(hint.to);
-  const piece = pieceAriaName(hint.piece);
+  const pieceDef = pieceDefiniteName(hint.piece);
   const pct = hintCostPercent(hint.level);
 
   if (hint.level === 1) {
-    announceHint(t("core.hint.said.1", { piece, square: from, pct }));
+    announceHint(t("core.hint.said.1", { pieceDef, square: from, pct }));
   } else if (hint.level === 2) {
-    announceHint(t("core.hint.said.2", { piece, from, to, pct }));
+    announceHint(t("core.hint.said.2", { pieceDef, from, to, pct }));
   } else {
     announceHint(t("core.hint.said.3", { san: hint.san }));
     STATE.revealed = { ...STATE.revealed, best: { from: hint.from, to: hint.to, promotion: hint.promotion || undefined } };
   }
+  clearPendingMove();
   renderBoard();
   updateHintButton();
   if (hint.level >= 3) {
@@ -5463,8 +6213,11 @@ function renderSessionTitle() {
 // has just gone away, which would otherwise leave the focus nowhere.
 function focusBoardAfterRoundStart() {
   const active = document.activeElement;
+  // Also "lost" when the focus stayed on a control of the screen the session was started from (the
+  // button that was pressed is hidden now): a session must not begin with the focus on the page body.
   const lost = !active || active === document.body
-    || (coachPanelEl && typeof coachPanelEl.contains === "function" && coachPanelEl.contains(active));
+    || (coachPanelEl && typeof coachPanelEl.contains === "function" && coachPanelEl.contains(active))
+    || (gameLayoutEl && typeof gameLayoutEl.contains === "function" && !gameLayoutEl.contains(active));
   if (!lost || !boardEl || typeof boardEl.querySelector !== "function") return;
   const target = boardEl.querySelector('.square[tabindex="0"]');
   if (target && typeof target.focus === "function") target.focus({ preventScroll: true });
@@ -5477,7 +6230,18 @@ function focusBoardAfterRoundStart() {
 async function resolveRound(move, options = {}) {
   if (STATE.roundSubmitted || STATE.isResolvingRound) return;
   const sessionToken = STATE.sessionToken;
+  // An answer that arrives after the deadline is a timeout, even if the next tick of the clock
+  // has not run yet (a hidden tab, a busy page): the clock is compared with the time of the answer.
+  if (move && roundClockExpired()) {
+    move = null;
+    options = { ...options, noMoveReason: "timeout" };
+  }
   stopRoundTimer();
+  // Whatever was still being decided is over with the round: a promotion picker left open (the
+  // clock ran out, the position was skipped) or a move waiting for its confirmation.
+  closePromotionPicker({ skipFocusReturn: true });
+  clearPendingMove();
+  disarmConfirmations();
   STATE.roundSubmitted = true;
   STATE.isResolvingRound = true;
   syncGamePhase();
@@ -5493,6 +6257,10 @@ async function resolveRound(move, options = {}) {
 
     showEvaluatingMoveOnBoard(move, noMove, noMoveReason);
     renderEvaluatingPanel();
+    // The move and the waiting skeleton are on screen: let the browser paint them before the rest
+    // of the work (planning the search, the overlay) so the tap is answered at once on a slow phone.
+    await paintBreak();
+    if (!isCurrentSessionWork(sessionToken)) return;
 
     const answers = buildAnswersToEvaluate(move, noMoveReason, { timeSpentMs, hintsUsed });
     const plan = getRoundEvaluationPlan(base, position, answers.length);
@@ -5551,6 +6319,26 @@ async function resolveRound(move, options = {}) {
   }
 }
 
+// Resolves after the browser has had a chance to paint what was just drawn (next frame, then a
+// task), or after a short wait when frames do not run (a hidden tab): work that follows it does
+// not delay the feedback of the tap that started it.
+function paintBreak() {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resolve();
+    };
+    setTimeout(finish, 80);
+    try {
+      if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => setTimeout(finish, 0));
+    } catch (error) {
+      finish();
+    }
+  });
+}
+
 // Someone answering before the strong engine has finished loading waits for it
 // (the overlay is up, with its carousel), but only as long as the session
 // promised: after that the fallback scores the round and the download carries on.
@@ -5587,7 +6375,11 @@ function prepareRoundResolutionContext(move, options, duelFirstTurn) {
   const noMove = !move;
   const noMoveReason = noMove ? (options.noMoveReason || "no_move") : "";
   const limitMs = isUntimedSession() ? 0 : Math.max(0, STATE.timer.durationMs);
-  const elapsedMs = STATE.roundStartedAt ? Math.max(0, Date.now() - STATE.roundStartedAt) : 0;
+  // Time the page was hidden is not time spent thinking.
+  const hiddenNowMs = STATE.timer.roundHiddenAt ? Math.max(0, Date.now() - STATE.timer.roundHiddenAt) : 0;
+  const elapsedMs = STATE.roundStartedAt
+    ? Math.max(0, Date.now() - STATE.roundStartedAt - (STATE.timer.pausedMs || 0) - hiddenNowMs)
+    : 0;
   const timeSpentMs = Math.round(limitMs > 0 ? Math.min(elapsedMs, limitMs) : elapsedMs);
   const hintsUsed = clamp(Math.round(Number(STATE.hintsUsed) || 0), 0, 3);
 
@@ -5814,6 +6606,8 @@ function buildRoundContext(kind, position, evaluation) {
     kind,
     round: STATE.index + 1,
     positionId: position.id || "",
+    // The kind of a classic position (sacrifice, only move...): the coach names it once the answer is in.
+    classicKind: position.classic && position.classic.kind ? String(position.classic.kind) : "",
     fen: position.fen,
     source: positionSourceOf(position),
     best: { uci: evaluation.bestUci, san: evaluation.bestSan, score: evaluation.bestScore, evalText: evaluation.bestEvalText },
@@ -5938,6 +6732,17 @@ function summaryListsRewards() {
   return Boolean(STATE.session && STATE.session.completed && STATE.session.mode !== "duel" && context && context.kind === "session_summary");
 }
 
+// While the play screen is up, celebrations live in its panel: the result card of a round lists the XP, the level and the
+// achievements that round earned (a duel, on the card of the player who earned them) and the closing summary lists the
+// session's. A toast there only hid the verdict, the board and the score, so it is kept for the other screens.
+function playScreenShowsRewards() {
+  try {
+    return document.body.classList.contains("playing-mode");
+  } catch (error) {
+    return false;
+  }
+}
+
 function flushCelebration() {
   celebration.timer = null;
   const levelUp = celebration.levelUp;
@@ -5952,14 +6757,30 @@ function flushCelebration() {
   else if (names.length === 2) parts.push(t("core.toast.achievements", { names: names.join(", ") }));
   else if (names.length > 2) parts.push(t("core.toast.achievementsMany", { n: names.length }));
   dismissCelebration();
-  if (!summaryListsRewards()) celebration.toast = showToast(parts.join(" "), { kind: levelUp ? "levelup" : "achievement", duration: 6500 });
+  if (playScreenShowsRewards()) {
+    // Said to a screen reader too, once the verdict of the round has been read out.
+    const spoken = parts.join(" ");
+    setTimeout(() => {
+      if (playScreenShowsRewards()) announcePlay(spoken);
+    }, 2500);
+  } else {
+    celebration.toast = showToast(parts.join(" "), { kind: levelUp ? "levelup" : "achievement", duration: 6500 });
+  }
   playSound("levelup", levelUp ? { delay: 0.3 } : undefined);
 }
 
 // What a session earned, added up round by round for the closing summary. Achievements
 // arrive from the bus (a round and the end of the session can both unlock some).
 function newSessionRewards() {
-  return { xp: 0, cards: 0, unlocked: [], level: null, levelUp: false };
+  // `players`: a duel is nobody's combined progress, but each profile player earns their own XP and achievements (the summary
+  // shows them card by card, never added together).
+  return { xp: 0, cards: 0, unlocked: [], level: null, levelUp: false, players: [{ xp: 0, unlocked: [] }, { xp: 0, unlocked: [] }] };
+}
+
+function noteDuelRewards(playerIndex, outcome) {
+  const rewards = STATE.session && STATE.session.rewards;
+  const mine = rewards && rewards.players ? rewards.players[playerIndex] : null;
+  if (mine && outcome) mine.xp += Number(outcome.xpGained) || 0;
 }
 
 function noteRoundRewards(outcome) {
@@ -5971,9 +6792,18 @@ function noteRoundRewards(outcome) {
   if (outcome.levelUp) rewards.levelUp = true;
 }
 
-function noteAchievement(entry) {
+function noteAchievement(entry, profileId) {
   const rewards = STATE.session && STATE.session.rewards;
-  if (!rewards || isDuelMode() || !entry || !entry.name) return;
+  if (!rewards || !entry || !entry.name) return;
+  if (isDuelMode()) {
+    // Goes to the card of the player whose profile unlocked it (a guest has no profile, so nothing unlocks for them).
+    const ids = Array.isArray(STATE.session.profileIds) ? STATE.session.profileIds : [];
+    const mine = profileId ? rewards.players[ids.findIndex((id) => id && id === profileId)] : null;
+    if (mine && !mine.unlocked.some((known) => known.id === entry.id)) {
+      mine.unlocked.push({ id: entry.id, name: entry.name, description: entry.description || "", glyph: entry.glyph || "" });
+    }
+    return;
+  }
   if (!rewards.unlocked.some((known) => known.id === entry.id)) {
     rewards.unlocked.push({ id: entry.id, name: entry.name, description: entry.description || "", glyph: entry.glyph || "" });
   }
@@ -6042,7 +6872,10 @@ function recordRoundOutcome(position, base, evaluation) {
     }
     const outcome = emitRoundCompleted(record);
     if (!isDuelMode()) noteRoundRewards(outcome);
-    if (position.dailyKey && !isDuelMode()) completeDailyChallenge(position.dailyKey, record.accuracy, record.profileId);
+    else noteDuelRewards(answer.playerIndex, outcome);
+    // The day is completed by a real answer: a skipped, timed-out or revealed position is not one
+    // (it would hand out the streak, the XP and the achievement for nothing).
+    if (position.dailyKey && !isDuelMode() && answer.uci && answer.hintsUsed < 3) completeDailyChallenge(position.dailyKey, record.accuracy, record.profileId);
     return outcome;
   });
 }
@@ -6068,7 +6901,7 @@ function roundView(round) {
     bestUci: context.best.uci,
     userUci: primary.uci || "",
     players: duel
-      ? answers.map((answer) => ({ name: answer.name, san: answer.san, uci: answer.uci || "", points: answer.assessment.points, quality: qualityOf(answer), accuracy: answer.assessment.accuracy }))
+      ? answers.map((answer) => ({ name: answer.name, san: answer.san, uci: answer.uci || "", points: answer.assessment.points, quality: qualityOf(answer), accuracy: answer.assessment.accuracy, hit: Boolean(answer.hit) }))
       : null,
     duel: duel ? answers.map((answer) => ({ name: answer.name, points: answer.assessment.points })) : undefined,
   };
@@ -6116,7 +6949,30 @@ function renderSoloRoundOutcome(base, position, evaluation) {
   renderPlayHeader();
   updateHintButton();
   playResultSound(answer);
-  announcePlay(roundSummaryText(answer));
+  // The result is announced once, by #result-overlay-live (and the focus that lands on the verdict):
+  // a second announcement of the same points here made a screen reader say it twice.
+  afterRoundSettled();
+}
+
+// What follows a scored round, solo or duel: the first-run note has done its job, the session
+// is recorded the moment its LAST position is answered (leaving by any road afterwards loses
+// nothing: the summary is a view of a record that already exists), and the progress of the
+// session is kept for a reload.
+function afterRoundSettled() {
+  if (STATE.session && STATE.session.firstRun) markFirstRunDone();
+  if (sessionIsOnLastPosition()) {
+    finishSession();
+    clearSessionProgress();
+  } else {
+    saveSessionProgress();
+  }
+}
+
+// True when the round on screen is the last one of the session (the same rule "next position"
+// uses to go to the summary instead): the target is reached, or a fixed list has no more.
+function sessionIsOnLastPosition() {
+  if (STATE.index >= Math.max(1, STATE.targetPositions) - 1) return true;
+  return !STATE.analysisContext && STATE.index >= STATE.positions.length - 1;
 }
 
 // Duel mode: builds both players' results, updates duel scores/hits, records both
@@ -6158,7 +7014,7 @@ function renderDuelRoundOutcome(base, position, evaluation) {
   renderPlayHeader();
   updateHintButton();
   playResultSound(r1.points >= r2.points ? first : second);
-  announcePlay(resultOverlayPointsEl ? resultOverlayPointsEl.textContent : "");
+  afterRoundSettled();
 }
 
 // The end of a session: builds its record, announces it ("session:completed") and
@@ -6198,14 +7054,16 @@ function summaryFallbackText(record, context) {
 
 function sessionRewardsView() {
   const rewards = STATE.session && STATE.session.rewards;
-  if (!rewards || (STATE.session && STATE.session.mode === "duel")) return null;
+  if (!rewards) return null;
+  // A duel has no combined experience card: what each player earned, player by player.
+  if (STATE.session.mode === "duel") return { players: rewards.players.map((mine) => ({ xp: mine.xp, unlocked: mine.unlocked.slice() })) };
   return { xp: rewards.xp, cards: rewards.cards, unlocked: rewards.unlocked.slice(), levelAfter: rewards.level, levelUp: rewards.levelUp };
 }
 
-function reviewCardCount() {
+function reviewCardCount(profileId) {
   const profile = ludusModule("Profile");
   try {
-    const counts = profile && profile.notebook && typeof profile.notebook.counts === "function" ? profile.notebook.counts() : null;
+    const counts = profile && profile.notebook && typeof profile.notebook.counts === "function" ? profile.notebook.counts(undefined, profileId || undefined) : null;
     return counts && Number.isFinite(counts.due) ? counts.due : 0;
   } catch (error) {
     return 0;
@@ -6218,12 +7076,27 @@ function canReplaySession() {
   return Boolean(STATE.session && (STATE.session.kind === "classic" || STATE.session.kind === "own"));
 }
 
+// A duel: one "review" button per profile player that has cards to review (each profile has its own notebook; a guest has none).
+// Undefined outside a duel, where the single button of the active profile is right.
+function duelReviewPlayers() {
+  const session = STATE.session;
+  if (!session || session.mode !== "duel") return undefined;
+  const ids = Array.isArray(session.profileIds) ? session.profileIds : [];
+  return [0, 1]
+    .filter((index) => ids[index] && reviewCardCount(ids[index]) > 0)
+    .map((index) => ({ name: duelPlayerName(index), profileId: ids[index] }));
+}
+
 function summaryApi() {
   return {
     lang: STATE.language,
     canReplay: canReplaySession(),
     canReview: reviewCardCount() > 0,
+    reviewPlayers: duelReviewPlayers(),
     onPlayAgain: replaySession,
+    // A duel can also be played again on the same positions, on purpose (equal ground for the two players).
+    canPlaySamePositions: canReplaySession() && STATE.session.mode === "duel" && STATE.session.kind !== "own",
+    onPlaySamePositions: () => replaySession({ samePositions: true }),
     onReview: reviewMistakes,
     onShare: shareSummary,
   };
@@ -6312,10 +7185,30 @@ function backToSummary() {
   renderPlayHeader();
 }
 
-// "Play again" / "Rematch": a solo classics session takes fresh positions (the same game
-// when it was one game); a duel rematch replays the same positions, so the two players
-// can be compared on equal ground; the own games go back to the wizard.
-async function replaySession() {
+// "Play again" / "Rematch": fresh positions, never the ones whose best moves were just shown
+// (they were all on screen a minute ago, a second round would measure memory, not skill): the same
+// game when it was one game, else a new mix. A duel rematch can ask for the same positions
+// explicitly (options.samePositions, "same positions" button of the summary: equal ground for a
+// comparison of the players on purpose). The own games go back to the wizard.
+async function drawFreshPositions(played) {
+  const classics = ludusModule("Classics");
+  if (!classics) return [];
+  if (typeof classics.load === "function") await classics.load();
+  const playedIds = new Set(played.map((position) => position.id));
+  const wanted = played.length;
+  const games = Array.from(new Set(played.map((position) => position.classic && position.classic.gameId).filter(Boolean)));
+  let fresh = [];
+  if (games.length === 1) {
+    fresh = (classics.positions(games[0], { shuffle: true }) || []).filter((position) => !playedIds.has(position.id)).slice(0, wanted);
+  }
+  if (fresh.length < wanted) {
+    const exclude = [...playedIds, ...fresh.map((position) => position.id)];
+    fresh = fresh.concat(classics.random(wanted - fresh.length, { exclude }) || []);
+  }
+  return fresh;
+}
+
+async function replaySession(options) {
   const session = STATE.session;
   if (!session || !canReplaySession()) return;
   const { kind, mode, title, names, profileIds } = session;
@@ -6325,14 +7218,9 @@ async function replaySession() {
     return;
   }
   let positions = played;
-  if (mode !== "duel") {
-    const classics = ludusModule("Classics");
+  if (!(options && options.samePositions === true)) {
     try {
-      if (classics && typeof classics.load === "function") await classics.load();
-      const games = Array.from(new Set(played.map((position) => position.classic && position.classic.gameId).filter(Boolean)));
-      const fresh = classics && games.length === 1
-        ? classics.positions(games[0], { count: played.length, shuffle: true })
-        : classics.random(played.length, { exclude: played.map((position) => position.id) });
+      const fresh = await drawFreshPositions(played);
       if (Array.isArray(fresh) && fresh.length) positions = fresh;
     } catch (error) {
       positions = played;
@@ -6346,7 +7234,17 @@ async function replaySession() {
 }
 
 // "Review my mistakes now": the notebook has the cards this session just added.
-function reviewMistakes() {
+// In a duel the button names a player: that profile becomes the active one first (the notebook shows the active profile's cards).
+function reviewMistakes(profileId) {
+  if (typeof profileId === "string" && profileId) {
+    const profile = ludusModule("Profile");
+    try {
+      const active = profile && typeof profile.active === "function" ? profile.active() : null;
+      if (profile && typeof profile.setActive === "function" && (!active || active.id !== profileId)) profile.setActive(profileId);
+    } catch (error) {
+      // The notebook opens for whoever is active.
+    }
+  }
   if (!routerShow("notebook", { review: true })) goHome();
 }
 
@@ -6482,7 +7380,7 @@ async function nextPosition() {
     showPositionSearchOverlay(t("overlay.searchingNext"), "", { cancellable: true, facts: true });
     setUiPhase("loading_next_position", true);
     const sessionToken = STATE.sessionToken;
-    const search = await findNextMistake(ctx, "Siguiente: ");
+    const search = await findNextMistake(ctx, { next: true });
     if (!isCurrentSessionWork(sessionToken)) return;
     if (search.status === "cancelled") {
       hidePositionSearchOverlay();
@@ -6512,8 +7410,48 @@ async function nextPosition() {
   startRound();
 }
 
+// The cover of a new duel position: it says whose turn it is and that the clock has not started. One tap starts it.
+function readyTexts() {
+  const first = duelPlayerName(0);
+  const second = duelPlayerName(1);
+  return {
+    title: t("game.ready.title", { player: first }),
+    subtitle: t("game.ready.subtitle", { other: second }),
+    eyebrow: t("play.ready.eyebrow", { current: STATE.index + 1, total: soloSessionTarget() }),
+    avatar: initialsFromName(first, "J1"),
+  };
+}
+
+function beginDuelReadyGate() {
+  STATE.duel.readyWait = true;
+  // The board, the hint and the skip button are closed until the tap; the clock shows the full time and does not run.
+  setUiPhase("duel_ready", true);
+  skipBtn.disabled = true;
+  STATE.timer.durationMs = isUntimedSession() ? 0 : Math.round(normalizeTurnTimeSeconds(STATE.turnTimeSeconds) * 1000);
+  updateRoundTimerUi(STATE.timer.durationMs);
+  updateHintButton();
+  const ready = readyTexts();
+  showHandoffOverlay(ready.title, ready.subtitle, ready);
+  renderPlayHeader();
+  announcePlay(`${ready.eyebrow}. ${ready.title}. ${ready.subtitle}`);
+}
+
+function beginDuelRoundAfterReady() {
+  STATE.duel.readyWait = false;
+  hideHandoffOverlay();
+  setUiPhase("playing", false);
+  skipBtn.disabled = false;
+  startRoundTimer();
+  updateHintButton();
+  focusBoardAfterRoundStart();
+}
+
 function revealDuelSecondTurn() {
   if (!isDuelMode()) return;
+  if (STATE.duel.readyWait) {
+    beginDuelRoundAfterReady();
+    return;
+  }
   if (STATE.ui.phase !== "handoff_ready") return;
   if (STATE.duel.currentPlayer !== 0) return;
   if (!STATE.duel.roundResults[0]) return;
@@ -6574,6 +7512,8 @@ function abortSessionInternal({ keepEngine = false } = {}) {
   abortEngineWork();
   if (!keepEngine) resetEngineToLocal();
   STATE.session = null;
+  // Leaving on purpose forgets the session: only an unload (a reload, a closed tab) leaves its progress behind.
+  clearSessionProgress();
   STATE.ui.setupAnalyzing = false;
   STATE.ui.searchCancelRequested = true;
   stopWizardFacts();
@@ -6627,14 +7567,156 @@ function hasActiveSessionProgress() {
 
 async function confirmRestartToSetup() {
   if (!hasActiveSessionProgress()) return true;
-  // A finished session is already recorded: leaving it loses nothing, so nothing is asked.
+  // A finished session is already recorded (it is, from the moment its last position is answered):
+  // leaving it loses nothing, so nothing is asked.
   if (STATE.session && STATE.session.completed) return true;
+  // What is lost is the summary, not the answers: they are already in the progress and the notebook.
+  const answered = Math.max(0, STATE.sessionPlayed);
   return showConfirmModal({
     title: t("confirm.restartTitle"),
-    body: t("confirm.restartToSetup"),
+    body: answered > 0 ? t("confirm.restartToSetup", { answered }) : t("confirm.restartToSetup.none"),
     acceptLabel: t("confirm.restartAccept"),
     cancelLabel: t("confirm.restartCancel"),
+    // Nothing irreversible hangs on this question: without the dialog's markup the exit still works.
+    allowWithoutDialog: true,
   });
+}
+
+// ---------- A session interrupted by a reload or a closed tab ----------
+// Answered rounds are recorded one by one, so a reload loses only the session's summary; the
+// tab keeps (sessionStorage: this tab only, gone with it) what is needed to offer to go on, and
+// the tab warns before it is closed (desktop browsers; phones ignore the warning) while a session
+// with answers is running.
+
+function sessionNeedsLeaveWarning() {
+  const session = STATE.session;
+  return Boolean(session && !session.completed && (STATE.sessionPlayed > 0 || STATE.isResolvingRound));
+}
+
+function onBeforeUnload(event) {
+  if (!sessionNeedsLeaveWarning()) return undefined;
+  event.preventDefault();
+  // The text is the browser's own; the assignment is what makes Chrome ask.
+  event.returnValue = "";
+  return "";
+}
+
+function sessionStore() {
+  try {
+    return window.sessionStorage || null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function clearSessionProgress() {
+  const store = sessionStore();
+  try {
+    if (store) store.removeItem(SESSION_PROGRESS_STORAGE_KEY);
+  } catch (error) {
+    // Nothing kept, nothing to clear.
+  }
+}
+
+// Kept after every round: what was answered and, for a solo list of positions, the positions that
+// are left (an own-games session or a duel cannot be rebuilt: it only leaves the note).
+function saveSessionProgress() {
+  const session = STATE.session;
+  const store = sessionStore();
+  if (!session || session.completed || !store) return;
+  const resumable = session.mode === "solo" && session.kind !== "own" && !STATE.analysisContext;
+  const record = {
+    v: 1,
+    at: Date.now(),
+    id: session.id,
+    kind: session.kind,
+    title: session.title,
+    mode: session.mode,
+    profileIds: session.profileIds,
+    options: session.options || {},
+    answered: Math.max(0, STATE.sessionPlayed),
+    total: Math.max(1, STATE.targetPositions),
+    remaining: resumable ? STATE.positions.slice(Math.max(0, STATE.sessionPlayed)) : null,
+  };
+  try {
+    let text = JSON.stringify(record);
+    // A few hundred KB at most: sessionStorage is small and this is a convenience.
+    if (text.length > 400000) {
+      record.remaining = null;
+      text = JSON.stringify(record);
+    }
+    store.setItem(SESSION_PROGRESS_STORAGE_KEY, text);
+  } catch (error) {
+    // Full or blocked: the warning before leaving still works.
+  }
+}
+
+function readSessionProgress() {
+  const store = sessionStore();
+  if (!store) return null;
+  try {
+    const raw = store.getItem(SESSION_PROGRESS_STORAGE_KEY);
+    if (!raw) return null;
+    const record = JSON.parse(raw);
+    if (!record || record.v !== 1 || !Number.isFinite(record.answered)) return null;
+    return record;
+  } catch (error) {
+    return null;
+  }
+}
+
+// At boot: a record left by a session that was interrupted (it is removed the moment it is read,
+// so it is offered once). With answers and positions left it offers to go on; otherwise it only
+// says that what was answered is saved.
+async function offerSessionResume() {
+  const record = readSessionProgress();
+  clearSessionProgress();
+  if (!record || record.answered < 1 || STATE.session) return;
+  const remaining = Array.isArray(record.remaining) ? normalizeSessionPositions(record.remaining, record.kind) : [];
+  if (record.mode !== "solo" || !remaining.length) {
+    showToast(t("core.resume.note", { answered: record.answered }), { kind: "info", duration: 9000 });
+    return;
+  }
+  const accepted = await showConfirmModal({
+    title: t("core.resume.title"),
+    body: t("core.resume.body", {
+      title: record.title || defaultSessionTitle(record.kind),
+      answered: record.answered,
+      total: record.total,
+      remaining: remaining.length,
+    }),
+    acceptLabel: t("core.resume.continue"),
+    cancelLabel: t("core.resume.discard"),
+    allowWithoutDialog: false,
+  });
+  if (!accepted || STATE.session) return;
+  try {
+    await startSession({ kind: record.kind, title: record.title, mode: "solo", positions: remaining, options: record.options });
+  } catch (error) {
+    showToast(error && error.message ? error.message : t("common.unknown"), { kind: "error" });
+  }
+}
+
+// ---------- First run ----------
+// The very first session has no clock (the person has not read how it works yet) and says how to
+// play at the top of the panel. It ends with the first answered round.
+
+function isFirstRun() {
+  try {
+    if (Ludus.storage.get(FIRST_RUN_STORAGE_KEY, 0)) return false;
+  } catch (error) {
+    // Storage unavailable: treat as not first run, nothing is gained by guessing.
+    return false;
+  }
+  return !hasPlayedBefore();
+}
+
+function markFirstRunDone() {
+  try {
+    Ludus.storage.set(FIRST_RUN_STORAGE_KEY, 1);
+  } catch (error) {
+    // Only costs the note on a later session.
+  }
 }
 
 // ---------- Sessions (Ludus.game) ----------
@@ -6666,7 +7748,9 @@ function normalizeSessionPositions(list, kind) {
     } catch (error) {
       return;
     }
-    if (!board || board.generateMoves().length === 0) return;
+    // No legal move is not a position to play, and neither is a single one: a forced move is no decision
+    // (it would be worth 10 points for playing the only move there is).
+    if (!board || board.generateMoves().length < 2) return;
     const position = { ...raw, fen: raw.fen.trim() };
     if (!["own", "classic", "notebook", "daily"].includes(position.source)) position.source = fallbackSource;
     position.id = raw.id ? String(raw.id) : `${position.source}:${Ludus.util.hashString(position.fen)}`;
@@ -6734,6 +7818,9 @@ async function startSession(config = {}) {
   if (names) STATE.duel.players = names;
   resetDuelState();
   applySessionOptions(cfg.options);
+  // The very first session has no clock (unless a screen asked for one): see isFirstRun().
+  const firstRun = isFirstRun();
+  if (firstRun && !(cfg.options && cfg.options.clock)) STATE.clockMode = "untimed";
   STATE.positions = positions;
   STATE.targetPositions = positions.length;
   STATE.index = 0;
@@ -6752,6 +7839,7 @@ async function startSession(config = {}) {
     startedAt: Date.now(),
     positions: positions.length,
     completed: false,
+    firstRun,
     records: [],
     record: null,
     // What the closing summary is made of: the answers, in order, and what they earned.
@@ -6810,8 +7898,12 @@ function refreshLocalizedUi() {
   updateNextButton();
   setCoachExpanded(Boolean(gameLayoutEl && gameLayoutEl.dataset && gameLayoutEl.dataset.expanded));
   updatePgnSelectionUi();
+  updateConfirmButton();
+  refreshArmedLabels();
   if (STATE.setupWizard.sourceError?.key) {
-    showWizardSourceError(STATE.setupWizard.sourceError.key, STATE.setupWizard.sourceError.params || {});
+    // The same message, in the other language, from its key and numbers (the countdown goes on from where it is).
+    const shown = STATE.setupWizard.sourceError;
+    showWizardSourceError(shown.key, shown.params || {}, shown.field || null, { actions: shown.actions, seconds: shown.seconds });
   } else if (STATE.setupWizard.step === 2) {
     const validation = validateWizardStep(2);
     if (!validation.valid && wizardSourceErrorEl && !wizardSourceErrorEl.classList.contains("hidden")) {
@@ -6830,13 +7922,13 @@ function refreshLocalizedUi() {
   if (STATE.resultView.visible && STATE.resultView.context) {
     renderResultViewContext();
   } else if (STATE.positions[STATE.index] && (STATE.ui.gamePhase === "thinking" || STATE.ui.gamePhase === "handoff")) {
-    renderThinkingPanel(STATE.ui.gamePhase === "handoff" ? 1 : undefined);
+    renderThinkingPanel(STATE.ui.gamePhase === "handoff" && !STATE.duel.readyWait ? 1 : undefined);
   } else if (STATE.ui.gamePhase === "evaluating") {
     renderEvaluatingPanel();
   }
 
   if (handoffOverlayEl && !handoffOverlayEl.classList.contains("hidden") && isDuelMode() && STATE.duel.currentPlayer === 0) {
-    const handoff = handoffTexts();
+    const handoff = STATE.duel.readyWait ? readyTexts() : handoffTexts();
     showHandoffOverlay(handoff.title, handoff.subtitle, handoff);
   }
 
@@ -6920,10 +8012,152 @@ async function getActivePgnTextSources() {
   }));
 }
 
+// ---------- Own games: what a download says when it fails, and what comes before it ----------
+
+// The failure of the download that just ended, for the pipeline to show ({ key, params, actions, seconds }
+// or { kind: "consent", ... }): the download knows what happened, the pipeline knows where to put the person.
+function setDownloadFailure(view) {
+  STATE.setupWizard.downloadFailure = view || null;
+}
+
+// What each failure means for the person, in the terms of remoteErrorView's callers: a headline that says what
+// really happened (the user is not there, has no games, the provider asks for a pause or is having trouble, the
+// device is offline...) and the remedies that fit it. Never the text of an exception.
+function remoteErrorView(error, provider, user) {
+  const code = error instanceof RemoteFetchError ? error.code : "unknown";
+  const base = { provider: providerLabel(provider), user: user || "" };
+  switch (code) {
+    case "notFound": return { key: "download.error.notFound", params: base, actions: ["user", "platform"] };
+    case "noGames": return { key: "download.error.noGames", params: base, actions: ["user", "platform"] };
+    case "userMissing": return { key: "provider.requestedPlayerMissing", params: base, actions: ["user", "platform"] };
+    case "rateLimited": {
+      const seconds = Math.max(1, Math.ceil((Number(error.params && error.params.retryAfterMs) || RATE_LIMIT_PAUSE_MS) / 1000));
+      return { key: "download.error.rateLimited", params: { ...base, seconds }, actions: ["retry"], seconds };
+    }
+    case "server": return { key: "download.error.server", params: { ...base, status: error.params && error.params.status ? error.params.status : "" }, actions: ["retry", "platform"] };
+    case "offline": return { key: "download.error.offline", params: base, actions: ["retry"] };
+    case "network": return { key: "download.error.network", params: base, actions: ["retry"] };
+    case "timeout": return { key: "download.error.timeout", params: base, actions: ["retry"] };
+    case "malformed": return { key: "download.error.malformed", params: base, actions: ["retry", "platform"] };
+    case "tooLarge": return { key: "network.responseTooLarge", params: base, actions: ["retry"] };
+    case "consentUnavailable": return { key: "download.error.consentUnavailable", params: base, actions: ["retry"] };
+    default:
+      console.error("[Ludus] the download failed", error);
+      return { key: "download.error.unknown", params: base, actions: ["retry"] };
+  }
+}
+
+// A failure that may still be answered by the last saved base (the provider is slow or away), as opposed to
+// one that a saved base cannot fix (the user does not exist, has no games).
+function remoteErrorIsTransient(error) {
+  return error instanceof RemoteFetchError && ["rateLimited", "server", "offline", "network", "timeout", "tooLarge"].includes(error.code);
+}
+
+// The status of the download, where the person can see it (the wizard shows step 3 while it runs) and in
+// the field's own line on step 2.
+function setDownloadStatus(text) {
+  if (onlineStatusEl) onlineStatusEl.textContent = text;
+  if (analysisStatusEl) analysisStatusEl.textContent = text;
+}
+
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// True when at least one of the downloaded games has the person among its players: a download that does not
+// is not theirs (the provider answered with somebody else's games, or the name is not what they typed).
+function pgnIncludesPlayer(text, username) {
+  if (!String(username || "").trim()) return true;
+  return new RegExp(String.raw`^\[(?:White|Black)\s+"${escapeRegExp(username)}"\]`, "im").test(String(text || ""));
+}
+
+// The last username per provider, kept in this browser only (and forgotten with the saved games): someone who
+// trains on their own games comes back to the same name. Not kept when the person asked not to keep downloads.
+function readLastUsers() {
+  try {
+    const stored = Ludus.storage.get(LAST_USER_STORAGE_KEY, {});
+    return stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function rememberLastUsername(provider, username) {
+  if (loadNoPersistDownloadsPreference() || !remoteUsernameIsValid(String(username || ""), provider)) return;
+  try {
+    Ludus.storage.set(LAST_USER_STORAGE_KEY, { ...readLastUsers(), [provider]: String(username) });
+  } catch (error) {
+    // A convenience only.
+  }
+}
+
+function forgetLastUsernames() {
+  try {
+    Ludus.storage.remove(LAST_USER_STORAGE_KEY);
+  } catch (error) {
+    // Nothing kept, nothing to forget.
+  }
+}
+
+// Puts the remembered username in an empty field (the consent step still asks to type it again).
+function prefillLastUsername() {
+  if (!onlineUserInputEl || String(onlineUserInputEl.value || "").trim()) return;
+  const last = readLastUsers()[getRemoteProviderModeFromUi()];
+  if (typeof last === "string" && last) {
+    onlineUserInputEl.value = last;
+    STATE.setupWizard.username = last;
+  }
+}
+
+// Everything both providers do before asking for anything: the saved base when one covers the request, the
+// courtesy pause, and the consent (which fails closed: without its dialog nothing is downloaded). Returns
+// { finished: true, result } when it is over already (a saved base was used, or the download must not go on, with
+// the reason in STATE.setupWizard.downloadFailure), or { finished: false } to go on to the network.
+async function beginRemoteDownload(provider, rawUser, cacheKey, settings) {
+  const cached = await readCachedRemotePgn(cacheKey, { minRequested: settings.maxGames });
+  if (cached) return { finished: true, result: installRemotePgnSource(cached.source, { messageKey: "provider.usingCachedBase" }) };
+
+  const block = remoteFetchThrottleBlock(provider);
+  if (block) {
+    setDownloadFailure({ key: block.key, params: block.params, actions: ["retry"], seconds: block.seconds || 0 });
+    return { finished: true, result: false };
+  }
+
+  if (!consentDialogAvailable()) {
+    setDownloadFailure(remoteErrorView(new RemoteFetchError("consentUnavailable"), provider, rawUser));
+    return { finished: true, result: false };
+  }
+  if (!(await confirmRemoteFetchConsent(provider, rawUser))) {
+    setDownloadFailure({ kind: "consent", key: "privacy.remoteFetchCancelled", params: { provider: providerLabel(provider) } });
+    return { finished: true, result: false };
+  }
+  return { finished: false };
+}
+
+// The ready line of a finished download, with how it was made up.
+function downloadReadyText({ bulletGames, blitzGames, qualityWarning, totalGames, rawUser, slowGames, preferredLabel }) {
+  if (bulletGames > 0) {
+    return t("provider.readyBullet", {
+      warning: `${qualityWarning} `,
+      total: totalGames,
+      user: rawUser,
+      slow: slowGames,
+      preferred: preferredLabel,
+      blitz: blitzGames,
+      bullet: bulletGames,
+    });
+  }
+  if (blitzGames > 0) {
+    return t("provider.readyBlitz", { total: totalGames, user: rawUser, slow: slowGames, preferred: preferredLabel, blitz: blitzGames });
+  }
+  return t("provider.readyPreferred", { total: totalGames, user: rawUser, preferred: preferredLabel });
+}
+
 async function fetchLichessPgn() {
+  const provider = "lichess";
+  setDownloadFailure(null);
   const rawUser = getConfiguredRemoteUsername();
   if (!rawUser) {
-    if (onlineStatusEl) onlineStatusEl.textContent = t("provider.enterLichessUser");
     showWizardSourceError("provider.enterLichessContinue", {}, "username");
     return false;
   }
@@ -6933,42 +8167,28 @@ async function fetchLichessPgn() {
   const oneYearMs = 365 * 24 * 60 * 60 * 1000;
   const sinceMs = nowMs - oneYearMs;
   const preferredLabel = joinPreferredTimeClasses(settings.preferredPerf);
-  const cacheKey = remotePgnCacheKey("lichess", rawUser, cacheSignature({
-    provider: "lichess",
-    maxGames: settings.maxGames,
+  const cacheKey = remotePgnCacheKey(provider, rawUser, cacheSignature({
+    provider,
     preferredPerf: settings.preferredPerf,
-    minSlowGames: settings.minSlowGames,
     fallbackBlitz: settings.fallbackBlitz,
     fallbackBullet: settings.fallbackBullet,
   }));
 
-  const cached = await readCachedRemotePgn(cacheKey);
-  if (cached) {
-    return installRemotePgnSource(cached.source, { messageKey: "provider.usingCachedBase" });
+  const start = await beginRemoteDownload(provider, rawUser, cacheKey, settings);
+  if (start.finished) return start.result;
+
+  if (STATE.userMode === "citizen") {
+    setDownloadStatus(t("provider.downloadingFor", { user: rawUser, protocol: describeLichessNormalProtocol(settings) }));
+  } else {
+    setDownloadStatus(t("provider.searchingUpTo", { max: settings.maxGames, user: rawUser, preferred: preferredLabel }));
   }
 
-  const lichessThrottle = remoteFetchThrottleBlock();
-  if (lichessThrottle) {
-    if (onlineStatusEl) onlineStatusEl.textContent = t(lichessThrottle.key, lichessThrottle.params);
-    showWizardSourceError(lichessThrottle.key, lichessThrottle.params);
-    return false;
-  }
-
-  if (!(await confirmRemoteFetchConsent("lichess", rawUser))) {
-    if (onlineStatusEl) onlineStatusEl.textContent = t("privacy.remoteFetchCancelled");
-    showWizardSourceError("privacy.remoteFetchCancelled");
-    return false;
-  }
-
-  recordRemoteFetch();
-
-  if (onlineStatusEl) {
-    if (STATE.userMode === "citizen") {
-      onlineStatusEl.textContent = t("provider.downloadingFor", { user: rawUser, protocol: describeLichessNormalProtocol(settings) });
-    } else {
-      onlineStatusEl.textContent = t("provider.searchingUpTo", { max: settings.maxGames, user: rawUser, preferred: preferredLabel });
-    }
-  }
+  // The request can be cancelled (the person pressed "cancel", left the wizard, started another session): one
+  // controller for every request of this download, reachable through activeRemoteDownloadController.
+  const downloadController = typeof AbortController === "function" ? new AbortController() : null;
+  activeRemoteDownloadController = downloadController;
+  const downloadSignal = downloadController ? downloadController.signal : undefined;
+  let counted = false;
 
   const fetchChunk = async (perfTypes, max) => {
     const params = new URLSearchParams();
@@ -6981,13 +8201,20 @@ async function fetchLichessPgn() {
       headers: { Accept: "application/x-chess-pgn" },
       timeoutMs: REMOTE_FETCH_TIMEOUT_MS,
       retries: REMOTE_FETCH_RETRIES,
+      signal: downloadSignal,
     });
-    if (!response.ok) {
-      if (response.status === 429) throw new Error(t("network.rateLimited"));
-      throw new Error(t("provider.lichessResponse", { status: response.status }));
+    if (!response.ok) throw remoteStatusError(response);
+    // A download that reached the provider and was answered counts for the courtesy limit; one it refused does not.
+    if (!counted) {
+      counted = true;
+      recordRemoteFetch();
     }
-    const text = await readResponseTextWithLimit(response);
+    const text = await readResponseTextWithLimit(response, undefined, downloadSignal);
     return { text, games: countPgnGames(text) };
+  };
+  const pause = async () => {
+    await sleepMs(220);
+    if (downloadSignal?.aborted) throw new RemoteFetchError("cancelled");
   };
 
   try {
@@ -7000,10 +8227,8 @@ async function fetchLichessPgn() {
 
     if (settings.fallbackBlitz && totalGames < settings.minSlowGames && totalGames < settings.maxGames) {
       const remaining = settings.maxGames - totalGames;
-      if (onlineStatusEl) {
-        onlineStatusEl.textContent = t("provider.completingBlitz", { count: totalGames, preferred: preferredLabel, remaining });
-      }
-      await sleepMs(220);
+      setDownloadStatus(t("provider.completingBlitz", { count: totalGames, preferred: preferredLabel, remaining }));
+      await pause();
       const blitz = await fetchChunk(["blitz"], remaining);
       blitzGames = blitz.games;
       totalGames += blitzGames;
@@ -7017,10 +8242,8 @@ async function fetchLichessPgn() {
       const warningContext = blitzGames > 0
         ? t("provider.bulletContextStillShort", { user: rawUser, preferred: preferredLabel })
         : t("provider.bulletContextNoBlitz", { user: rawUser, preferred: preferredLabel });
-      if (onlineStatusEl) {
-        onlineStatusEl.textContent = t("provider.bulletAttempt", { context: warningContext, remaining });
-      }
-      await sleepMs(220);
+      setDownloadStatus(t("provider.bulletAttempt", { context: warningContext, remaining }));
+      await pause();
       const bullet = await fetchChunk(["bullet"], remaining);
       bulletGames = bullet.games;
       totalGames += bulletGames;
@@ -7032,18 +8255,19 @@ async function fetchLichessPgn() {
       }
     }
 
-    if (totalGames <= 0) {
-      throw new Error(t("provider.noGamesForFilters"));
-    }
+    if (totalGames <= 0) throw new RemoteFetchError("noGames");
+    // The games must be the person's: checked BEFORE anything says "ready" (or is kept for next time).
+    if (!pgnIncludesPlayer(finalText, rawUser)) throw new RemoteFetchError("userMissing");
 
     const safeUser = rawUser.replace(/[^a-z0-9_-]+/gi, "") || "user";
     const today = new Date().toISOString().slice(0, 10);
     const source = {
       name: `lichess_${safeUser}_${today}.pgn`,
       text: finalText,
-      provider: "lichess",
+      provider,
       username: rawUser,
       games: totalGames,
+      requestedMax: settings.maxGames,
       warning: qualityWarning,
       detail: {
         slow: slow.games,
@@ -7061,49 +8285,44 @@ async function fetchLichessPgn() {
       void writeCachedRemotePgn(cacheKey, source);
     }
     if (!installed) return false;
-    if (onlineStatusEl) {
-      if (bulletGames > 0) {
-        onlineStatusEl.textContent = t("provider.readyBullet", {
-          warning: `${qualityWarning} `,
-          total: totalGames,
-          user: rawUser,
-          slow: slow.games,
-          preferred: preferredLabel,
-          blitz: blitzGames,
-          bullet: bulletGames,
-        });
-      } else if (blitzGames > 0) {
-        onlineStatusEl.textContent = t("provider.readyBlitz", {
-          total: totalGames,
-          user: rawUser,
-          slow: slow.games,
-          preferred: preferredLabel,
-          blitz: blitzGames,
-        });
-      } else {
-        onlineStatusEl.textContent = t("provider.readyPreferred", { total: totalGames, user: rawUser, preferred: preferredLabel });
-      }
-    }
+    rememberLastUsername(provider, rawUser);
+    setDownloadStatus(downloadReadyText({ bulletGames, blitzGames, qualityWarning, totalGames, rawUser, slowGames: slow.games, preferredLabel }));
     return true;
   } catch (error) {
-    const stale = await readCachedRemotePgn(cacheKey, { allowStale: true });
-    if (stale) {
-      return installRemotePgnSource(stale.source, { messageKey: "provider.usingStaleCachedBase" });
+    // Cancelled (a new session started, or the person pressed "cancel"): nothing to report, the screen has moved on.
+    if (downloadSignal?.aborted || (error instanceof RemoteFetchError && error.code === "cancelled")) return false;
+    if (error instanceof RemoteFetchError && error.code === "rateLimited") recordRemoteCooldown(provider, error.params.retryAfterMs);
+    if (remoteErrorIsTransient(error)) {
+      const stale = await readCachedRemotePgn(cacheKey, { allowStale: true, minRequested: settings.maxGames });
+      if (stale) return installRemotePgnSource(stale.source, { messageKey: "provider.usingStaleCachedBase" });
     }
-    const message = t("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
-    if (onlineStatusEl) onlineStatusEl.textContent = message;
-    showWizardSourceError("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
+    setDownloadFailure(remoteErrorView(error, provider, rawUser));
     return false;
+  } finally {
+    if (activeRemoteDownloadController === downloadController) {
+      activeRemoteDownloadController = null;
+    }
   }
 }
 
-function parseChessComArchiveUrl(url) {
-  const match = String(url || "").match(/\/games\/(\d{4})\/(\d{2})\/?$/);
+// A monthly archive of a player, and only that: https on api.chess.com, /pub/player/<the person>/games/YYYY/MM.
+// An address of any other shape (another host, another path, another player) is never asked for, whatever the
+// list says (the list comes from the network; the page's own CSP is a second fence, not the only one).
+function parseChessComArchiveUrl(url, username) {
+  let parsed = null;
+  try {
+    parsed = new URL(String(url || ""));
+  } catch (error) {
+    return null;
+  }
+  if (parsed.protocol !== "https:" || parsed.host !== "api.chess.com" || parsed.username || parsed.password || parsed.search || parsed.hash) return null;
+  const match = parsed.pathname.match(/^\/pub\/player\/([^/]+)\/games\/(\d{4})\/(\d{2})\/?$/);
   if (!match) return null;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
+  if (username && normalizeName(decodeURIComponent(match[1])) !== normalizeName(username)) return null;
+  const year = Number(match[2]);
+  const month = Number(match[3]);
   if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return null;
-  return { url, year, month };
+  return { url: parsed.href, year, month };
 }
 
 function isArchiveInLastTwelveMonths(year, month) {
@@ -7116,50 +8335,30 @@ function isArchiveInLastTwelveMonths(year, month) {
 }
 
 async function fetchChessComPgn() {
+  const provider = "chesscom";
+  setDownloadFailure(null);
   const rawUser = getConfiguredRemoteUsername();
   if (!rawUser) {
-    if (onlineStatusEl) onlineStatusEl.textContent = t("provider.enterChesscomUser");
     showWizardSourceError("provider.enterChesscomContinue", {}, "username");
     return false;
   }
 
   const settings = getChessComFetchSettings();
   const preferredLabel = joinPreferredTimeClasses(settings.preferredSlowClasses);
-  const cacheKey = remotePgnCacheKey("chesscom", rawUser, cacheSignature({
-    provider: "chesscom",
-    maxGames: settings.maxGames,
+  const cacheKey = remotePgnCacheKey(provider, rawUser, cacheSignature({
+    provider,
     preferredSlowClasses: settings.preferredSlowClasses,
-    minSlowGames: settings.minSlowGames,
     fallbackBlitz: settings.fallbackBlitz,
     fallbackBullet: settings.fallbackBullet,
   }));
 
-  const cached = await readCachedRemotePgn(cacheKey);
-  if (cached) {
-    return installRemotePgnSource(cached.source, { messageKey: "provider.usingCachedBase" });
-  }
+  const start = await beginRemoteDownload(provider, rawUser, cacheKey, settings);
+  if (start.finished) return start.result;
 
-  const chesscomThrottle = remoteFetchThrottleBlock();
-  if (chesscomThrottle) {
-    if (onlineStatusEl) onlineStatusEl.textContent = t(chesscomThrottle.key, chesscomThrottle.params);
-    showWizardSourceError(chesscomThrottle.key, chesscomThrottle.params);
-    return false;
-  }
-
-  if (!(await confirmRemoteFetchConsent("chesscom", rawUser))) {
-    if (onlineStatusEl) onlineStatusEl.textContent = t("privacy.remoteFetchCancelled");
-    showWizardSourceError("privacy.remoteFetchCancelled");
-    return false;
-  }
-
-  recordRemoteFetch();
-
-  if (onlineStatusEl) {
-    if (STATE.userMode === "citizen") {
-      onlineStatusEl.textContent = t("provider.downloadingFor", { user: rawUser, protocol: describeChessComNormalProtocol(settings) });
-    } else {
-      onlineStatusEl.textContent = t("provider.searchingUpTo", { max: settings.maxGames, user: rawUser, preferred: preferredLabel });
-    }
+  if (STATE.userMode === "citizen") {
+    setDownloadStatus(t("provider.downloadingFor", { user: rawUser, protocol: describeChessComNormalProtocol(settings) }));
+  } else {
+    setDownloadStatus(t("provider.searchingUpTo", { max: settings.maxGames, user: rawUser, preferred: preferredLabel }));
   }
 
   const monthGamesCache = new Map();
@@ -7185,11 +8384,8 @@ async function fetchChessComPgn() {
       retries: REMOTE_FETCH_RETRIES,
       signal: downloadSignal,
     });
-    if (!response.ok) {
-      if (response.status === 429) throw new Error(t("network.rateLimited"));
-      throw new Error(t("provider.chesscomReadArchiveError", { status: response.status, url: archiveUrl }));
-    }
-    const payload = await readResponseJsonWithLimit(response);
+    if (!response.ok) throw remoteStatusError(response);
+    const payload = await readResponseJsonWithLimit(response, undefined, downloadSignal);
     const games = Array.isArray(payload?.games) ? payload.games : [];
     monthGamesCache.set(archiveUrl, games);
     return games;
@@ -7238,25 +8434,17 @@ async function fetchChessComPgn() {
       retries: REMOTE_FETCH_RETRIES,
       signal: downloadSignal,
     });
-    if (!archivesResponse.ok) {
-      if (archivesResponse.status === 429) {
-        throw new Error(t("network.rateLimited"));
-      }
-      if (archivesResponse.status === 404) {
-        throw new Error(t("provider.userNotFoundOrPrivate"));
-      }
-      throw new Error(t("provider.chesscomResponse", { status: archivesResponse.status }));
-    }
-    const archivesPayload = await readResponseJsonWithLimit(archivesResponse);
+    if (!archivesResponse.ok) throw remoteStatusError(archivesResponse);
+    // The provider answered: this download counts for the courtesy limit from here on.
+    recordRemoteFetch();
+    const archivesPayload = await readResponseJsonWithLimit(archivesResponse, undefined, downloadSignal);
     const archives = (Array.isArray(archivesPayload?.archives) ? archivesPayload.archives : [])
-      .map(parseChessComArchiveUrl)
+      .map((entry) => parseChessComArchiveUrl(entry, rawUser))
       .filter(Boolean)
       .filter((archive) => isArchiveInLastTwelveMonths(archive.year, archive.month))
       .sort((a, b) => (b.year * 100 + b.month) - (a.year * 100 + a.month));
 
-    if (archives.length === 0) {
-      throw new Error(t("provider.noMonthlyArchives"));
-    }
+    if (archives.length === 0) throw new RemoteFetchError("noGames");
 
     downloadStartedAt = Date.now();
 
@@ -7285,6 +8473,9 @@ async function fetchChessComPgn() {
         try {
           games = await loadArchiveGames(archive.url);
         } catch (archiveError) {
+          // A month that cannot be read is skipped (and said at the end); a pause the provider asked for or a
+          // cancellation stops the whole download instead of knocking on the next month's door.
+          if (archiveError instanceof RemoteFetchError && ["rateLimited", "cancelled"].includes(archiveError.code)) throw archiveError;
           failedArchiveUrls.add(archive.url);
           failedMonthLabels.push(`${archive.year}-${String(archive.month).padStart(2, "0")}`);
           continue;
@@ -7300,9 +8491,7 @@ async function fetchChessComPgn() {
 
     if (settings.fallbackBlitz && totalGames < settings.minSlowGames && totalGames < settings.maxGames && withinBudget()) {
       const remaining = settings.maxGames - totalGames;
-      if (onlineStatusEl) {
-        onlineStatusEl.textContent = t("provider.completingBlitz", { count: totalGames, preferred: preferredLabel, remaining });
-      }
+      setDownloadStatus(t("provider.completingBlitz", { count: totalGames, preferred: preferredLabel, remaining }));
       await sleepMs(220);
       blitzGames = await runArchivePass(new Set(["blitz"]), "Blitz");
     }
@@ -7313,9 +8502,7 @@ async function fetchChessComPgn() {
       warningContext = blitzGames > 0
         ? t("provider.bulletContextStillShort", { user: rawUser, preferred: preferredLabel })
         : t("provider.bulletContextNoBlitz", { user: rawUser, preferred: preferredLabel });
-      if (onlineStatusEl) {
-        onlineStatusEl.textContent = t("provider.bulletAttempt", { context: warningContext, remaining });
-      }
+      setDownloadStatus(t("provider.bulletAttempt", { context: warningContext, remaining }));
       await sleepMs(220);
       bulletGames = await runArchivePass(new Set(["bullet"]), "Bullet");
       if (bulletGames > 0) {
@@ -7323,18 +8510,19 @@ async function fetchChessComPgn() {
       }
     }
 
-    if (totalGames <= 0 || selectedPgn.length === 0) {
-      throw new Error(t("provider.noGamesForFilters"));
-    }
+    if (totalGames <= 0 || selectedPgn.length === 0) throw new RemoteFetchError("noGames");
+    const pgnText = `${selectedPgn.join("\n\n")}\n`;
+    if (!pgnIncludesPlayer(pgnText, rawUser)) throw new RemoteFetchError("userMissing");
 
     const safeUser = rawUser.replace(/[^a-z0-9_-]+/gi, "") || "user";
     const today = new Date().toISOString().slice(0, 10);
     const source = {
       name: `chesscom_${safeUser}_${today}.pgn`,
-      text: `${selectedPgn.join("\n\n")}\n`,
-      provider: "chesscom",
+      text: pgnText,
+      provider,
       username: rawUser,
       games: totalGames,
+      requestedMax: settings.maxGames,
       warning: qualityWarning,
       detail: {
         slow: slowGames,
@@ -7352,52 +8540,28 @@ async function fetchChessComPgn() {
       void writeCachedRemotePgn(cacheKey, source);
     }
     if (!installed) return false;
-    if (onlineStatusEl) {
-      let readyMessage;
-      if (bulletGames > 0) {
-        readyMessage = t("provider.readyBullet", {
-          warning: `${qualityWarning} `,
-          total: totalGames,
-          user: rawUser,
-          slow: slowGames,
-          preferred: preferredLabel,
-          blitz: blitzGames,
-          bullet: bulletGames,
-        });
-      } else if (blitzGames > 0) {
-        readyMessage = t("provider.readyBlitz", {
-          total: totalGames,
-          user: rawUser,
-          slow: slowGames,
-          preferred: preferredLabel,
-          blitz: blitzGames,
-        });
-      } else {
-        readyMessage = t("provider.readyPreferred", { total: totalGames, user: rawUser, preferred: preferredLabel });
-      }
-      if (failedMonthLabels.length > 0) {
-        readyMessage = `${readyMessage} ${t("provider.monthsSkipped", { months: failedMonthLabels.join(", ") })}`;
-      }
-      if (budgetExceeded) {
-        readyMessage = `${readyMessage} ${t("provider.downloadBudgetExceeded")}`;
-      }
-      onlineStatusEl.textContent = readyMessage;
+    rememberLastUsername(provider, rawUser);
+    let readyMessage = downloadReadyText({ bulletGames, blitzGames, qualityWarning, totalGames, rawUser, slowGames, preferredLabel });
+    if (failedMonthLabels.length > 0) {
+      readyMessage = `${readyMessage} ${t("provider.monthsSkipped", { months: failedMonthLabels.join(", ") })}`;
     }
+    if (budgetExceeded) {
+      readyMessage = `${readyMessage} ${t("provider.downloadBudgetExceeded")}`;
+    }
+    setDownloadStatus(readyMessage);
     return true;
   } catch (error) {
     // The download was aborted because a new session started (see
-    // beginSessionWork), not because of a real failure: whatever screen the
-    // person is on now has already moved past this download, so there is
-    // nothing useful to show here.
-    if (downloadSignal?.aborted) return false;
-    const stale = await readCachedRemotePgn(cacheKey, { allowStale: true });
-    if (stale) {
-      return installRemotePgnSource(stale.source, { messageKey: "provider.usingStaleCachedBase" });
+    // beginSessionWork) or the person cancelled it, not because of a real
+    // failure: whatever screen the person is on now has already moved past this
+    // download, so there is nothing useful to show here.
+    if (downloadSignal?.aborted || (error instanceof RemoteFetchError && error.code === "cancelled")) return false;
+    if (error instanceof RemoteFetchError && error.code === "rateLimited") recordRemoteCooldown(provider, error.params.retryAfterMs);
+    if (remoteErrorIsTransient(error)) {
+      const stale = await readCachedRemotePgn(cacheKey, { allowStale: true, minRequested: settings.maxGames });
+      if (stale) return installRemotePgnSource(stale.source, { messageKey: "provider.usingStaleCachedBase" });
     }
-    let message = t("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
-    if (budgetExceeded) message = `${message} ${t("provider.downloadBudgetExceeded")}`;
-    if (onlineStatusEl) onlineStatusEl.textContent = message;
-    showWizardSourceError("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
+    setDownloadFailure(remoteErrorView(error, provider, rawUser));
     return false;
   } finally {
     if (activeRemoteDownloadController === downloadController) {
@@ -7428,21 +8592,21 @@ async function startSessionPipeline() {
     const ctx = await loadCandidateAnalysisContext(effectiveConfig);
     if (!ctx) return;
 
-    const firstSearch = await findNextMistake(ctx, "Inicio: ");
+    const firstSearch = await findNextMistake(ctx, { first: true });
     if (!isCurrentSessionWork(sessionToken)) return;
     if (!firstSearch.mistake) {
-      sendWizardBackToSourceStep("provider.noUsefulMistakes", { analyzed: ctx.analyzed, total: ctx.total });
+      sendWizardBackToSourceStep("provider.noUsefulMistakes", { analyzed: ctx.analyzed, total: ctx.total }, { actions: ["user", "platform"] });
       return;
     }
 
     enterPlayModeWithFirstPosition(firstSearch.mistake, ctx);
   } catch (error) {
     if (!isCurrentSessionWork(sessionToken)) return;
-    const message = t("analysis.status.error", { error: error.message || t("common.unknown") });
-    analysisStatusEl.textContent = message;
-    analysisProgressWrapEl.classList.add("hidden");
-    analysisMetricsEl.classList.add("hidden");
-    sendWizardBackToSourceStep("common.sourceErrorWithDetail", { error: error.message || t("common.unknown") });
+    // Whatever broke is for the console; the person is told something they can act on.
+    console.error("[Ludus] the analysis of the games failed", error);
+    if (analysisProgressWrapEl) analysisProgressWrapEl.classList.add("hidden");
+    if (analysisMetricsEl) analysisMetricsEl.classList.add("hidden");
+    sendWizardBackToSourceStep("analysis.status.failed", {}, { actions: ["retry", "platform"] });
   } finally {
     if (isCurrentSessionWork(sessionToken)) {
       STATE.ui.setupAnalyzing = false;
@@ -7472,7 +8636,8 @@ function resetSessionStateForNewPipeline() {
   setUiPhase("playing", false);
   STATE.session = null;
   STATE.scoringOverride = null;
-  STATE.clockMode = settingsGet("clock.mode", "timed") === "untimed" ? "untimed" : "timed";
+  // The clock is the wizard's (it started from the setting and changed only this session).
+  STATE.clockMode = STATE.setupWizard.clockMode === "untimed" ? "untimed" : "timed";
   STATE.hintsEnabled = Boolean(settingsGet("hints.enabled", true));
   resetHintState();
   STATE.allMistakes = [];
@@ -7529,7 +8694,24 @@ async function ensurePgnSourceAvailable(sessionToken) {
   if (!downloaded || !hasAnyPgnSource(true)) {
     const configChanged = normalizeName(getConfiguredRemoteUsername()) !== normalizeName(requestedUser)
       || getRemoteProviderModeFromUi() !== requestedProvider;
-    sendWizardBackToSourceStep(configChanged ? "provider.configChangedDuringDownload" : "common.sourceError");
+    const failure = STATE.setupWizard.downloadFailure;
+    STATE.setupWizard.downloadFailure = null;
+    if (configChanged) {
+      sendWizardBackToSourceStep("provider.configChangedDuringDownload", {}, { actions: ["user", "platform"] });
+    } else if (failure && failure.kind === "consent") {
+      // A "no" to the privacy question is an answer, not a failure: the person stays where they are, told that
+      // nothing was sent, and nothing offers them another user.
+      STATE.ui.setupAnalyzing = false;
+      setWizardFormControlsDisabled(false);
+      resetAnalysisProgress();
+      if (analysisProgressWrapEl) analysisProgressWrapEl.classList.add("hidden");
+      if (analysisStatusEl) analysisStatusEl.textContent = t(failure.key, failure.params);
+      updateAnalyzeButtonState();
+    } else if (failure) {
+      sendWizardBackToSourceStep(failure.key, failure.params, { actions: failure.actions, seconds: failure.seconds });
+    } else {
+      sendWizardBackToSourceStep("common.sourceError", {}, { actions: ["retry"] });
+    }
     return false;
   }
   return true;
@@ -7643,10 +8825,12 @@ function enterPlayModeWithFirstPosition(firstMistake, ctx) {
     profileIds: duel
       ? [0, 1].map((index) => (Array.isArray(STATE.setupWizard.profileIds) ? STATE.setupWizard.profileIds[index] || null : null))
       : [activeProfileId()],
-    options: {},
+    // The clock chosen in the wizard belongs to this session: a change in Settings does not reach it.
+    options: { clock: { mode: STATE.clockMode, seconds: STATE.turnTimeSeconds } },
     startedAt: Date.now(),
     positions: STATE.targetPositions,
     completed: false,
+    firstRun: isFirstRun(),
     records: [],
     record: null,
     rounds: [],
@@ -7712,7 +8896,8 @@ if (wizardNextBtn) {
     clearWizardSourceError();
     clearFieldInvalid(sessionSizeEl, "analysis-status");
     goToWizardStep(current + 1);
-    if (analysisStatusEl) analysisStatusEl.textContent = t("wizard.status.nextStep");
+    // The line of the last step says what "Start session" will do (not that "the next step" comes).
+    if (analysisStatusEl && current + 1 === 3) analysisStatusEl.textContent = t("wizard.step3.analysisPrompt");
   });
 }
 
@@ -7748,6 +8933,7 @@ if (wizardProviderLichessBtn) {
     setSourceMode("lichess");
     if (previous !== "lichess" && STATE.remotePgnSources.length > 0) clearRemotePgnSources();
     clearWizardSourceError();
+    prefillLastUsername();
     updatePgnSelectionUi();
   });
 }
@@ -7760,6 +8946,7 @@ if (wizardProviderChessComBtn) {
     setSourceMode("chesscom");
     if (previous !== "chesscom" && STATE.remotePgnSources.length > 0) clearRemotePgnSources();
     clearWizardSourceError();
+    prefillLastUsername();
     updatePgnSelectionUi();
   });
 }
@@ -7787,6 +8974,13 @@ if (onlineUserInputEl) {
     clearWizardSourceError();
     updatePgnSelectionUi();
   });
+  // "@name" or a pasted profile address becomes the name it stands for once the field is left.
+  onlineUserInputEl.addEventListener("change", () => {
+    const clean = sanitizeWizardUsername(onlineUserInputEl.value);
+    if (clean !== onlineUserInputEl.value) onlineUserInputEl.value = clean;
+    STATE.setupWizard.username = clean;
+    updatePgnSelectionUi();
+  });
 }
 
 if (sessionSizeEl) {
@@ -7812,13 +9006,18 @@ wizardSizeChipEls.forEach((chipEl) => {
 
 wizardTimerChipEls.forEach((chipEl) => {
   chipEl.addEventListener("click", () => {
+    if ((Number(chipEl.getAttribute("data-seconds")) || 0) === 0) {
+      setWizardClockMode("untimed");
+      renderWizardStep();
+      return;
+    }
     const seconds = normalizeTurnTimeSeconds(
       chipEl.getAttribute("data-seconds"),
       { fallback: DEFAULT_TURN_TIME_SECONDS },
     );
+    setWizardClockMode("timed");
     setWizardTurnTimeSeconds(seconds);
     renderWizardStep();
-    updateRoundTimerUi(Math.round(STATE.turnTimeSeconds * 1000));
   });
 });
 
@@ -7832,14 +9031,55 @@ document.addEventListener("click", (event) => {
 
 if (hintBtn) {
   hintBtn.addEventListener("click", () => {
-    requestHint();
+    requestHint({ fromUi: true });
+  });
+}
+if (confirmMoveBtn) {
+  confirmMoveBtn.addEventListener("click", () => {
+    confirmPendingMove();
   });
 }
 
 if (wizardRetryUserBtn) {
   wizardRetryUserBtn.addEventListener("click", () => {
     clearWizardSourceError();
-    if (onlineUserInputEl) onlineUserInputEl.focus();
+    if (onlineUserInputEl) {
+      onlineUserInputEl.focus();
+      if (typeof onlineUserInputEl.select === "function") onlineUserInputEl.select();
+    }
+  });
+}
+
+if (wizardRetryDownloadBtn) {
+  wizardRetryDownloadBtn.addEventListener("click", () => {
+    retryWizardDownload();
+  });
+}
+
+// "Cancel" while the wizard downloads or searches: the requests are aborted, the search stops, the form is the
+// person's again and nothing was kept.
+if (analysisCancelBtn) {
+  analysisCancelBtn.addEventListener("click", () => {
+    if (!STATE.ui.setupAnalyzing) return;
+    const searching = STATE.analysisInProgress;
+    cancelSetupWork();
+    if (analysisStatusEl) analysisStatusEl.textContent = t(searching ? "download.cancelledSearch" : "download.cancelled");
+    if (analyzeBtn && typeof analyzeBtn.focus === "function") analyzeBtn.focus();
+  });
+}
+
+// Enter in a field of the wizard goes on (next step, or start on the last one), like any form.
+if (setupPanelEl) {
+  setupPanelEl.addEventListener("keydown", (event) => {
+    if (!event || event.key !== "Enter" || event.isComposing || event.defaultPrevented) return;
+    const target = event.target;
+    const tag = target && target.tagName ? String(target.tagName).toLowerCase() : "";
+    if (tag !== "input") return;
+    event.preventDefault();
+    const next = wizardNextBtn && !wizardNextBtn.classList.contains("hidden") && !wizardNextBtn.disabled ? wizardNextBtn : null;
+    const start = analyzeBtn && !analyzeBtn.classList.contains("hidden") && !analyzeBtn.disabled ? analyzeBtn : null;
+    const button = next || start;
+    if (button && typeof button.click === "function") button.click();
   });
 }
 
@@ -7851,6 +9091,7 @@ if (wizardSwitchPlatformBtn) {
     setSourceMode(nextPlatform);
     clearRemotePgnSources();
     clearWizardSourceError();
+    prefillLastUsername();
     updatePgnSelectionUi();
   });
 }
@@ -7885,6 +9126,8 @@ if (wizardClearCacheBtn) {
       return;
     }
     setClearCacheArmed(false);
+    // The saved games and the remembered usernames go together.
+    forgetLastUsernames();
     void clearAllRemotePgnCache().then(() => {
       if (wizardClearCacheStatusEl) {
         wizardClearCacheStatusEl.textContent = t("wizard.step2.clearCacheDone");
@@ -7918,9 +9161,9 @@ if (turnTimeSecondsEl) {
     updateWizardTimerChipSelection(rawSeconds);
   });
   turnTimeSecondsEl.addEventListener("change", () => {
+    setWizardClockMode("timed");
     setWizardTurnTimeSeconds(turnTimeSecondsEl.value, { fallback: MIN_TURN_TIME_SECONDS });
     renderWizardStep();
-    updateRoundTimerUi(Math.round(STATE.turnTimeSeconds * 1000));
   });
 }
 
@@ -7969,6 +9212,8 @@ if (revealGameBtn) {
 if (skipBtn) {
   skipBtn.addEventListener("click", () => {
     if (!STATE.board || !STATE.positions.length || STATE.ui.blockBoardInput || (nextBtn && nextBtn.disabled === false)) return;
+    // Skipping is worth 0 points and adds a notebook card: a first tap arms it, a second one does it.
+    if (!armConfirmation("skip", t("core.skip.confirm"))) return;
     void submitNoMove("manual_skip");
   });
 }
@@ -7984,6 +9229,8 @@ if (soundBtn) {
   soundBtn.addEventListener("click", () => {
     settingsSet("sound.enabled", !settingsGet("sound.enabled", true));
     syncSoundButton();
+    // The switch is the same one as in Settings: what it does survives the session, and it says so.
+    announceHint(t(settingsGet("sound.enabled", true) ? "core.sound.on" : "core.sound.off"));
   });
 }
 
@@ -7994,6 +9241,9 @@ if (soundBtn) {
 function onGameKeydown(event) {
   if (!document.body.classList.contains("playing-mode")) return;
   if (!event || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
+  // Single-letter shortcuts can be switched off (Settings > Accessibility): speech input and
+  // switch users trigger them by accident (WCAG 2.1.4).
+  if (!shortcutsEnabled()) return;
   const target = event.target;
   const tag = target && target.tagName ? String(target.tagName).toLowerCase() : "";
   if (tag === "input" || tag === "textarea" || tag === "select" || (target && target.isContentEditable)) return;
@@ -8003,7 +9253,8 @@ function onGameKeydown(event) {
   const key = String(event.key || "").toLowerCase();
   const phase = currentGamePhase();
   if (phase === "thinking") {
-    if (key === "h" && requestHint()) event.preventDefault();
+    // Not on a repeat (a held key is not three hints), and the level that shows the move asks twice.
+    if (key === "h" && !event.repeat && requestHint({ fromUi: true })) event.preventDefault();
     return;
   }
   if (phase !== "result") return;
@@ -8028,6 +9279,16 @@ function onGameKeydown(event) {
   }
 }
 document.addEventListener("keydown", onGameKeydown);
+// What the last input was (board.confirmMove "touch" only asks a finger to confirm), and the
+// round clock sleeps while the page is hidden.
+document.addEventListener("pointerdown", (event) => {
+  const type = event && event.pointerType;
+  noteInputKind(type === "touch" || type === "pen" ? "touch" : "mouse");
+}, true);
+document.addEventListener("keydown", () => noteInputKind("keyboard"), true);
+document.addEventListener("visibilitychange", onPageVisibilityChange);
+// Closing the tab or reloading in the middle of a session with answers asks first (desktop browsers).
+window.addEventListener("beforeunload", onBeforeUnload);
 if (handoffOverlayEl) {
   handoffOverlayEl.addEventListener("click", () => {
     revealDuelSecondTurn();
@@ -8064,12 +9325,152 @@ window.addEventListener("resize", () => {
   renderBoardArrows();
 });
 
+// ---------- Service worker: offline shell and the update prompt (sw.js) ----------
+//
+// The worker serves the app shell from its precache and never replaces itself under a
+// running page: a new build installs in the background and WAITS. The page then offers
+// "a new version is ready - reload" (never while a session is running, so it cannot cover
+// the board) and, when the person agrees, asks the waiting worker to take over
+// (SKIP_WAITING) and reloads once it has. The very first install says "ready offline"
+// once. What the worker could not do (a refused engine file, a full cache) comes back as a
+// message and is logged here, because nothing else would ever show it.
+
+const PWA_UPDATE_CHECK_MS = 30 * 60 * 1000;
+const PWA_OFFLINE_FLAG = "ludus.pwa.offline.v1";
+
+function registerPwaText() {
+  const i18n = ludusModule("i18n");
+  try {
+    if (!i18n || typeof i18n.register !== "function") return;
+    i18n.register({
+      es: {
+        "pwa.update.ready": "Hay una versión nueva de Ludus Scaccorum lista.",
+        "pwa.update.reload": "Recargar",
+        "pwa.offline.ready": "Lista para usar sin conexión (el motor fuerte se guarda la primera vez que jugás con conexión).",
+      },
+      en: {
+        "pwa.update.ready": "A new version of Ludus Scaccorum is ready.",
+        "pwa.update.reload": "Reload",
+        "pwa.offline.ready": "Ready to use offline (the full engine is saved the first time you play online).",
+      },
+    });
+  } catch (error) {
+    // Text is cosmetic: without it the prompts show their keys.
+  }
+}
+
+function watchServiceWorker(registration) {
+  const container = navigator.serviceWorker;
+  const hadController = Boolean(container.controller);
+  let swapRequested = false; // this tab asked for the new worker: its controllerchange means "reload now"
+  let prompted = false;
+
+  const gameBusy = () => {
+    try {
+      const game = ludusModule("game");
+      return Boolean(game && typeof game.isActive === "function" && game.isActive());
+    } catch (error) {
+      return false;
+    }
+  };
+
+  // Runs `callback` now, or as soon as no session is running.
+  function whenIdle(callback) {
+    if (!gameBusy()) {
+      callback();
+      return;
+    }
+    const bus = ludusModule("bus");
+    if (!bus || typeof bus.on !== "function") return; // cannot tell: the next visit asks again
+    const offs = [];
+    const check = () => {
+      if (gameBusy()) return;
+      offs.forEach((off) => off());
+      callback();
+    };
+    ["screen:changed", "session:completed"].forEach((name) => offs.push(bus.on(name, check)));
+  }
+
+  function acceptUpdate() {
+    const waiting = registration.waiting;
+    if (waiting) {
+      swapRequested = true;
+      waiting.postMessage({ type: "SKIP_WAITING" });
+    } else {
+      window.location.reload(); // another tab already swapped the worker: only this page is old
+    }
+  }
+
+  function promptReload() {
+    if (prompted) return;
+    prompted = true;
+    whenIdle(() => {
+      showToast(t("pwa.update.ready"), {
+        kind: "info",
+        duration: 0,
+        action: { label: t("pwa.update.reload"), onClick: acceptUpdate },
+      });
+    });
+  }
+
+  function announceOfflineReady() {
+    let seen = false;
+    try {
+      seen = window.localStorage.getItem(PWA_OFFLINE_FLAG) === "1";
+      window.localStorage.setItem(PWA_OFFLINE_FLAG, "1");
+    } catch (error) {
+      // Storage blocked: say it again next time rather than never.
+    }
+    if (!seen) whenIdle(() => showToast(t("pwa.offline.ready"), { kind: "success", duration: 8000 }));
+  }
+
+  function track(worker) {
+    if (!worker) return;
+    const onState = () => {
+      if (worker.state === "installed") {
+        if (container.controller) promptReload(); // a newer build is now waiting
+      } else if (worker.state === "activated") {
+        if (!hadController) announceOfflineReady();
+      } else if (worker.state === "redundant") {
+        if (container.controller) console.info("[Ludus] a new version could not be installed yet; it will be tried again");
+        else console.warn("[Ludus] the service worker could not install (storage full, or a deploy half way): offline mode is not available yet");
+      }
+    };
+    worker.addEventListener("statechange", onState);
+    onState();
+  }
+
+  registration.addEventListener("updatefound", () => track(registration.installing));
+  track(registration.installing);
+  if (registration.waiting && container.controller) promptReload();
+
+  container.addEventListener("controllerchange", () => {
+    if (!hadController) return; // the first install claiming this page
+    if (swapRequested) window.location.reload();
+    else promptReload(); // another tab took the new worker: this page still runs the old code
+  });
+
+  container.addEventListener("message", (event) => {
+    const data = event && event.data;
+    if (data && data.type === "ludus-sw") console.warn("[Ludus] service worker:", data.event, data.detail || "");
+  });
+
+  // A long-lived window (an installed app left open) looks for a new build when it comes back.
+  let lastCheck = Date.now();
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || Date.now() - lastCheck < PWA_UPDATE_CHECK_MS) return;
+    lastCheck = Date.now();
+    registration.update().catch(() => {});
+  });
+}
+
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   if (window.location.protocol === "file:") return;
+  registerPwaText();
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch((error) => {
-      console.info("Service worker registration skipped:", error);
+    navigator.serviceWorker.register("sw.js").then(watchServiceWorker, (error) => {
+      console.warn("[Ludus] the service worker could not be registered (the app works online, not offline):", error);
     });
   });
 }
@@ -8158,10 +9559,11 @@ function watchSettings() {
     const path = payload && payload.path;
     const overrides = STATE.session && STATE.session.options ? STATE.session.options : {};
     if (path === "clock.seconds" && !overrides.clock) {
-      setWizardTurnTimeSeconds(payload.value, { skipPersist: true });
+      setWizardTurnTimeSeconds(payload.value);
       renderWizardStep();
     } else if (path === "clock.mode") {
       if (!STATE.session) STATE.clockMode = payload.value === "untimed" ? "untimed" : "timed";
+      setWizardClockMode(payload.value);
       renderWizardStep();
     } else if (path === "hints.enabled" && typeof overrides.hints !== "boolean" && !STATE.session) {
       STATE.hintsEnabled = Boolean(payload.value);
@@ -8175,7 +9577,7 @@ function watchSettings() {
   bus.on("achievement:unlocked", (payload) => {
     const achievement = payload && payload.achievement ? payload.achievement : null;
     if (!achievement || !achievement.name) return;
-    noteAchievement(achievement);
+    noteAchievement(achievement, payload.profileId);
     queueCelebration({ achievement });
   });
   bus.on("screen:changed", (payload) => {
@@ -8199,6 +9601,19 @@ function exposeGameApi() {
     resultContext: () => STATE.resultView.context,
     analyzePosition,
     isUsingFallbackEngine,
+    // Settings > Privacy (QA SEC-008, F5): the "keep the games I download" preference and the wizard's "Clear saved game data",
+    // for the settings screen. keep() is true by default; setKeep(false) means downloads live only in this tab.
+    savedDownloads: {
+      keep: () => !loadNoPersistDownloadsPreference(),
+      setKeep(keep) {
+        saveNoPersistDownloadsPreference(!keep);
+      },
+      // The saved games and the remembered usernames go together (as in the wizard).
+      clear() {
+        forgetLastUsernames();
+        return clearAllRemotePgnCache();
+      },
+    },
     // For tests and end-to-end checks: hands the engine another transport
     // (a fake, or a Node child process) instead of the Worker, and may shorten
     // the waits (minEvalVisibleMs, retryBaseMs). Drops the engine that is
@@ -8246,6 +9661,10 @@ function bootCore() {
   // The landing page is for someone who has never been here; everybody else starts at home.
   if (shouldShowLanding()) showLandingScreen();
   else goHome();
+  // A session that a reload or a closed tab interrupted is offered once, when the screen has settled.
+  setTimeout(() => {
+    void offerSessionResume();
+  }, 600);
 }
 
 skipBtn.disabled = true;
@@ -8259,7 +9678,7 @@ updateScoringSystemHint();
 updateResultAnalysisControls();
 setUserMode("citizen");
 STATE.setupWizard.turnTimeSeconds = loadSetupPreference().turnTimeSeconds;
-setWizardTurnTimeSeconds(STATE.setupWizard.turnTimeSeconds, { skipPersist: true });
+setWizardTurnTimeSeconds(STATE.setupWizard.turnTimeSeconds);
 readDuelPlayersFromInputs();
 applyGameFormat(gameFormatEl ? gameFormatEl.value : "solo");
 setSourceMode("lichess");

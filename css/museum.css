@@ -7,7 +7,7 @@
    a line height of 1.65-1.75 and Inter; Cormorant (--font-display) is for titles and years only.
    ========================================================================== */
 
-.museum { display: grid; gap: var(--space-6); min-width: 0; }
+.museum { display: grid; gap: var(--space-6); min-width: 0; container: museum / inline-size; }
 
 /* ── Header and tabs ── */
 .museum-head { max-width: 46rem; }
@@ -23,16 +23,23 @@
 @media (max-width: 599px) {
   /* Four equal tabs, icon over label, so none of them hides behind a scroll. */
   .museum-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; }
-  .museum-tab {
+  /* `.museum-tabs.tabs > .museum-tab` (three classes) on purpose: the shared `.tabs [role="tab"]` rule keeps 16px of side padding at equal
+     specificity, which left 57px for "Escuela de ajedrez" (three lines touching the underline, QA VIS-021). */
+  .museum-tabs.tabs > .museum-tab {
     flex-direction: column;
     justify-content: flex-start;
     gap: 4px;
     min-height: 64px;
-    padding: var(--space-2) 2px;
+    padding: var(--space-2) 2px var(--space-3);
     white-space: normal;
   }
   .museum-tab-label { font-size: var(--text-xs); line-height: 1.15; text-align: center; text-wrap: balance; }
   .museum-tabs [role="tab"]::after { inset: auto var(--space-2) -1px; }
+}
+/* Too narrow for four columns (a 320px phone with the text at 130%: "Curiosidades" ran into its neighbours): two rows of two.
+   The query is in rem, so it follows the text size. */
+@container museum (max-width: 16rem) {
+  .museum-tabs.tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .museum-panel { display: grid; gap: var(--space-5); padding-top: var(--space-4); min-width: 0; }

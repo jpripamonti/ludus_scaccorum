@@ -356,6 +356,21 @@ test("verified rule and safe source links", async () => {
   assert.ok(!parts.some((p) => p.href && !p.href.startsWith("https://")));
   deepEq(h.linkifySource("plain"), [{ text: "plain" }]);
   deepEq(h.linkifySource(null), []);
+  // A link that contains parentheses keeps them (it used to stop at the first one); a bracket the link never opened is the sentence's.
+  deepEq(h.linkifySource("see https://en.wikipedia.org/wiki/Frank_Marshall_(chess_player) and more").filter((p) => p.href).map((p) => p.href), ["https://en.wikipedia.org/wiki/Frank_Marshall_(chess_player)"]);
+  deepEq(h.linkifySource("(see https://example.org/page).").filter((p) => p.href).map((p) => p.href), ["https://example.org/page"]);
+  // QA A11Y-017: a link is named by its site and page, never by the raw address.
+  assert.strictEqual(h.sourceLinkLabel("https://en.wikipedia.org/wiki/Opera_Game"), "Wikipedia: Opera Game");
+  assert.strictEqual(h.sourceLinkLabel("https://en.chessbase.com/newsroom/post/50-games-paul-morphy-simple-powerful-strong"), "ChessBase: 50 games paul morphy simple powerful strong");
+  assert.strictEqual(h.sourceLinkLabel("https://www.chesshistory.com/winter/extra/evergreen.html"), "Chess History: Evergreen");
+  assert.strictEqual(h.sourceLinkLabel("https://chessdailynews.com/?p=5969"), "chessdailynews.com");
+  assert.strictEqual(h.sourceLinkLabel("https://books.chessbase.com/de/modern-classics/larsen-spassky-1970"), "ChessBase Books: Larsen spassky 1970");
+  assert.ok(h.sourceLinkLabel("https://www.chess.com/article/view/" + "x".repeat(80)).length < 70, "a long slug is cut");
+  assert.strictEqual(h.sourceLinkLabel("not a url"), "not a url");
+  Ludus.Classics.list().forEach((g) => (Ludus.Classics.get(g.id).sources || []).forEach((source) => h.linkifySource(source).filter((p) => p.href).forEach((p) => {
+    const label = h.sourceLinkLabel(p.href);
+    assert.ok(label && !/^https?:/.test(label), `${g.id}: a short name for ${p.href}`);
+  })));
 });
 
 test("hash routes: #/classics/<id> only for a plain id", () => {
@@ -385,7 +400,28 @@ test("display: names, events, sites, results in both languages", async () => {
   assert.strictEqual(h.displayName("Duke Karl of Brunswick and Count Isouard", "es"), "el duque Carlos de Brunswick y el conde Isouard");
   assert.strictEqual(h.eventLabel("Casual game", "es"), "Partida amistosa");
   assert.strictEqual(h.eventLabel("Casual game", "en"), "Casual game");
-  assert.strictEqual(h.eventLabel("Hastings", "es"), "Hastings", "proper names are kept");
+  assert.strictEqual(h.eventLabel("Hastings", "es"), "Torneo de Hastings", "the display forms come from the data tables");
+  assert.strictEqual(h.eventLabel("Hastings", "en"), "Hastings tournament");
+  assert.strictEqual(h.eventLabel("Some Local Open", "es"), "Some Local Open", "an event nobody knows is kept as it came");
+  // QA CNT-028: one Spanish spelling per person and no English event names on a Spanish page.
+  assert.strictEqual(h.displayName("Garry Kasparov", "es"), "Garry Kaspárov");
+  assert.strictEqual(h.displayName("Anatoly Karpov", "es"), "Anatoli Kárpov");
+  assert.strictEqual(h.displayName("Garry Kasparov", "en"), "Garry Kasparov");
+  ["Vienna", "New York", "Copenhagen", "Amsterdam", "Tal Memorial"].forEach((event) => {
+    assert.notStrictEqual(h.eventLabel(event, "es"), event, `${event} is translated in Spanish`);
+  });
+  Ludus.Classics.list().forEach((g) => {
+    ["white", "black"].forEach((side) => {
+      assert.ok(!/^(Garry Kasparov|Anatoly Karpov)$/.test(h.displayName(g[side], "es")), `${g.id}: ${g[side]} keeps the Spanish spelling`);
+    });
+  });
+  // Without the data tables (the classics data not loaded yet) the local fallbacks give the same Spanish forms.
+  const saved = Ludus.ClassicsData;
+  Ludus.ClassicsData = undefined;
+  assert.strictEqual(h.displayName("Garry Kasparov", "es"), "Garry Kaspárov");
+  assert.strictEqual(h.eventLabel("Copenhagen", "es"), "Torneo de Copenhague");
+  assert.strictEqual(h.eventLabel("Casual game", "es"), "Partida amistosa");
+  Ludus.ClassicsData = saved;
   // The coach card and the notebook show a stored classic's metadata through localizeMeta (regression: a Spanish page
   // used to say "Casual game" and "Duke Karl of Brunswick and Count Isouard").
   const stored = { players: "Paul Morphy vs Duke Karl of Brunswick and Count Isouard", event: "Casual game", year: "1858", site: "Paris FRA", moveNumber: 7 };
@@ -1139,6 +1175,55 @@ test("loading: a failing load shows an error with a retry (never a blank screen)
   await flush();
   assert.strictEqual(cardIds(el).length, 28, "the retry loads the gallery");
   assert.strictEqual(attempts, 2);
+});
+
+test("loading: a download that hangs admits it is slow, then offers a retry (QA UX-026); the data arriving later still shows", async () => {
+  const { Ludus, el, advance } = createEnv();
+  const realLoad = Ludus.Classics.load;
+  let release = null;
+  let calls = 0;
+  Ludus.Classics.load = () => {
+    calls += 1;
+    if (calls === 1) return new Promise((resolve) => { release = () => resolve(realLoad()); });
+    return new Promise((resolve) => { release = () => resolve(realLoad()); });
+  };
+  Ludus.Screens.classics.mount(el);
+  Ludus.router.show("classics");
+  await flush();
+  assert.ok(q(el, ".classics-loading"), "the skeleton shows while the data is on its way");
+  assert.ok(!text(el).includes("tardando más de lo normal"), "no complaint in the first seconds");
+  advance(6500);
+  await flush();
+  assert.ok(text(el).includes("tardando más de lo normal"), "after a few seconds the screen says it is slow");
+  assert.ok(q(el, ".classics-loading"), "and keeps waiting");
+  advance(20000);
+  await flush();
+  assert.ok(text(el).includes("tardan demasiado"), "after a long wait: an error that names the wait, not a spinner");
+  const retry = one(el, (n) => n.tagName === "BUTTON" && text(n).includes("Reintentar"));
+  assert.ok(retry, "with a retry button");
+  retry.click();
+  await flush();
+  assert.ok(q(el, ".classics-loading"), "the retry waits again");
+  release();
+  await flush(12);
+  assert.strictEqual(cardIds(el).length, 28, "the data that finally arrived shows");
+  assert.ok(!text(el).includes("tardando más de lo normal"), "the slow notice is gone");
+});
+
+test("tab title: a game page and a history tab name themselves (QA A11Y-024)", async () => {
+  const { Ludus, el, doc } = createEnv();
+  Ludus.Screens.classics.mount(el);
+  Ludus.router.show("classics");
+  await flush();
+  assert.strictEqual(doc.title, "Partidas clásicas - Ludus Scaccorum");
+  Ludus.router.show("classics", { game: "opera-1858" });
+  await flush();
+  assert.strictEqual(doc.title, "La Ópera - Partidas clásicas - Ludus Scaccorum", "the game comes first");
+  Ludus.i18n.setLanguage("en", { persist: false });
+  await flush();
+  assert.ok(/ - Classic games - Ludus Scaccorum$/.test(doc.title) && !/^Classic games/.test(doc.title), `the title follows the language: ${doc.title}`);
+  const h = Ludus.Screens.classics.helpers;
+  assert.strictEqual(h.docTitleFor("list", null, "en"), "Classic games - Ludus Scaccorum", "the list view is the plain screen title");
 });
 
 test("degrading: no Ludus.Classics, no Ludus.game, no Ludus.ui: the screen still draws something and never throws", async () => {

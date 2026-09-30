@@ -1192,7 +1192,12 @@
         if (router && typeof router.show === "function") router.show("museum", { tab: "school" });
       },
     });
-    actions.push({ label: t("ui.close"), kind: "ghost", value: "close" });
+    // The dialog opens with the focus on a button, not on the lesson (a focus frame around the whole body looked like a glitch):
+    // the lessons stay reachable by Tab for a keyboard that has to scroll them.
+    const closeAction = { label: t("ui.close"), kind: "ghost", value: "close" };
+    actions.push(closeAction);
+    // Train (when offered) is the main action; otherwise the safe one, Close, takes the focus.
+    (actions.length > 2 ? actions[0] : closeAction).autofocus = true;
     return ui.modal({ title: tagLabel(tag), body, actions, size: "md", className: "notebook-concept-modal" });
   }
 

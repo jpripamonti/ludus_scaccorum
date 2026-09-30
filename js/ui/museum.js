@@ -1158,6 +1158,22 @@
     });
   }
 
+  // The tab title names the section the person is reading ("Escuela de ajedrez - Historia - Ludus Scaccorum"); the router only knows the screen
+  // (QA A11Y-024, WCAG 2.4.2). Only while the screen is showing, so a hidden museum never rewrites another screen's title.
+  function docTitleFor(tab, label, screenTitle) {
+    return [label, screenTitle, "Ludus Scaccorum"].filter(Boolean).join(" - ");
+  }
+
+  function syncDocTitle() {
+    const doc = getDoc();
+    if (!doc || !state.visible) return;
+    try {
+      doc.title = docTitleFor(state.tab, t(`museum.tab.${state.tab}`), t("museum.title"));
+    } catch (error) {
+      // cosmetic only
+    }
+  }
+
   function mirrorHash(tab) {
     const run = () => {
       try {
@@ -1197,6 +1213,7 @@
     if (next === "room" && !state.room.controller) startRoom();
     if (next === "timeline" && !state.timeline.observer && panel) observeEras(panel);
     paintTabs();
+    syncDocTitle();
     if (opts.focus && state.tabButtons[next] && typeof state.tabButtons[next].focus === "function") state.tabButtons[next].focus();
     if (opts.mirror !== false) mirrorHash(next);
   }
@@ -1350,6 +1367,7 @@
       ERAS,
       PAGE_SIZE,
       cleanTab,
+      docTitleFor,
       parseMuseumHash,
       isMuseumHash,
       buildMuseumHash,

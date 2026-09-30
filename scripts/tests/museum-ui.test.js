@@ -351,6 +351,24 @@ test("tablist: click, arrow keys, Home / End and the hash", async () => {
   assert.strictEqual(tabButton(el, "school").getAttribute("aria-selected"), "true", "an unknown tab keeps the current one");
 });
 
+test("tab title: every section names itself, in both languages (QA A11Y-024)", async () => {
+  const { Ludus, el, doc } = createEnv();
+  Ludus.Screens.museum.mount(el);
+  Ludus.router.show("museum");
+  assert.strictEqual(doc.title, "Línea de tiempo - Historia - Ludus Scaccorum");
+  tabButton(el, "school").click();
+  assert.strictEqual(doc.title, "Escuela de ajedrez - Historia - Ludus Scaccorum");
+  tabButton(el, "room").click();
+  assert.strictEqual(doc.title, "Sala de lectura - Historia - Ludus Scaccorum");
+  Ludus.i18n.setLanguage("en", { persist: false });
+  Ludus.bus.emit("language:changed", { lang: "en" });
+  assert.strictEqual(doc.title, "Reading room - History - Ludus Scaccorum", "follows the language");
+  const titles = new Set();
+  ["timeline", "curiosities", "school", "room"].forEach((tab) => { tabButton(el, tab).click(); titles.add(doc.title); });
+  assert.strictEqual(titles.size, 4, "four sections, four titles");
+  assert.strictEqual(Ludus.Screens.museum.helpers.docTitleFor("school", "School", "History"), "School - History - Ludus Scaccorum");
+});
+
 test("timeline: eras, 36 expandable milestones with related facts and sources, nothing but text nodes", async () => {
   const { Ludus, el } = createEnv();
   Ludus.Screens.museum.mount(el);

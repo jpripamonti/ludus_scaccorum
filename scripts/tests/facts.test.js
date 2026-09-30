@@ -452,7 +452,40 @@ function play(sans) {
     /GothamChess|Botez Gambit|Pepe Cuenca/, // unverified trivia
     /doctor(ate)? in law|doctorado en derecho/i, // Alekhine's doctorate could not be documented
     /longest possible game|partida más larga posible/i,
+    /nacionaliz\w+ suizo hacia 1980|Swiss citizen around 1980/i, // Korchnoi: the sources disagree on the year
+    /crecieron enormemente|has grown enormously/i, // streaming: vague and unsourced
+    /bromeó|joked that anyone who lost/i, // the Menchik "club" is told as her record, not as the joke
   ].forEach((pattern) => assert.ok(!pattern.test(everything), `dropped claim is back: ${pattern}`));
+}
+
+// ---------- QA corrections (CNT-020, CNT-021) ----------
+
+{
+  // Records that can be broken carry a hedge in both languages, in the fact and in the timeline.
+  ["champions-gukesh-2024", "tl-gukesh-2024"].forEach((id) => {
+    const entry = all.concat(timeline).find((item) => item.id === id);
+    assert.ok(/hasta ahora/.test(entry.text.es) && /so far/.test(entry.text.en), `${id}: "the youngest champion" needs "hasta ahora" / "so far"`);
+    assert.ok(!/de la historia|in history/.test(entry.text.es + entry.text.en), `${id}: no unhedged "in history"`);
+  });
+  // Carlsen did not defend the title: a reader in 2026 must not be told he is "champion" without that.
+  assert.ok(/no defendería el título/.test(Facts.get("champions-carlsen").text.es) && /would not defend the title/.test(Facts.get("champions-carlsen").text.en));
+  // The timeline title says "surviving" (conservado) like its text: the 1495 Vicent book was lost.
+  const lucena = timeline.find((item) => item.id === "tl-lucena");
+  assert.ok(/conservado/.test(lucena.title.es) && /surviving/.test(lucena.title.en), "tl-lucena: the title must say the book survives");
+  // Menchik: told as her results; the anecdote is hedged as an anecdote.
+  const menchik = Facts.get("champions-menchik-club").text;
+  assert.ok(/derrotó a varios/.test(menchik.es) && /Según la anécdota/.test(menchik.es) && /beat several/.test(menchik.en) && /The story goes/.test(menchik.en));
+  // The vague streaming fact was replaced by a dated one (the first online Olympiad, August 2020).
+  assert.strictEqual(Facts.get("culture-streaming"), null);
+  assert.ok(/agosto de 2020/.test(Facts.get("culture-online-olympiad").text.es) && /August 2020/.test(Facts.get("culture-online-olympiad").text.en));
+  // Spanish facts spell the names the Spanish way, and quote moves with Spanish piece letters (R D T A C), English ones with K Q R B N.
+  const names = /\b(Kasparov|Karpov|Kramnik|Korchnoi)\b/;
+  all.concat(timeline).forEach((entry) => {
+    const title = entry.title ? entry.title.es : "";
+    assert.ok(!names.test(`${title} ${entry.text.es}`), `${entry.id}: Spanish text must say Kaspárov, Kárpov, Krámnik, Kórchnoi`);
+    assert.ok(!/\b\d+\.{1,3}(?:[KQBN][a-h1-8x]|[a-h]x?[a-h]?[1-8]=[QRBN])/.test(entry.text.es), `${entry.id}: Spanish text uses English piece letters`);
+    assert.ok(!/\b\d+\.{1,3}(?:[DTAC][a-h1-8x])/.test(entry.text.en), `${entry.id}: English text uses Spanish piece letters`);
+  });
 }
 
 // ---------- The sources document lists every id ----------

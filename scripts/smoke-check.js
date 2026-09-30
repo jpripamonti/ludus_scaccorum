@@ -180,7 +180,11 @@ function checkIndexReferences() {
     if (target) assertFile(target);
   }
 
-  const scripts = localAssetTags(html).filter((item) => item.attr === "src").map((item) => item.path);
+  const allScripts = localAssetTags(html).filter((item) => item.attr === "src").map((item) => item.path);
+  // js/boot.js is the one script in <head>: it must run first (before the first paint); the load-order rules below are
+  // about the modules at the end of <body>.
+  if (allScripts[0] !== "js/boot.js") fail(`index.html script #1 must be js/boot.js, the synchronous boot guard (found ${allScripts[0] || "nothing"})`);
+  const scripts = allScripts.filter((file) => file !== "js/boot.js");
   const head = ["config.js", "js/ludus.js", "js/chess.js", "js/pgn.js"];
   head.forEach((file, i) => {
     if (scripts[i] !== file) fail(`index.html script #${i + 1} must be ${file} (found ${scripts[i] || "nothing"})`);
@@ -194,7 +198,7 @@ function checkIndexReferences() {
   // js/data/* is fetched lazily; every other file under js/ must be loaded by index.html.
   for (const file of listFiles("js", ".js")) {
     if (file.startsWith("js/data/")) continue;
-    if (!scripts.includes(file)) fail(`${file} exists but index.html has no <script> for it`);
+    if (!allScripts.includes(file)) fail(`${file} exists but index.html has no <script> for it`);
   }
   // The same for stylesheets.
   const sheets = localAssetTags(html).filter((item) => item.attr === "href").map((item) => item.path);
@@ -257,6 +261,10 @@ function checkContentSecurityPolicy() {
 
 checkContentSecurityPolicy();
 
+// Permissions-Policy, frame-ancestors and sandbox are header-only: as a <meta> they
+// do nothing, and a tag that looks like a protection but is not one is worse than none.
+if (/<meta\s[^>]*http-equiv="Permissions-Policy"/i.test(html.replace(/<!--[\s\S]*?-->/g, ""))) fail("index.html has a Permissions-Policy <meta>, which browsers ignore (header-only)");
+
 // index.html's ?v= query strings, <meta name="ludus-version">, sw.js's
 // CACHE_NAME and its CORE_ASSETS list must all agree with the current content
 // hash (see scripts/generate-version.js). If someone edits any shipped file
@@ -308,8 +316,31 @@ function checkVersionCoherence() {
   }
   for (const entry of raw) {
     if (!expected.includes(entry)) fail(`sw.js CORE_ASSETS has an unexpected entry ${entry}; ${rerun}`);
-    if (/^\.\/(vendor\/|js\/data\/)/.test(entry)) {
-      fail(`sw.js CORE_ASSETS must not precache ${entry} (loaded lazily, cached at runtime)`);
+    // The engine (7.3 MB) is cached on first use in its own checksum-keyed cache, never precached.
+    if (/^\.\/vendor\//.test(entry)) fail(`sw.js CORE_ASSETS must not precache ${entry} (the engine has its own cache, ENGINE_CACHE)`);
+  }
+  // The lazily loaded data scripts ARE precached: the Classics library must work offline from the first visit.
+  for (const file of gv.lazyDataAssets()) {
+    if (!raw.some((entry) => entry.split("?")[0] === file)) fail(`sw.js CORE_ASSETS does not precache ${file}; ${rerun}`);
+  }
+
+  const engineCacheMatch = sw.match(/const ENGINE_CACHE = "([^"]*)";/);
+  if (!engineCacheMatch || engineCacheMatch[1] !== info.engineCacheName) {
+    fail(
+      `sw.js ENGINE_CACHE (${engineCacheMatch ? engineCacheMatch[1] : "missing"}) does not match ` +
+      `the engine files in vendor/ (${info.engineCacheName}); ${rerun}`,
+    );
+  }
+  const engineBlock = sw.match(/const ENGINE_FILES = \{([\s\S]*?)\};/);
+  const listed = {};
+  if (engineBlock) for (const m of engineBlock[1].matchAll(/"([^"]+)":\s*"([a-f0-9]{64})"/g)) listed[m[1]] = m[2];
+  if (JSON.stringify(listed) !== JSON.stringify(info.engineFiles)) {
+    fail(`sw.js ENGINE_FILES does not list exactly the SHA-256 of the engine files in vendor/; ${rerun}`);
+  }
+  // vendor/SHA256SUMS (checked above against the files) must cover what the service worker pins.
+  for (const [file, digest] of Object.entries(info.engineFiles)) {
+    if (!sums.some((line) => line.toLowerCase().startsWith(digest) && line.endsWith(file))) {
+      fail(`vendor/SHA256SUMS has no line for ${file} with the SHA-256 that sw.js pins`);
     }
   }
   if (raw.length === expected.length && raw.some((entry, i) => entry !== expected[i])) {
@@ -318,6 +349,31 @@ function checkVersionCoherence() {
 }
 
 checkVersionCoherence();
+
+// The service worker's safety rules are code-shaped, so they are checked on its
+// source: it may only ever delete the caches this app owns (a GitHub Pages user
+// site shares one Cache Storage between every project), and it must not take over
+// a running page by itself (the page asks, see registerServiceWorker in app.js).
+function checkServiceWorkerPolicy() {
+  const prefix = (sw.match(/const CACHE_PREFIX = "([^"]*)";/) || [])[1];
+  if (!prefix || !prefix.startsWith("ludus-scaccorum")) fail('sw.js CACHE_PREFIX must be "ludus-scaccorum-..." (the only caches it may delete)');
+  for (const name of ["CACHE_NAME", "ENGINE_CACHE"]) {
+    const value = (sw.match(new RegExp(`const ${name} = "([^"]*)";`)) || [])[1] || "";
+    if (prefix && !value.startsWith(prefix)) fail(`sw.js ${name} (${value}) must start with CACHE_PREFIX (${prefix})`);
+  }
+  const activateStart = sw.indexOf('addEventListener("activate"');
+  const activate = activateStart === -1 ? "" : sw.slice(activateStart, sw.indexOf("\n});", activateStart));
+  if (!/caches\.delete/.test(activate) || !/startsWith\(STATIC_PREFIX\)/.test(activate) || !/startsWith\(ENGINE_PREFIX\)/.test(activate)) {
+    fail("sw.js activate must delete only caches whose names start with the static/engine prefixes");
+  }
+  const skips = sw.match(/skipWaiting\(\)/g) || [];
+  if (skips.length !== 1 || sw.indexOf("skipWaiting()") < sw.indexOf('addEventListener("message"')) {
+    fail("sw.js may call skipWaiting() only from its message handler (the person agrees to the update), never at install");
+  }
+  if (/ignoreSearch\s*:\s*true/.test(sw)) fail("sw.js must not match cache entries with ignoreSearch (it mixes builds)");
+}
+
+checkServiceWorkerPolicy();
 
 // Every literal getElementById("...") string in app.js and js/**/*.js should
 // name an id that exists: in index.html, or declared by the code that builds
@@ -384,6 +440,29 @@ function checkDeployWorkflow() {
     if (!copied.has(name)) {
       fail(`${workflowFile} does not copy "${name}" into the Pages artifact (it is needed at runtime)`);
     }
+  }
+  // Everything the version hash covers must be deployed (otherwise a change that bumps
+  // the version could never reach users), and so must every top level of the precache.
+  const gv = require("./generate-version.js");
+  for (const name of [...gv.HASHED_FILES, ...gv.HASHED_DIRS, "index.html", "sw.js"]) {
+    if (!copied.has(name)) fail(`${workflowFile} does not copy "${name}", which generate-version.js hashes`);
+  }
+  for (const entry of gv.computeVersionInfo().rawAssets) {
+    const top = entry.replace(/^\.\//, "").split(/[?#]/)[0].split("/")[0];
+    if (top && !copied.has(top)) fail(`${workflowFile} does not copy "${top}", which sw.js precaches (${entry})`);
+  }
+
+  // Least privilege: the job that runs project code (generate-version, npm test) must not hold
+  // the Pages deployment token. `pages: write` / `id-token: write` belong to the deploy job only.
+  const topPermissions = (workflow.match(/^permissions:\s*\n((?:[ \t]+.*\n?)*)/m) || [, ""])[1];
+  if (/\b(pages|id-token)\s*:\s*write/.test(topPermissions)) {
+    fail(`${workflowFile}: the workflow-level permissions grant pages/id-token write to every job; grant it on the deploy job only`);
+  }
+  const runsProjectCode = /npm test|generate-version/.test(workflow);
+  const deployJob = workflow.match(/^  deploy:\s*\n([\s\S]*)$/m);
+  if (runsProjectCode && !deployJob) fail(`${workflowFile}: split the build (contents: read) from the deploy job (pages: write)`);
+  if (deployJob && /actions\/checkout|actions\/setup-node|\bnpm\b|\bnode\s+scripts\//.test(deployJob[1])) {
+    fail(`${workflowFile}: the deploy job (pages: write) must only deploy the artifact the build job made, not run project code`);
   }
 }
 

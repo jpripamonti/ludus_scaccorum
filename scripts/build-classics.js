@@ -56,7 +56,7 @@ const { Chess, uciToMove, moveToUci, moveToSan } = chessApi;
 
 // Bump when the selection/classification logic or the output shape changes:
 // `--check` treats data built by another version as stale.
-const BUILDER_VERSION = 2;
+const BUILDER_VERSION = 3; // 3: the data carries `names` and `events` (display forms per language)
 const DATA_VERSION = 1;
 const QUICK = { depth: 12, multipv: 3 };
 const MID = { depth: 16, multipv: 3 };   // candidate detection (deep combinations are invisible at depth 12)
@@ -728,6 +728,32 @@ function validateNotes(ids, notesJson) {
   });
 }
 
+// Display forms for the raw PGN tags (QA CNT-028): every White/Black and Event tag needs a { es, en } entry in
+// notes.json "names" / "events", so the two languages spell each person and each event one way only. Unused
+// entries fail too, which keeps the tables from drifting away from the games.
+function validateDisplay(ids, games, notesJson) {
+  const tables = { names: notesJson && notesJson.names, events: notesJson && notesJson.events };
+  Object.keys(tables).forEach((key) => {
+    const table = tables[key];
+    if (!table || typeof table !== "object" || Array.isArray(table)) fail(`notes.json: "${key}" is required: { "<raw PGN tag>": { "es": "...", "en": "..." } }`);
+    Object.keys(table).forEach((raw) => checkText(`notes.json:${key}["${raw}"]`, table[raw], 2, 80));
+  });
+  const used = { names: new Set(), events: new Set() };
+  ids.forEach((id) => {
+    const game = games[id];
+    if (!game) return;
+    [["names", game.tags.White], ["names", game.tags.Black], ["events", game.tags.Event]].forEach(([key, raw]) => {
+      if (!tables[key][raw]) fail(`notes.json: ${id} needs a "${key}" entry for "${raw}" (es and en display forms)`);
+      used[key].add(raw);
+    });
+  });
+  Object.keys(tables).forEach((key) => {
+    Object.keys(tables[key]).forEach((raw) => {
+      if (!used[key].has(raw)) fail(`notes.json: "${key}" has an entry for "${raw}" that no game uses`);
+    });
+  });
+}
+
 // --------------------------------------------------------------------- main
 
 function parseArgs(argv) {
@@ -817,6 +843,7 @@ async function main() {
     games[id] = loadGame(id);
   });
   console.log(`replayed ${ids.length} games, ${ids.reduce((s, id) => s + games[id].moves.length, 0)} plies: all legal`);
+  if (notesFile.json && !args.analyze) validateDisplay(ids, games, notesFile.json);
 
   const cache = new EngineCache();
   cache.load();
@@ -1078,6 +1105,8 @@ async function main() {
     builtAt: process.env.LUDUS_BUILT_AT || DEFAULT_BUILT_AT,
     builder: BUILDER_VERSION,
     inputs,
+    names: notesFile.json.names,
+    events: notesFile.json.events,
     games: out,
   };
   emit(data, verification, args);
@@ -1134,6 +1163,7 @@ function runCheck(ids) {
   try {
     notes = loadNotes();
     validateNotes(ids, notes.json);
+    validateDisplay(ids, games, notes.json);
   } catch (error) {
     problems.push(error.message);
   }

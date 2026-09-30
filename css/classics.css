@@ -256,6 +256,10 @@
 }
 .classics-item { display: flex; min-width: 0; }
 .classics-item > .card { flex: 1 1 auto; }
+/* Two columns or more: every card's eyebrow reserves two lines (see .classics-card-opening-name). */
+@media (min-width: 640px) {
+  .classics-card-opening { min-height: calc(2 * 1.35em); }
+}
 
 .classics-card {
   --card-pad: 0;
@@ -293,11 +297,11 @@
   background: var(--color-perfect-bg);
   font-size: var(--text-sm);
 }
-.classics-card-body { display: grid; flex: 1 1 auto; gap: 6px; align-content: start; padding: var(--space-5) var(--space-5) var(--space-3); }
+.classics-card-body { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1 1 auto; gap: 6px; align-content: start; padding: var(--space-5) var(--space-5) var(--space-3); }
 .classics-card-opening {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+  flex-wrap: nowrap;
+  align-items: flex-start;
   gap: 2px var(--space-2);
   margin: 0;
   color: var(--color-gold);
@@ -307,7 +311,29 @@
   line-height: 1.35;
   text-transform: uppercase;
 }
-.classics-eco { color: var(--color-text-muted); letter-spacing: 0.04em; }
+/* The opening wraps over at most two lines (its full name is the title attribute) and the ECO code is a chip that stays at the top right
+   instead of orphaning onto a line of its own; where cards sit side by side the eyebrow always reserves two lines, so the titles of a
+   row start at the same height (QA VIS-023). */
+.classics-card-opening-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.classics-eco {
+  flex: none;
+  margin-left: auto;
+  padding: 0 6px;
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
 .classics-card-title {
   margin: 0;
   font-family: var(--font-display);
@@ -368,8 +394,10 @@
   min-width: 0;
 }
 .classics-detail-head { display: grid; gap: var(--space-2); justify-items: start; min-width: 0; }
-.classics-detail-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); width: 100%; }
+/* The row wraps (the CTA drops under the back link) instead of squeezing the CTA: "Entrenar" broke into "Entrena / r" at 320px (QA VIS-004). */
+.classics-detail-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); width: 100%; }
 .classics-back { margin-left: calc(var(--space-3) * -1); }
+.classics-back .btn-label { white-space: nowrap; }
 .classics-detail-eyebrow { letter-spacing: 0.14em; }
 .classics-detail-title {
   font-size: clamp(2.4rem, 1.5rem + 3.2vw, 3.75rem);
@@ -389,7 +417,8 @@
 }
 .classics-detail-where { margin: 0; color: var(--color-text-muted); font-size: var(--text-base); line-height: 1.45; }
 .classics-result { color: var(--color-text); font-weight: 700; font-variant-numeric: lining-nums; }
-.classics-head-train { flex: 0 1 auto; }
+.classics-head-train { flex: none; }
+.classics-head-train .btn-label { white-space: nowrap; }
 .classics-dot {
   display: inline-block;
   flex: none;
@@ -412,8 +441,20 @@
   container: classics-replay / inline-size;
 }
 .classics-player-slot { min-width: 0; }
-.classics-player { display: flex; align-items: center; gap: var(--space-2); min-height: 28px; min-width: 0; font-size: var(--text-md); font-weight: 650; }
-.classics-player-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A long name ("el duque Carlos de Brunswick y el conde Isouard") wraps over two lines and the "you train this side" pill drops under it
+   when the row is narrow; the full name is also the title attribute (QA VIS-010). */
+.classics-player { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-height: 28px; min-width: 0; font-size: var(--text-md); font-weight: 650; }
+.classics-player-name {
+  flex: 1 1 9rem;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
 .classics-player-tag { flex: none; margin-left: auto; }
 .classics-stage { width: 100%; }
 .classics-board-wrap { position: relative; width: 100%; isolation: isolate; }

@@ -150,7 +150,8 @@ async function runViewport(browser, viewport) {
   [...info.scripts, ...info.sheets].forEach((url) => {
     assert.ok(url.endsWith(`?v=${info.version}`), `${url} carries ?v=${info.version}`);
   });
-  assert.strictEqual(info.scripts[0].split("?")[0], "config.js");
+  assert.strictEqual(info.scripts[0].split("?")[0], "js/boot.js", "the boot guard is the one script in <head>");
+  assert.strictEqual(info.scripts[1].split("?")[0], "config.js");
   assert.strictEqual(info.scripts[info.scripts.length - 1].split("?")[0], "app.js");
   assert.ok(info.iconHrefs.includes("assets/icons/icon-192.png"), "the PNG icon is declared");
   assert.ok(info.iconHrefs.includes("assets/brand/favicon.svg"), "the SVG favicon is declared");

@@ -10,7 +10,7 @@
   <meta name="description" content="Entrenador de ajedrez gratuito y sin registro: aprendé de tus errores y de partidas clásicas, y ganá más puntos cuanto más cerca juegues de la mejor jugada del motor." />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Scaccorum" />
-  <meta name="ludus-version" content="733a37b810ca" />
+  <meta name="ludus-version" content="db8c8ab7694e" />
   <link rel="manifest" href="./manifest.json" />
   <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/svg+xml" href="assets/brand/favicon.svg" />
@@ -20,24 +20,24 @@
   <link rel="preload" href="assets/fonts/cormorant-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client; worker-src 'self'; connect-src 'self' https://lichess.org https://api.chess.com https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://accounts.google.com; img-src 'self' data: https://*.googleusercontent.com; font-src 'self'; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; object-src 'none'; base-uri 'none'; form-action 'none'" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
-  <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=()" />
+  <!-- No <meta http-equiv="Permissions-Policy">: browsers only read that, like frame-ancestors and sandbox, from an HTTP header (GitHub Pages cannot send one), so the tag would protect nothing. The app uses none of those features. -->
   <title>Ludus Scaccorum - Entrenamiento de Errores</title>
   <!-- Boot guards (js/boot.js): a tiny synchronous same-origin script that runs before the first paint. It marks
        returning visitors (no landing flash), hides the app when it is framed and shows a notice on browsers too old
        for the app; it is the only script that is not at the end of <body>. -->
-  <script src="js/boot.js?v=733a37b810ca"></script>
-  <link rel="stylesheet" href="styles.css?v=733a37b810ca" />
-  <link rel="stylesheet" href="css/system.css?v=733a37b810ca" />
-  <link rel="stylesheet" href="css/shell.css?v=733a37b810ca" />
-  <link rel="stylesheet" href="css/board.css?v=733a37b810ca" />
-  <link rel="stylesheet" href="css/coach.css?v=733a37b810ca" />
-  <link rel="stylesheet" href="css/home.css?v=733a37b810ca" />
-  <link rel="stylesheet" href="css/classics.css?v=733a37b810ca" />
-  <link rel="stylesheet" href="css/notebook.css?v=733a37b810ca" />
-  <link rel="stylesheet" href="css/progress.css?v=733a37b810ca" />
-  <link rel="stylesheet" href="css/museum.css?v=733a37b810ca" />
-  <link rel="stylesheet" href="css/settings.css?v=733a37b810ca" />
-  <link rel="stylesheet" href="css/account.css?v=733a37b810ca" />
+  <script src="js/boot.js?v=db8c8ab7694e"></script>
+  <link rel="stylesheet" href="styles.css?v=db8c8ab7694e" />
+  <link rel="stylesheet" href="css/system.css?v=db8c8ab7694e" />
+  <link rel="stylesheet" href="css/shell.css?v=db8c8ab7694e" />
+  <link rel="stylesheet" href="css/board.css?v=db8c8ab7694e" />
+  <link rel="stylesheet" href="css/coach.css?v=db8c8ab7694e" />
+  <link rel="stylesheet" href="css/home.css?v=db8c8ab7694e" />
+  <link rel="stylesheet" href="css/classics.css?v=db8c8ab7694e" />
+  <link rel="stylesheet" href="css/notebook.css?v=db8c8ab7694e" />
+  <link rel="stylesheet" href="css/progress.css?v=db8c8ab7694e" />
+  <link rel="stylesheet" href="css/museum.css?v=db8c8ab7694e" />
+  <link rel="stylesheet" href="css/settings.css?v=db8c8ab7694e" />
+  <link rel="stylesheet" href="css/account.css?v=db8c8ab7694e" />
 </head>
 
 <body class="mode-citizen">
@@ -47,7 +47,8 @@
       <p lang="en">Ludus Scaccorum needs JavaScript to run. Enable it in your browser and reload the page.</p>
     </div>
   </noscript>
-  <a class="skip-link" href="#app-main">Saltar al contenido</a>
+  <!-- js/ui/shell.js points it at #app-main once a routed screen is showing; until then (and on the landing) the main landmark is the landing itself. -->
+  <a class="skip-link" href="#landing-screen">Saltar al contenido</a>
 
   <!-- App shell (js/ui/shell.js fills the nav, the streak and the profile chip; the
        ES/EN group stays here because app.js binds its buttons by id). -->
@@ -71,7 +72,7 @@
   <!-- Landing: the hero is static so the first paint needs no script; the sections
        below it and the footer are rendered by Ludus.Screens.landing (js/ui/home.js).
        #landing-start-btn is bound by app.js. -->
-  <main id="landing-screen" class="landing-screen ld" aria-labelledby="ld-title">
+  <main id="landing-screen" class="landing-screen ld" aria-labelledby="ld-title" tabindex="-1">
     <section class="ld-hero">
       <div class="ld-hero-bg" aria-hidden="true"></div>
       <div class="ld-hero-inner">
@@ -103,7 +104,7 @@
         <div class="wizard-body">
           <div class="wizard-steps">
             <section id="wizard-step-1" class="wizard-step is-active" aria-labelledby="wizard-step-1-title">
-              <h3 id="wizard-step-1-title" class="wizard-question" data-i18n="wizard.step1.question">¿Cómo querés jugar?</h3>
+              <h2 id="wizard-step-1-title" class="wizard-question" data-i18n="wizard.step1.question">¿Cómo querés jugar?</h2>
               <div id="wizard-mode-group" class="wizard-card-grid" role="radiogroup" data-i18n-aria-label="wizard.step1.ariaLabel" aria-label="Modo de juego">
                 <button id="wizard-mode-solo" type="button" class="wizard-choice-card" role="radio" data-i18n="wizard.step1.solo">Jugar solo/a</button>
                 <button id="wizard-mode-duel" type="button" class="wizard-choice-card" role="radio">
@@ -123,7 +124,7 @@
             </section>
 
             <section id="wizard-step-2" class="wizard-step hidden" aria-labelledby="wizard-step-2-title">
-              <h3 id="wizard-step-2-title" class="wizard-question" data-i18n="wizard.step2.question">¿De dónde traemos tus partidas?</h3>
+              <h2 id="wizard-step-2-title" class="wizard-question" data-i18n="wizard.step2.question">¿De dónde traemos tus partidas?</h2>
               <p class="wizard-help" style="margin-bottom: 0;" data-i18n="wizard.step2.help">Vamos a descargar partidas públicas del último año para
                 encontrar posiciones.</p>
               <details class="wizard-details-help">
@@ -141,6 +142,7 @@
               <p id="online-status" class="wizard-status" aria-live="polite" data-i18n="wizard.step2.enterUsername">Ingresá tu usuario para continuar.</p>
               <p id="wizard-source-error" class="wizard-error hidden" aria-live="polite"></p>
               <div id="wizard-source-cta" class="wizard-inline-actions hidden">
+                <button id="wizard-retry-download-btn" type="button" class="wizard-secondary-btn hidden" data-i18n="download.retry">Probar de nuevo</button>
                 <button id="wizard-retry-user-btn" type="button" class="wizard-secondary-btn" data-i18n="buttons.retryUser">Probar otro usuario</button>
                 <button id="wizard-switch-platform-btn" type="button" class="wizard-secondary-btn" data-i18n="buttons.switchPlatform">Cambiar
                   plataforma</button>
@@ -150,7 +152,7 @@
             </section>
 
             <section id="wizard-step-3" class="wizard-step hidden" aria-labelledby="wizard-step-3-title">
-              <h3 id="wizard-step-3-title" class="wizard-question" data-i18n="wizard.step3.question">¿Cuántas posiciones querés jugar hoy?</h3>
+              <h2 id="wizard-step-3-title" class="wizard-question" data-i18n="wizard.step3.question">¿Cuántas posiciones querés jugar hoy?</h2>
               <div class="wizard-step-group">
                 <div class="wizard-size-grid" role="radiogroup" data-i18n-aria-label="wizard.step3.ariaLabel" aria-label="Cantidad de posiciones">
                   <button type="button" class="wizard-size-chip" role="radio" data-size="5" data-i18n="wizard.step3.positions5">5 posiciones</button>
@@ -167,9 +169,11 @@
                   <button type="button" class="wizard-size-chip wizard-timer-chip" role="radio" data-seconds="90">90s</button>
                   <button type="button" class="wizard-size-chip wizard-timer-chip" role="radio" data-seconds="180">180s</button>
                   <button type="button" class="wizard-size-chip wizard-timer-chip" role="radio" data-seconds="360">360s</button>
+                  <button type="button" class="wizard-size-chip wizard-timer-chip" role="radio" data-seconds="0" data-i18n="wizard.step3.noLimit">Sin tiempo</button>
                 </div>
                 <label for="turn-time-seconds" data-i18n="wizard.step3.timerCustom">Personalizado (5 a 360 segundos)</label>
-                <input id="turn-time-seconds" type="number" min="5" max="360" value="90" />
+                <input id="turn-time-seconds" type="number" min="5" max="360" value="90" aria-describedby="wizard-clock-note" />
+                <p id="wizard-clock-note" class="wizard-status" data-i18n="wizard.step3.clockNote">Este tiempo vale solo para esta sesión. Tu reloj de siempre se cambia en Ajustes.</p>
               </div>
 
               <p id="analysis-status" class="wizard-status" data-i18n="wizard.step3.analysisPrompt">Tocá "Comenzar sesión" para buscar
@@ -180,6 +184,8 @@
                   <div id="analysis-progress-bar" class="progress-bar"></div>
                 </div>
                 <p id="analysis-progress-label" class="progress-label">0%</p>
+                <p id="analysis-elapsed" class="wizard-status" aria-live="off"></p>
+                <button id="analysis-cancel-btn" type="button" class="wizard-secondary-btn hidden" data-i18n="download.cancel">Cancelar</button>
               </div>
               <div id="analysis-facts" class="analysis-facts" aria-live="off"></div>
             </section>
@@ -269,7 +275,7 @@
           <div class="board-wrap">
             <div class="board" id="board"></div>
             <svg id="board-arrows" class="board-arrows" aria-hidden="true"></svg>
-            <aside id="position-search-overlay" class="co-search hidden" aria-live="polite">
+            <aside id="position-search-overlay" class="co-search hidden">
               <div class="co-search-card">
                 <span class="spinner co-search-spinner" aria-hidden="true"></span>
                 <strong id="position-search-title" class="co-search-title" data-i18n="game.searchingNext">Buscando próxima posición...</strong>
@@ -291,7 +297,7 @@
                 <span id="handoff-overlay-avatar" class="co-handoff-avatar" aria-hidden="true">J2</span>
                 <span id="handoff-overlay-eyebrow" class="co-handoff-eyebrow"></span>
                 <span id="handoff-overlay-title" class="co-handoff-title" data-i18n="game.handoff.genericTitle">Cambio de turno</span>
-                <span id="handoff-overlay-subtitle" class="co-handoff-sub" data-i18n="game.handoff.genericSubtitle">Toca para revelar</span>
+                <span id="handoff-overlay-subtitle" class="co-handoff-sub" data-i18n="game.handoff.genericSubtitle">Tocá para revelar</span>
                 <span class="co-handoff-cta" aria-hidden="true" data-i18n="play.handoff.cta">Tocar para empezar</span>
               </span>
             </button>
@@ -319,9 +325,13 @@
                 <svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9.2 17.5h5.6"/><path d="M10.2 20.5h3.6"/><path d="M12 3.5a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3.5Z"/></svg>
                 <span id="hint-btn-label" class="btn-label">Pista</span>
               </button>
+              <button id="confirm-move-btn" type="button" class="btn btn-primary co-dock-btn hidden" disabled>
+                <svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+                <span id="confirm-move-label" class="btn-label" data-i18n="core.move.confirm">Confirmar jugada</span>
+              </button>
               <button id="skip-btn" type="button" class="btn btn-ghost co-dock-btn" data-i18n-aria-label="play.skip.aria">
                 <svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 21V4"/><path d="M6 4.5h11l-2.5 4 2.5 4H6"/></svg>
-                <span class="btn-label" data-i18n="buttons.skipMove">Omitir (0 pts)</span>
+                <span id="skip-btn-label" class="btn-label" data-i18n="buttons.skipMove">Omitir (0 pts)</span>
               </button>
             </div>
             <div id="board-exploration-actions" class="co-dock-set" role="group" data-i18n-aria-label="result.boardToolsLabel" aria-label="Herramientas del tablero">
@@ -380,6 +390,7 @@
         </footer>
       </aside>
       <p id="play-announce" class="sr-only" role="status" aria-live="polite"></p>
+      <p id="hint-announce" class="sr-only" role="status" aria-live="polite"></p>
     </main>
 
     <!-- Screens rendered by js/ui/*.js (mounted lazily, shown through Ludus.router). -->
@@ -409,33 +420,33 @@
     </div>
   </div>
 
-  <script src="config.js?v=733a37b810ca"></script>
-  <script src="js/ludus.js?v=733a37b810ca"></script>
-  <script src="js/chess.js?v=733a37b810ca"></script>
-  <script src="js/pgn.js?v=733a37b810ca"></script>
-  <script src="js/engine.js?v=733a37b810ca"></script>
-  <script src="js/scoring.js?v=733a37b810ca"></script>
-  <script src="js/insights.js?v=733a37b810ca"></script>
-  <script src="js/concepts.js?v=733a37b810ca"></script>
-  <script src="js/settings.js?v=733a37b810ca"></script>
-  <script src="js/profile.js?v=733a37b810ca"></script>
-  <script src="js/facts.js?v=733a37b810ca"></script>
-  <script src="js/reader.js?v=733a37b810ca"></script>
-  <script src="js/audio.js?v=733a37b810ca"></script>
-  <script src="js/auth.js?v=733a37b810ca"></script>
-  <script src="js/classics.js?v=733a37b810ca"></script>
-  <script src="js/ui/kit.js?v=733a37b810ca"></script>
-  <script src="js/ui/shell.js?v=733a37b810ca"></script>
-  <script src="js/ui/board.js?v=733a37b810ca"></script>
-  <script src="js/ui/coach.js?v=733a37b810ca"></script>
-  <script src="js/ui/home.js?v=733a37b810ca"></script>
-  <script src="js/ui/classics.js?v=733a37b810ca"></script>
-  <script src="js/ui/notebook.js?v=733a37b810ca"></script>
-  <script src="js/ui/progress.js?v=733a37b810ca"></script>
-  <script src="js/ui/museum.js?v=733a37b810ca"></script>
-  <script src="js/ui/settings.js?v=733a37b810ca"></script>
-  <script src="js/ui/account.js?v=733a37b810ca"></script>
-  <script src="app.js?v=733a37b810ca"></script>
+  <script src="config.js?v=db8c8ab7694e"></script>
+  <script src="js/ludus.js?v=db8c8ab7694e"></script>
+  <script src="js/chess.js?v=db8c8ab7694e"></script>
+  <script src="js/pgn.js?v=db8c8ab7694e"></script>
+  <script src="js/engine.js?v=db8c8ab7694e"></script>
+  <script src="js/scoring.js?v=db8c8ab7694e"></script>
+  <script src="js/insights.js?v=db8c8ab7694e"></script>
+  <script src="js/concepts.js?v=db8c8ab7694e"></script>
+  <script src="js/settings.js?v=db8c8ab7694e"></script>
+  <script src="js/profile.js?v=db8c8ab7694e"></script>
+  <script src="js/facts.js?v=db8c8ab7694e"></script>
+  <script src="js/reader.js?v=db8c8ab7694e"></script>
+  <script src="js/audio.js?v=db8c8ab7694e"></script>
+  <script src="js/auth.js?v=db8c8ab7694e"></script>
+  <script src="js/classics.js?v=db8c8ab7694e"></script>
+  <script src="js/ui/kit.js?v=db8c8ab7694e"></script>
+  <script src="js/ui/shell.js?v=db8c8ab7694e"></script>
+  <script src="js/ui/board.js?v=db8c8ab7694e"></script>
+  <script src="js/ui/coach.js?v=db8c8ab7694e"></script>
+  <script src="js/ui/home.js?v=db8c8ab7694e"></script>
+  <script src="js/ui/classics.js?v=db8c8ab7694e"></script>
+  <script src="js/ui/notebook.js?v=db8c8ab7694e"></script>
+  <script src="js/ui/progress.js?v=db8c8ab7694e"></script>
+  <script src="js/ui/museum.js?v=db8c8ab7694e"></script>
+  <script src="js/ui/settings.js?v=db8c8ab7694e"></script>
+  <script src="js/ui/account.js?v=db8c8ab7694e"></script>
+  <script src="app.js?v=db8c8ab7694e"></script>
 </body>
 
 </html>

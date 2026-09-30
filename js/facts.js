@@ -317,9 +317,9 @@
     },
     {
       id: "champions-menchik-club", cat: "champions", year: 1929,
-      es: "Cuenta la anécdota que en 1929 Albert Becker bromeó con que quien perdiera contra Vera Menchik ingresaría a su «club»; él fue el primer socio. Luego se sumaron maestros como Max Euwe y Sultan Khan.",
-      en: "The story goes that in 1929 Albert Becker joked that anyone who lost to Vera Menchik would join her “club”; he became its first member. Masters such as Max Euwe and Sultan Khan later joined.",
-      source: "Edward Winter, 'The Vera Menchik Club' (chesshistory.com; notes the story may be apocryphal); Wikipedia 'Albert Becker'",
+      es: "Vera Menchik derrotó a varios de los mejores jugadores de su época en torneos con hombres, entre ellos Max Euwe y Sultan Khan. Según la anécdota, en 1929 Albert Becker propuso un «Club Vera Menchik» para quienes perdieran con ella, y fue su primer socio.",
+      en: "Vera Menchik beat several of the best players of her day in tournaments open to men, among them Max Euwe and Sultan Khan. The story goes that in 1929 Albert Becker proposed a “Vera Menchik Club” for anyone who lost to her, and he became its first member.",
+      source: "Edward Winter, 'The Vera Menchik Club' (chesshistory.com; notes the story may be apocryphal); Wikipedia 'Albert Becker'; search summaries naming Euwe, Reshevsky, Sultan Khan, Thomas, Alexander, Colle and Yates as 'members'",
     },
     {
       id: "champions-polgar-top10", cat: "champions", year: 2005,
@@ -335,9 +335,9 @@
     },
     {
       id: "champions-carlsen", cat: "champions", year: 2013,
-      es: "Magnus Carlsen se hizo gran maestro en 2004, con 13 años, y fue campeón mundial en 2013, tras vencer a Viswanathan Anand en Chennai por 6,5 a 3,5.",
-      en: "Magnus Carlsen became a grandmaster in 2004, aged 13, and world champion in 2013 after beating Viswanathan Anand in Chennai 6.5-3.5.",
-      source: "Wikipedia 'Magnus Carlsen'; FIDE World Championship 2013 pages",
+      es: "Magnus Carlsen se hizo gran maestro en 2004, con 13 años, y fue campeón mundial en 2013, tras vencer a Viswanathan Anand en Chennai por 6,5 a 3,5. En 2022 anunció que no defendería el título.",
+      en: "Magnus Carlsen became a grandmaster in 2004, aged 13, and world champion in 2013 after beating Viswanathan Anand in Chennai 6.5-3.5. In 2022 he announced he would not defend the title.",
+      source: "Wikipedia 'Magnus Carlsen'; FIDE World Championship 2013 pages; Wikipedia 'World Chess Championship 2023' and press reports of 20 July 2022 (the announcement)",
     },
     {
       id: "champions-ding-2023", cat: "champions", year: 2023,
@@ -347,8 +347,8 @@
     },
     {
       id: "champions-gukesh-2024", cat: "champions", year: 2024,
-      es: "En diciembre de 2024, con 18 años, Gukesh Dommaraju se convirtió en el campeón mundial más joven de la historia al vencer a Ding Liren por 7,5 a 6,5 en Singapur.",
-      en: "In December 2024, aged 18, Gukesh Dommaraju became the youngest world champion in history by beating Ding Liren 7.5-6.5 in Singapore.",
+      es: "En diciembre de 2024, con 18 años, Gukesh Dommaraju se convirtió en el campeón mundial más joven hasta ahora al vencer a Ding Liren por 7,5 a 6,5 en Singapur.",
+      en: "In December 2024, aged 18, Gukesh Dommaraju became the youngest world champion so far by beating Ding Liren 7.5-6.5 in Singapore.",
       source: "FIDE news on the 2024 World Championship; Guinness World Records; press reports of 12 Dec 2024",
     },
     {
@@ -389,9 +389,9 @@
     },
     {
       id: "champions-korchnoi-stateless", cat: "champions", year: 1978,
-      es: "Tras huir de la Unión Soviética en 1976, Viktor Kórchnoi compitió sin nacionalidad a fines de los años 70, incluido el match por el título de 1978. Se nacionalizó suizo hacia 1980.",
-      en: "After leaving the Soviet Union in 1976, Viktor Korchnoi competed as a stateless player in the late 1970s, including the 1978 title match. He became a Swiss citizen around 1980.",
-      source: "Wikipedia 'Viktor Korchnoi'; Swissinfo obituary (2016)",
+      es: "Tras huir de la Unión Soviética en 1976, Viktor Kórchnoi compitió sin nacionalidad a fines de los años 70, incluido el match por el título de 1978. Más tarde se hizo ciudadano suizo.",
+      en: "After leaving the Soviet Union in 1976, Viktor Korchnoi competed as a stateless player in the late 1970s, including the 1978 title match. He later became a Swiss citizen.",
+      source: "Wikipedia 'Viktor Korchnoi'; Swissinfo obituary (2016); the year of the naturalisation differs between sources, so the text gives none",
     },
     {
       id: "champions-korchnoi-yogurt", cat: "champions", year: 1978,
@@ -688,10 +688,10 @@
       source: "Bloomberg, 23 Nov 2020 (Netflix figures); /Film and Tubefilter coverage; Google Trends reports of the time",
     },
     {
-      id: "culture-streaming", cat: "culture", year: 2020,
-      es: "Desde 2020, las transmisiones de ajedrez en vivo crecieron enormemente. Jugadores de élite como Hikaru Nakamura combinan los torneos con el streaming.",
-      en: "Since 2020, live chess streaming has grown enormously. Elite players such as Hikaru Nakamura combine tournament play with streaming.",
-      source: "General knowledge, widely reported (Twitch chess category growth from 2020); Nakamura's public channel and titles",
+      id: "culture-online-olympiad", cat: "culture", year: 2020,
+      es: "En agosto de 2020, por la pandemia, la FIDE organizó por primera vez una Olimpíada de ajedrez en línea. La final entre India y Rusia se definió sin ganador único: tras una caída masiva de internet, la FIDE dio el oro a ambos equipos.",
+      en: "In August 2020, because of the pandemic, FIDE held its first online Chess Olympiad. The final between India and Russia ended without a single winner: after a massive internet outage, FIDE awarded gold medals to both teams.",
+      source: "FIDE news, 30 Aug 2020 ('India and Russia declared joint winners of the Online Chess Olympiad'); ChessBase report; Scroll.in",
     },
 
     // ===== records =====
@@ -860,7 +860,7 @@
     },
     {
       id: "tl-lucena", year: 1497, approx: true,
-      title: { es: "Manual de ajedrez impreso más antiguo", en: "Oldest surviving printed chess manual" },
+      title: { es: "Manual impreso más antiguo conservado", en: "Oldest surviving printed chess manual" },
       es: "Se imprime en Salamanca el libro de Luis Ramírez de Lucena, el más antiguo que se conserva impreso sobre cómo jugar al ajedrez (uno anterior, de Francesc Vicent, 1495, se perdió).",
       en: "Luis Ramírez de Lucena's book is printed in Salamanca, the oldest surviving printed book on how to play chess (an earlier one, by Francesc Vicent, 1495, is lost).",
       source: "Wikipedia 'Luis Ramírez de Lucena' and 'Francesc Vicent' (Llibre dels jochs partits, Valencia 1495, lost); Cessolis was printed earlier but is an allegory, not a playing manual",
@@ -1064,8 +1064,8 @@
     {
       id: "tl-gukesh-2024", year: 2024,
       title: { es: "Gukesh, el más joven", en: "Gukesh, the youngest" },
-      es: "Con 18 años, Gukesh Dommaraju vence a Ding Liren en Singapur y se convierte en el campeón mundial más joven de la historia.",
-      en: "Aged 18, Gukesh Dommaraju beats Ding Liren in Singapore and becomes the youngest world champion in history.",
+      es: "Con 18 años, Gukesh Dommaraju vence a Ding Liren en Singapur y se convierte en el campeón mundial más joven hasta ahora.",
+      en: "Aged 18, Gukesh Dommaraju beats Ding Liren in Singapore and becomes the youngest world champion so far.",
       source: "FIDE news; Guinness World Records; press reports of 12 Dec 2024",
     },
   ];

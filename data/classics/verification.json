@@ -9,7 +9,7 @@
     "depth": 18,
     "multipv": 5
   },
-  "builderVersion": 2,
+  "builderVersion": 3,
   "games": {
     "alekhine-nimzowitsch-1931": {
       "hash": "1d45036e1026adb6",
@@ -337,7 +337,7 @@
       "positions": 8
     },
     "polugaevsky-nezhmetdinov-1958": {
-      "hash": "4ccf93bf33b5f3e9",
+      "hash": "40d12a301e9728b3",
       "plies": 66,
       "final": {
         "kind": "decided",
@@ -364,7 +364,7 @@
       "positions": 10
     },
     "reti-tartakower-1910": {
-      "hash": "e4c05875b20463a5",
+      "hash": "d69c5d09d34c315a",
       "plies": 21,
       "final": {
         "kind": "checkmate",
@@ -414,7 +414,7 @@
       "positions": 10
     },
     "spassky-bronstein-1960": {
-      "hash": "c917047e1b614944",
+      "hash": "53d011f3a86c6dbb",
       "plies": 45,
       "final": {
         "kind": "decided",
@@ -436,7 +436,7 @@
       "positions": 8
     },
     "tal-larsen-1965": {
-      "hash": "df36d0334adf46f0",
+      "hash": "9bd9a59e8d823b59",
       "plies": 73,
       "final": {
         "kind": "decided",

@@ -415,6 +415,14 @@ body.playing-mode #landing-screen { display: none !important; }
   scrollbar-width: thin;
   scrollbar-color: var(--color-surface-4) transparent;
 }
+/* The scroll region is a tab stop (a keyboard has to be able to scroll the notes) and sits flush inside a panel that clips: the
+   ring is drawn inside it, and the fade under the footer is dropped while it shows (the mask would cut the ring's last side). */
+.co-scroll:focus-visible {
+  outline: var(--focus-ring-width, 3px) solid var(--focus-ring, var(--color-info));
+  outline-offset: -3px;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
 .co-foot {
   grid-row: 3;
   display: grid;
@@ -476,6 +484,10 @@ body.playing-mode #landing-screen { display: none !important; }
      are sized from it, so a smaller number would push the sheet under the dock. */
   .co-play { --co-head-h: 69px; --co-gap: 8px; --co-strip-h: 26px; --co-dock-h: 46px; --co-panel-min: 244px; }
   .co-stage .board-wrap .board { border-radius: 0; box-shadow: none; border-inline: 0; }
+  /* The turn strip and the dock take the width of the screen (inset by the page gutter, like the panel); only the board is
+     as wide as its own size. On a screen too short for a full-width board it is centred instead of dragging the dock in. */
+  .co-stage-inner { width: 100%; }
+  .co-stage .board-wrap { justify-self: center; }
   .co-exit { padding-inline: 0; width: var(--btn-h-md); }
   .co-dots { margin-top: 5px; }
   .co-score-value { font-size: var(--text-xl); }
@@ -523,6 +535,52 @@ body.playing-mode #landing-screen { display: none !important; }
 @media (max-width: 480px) {
   .co-dock-btn { padding-inline: 6px; font-size: 0.78rem; }
   #board-exploration-actions .co-dock-btn .ui-icon { display: none; }
+}
+@media (max-width: 400px) {
+  /* Hint and skip share the row in equal halves and lose their icons: "Omitir (0 pts)" must never wrap to three lines. */
+  #shared-actions { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  #shared-actions .co-dock-btn .ui-icon { display: none; }
+  /* "Posición 1 de 10" wraps to two lines instead of being cut to "Po..."; the score and the clock keep their room. */
+  .co-head-pos {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    line-height: 1.15;
+    text-overflow: clip;
+    white-space: normal;
+  }
+}
+@media (max-width: 340px) {
+  /* Nothing else can give: the ring goes, the time stays. */
+  .co-clock-ring { display: none; }
+  .co-clock { padding-left: 10px; }
+}
+
+/* ── Short phones (320x568, 375x667, 360x640): the page must not scroll and the panel must not be squeezed under the dock.
+   The chrome is tightened (header, turn strip, dock, gaps) so the board gets the height and the sheet keeps enough of it to
+   show a verdict; everything is sized here, the board follows from --board-size. ── */
+@media (max-width: 719px) and (orientation: portrait) and (max-height: 700px) {
+  .co-play { --co-head-h: 62px; --co-gap: 6px; --co-strip-h: 24px; --co-dock-h: 44px; --co-panel-min: 184px; }
+  .co-head { padding-block: 4px; }
+  .co-dots { margin-top: 3px; }
+  .co-turn { font-size: var(--text-sm); }
+  .co-turn-king { width: 20px; height: 20px; }
+  .co-play[data-mode="duel"] { --co-head-h: 89px; --co-panel-min: 156px; }
+  /* The scoreboard of a duel is one line per player (name beside the points) so the header stays as short as a solo one plus a row. */
+  .co-play[data-mode="duel"] .co-duel { margin-top: 1px; }
+  .co-play[data-mode="duel"] .co-dots { margin-top: 2px; }
+  .co-play[data-mode="duel"] .co-duel-side { padding: 1px 10px 1px 1px; }
+  .co-play[data-mode="duel"] .co-duel-avatar { width: 24px; height: 24px; }
+  .co-play[data-mode="duel"] .co-duel-copy { grid-auto-flow: column; align-items: center; gap: 6px; }
+  .co-expand { min-height: var(--hit); }
+  .co-scroll { padding: var(--space-3) var(--space-3) var(--space-4); }
+  .co-foot { padding: 6px var(--space-3) calc(6px + env(safe-area-inset-bottom, 0px)); gap: 6px; }
+  .co-next { min-height: 46px; }
+  /* The summary footer is three rows of buttons: tighter, and without the icons of the secondary ones, so their words fit on two lines. */
+  .co-play[data-view="summary"] .co-summary-actions { gap: 6px; }
+  .co-play[data-view="summary"] .co-summary-actions .btn { min-height: 44px; padding-inline: 8px; }
+  .co-play[data-view="summary"] .co-summary-actions .btn:not(#summary-again-btn) .ui-icon { display: none; }
 }
 
 /* ── Side regime: board left, panel right ── */
@@ -599,18 +657,13 @@ body.playing-mode #landing-screen { display: none !important; }
   .co-scroll { padding: var(--space-3); }
   .co-foot { padding: var(--space-2) var(--space-3); }
   .co-legend { display: none; }
-  /* Under a board this small the dock is icons only (the names stay for assistive technology) */
-  .co-dock-btn { padding-inline: 0; }
-  .co-dock-btn .btn-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-  }
-  #board-exploration-actions .co-dock-btn .ui-icon { display: inline-block; }
+  /* Under a board this small the dock keeps its words (an icon alone says nothing to a person who has not learnt it) and
+     loses its icons and its padding instead: three buttons of about 80px, two short lines each. */
+  .co-dock-btn { padding: 2px 4px; font-size: 0.72rem; line-height: 1.12; }
+  .co-dock-btn .ui-icon { display: none; }
+  #shared-actions { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  /* The header title is already hidden here: the position keeps the room and wraps before it is cut. */
+  .co-head-pos { white-space: normal; line-height: 1.1; }
 }
 
 /* ── Waiting: the "evaluating" overlay over the board ── */
@@ -699,7 +752,10 @@ body.playing-mode #landing-screen { display: none !important; }
   inset: 0;
   z-index: 30;
   display: grid;
-  place-items: center;
+  /* "safe": a card taller than the board scrolls from its top instead of being cut at both ends */
+  place-items: safe center;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
   padding: var(--space-4);
   border: 0;
   border-radius: inherit;
@@ -711,12 +767,15 @@ body.playing-mode #landing-screen { display: none !important; }
   color: var(--color-text);
   cursor: pointer;
   text-align: center;
+  container-type: size;
   animation: ui-fade var(--dur-3) ease both;
 }
 .co-handoff.hidden { display: none; }
 .co-handoff:hover, .co-handoff:active { background-color: rgba(4, 8, 14, 0.95); }
 .co-handoff:focus-visible { outline-offset: -6px; }
-.co-handoff-card { display: grid; justify-items: center; gap: var(--space-2); max-width: 22rem; }
+.co-handoff-card { display: grid; justify-items: center; gap: var(--space-2); width: 100%; min-width: 0; max-width: 22rem; }
+/* A name is whatever a person typed (20 letters without a space, say): it wraps anywhere rather than running off the screen. */
+.co-handoff-card > * { max-width: 100%; min-width: 0; overflow-wrap: anywhere; }
 .co-handoff-avatar {
   display: grid;
   place-items: center;
@@ -731,7 +790,7 @@ body.playing-mode #landing-screen { display: none !important; }
   font-weight: 750;
   box-shadow: 0 0 0 8px rgba(221, 167, 52, 0.1), var(--shadow-2);
 }
-.co-handoff-eyebrow { color: var(--color-gold); font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.co-handoff-eyebrow { color: var(--color-gold); font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.1em; line-height: 1.3; text-transform: uppercase; }
 .co-handoff-eyebrow:empty { display: none; }
 .co-handoff-title {
   font-family: var(--font-display);
@@ -750,6 +809,17 @@ body.playing-mode #landing-screen { display: none !important; }
   color: var(--color-on-gold);
   font-weight: 700;
   box-shadow: 0 10px 24px -12px rgba(221, 167, 52, 0.7);
+}
+/* A board of a phone held upright and short (320x568): a smaller avatar and type, so the tap target is never pushed out of sight. */
+@container (max-height: 340px) {
+  .co-handoff-avatar { width: 44px; height: 44px; margin-bottom: 0; font-size: var(--text-lg); box-shadow: 0 0 0 4px rgba(221, 167, 52, 0.1); }
+  .co-handoff-card { gap: 4px; }
+  .co-handoff-title { font-size: 1.25rem; }
+  .co-handoff-sub { font-size: var(--text-xs); line-height: var(--lh-snug); }
+  .co-handoff-cta { margin-top: var(--space-1); padding: 8px var(--space-5); }
+}
+@container (max-height: 280px) {
+  .co-handoff-avatar { display: none; }
 }
 
 /* ── Toasts: on this screen they sit under the header, never over the actions ── */
@@ -906,7 +976,9 @@ html[data-motion="reduce"] .co-score.is-bump .co-score-value { animation: none; 
   color: var(--color-on-gold);
   font-weight: 750;
 }
-.co-turnbanner-title { margin: 0; font-family: var(--font-display); font-size: var(--text-2xl); font-weight: 650; line-height: 1.1; }
+.co-turnbanner-copy { min-width: 0; }
+/* A name is whatever a person typed: it wraps anywhere instead of running out of the card. */
+.co-turnbanner-title { margin: 0; font-family: var(--font-display); font-size: var(--text-2xl); font-weight: 650; line-height: 1.1; overflow-wrap: anywhere; }
 .co-turnbanner-sub { margin: 2px 0 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: var(--lh-snug); }
 .co-skel { display: grid; gap: var(--space-3); }
 .co-hero-pending .skeleton-circle { width: 116px; height: 116px; }
@@ -917,6 +989,9 @@ html[data-motion="reduce"] .co-score.is-bump .co-score-value { animation: none; 
   --co-q: var(--q-no-move);
   --co-q-bg: var(--q-no-move-bg);
   --co-q-bd: var(--q-no-move-bd);
+  /* The title answers to the width of its own card (the panel is 340px wide at 1024 and on a phone on its side): "Gran jugada"
+     stays on one line instead of breaking after "Gran" (see the container query below). */
+  container-type: inline-size;
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -949,6 +1024,7 @@ html[data-motion="reduce"] .co-score.is-bump .co-score-value { animation: none; 
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
+  text-wrap: balance;
   margin: 0;
   color: var(--co-q);
   font-family: var(--font-display);
@@ -957,7 +1033,24 @@ html[data-motion="reduce"] .co-score.is-bump .co-score-value { animation: none; 
   line-height: 1.02;
   letter-spacing: -0.01em;
 }
-.co-glyph { flex: none; min-width: 1.2em; font-family: var(--font-ui); font-size: 0.5em; font-weight: 800; letter-spacing: 0; text-align: center; }
+/* The annotation of a quality ("!!", "?!", a star): never smaller than 11px, whatever the text around it (it was 0.5em of the
+   parent, 7.5px in the summary legend), and centred on the line instead of riding the baseline. */
+.co-glyph { flex: none; align-self: center; min-width: 1.2em; font-family: var(--font-ui); font-size: max(0.6875rem, 0.85em); font-weight: 800; line-height: 1; letter-spacing: 0; text-align: center; }
+/* In the verdict title the glyph is a small round badge next to the serif headline, as big as the x-height of the title. */
+.co-hero-title .co-glyph {
+  display: inline-grid;
+  place-items: center;
+  width: 1.45em;
+  min-width: 1.45em;
+  height: 1.45em;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.5em;
+  background: var(--co-q-bg);
+}
+@container (max-width: 400px) {
+  .co-hero-title { font-size: var(--text-2xl); }
+}
 .co-hero-verdict { margin: 0; font-size: var(--text-md); line-height: var(--lh-normal); text-wrap: pretty; }
 .co-chips { grid-area: chips; display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--space-1); }
 .co-hero .gauge { --gauge-color: var(--co-q); }
@@ -1012,6 +1105,32 @@ html[data-motion="reduce"] .co-score.is-bump .co-score-value { animation: none; 
 .co-quote-cap { margin-bottom: 4px; color: var(--color-gold); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .co-quote blockquote { margin: 0; color: var(--color-text); font-size: var(--text-base); line-height: var(--lh-normal); }
 
+/* "How to read these numbers": a real button (a tooltip does not exist on a phone) that opens a short explanation. */
+.co-help { display: grid; margin-top: var(--space-2); }
+.co-help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 6px;
+  min-height: var(--hit);
+  padding: 0 var(--space-1);
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.co-help-btn:hover { color: var(--color-text); }
+.co-help-btn .ui-icon { flex: none; }
+.co-help-body { display: grid; gap: var(--space-2); padding: var(--space-3); border-left: 3px solid var(--color-border-mid); border-radius: 0 var(--radius-md) var(--radius-md) 0; background: var(--color-surface-3); }
+.co-help-body[hidden] { display: none; }
+.co-help-body p { margin: 0; color: var(--color-text); font-size: var(--text-sm); line-height: var(--lh-normal); }
+
 /* ── Why ── */
 .co-insights { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
 .co-insight { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3); align-items: start; }
@@ -1026,6 +1145,11 @@ html[data-motion="reduce"] .co-score.is-bump .co-score-value { animation: none; 
   color: var(--color-gold);
 }
 .co-insight-text { margin: 0 0 6px; font-size: var(--text-base); line-height: var(--lh-normal); text-wrap: pretty; }
+/* The theme of the position (sacrifice, only move...), told after the answer. */
+.co-theme { display: grid; gap: 4px; margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--color-hairline); }
+.co-theme-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0; }
+.co-theme-label { color: var(--color-text-muted); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.co-theme-hint { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: var(--lh-snug); }
 .co-insight-tag {
   display: inline-block;
   padding: 1px 8px;
@@ -1142,7 +1266,8 @@ button.co-concept { min-height: 44px; }
 .co-duel-banner.is-tie { border-color: var(--color-border); background: var(--color-surface-2); }
 .co-duel-banner-title { display: flex; align-items: center; justify-content: center; gap: var(--space-2); margin: 0; color: var(--color-gold); font-family: var(--font-display); font-size: var(--text-2xl); font-weight: 650; line-height: 1.1; }
 .co-duel-banner.is-tie .co-duel-banner-title { color: var(--color-text); }
-.co-duel-banner-sub { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.co-duel-banner-title { overflow-wrap: anywhere; }
+.co-duel-banner-sub { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-wrap: balance; }
 .co-players { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
 .co-player {
   --co-q: var(--q-no-move);
@@ -1188,13 +1313,16 @@ button.co-concept { min-height: 44px; }
 }
 .co-player-head { display: flex; align-items: center; justify-content: center; gap: var(--space-2); max-width: 100%; }
 .co-player-avatar { display: grid; flex: none; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--color-surface-4); color: var(--color-text); font-size: 0.6875rem; font-weight: 750; }
-.co-player-name { min-width: 0; margin: 0; overflow: hidden; font-size: var(--text-base); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+/* A long name wraps onto a second line (then ellipsis); the whole name is the title of the heading. */
+.co-player-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; min-width: 0; margin: 0; overflow: hidden; font-size: var(--text-base); font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; text-align: left; }
 .co-player .gauge { --gauge-color: var(--co-q); }
 .co-player-q { display: flex; align-items: baseline; justify-content: center; gap: 4px; margin: 0; color: var(--co-q); font-size: var(--text-base); font-weight: 700; }
 .co-player-q .co-glyph { font-size: 0.9em; }
 .co-player-move { margin: 0; font-family: var(--font-mono); font-size: var(--text-xl); font-weight: 700; }
 .co-player-why { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: var(--lh-snug); text-wrap: pretty; }
 .co-player-xp { margin: 0; color: var(--color-gold); font-size: var(--text-sm); font-weight: 700; }
+.co-player-new, .co-sum-duelnew { display: flex; align-items: flex-start; justify-content: center; gap: 6px; margin: 0; color: var(--color-gold); font-size: var(--text-sm); font-weight: 650; line-height: var(--lh-snug); text-align: left; overflow-wrap: anywhere; }
+.co-player-new .ui-icon, .co-sum-duelnew .ui-icon { flex: none; margin-top: 2px; }
 
 /* ── The closing summary ── */
 .co-summary.hidden { display: none; }
@@ -1226,10 +1354,17 @@ button.co-concept { min-height: 44px; }
 .co-sum-stat { display: grid; gap: 2px; margin: 0; }
 .co-sum-stat dt { color: var(--color-text-muted); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .co-sum-stat dd { margin: 0; font-size: var(--text-xl); font-weight: 700; font-variant-numeric: tabular-nums; }
-.co-sum-duel { display: grid; grid-template-columns: repeat(2, auto); gap: var(--space-4); }
-.co-sum-duelist { position: relative; display: grid; justify-items: center; gap: 4px; padding: var(--space-4) var(--space-3) var(--space-3); border: 1px solid var(--color-hairline); border-radius: var(--radius-xl); background: var(--color-surface-2); }
-.co-sum-duelist.is-winner { border-color: var(--color-gold); }
-.co-sum-duelname { margin: 0; max-width: 12ch; overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+/* A duel summary: one card per player (never merged numbers), side by side. */
+.co-sum-duel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.co-sum-duelist { position: relative; display: grid; justify-items: center; gap: 4px; min-width: 0; padding: var(--space-5) var(--space-3) var(--space-3); border: 1px solid var(--color-hairline); border-radius: var(--radius-xl); background: var(--color-surface-2); text-align: center; }
+.co-sum-duelist.is-winner { border-color: var(--color-gold); box-shadow: 0 0 0 1px var(--color-gold-dim); }
+.co-sum-duelname { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; max-width: 100%; margin: 0; overflow: hidden; font-size: var(--text-base); font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.co-sum-duelgauge { display: grid; place-items: center; }
+.co-sum-duelist .co-caption { text-align: center; }
+.co-sum-duelmix { display: grid; gap: 2px; width: 100%; margin-top: var(--space-2); text-align: left; }
+.co-sum-duelmix .co-seg { height: 10px; margin: 2px 0 var(--space-2); }
+.co-sum-duelmix .co-legend-list { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.co-sum-duelmix .co-legend-item { font-size: var(--text-sm); }
 .co-seg { display: flex; gap: 3px; height: 14px; margin: var(--space-2) 0 var(--space-3); overflow: hidden; border-radius: var(--radius-pill); }
 .co-seg-part { flex-basis: 0; min-width: 8px; background: var(--co-seg-c, var(--color-surface-4)); }
 .co-legend-list { display: grid; gap: 6px var(--space-4); margin: 0; padding: 0; list-style: none; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
@@ -1287,13 +1422,23 @@ button.co-concept { min-height: 44px; }
 .co-play[data-view="summary"] .co-summary-actions { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); align-items: stretch; }
 .co-play[data-view="summary"] .co-summary-row { display: contents; }
 .co-play[data-view="summary"] .co-foot { justify-items: stretch; }
+/* Wide: the verdict of the session on the left, what it gave (the mix of moves, the rewards) on the right, and the positions as a
+   row of their own under both, so no column is left half empty. A duel has one wide column: the hero, then a card per player. */
 @media (min-width: 900px) {
   .co-play[data-view="summary"] #session-summary-result { grid-template-columns: minmax(340px, 0.9fr) minmax(0, 1.4fr); gap: var(--space-5); }
+  .co-play[data-view="summary"] #session-summary-result.co-summary-duel { grid-template-columns: minmax(0, 1fr); }
+  .co-play[data-view="summary"] .co-sum-positions { grid-column: 1 / -1; }
 }
-@media (max-width: 719px) {
-  /* Two columns: the primary action has a row to itself, and the way home fills the last one */
+/* In a duel summary the scoreboard of the header would repeat the cards (and push the title out of the row): it is hidden. */
+.co-play[data-view="summary"][data-mode="duel"] .co-duel { display: none; }
+/* Two columns of buttons (phones and narrow tablets): the primary action has a row to itself, and the way home fills the last one
+   when the others would leave it alone in a corner. Four across are too narrow under 900px ("Jugar / otra vez" wrapped). */
+@media (max-width: 899px) {
+  .co-play[data-view="summary"] .co-summary-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .co-play[data-view="summary"] #summary-again-btn { grid-column: 1 / -1; }
   .co-play[data-view="summary"] .co-summary-actions[data-tail="odd"] #summary-menu-btn { grid-column: 1 / -1; }
+}
+@media (max-width: 719px) {
   .co-sum-hero { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; padding: var(--space-4); }
   .co-sum-stats { justify-content: center; }
   .co-play[data-view="summary"] .co-panel { border-radius: var(--co-radius) var(--co-radius) 0 0; }

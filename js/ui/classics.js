@@ -88,6 +88,9 @@
       "classics.loading": "Cargando las partidas",
       "classics.error.title": "No pudimos cargar las partidas",
       "classics.error": "Revisá tu conexión e intentá de nuevo.",
+      "classics.loading.slow": "Está tardando más de lo normal. Seguimos intentando; si tu conexión es lenta, puede demorar un poco más.",
+      "classics.error.timeout.title": "Las partidas tardan demasiado en cargar",
+      "classics.error.timeout": "La conexión parece lenta o cortada. Reintentá en un momento: lo que ya se descargó no se pierde.",
       "classics.retry": "Reintentar",
       "classics.nodata.title": "Todavía no hay partidas",
       "classics.nodata.body": "La biblioteca de partidas clásicas está vacía por ahora.",
@@ -262,6 +265,9 @@
       "classics.loading": "Loading the games",
       "classics.error.title": "We could not load the games",
       "classics.error": "Check your connection and try again.",
+      "classics.loading.slow": "This is taking longer than usual. We keep trying; on a slow connection it can take a little longer.",
+      "classics.error.timeout.title": "The games are taking too long to load",
+      "classics.error.timeout": "Your connection looks slow or cut off. Try again in a moment: what was already downloaded is not lost.",
       "classics.retry": "Try again",
       "classics.nodata.title": "There are no games yet",
       "classics.nodata.body": "The classic games library is empty for now.",
@@ -686,12 +692,14 @@
   function linkifySource(source) {
     const text = String(source === undefined || source === null ? "" : source);
     const parts = [];
-    const pattern = /https:\/\/[A-Za-z0-9._~:/?#@!$&'*+,;=%-]+/g;
+    // Parentheses are part of a link ("Frank_Marshall_(chess_player)"); a closing one the link never opened is punctuation of the sentence.
+    const pattern = /https:\/\/[A-Za-z0-9._~:/?#@!$&'*+,;=%()-]+/g;
     let last = 0;
     let match = pattern.exec(text);
     while (match) {
       let url = match[0];
-      const trimmed = url.replace(/[.,;:!?)]+$/, "");
+      let trimmed = url.replace(/[.,;:!?]+$/, "");
+      while (trimmed.endsWith(")") && (trimmed.match(/\)/g) || []).length > (trimmed.match(/\(/g) || []).length) trimmed = trimmed.slice(0, -1).replace(/[.,;:!?]+$/, "");
       if (trimmed.length < url.length) url = trimmed;
       if (match.index > last) parts.push({ text: text.slice(last, match.index) });
       parts.push({ href: url, text: url });
@@ -701,6 +709,32 @@
     }
     if (last < text.length) parts.push({ text: text.slice(last) });
     return parts;
+  }
+
+  // A short accessible name for a source link ("Wikipedia: Opera Game") instead of the raw address read out letter by letter (QA A11Y-017).
+  const SOURCE_SITES = {
+    "wikipedia.org": "Wikipedia",
+    "chessbase.com": "ChessBase",
+    "chess.com": "Chess.com",
+    "chesshistory.com": "Chess History",
+    "chessprogramming.org": "Chess Programming Wiki",
+    "chesskid.com": "ChessKid",
+    "lichess.org": "Lichess",
+    "chessgames.com": "Chessgames",
+  };
+  function sourceLinkLabel(url) {
+    let parsed = null;
+    try { parsed = new URL(String(url)); } catch (error) { parsed = null; }
+    if (!parsed) return String(url === undefined || url === null ? "" : url);
+    const host = parsed.hostname.replace(/^www\./, "");
+    const known = Object.keys(SOURCE_SITES).find((domain) => host === domain || host.endsWith(`.${domain}`));
+    const site = host === "books.chessbase.com" ? "ChessBase Books" : known ? SOURCE_SITES[known] : host;
+    let slug = "";
+    try { slug = decodeURIComponent(parsed.pathname.split("/").filter(Boolean).pop() || ""); } catch (error) { slug = parsed.pathname.split("/").filter(Boolean).pop() || ""; }
+    const words = slug.replace(/\.(html?|php)$/i, "").replace(/[_+-]+/g, " ").replace(/\s+/g, " ").trim();
+    if (words.length < 3) return site;
+    const title = words.length > 48 ? `${words.slice(0, 47).trimEnd()}…` : words;
+    return `${site}: ${title.charAt(0).toUpperCase()}${title.slice(1)}`;
   }
 
   // "#/classics/opera-1858" -> "opera-1858"; "#/classics" and anything else -> null.
@@ -728,10 +762,26 @@
   };
   const NAME_FIX_ES = {
     "Duke Karl of Brunswick and Count Isouard": "el duque Carlos de Brunswick y el conde Isouard",
+    // One Spanish spelling per person, the one the notes use (QA CNT-028).
+    "Garry Kasparov": "Garry Kaspárov",
+    "Anatoly Karpov": "Anatoli Kárpov",
   };
+
+  // The display forms of the raw PGN tags come from the classics data (`Ludus.ClassicsData.names` / `.events`: { "<raw tag>": { es, en } },
+  // docs/CLASSICS_DATA.md), so every screen spells a person and an event one way per language. The local tables below only serve when
+  // the data has not been loaded yet (the coach card and the notebook can draw a stored round before the classics screen was opened).
+  function dataForm(table, raw, language) {
+    const data = L().ClassicsData;
+    const map = data && data[table];
+    const entry = map && typeof map === "object" && Object.prototype.hasOwnProperty.call(map, raw) ? map[raw] : null;
+    const text = entry && entry[language === "en" ? "en" : "es"];
+    return typeof text === "string" && text ? text : "";
+  }
 
   function displayName(name, language) {
     const raw = String(name === undefined || name === null ? "" : name);
+    const fromData = dataForm("names", raw, language);
+    if (fromData) return fromData;
     if (language === "es" && NAME_FIX_ES[raw]) return NAME_FIX_ES[raw];
     return NAME_FIX[raw] || raw;
   }
@@ -748,10 +798,17 @@
     "World Championship match": { es: "Match por el Campeonato Mundial", en: "World Championship match" },
     "IBM Man-Machine match": { es: "Match hombre contra máquina de IBM", en: "IBM Man-Machine match" },
     "Lodz": { es: "Łódź", en: "Łódź" },
+    "Vienna": { es: "Torneo de Viena", en: "Vienna tournament" },
+    "New York": { es: "Torneo de Nueva York", en: "New York tournament" },
+    "Copenhagen": { es: "Torneo de Copenhague", en: "Copenhagen tournament" },
+    "Amsterdam": { es: "Torneo de Ámsterdam", en: "Amsterdam tournament" },
+    "Tal Memorial": { es: "Memorial Tal", en: "Tal Memorial" },
   };
 
   function eventLabel(event, language) {
     const raw = String(event === undefined || event === null ? "" : event);
+    const fromData = dataForm("events", raw, language);
+    if (fromData) return fromData;
     const entry = EVENT_TEXT[raw];
     return entry ? entry[language === "en" ? "en" : "es"] : raw;
   }
@@ -1060,6 +1117,8 @@
     offs: [],
     domOffs: [],
     status: "idle", // idle | loading | ready | error
+    slow: false, // the load is taking longer than LOAD_SLOW_MS
+    timedOut: false, // the load was given up on (error state says so) after LOAD_GIVE_UP_MS
     loadPromise: null,
     games: [],
     records: new Map(),
@@ -1192,6 +1251,10 @@
 
   // ---------- Data ----------
 
+  // Milliseconds before the loading screen admits it is slow, and before it offers a retry.
+  const LOAD_SLOW_MS = 6000;
+  const LOAD_GIVE_UP_MS = 25000;
+
   function ensureData() {
     if (state.status === "ready") return Promise.resolve(true);
     if (state.loadPromise) return state.loadPromise;
@@ -1201,11 +1264,38 @@
       return Promise.resolve(false);
     }
     state.status = "loading";
+    state.slow = false;
+    state.timedOut = false;
+    // A download that hangs must not leave a skeleton forever (QA UX-026): after a few seconds the screen says it is slow, after a longer
+    // wait it offers "Try again" (the download itself is not abandoned: Classics.load() hands the same promise back, so a retry that comes
+    // after the data arrived simply shows it).
+    const repaint = () => {
+      if (state.mounted && state.visible && state.view !== "game") render();
+    };
+    const setTimer = root.setTimeout;
+    const slowTimer = typeof setTimer === "function" ? setTimer.call(root, () => {
+      if (state.status !== "loading") return;
+      state.slow = true;
+      repaint();
+    }, LOAD_SLOW_MS) : null;
+    const giveUpTimer = typeof setTimer === "function" ? setTimer.call(root, () => {
+      if (state.status !== "loading") return;
+      state.status = "error";
+      state.timedOut = true;
+      repaint();
+    }, LOAD_GIVE_UP_MS) : null;
+    const stopTimers = () => {
+      if (typeof root.clearTimeout === "function") {
+        if (slowTimer !== null) root.clearTimeout(slowTimer);
+        if (giveUpTimer !== null) root.clearTimeout(giveUpTimer);
+      }
+    };
     state.loadPromise = Promise.resolve()
       .then(() => Classics.load())
       .then(() => {
         indexData();
         state.status = state.games.length ? "ready" : "empty";
+        state.timedOut = false;
         return true;
       })
       .catch((error) => {
@@ -1214,6 +1304,8 @@
         return false;
       })
       .then((ok) => {
+        stopTimers();
+        state.slow = false;
         state.loadPromise = null;
         return ok;
       });
@@ -1504,7 +1596,7 @@
               : null),
           board),
         h("div", { class: "classics-card-body" },
-          h("p", { class: "classics-card-opening" }, opening, meta.eco ? h("span", { class: "classics-eco" }, meta.eco) : null),
+          h("p", { class: "classics-card-opening" }, h("span", { class: "classics-card-opening-name", title: opening }, opening), meta.eco ? h("span", { class: "classics-eco" }, meta.eco) : null),
           h("h3", { class: "classics-card-title", id: titleId },
             h("a", { class: "classics-card-link", href: buildGameHash(meta.id), "data-fkey": `open-${meta.id}`, onclick: (event) => onOpenClick(event, meta.id) }, title)),
           h("p", { class: "classics-card-players" }, `${white} `, h("span", { class: "classics-vs" }, t("classics.detail.vs")), ` ${black}`),
@@ -1771,6 +1863,7 @@
     if (state.status === "idle" || state.status === "loading") {
       const cards = [];
       for (let i = 0; i < 6; i += 1) cards.push(h("li", { class: "classics-item" }, h("div", { class: "classics-card card classics-card-skeleton" }, ui && ui.skeleton ? ui.skeleton({ kind: "card" }) : null, ui && ui.skeleton ? ui.skeleton({ kind: "title" }) : null, ui && ui.skeleton ? ui.skeleton({ lines: 2 }) : null)));
+      if (state.slow) rootEl.appendChild(h("p", { class: "classics-notice", role: "status" }, icon("info", { size: 16 }), t("classics.loading.slow")));
       rootEl.appendChild(h("div", { class: "classics-loading", "aria-busy": "true", "aria-label": t("classics.loading") }, h("ul", { class: "classics-grid", role: "list" }, cards)));
       return;
     }
@@ -1779,8 +1872,8 @@
       rootEl.appendChild(ui && ui.emptyState
         ? ui.emptyState({
           icon: isError ? "alert" : "columns",
-          title: isError ? t("classics.error.title") : t("classics.nodata.title"),
-          body: isError ? t("classics.error") : t("classics.nodata.body"),
+          title: isError ? t(state.timedOut ? "classics.error.timeout.title" : "classics.error.title") : t("classics.nodata.title"),
+          body: isError ? t(state.timedOut ? "classics.error.timeout" : "classics.error") : t("classics.nodata.body"),
           action: isError ? { label: t("classics.retry"), onClick: () => retry(), kind: "primary" } : null,
         })
         : h("p", null, isError ? t("classics.error") : t("classics.nodata.body")));
@@ -1812,6 +1905,8 @@
   function retry() {
     state.status = "idle";
     state.loadPromise = null;
+    state.slow = false;
+    state.timedOut = false;
     render();
     ensureData().then(() => {
       if (!state.mounted) return;
@@ -1833,7 +1928,7 @@
   function playerStrip(color, name, isProtagonist) {
     return h("div", { class: `classics-player classics-player-${color}` },
       sideDot(color),
-      h("span", { class: "classics-player-name" }, name),
+      h("span", { class: "classics-player-name", title: name }, name),
       h("span", { class: "sr-only" }, ` (${t(color === "w" ? "classics.detail.white" : "classics.detail.black")})`),
       isProtagonist ? h("span", { class: "badge badge-gold classics-player-tag" }, icon("star", { size: 12 }), t("classics.player.protagonist")) : null);
   }
@@ -2301,8 +2396,9 @@
         ? h("details", { class: "classics-sources" },
           h("summary", null, icon("shield", { size: 16 }), h("span", null, t("classics.sources.title")), h("span", { class: "badge classics-sources-count" }, tCount("classics.sources.count", sources.length))),
           h("p", { class: "classics-sources-note" }, t("classics.sources.note")),
-          h("ul", { class: "classics-sources-list" }, sources.map((source) => h("li", null, ...linkifySource(source).map((part) => (part.href
-            ? h("a", { href: part.href, target: "_blank", rel: "noopener noreferrer" }, part.text, h("span", { class: "sr-only" }, ` ${t("classics.newTab")}`))
+          // The notes of the sources are written in English whatever the page language says: lang="en" lets a screen reader pronounce them.
+          h("ul", { class: "classics-sources-list" }, sources.map((source) => h("li", { lang: "en" }, ...linkifySource(source).map((part) => (part.href
+            ? h("a", { href: part.href, title: part.href, target: "_blank", rel: "noopener noreferrer" }, sourceLinkLabel(part.href), h("span", { class: "sr-only", lang: language }, ` ${t("classics.newTab")}`))
             : part.text))))))
         : null);
   }
@@ -2697,6 +2793,26 @@
 
   // ---------- Whole screen ----------
 
+  // The tab title says where the person is: the router sets "Partidas clásicas - Ludus Scaccorum"; a game page puts the game first
+  // ("La Ópera - Partidas clásicas - Ludus Scaccorum"). Only while the screen is showing (QA A11Y-024, WCAG 2.4.2).
+  function docTitleFor(view, meta, language) {
+    const site = "Ludus Scaccorum";
+    const screenTitle = t("classics.title");
+    const game = view === "game" && meta ? pickText(meta.title, language) : "";
+    return game ? `${game} - ${screenTitle} - ${site}` : `${screenTitle} - ${site}`;
+  }
+
+  function syncDocTitle() {
+    const doc = getDoc();
+    if (!doc || !state.visible) return;
+    const meta = state.view === "game" && state.status === "ready" ? state.games.find((game) => game.id === state.gameId) : null;
+    try {
+      doc.title = docTitleFor(meta ? "game" : "list", meta, lang());
+    } catch (error) {
+      // cosmetic only
+    }
+  }
+
   function render() {
     if (!state.mounted || !state.container || !getDoc() || !L().util) return;
     destroyDetail();
@@ -2713,6 +2829,7 @@
       clear(rootEl);
       rootEl.appendChild(h("p", { class: "classics-notice" }, t("classics.error.title")));
     }
+    syncDocTitle();
   }
 
   function on(evt, fn) {
@@ -2818,6 +2935,8 @@
       progressByGame,
       isVerified,
       linkifySource,
+      sourceLinkLabel,
+      docTitleFor,
       parseGameHash,
       isClassicsHash,
       buildGameHash,

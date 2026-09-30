@@ -105,7 +105,8 @@
   if (framed) {
     flag("framed");
     var href = "";
-    try { href = window.self.location.href; } catch (error) { href = ""; }
+    // The app's own address, without a route: an attacker's frame must not choose the screen the person lands on.
+    try { href = window.self.location.href.split("#")[0]; } catch (error) { href = ""; }
     // css/system.css hides everything in <body> but this notice while data-framed is set.
     showNotice("framed", href);
     return;
@@ -113,7 +114,30 @@
 
   // ---- Returning visitors -------------------------------------------------
   var seen = storedValue("ludus.seen.v1");
-  if (seen && seen !== "0" && seen !== "false" && seen !== "null") flag("returning");
+  var returning = !!(seen && seen !== "0" && seen !== "false" && seen !== "null");
+  if (returning) flag("returning");
+
+  // A first-time visitor's largest paint is the landing photograph, which the stylesheet only discovers late (it is a
+  // CSS background); start fetching it now. The candidates and media queries repeat css/home.css (.ld-hero-bg), so the
+  // preload is the very request the stylesheet will make. Returning visitors never see the hero: no request at all.
+  function preloadHero() {
+    var base = "assets/landing/";
+    var sets = [
+      ["(min-width: 900px)", base + "maestro-2000.webp", base + "maestro-2000.webp 1x, " + base + "maestro.webp 2x"],
+      ["(max-width: 899px)", base + "maestro-1280.webp", base + "maestro-1280.webp 1x, " + base + "maestro-2000.webp 2x, " + base + "maestro.webp 3x"]
+    ];
+    for (var i = 0; i < sets.length; i += 1) {
+      var link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "image";
+      link.type = "image/webp";
+      link.media = sets[i][0];
+      link.href = sets[i][1];
+      link.setAttribute("imagesrcset", sets[i][2]);
+      link.setAttribute("fetchpriority", "high");
+      document.head.appendChild(link);
+    }
+  }
 
   // ---- Browser baseline ---------------------------------------------------
   var supported = false;
@@ -124,5 +148,7 @@
   if (!supported) {
     flag("unsupported");
     showNotice("unsupported", "");
+  } else if (!returning) {
+    try { preloadHero(); } catch (error) { /* an optimisation only */ }
   }
 })();

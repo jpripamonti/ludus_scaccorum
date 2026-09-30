@@ -21,11 +21,17 @@
 //
 // Sync = download -> Profile.merge -> Profile.importJSON (only when the merge
 // brought something new) -> upload (only when the file changed). Scope: profiles
-// linked to the signed-in account (Profile.setGoogleSub). The active profile is
-// linked automatically when none is, so two people sharing a device never leak
-// each other's progress into the wrong Drive. Merge is a union (see
-// Profile.merge), so it is last-write-merge and best effort: a deletion made on
-// one device does not propagate.
+// linked to the signed-in account (Profile.setGoogleSub), in BOTH directions:
+// nothing is uploaded and nothing is imported for a profile that is not linked
+// to the account (a downloaded entry with another or no googleSub is dropped).
+// Signing in links nothing and uploads nothing: which local profile goes to
+// this Drive is the person's explicit choice (linkProfile(id), or
+// importFromDrive() to bring the account's profile to this device), so on a
+// device shared by two people the wrong one can never be uploaded silently.
+// Until a profile is linked, state().linkRequired is true and syncNow() answers
+// "link-required". A profile linked by an earlier version keeps syncing.
+// Merge is a union (see Profile.merge), so it is last-write-merge and best
+// effort: a deletion made on one device does not propagate.
 //
 // Status machine: signed_out | signing_in | signed_in | syncing | error. The
 // account is "remembered" (user() answers, needsReconnect() is true) while the
@@ -70,6 +76,10 @@
   const FALLBACK_EXPORT_VERSION = 1;
   const FALLBACK_MAX_DOC_CHARS = 5 * 1024 * 1024;
   const MAX_REMOTE_FILES = 5;
+  // A downloaded document may carry at most this many profile entries. The app
+  // holds 4 profiles at most (Profile.constants.MAX_PROFILES) and only linked
+  // ones are uploaded, so anything bigger is not something this app wrote.
+  const MAX_REMOTE_PROFILES = 16;
   const SMALL_BODY_CHARS = 256 * 1024;
 
   const CLIENT_ID_RE = /^[A-Za-z0-9._-]{1,200}\.apps\.googleusercontent\.com$/;
@@ -85,6 +95,7 @@
     "network", "timeout", "unauthorized", "forbidden", "rate-limited", "quota-full", "server",
     "not-found", "bad-request", "http-error",
     "bad-remote", "remote-newer", "too-large", "import-failed", "profile-unavailable",
+    "link-required", "linked-elsewhere", "already-linked", "link-failed", "profile-not-found",
     "signed-out", "unknown",
   ];
 
@@ -207,6 +218,16 @@
     return doc;
   }
 
+  // A downloaded document reduced to the entries linked to this account, or null
+  // when none is. An entry with another googleSub, or none, is not this account's
+  // progress (this app only ever uploads linked profiles), so sync never imports
+  // it (SEC-006).
+  function restrictToAccount(doc, sub) {
+    if (!isObject(doc) || !Array.isArray(doc.profiles)) return null;
+    const mine = doc.profiles.filter((entry) => isObject(entry) && entry.googleSub === sub);
+    return mine.length ? Object.assign({}, doc, { profiles: mine }) : null;
+  }
+
   function firstLinkedId(doc, sub) {
     if (!isObject(doc) || !Array.isArray(doc.profiles)) return "";
     const entry = doc.profiles.find((item) => isObject(item) && item.googleSub === sub && typeof item.id === "string" && item.id);
@@ -306,6 +327,11 @@
       "auth.error.too-large": "El progreso es demasiado grande para sincronizarlo.",
       "auth.error.import-failed": "No pudimos guardar en este dispositivo el progreso descargado.",
       "auth.error.profile-unavailable": "Los perfiles todavía no están disponibles.",
+      "auth.error.link-required": "Elegí qué perfil guardar en tu Drive antes de sincronizar.",
+      "auth.error.linked-elsewhere": "Ese perfil ya está vinculado a otra cuenta de Google. Desvinculalo primero si querés usarlo con esta.",
+      "auth.error.already-linked": "Ya hay otro perfil vinculado a esta cuenta. Desvinculalo primero para elegir uno distinto.",
+      "auth.error.link-failed": "No pudimos vincular el perfil en este dispositivo. Puede que el navegador no deje guardar datos.",
+      "auth.error.profile-not-found": "Ese perfil ya no existe en este dispositivo.",
       "auth.error.signed-out": "Se cerró la sesión mientras se sincronizaba.",
       "auth.error.unknown": "Algo salió mal al sincronizar.",
     },
@@ -340,6 +366,11 @@
       "auth.error.too-large": "The progress is too large to sync.",
       "auth.error.import-failed": "Could not save the downloaded progress on this device.",
       "auth.error.profile-unavailable": "Profiles are not available yet.",
+      "auth.error.link-required": "Choose which profile to save to your Drive before syncing.",
+      "auth.error.linked-elsewhere": "That profile is already linked to another Google account. Unlink it first if you want to use it with this one.",
+      "auth.error.already-linked": "Another profile is already linked to this account. Unlink it first to choose a different one.",
+      "auth.error.link-failed": "Could not link the profile on this device. The browser may not be letting us store data.",
+      "auth.error.profile-not-found": "That profile no longer exists on this device.",
       "auth.error.signed-out": "You were signed out while syncing.",
       "auth.error.unknown": "Something went wrong while syncing.",
     },
@@ -463,7 +494,12 @@
     function ensureLoaded() {
       if (loaded) return;
       loaded = true;
-      if (!isConfigured()) return;
+      if (!isConfigured()) {
+        // A hint left by an earlier configuration is not kept around: with no
+        // client id there is no sign-out that would ever remove it (SEC-016).
+        safeRemove(STORAGE_KEY);
+        return;
+      }
       const hint = sanitizeHint(safeGet(STORAGE_KEY));
       if (hint) {
         user = { sub: hint.sub, name: hint.name, email: "", picture: hint.picture };
@@ -474,13 +510,31 @@
     const publicUser = () => (user ? { name: user.name, email: user.email, picture: user.picture, sub: user.sub } : null);
     const needsReconnectNow = () => Boolean(user) && !token;
 
+    // The local profiles linked to the signed-in account: [{ id, name }]. Normally
+    // zero or one (an account has one cloud profile).
+    function linkedProfiles() {
+      if (!user) return [];
+      const profile = getProfile();
+      if (!profile || typeof profile.list !== "function") return [];
+      try {
+        return (profile.list() || [])
+          .filter((entry) => isObject(entry) && entry.googleSub === user.sub && typeof entry.id === "string")
+          .map((entry) => ({ id: entry.id, name: cleanText(entry.name, 80) }));
+      } catch (error) {
+        return [];
+      }
+    }
+
     function snapshot() {
+      const linked = linkedProfiles();
       return {
         status,
         user: publicUser(),
         error: lastError,
         needsReconnect: needsReconnectNow(),
         lastSyncAt,
+        linkedProfiles: linked,
+        linkRequired: Boolean(user) && linked.length === 0,
       };
     }
 
@@ -808,24 +862,6 @@
       return Number.isInteger(value) ? value : FALLBACK_EXPORT_VERSION;
     }
 
-    // Links the active profile to the account when nothing is linked yet, so the
-    // first sign-in on any device joins the same cloud profile.
-    function linkProfiles(profile, sub) {
-      if (typeof profile.list !== "function" || typeof profile.setGoogleSub !== "function") return;
-      try {
-        const all = profile.list() || [];
-        if (all.some((entry) => entry && entry.googleSub === sub)) return;
-        const active = typeof profile.active === "function" ? profile.active() : null;
-        if (!active || !active.id || active.googleSub) return;
-        applying = true;
-        profile.setGoogleSub(active.id, sub);
-      } catch (error) {
-        logError("[Ludus.Auth] could not link the profile", error);
-      } finally {
-        applying = false;
-      }
-    }
-
     // The local document restricted to profiles linked to this account, or null.
     function readLocalDoc(profile, sub) {
       let text = "";
@@ -856,6 +892,7 @@
         return { error: "bad-remote" };
       }
       if (!isObject(doc) || doc.kind !== exportKind() || !Array.isArray(doc.profiles)) return { error: "bad-remote" };
+      if (doc.profiles.length > MAX_REMOTE_PROFILES) return { error: "bad-remote" };
       if (Number.isInteger(doc.v) && doc.v > exportVersion()) return { error: "remote-newer" };
       if (!Number.isInteger(doc.v) || doc.v < 1) return { error: "bad-remote" };
       if (doc.profiles.length === 0) return { empty: true };
@@ -920,7 +957,9 @@
 
     // ----- Sync -----
 
-    async function performSync(runId) {
+    // mode "import": the explicit "bring my Drive progress to this device" choice;
+    // it downloads and imports but never uploads (the next sync does).
+    async function performSync(runId, mode) {
       const profile = getProfile();
       if (!profile || typeof profile.exportJSON !== "function" || typeof profile.importJSON !== "function" || typeof profile.merge !== "function") {
         throw new AuthError("profile-unavailable");
@@ -934,9 +973,14 @@
       await ensureToken();
       ctx.check();
 
-      linkProfiles(profile, sub);
+      const importOnly = mode === "import";
       const localDoc = readLocalDoc(profile, sub);
+      // Nothing is linked: there is nothing to sync until the person chooses.
+      if (!importOnly && !linkedProfiles().length) throw new AuthError("link-required");
       const remote = await fetchRemote(ctx);
+      // Only this account's entries are ever imported (SEC-006).
+      remote.primaryDoc = restrictToAccount(remote.primaryDoc, sub);
+      remote.extraDocs = remote.extraDocs.map((doc) => restrictToAccount(doc, sub)).filter(Boolean);
 
       // One shared id per account, then let Profile.merge (which sanitizes) do the folding.
       const remoteDocs = [remote.primaryDoc].concat(remote.extraDocs).filter(Boolean);
@@ -961,7 +1005,7 @@
       // everything, including what the duplicates held.
       const mergedSig = docSignature(merged);
       const importNeeded = mergedSig !== docSignature(localClean);
-      const uploadNeeded = mergedSig !== docSignature(primaryClean);
+      const uploadNeeded = !importOnly && mergedSig !== docSignature(primaryClean);
       const mergedText = JSON.stringify(merged);
       if (mergedText.length > maxDocChars()) throw new AuthError("too-large");
 
@@ -985,7 +1029,7 @@
       }
       // Two devices that first-synced at the same moment leave duplicate files. The
       // oldest one now holds everything, so the extra copies can go (best effort).
-      for (const id of remote.extraIds) {
+      for (const id of importOnly ? [] : remote.extraIds) {
         try {
           await driveRequest(ctx, "DELETE", `${DRIVE_FILES}/${encodeURIComponent(id)}`);
         } catch (error) {
@@ -1036,6 +1080,8 @@
       if (inflightSync) return inflightSync;
       if (!user) return Promise.resolve(failure("not-signed-in"));
       if (!token) return Promise.resolve(failure(status === "signing_in" ? "busy" : "reconnect-required"));
+      const profileApi = getProfile();
+      if (profileApi && typeof profileApi.list === "function" && !linkedProfiles().length) return Promise.resolve(failure("link-required"));
 
       const runId = session;
       lastSyncStartedAt = nowMs();
@@ -1058,7 +1104,7 @@
 
     // ----- Automatic sync -----
 
-    const canSyncAuto = () => Boolean(user) && Boolean(token) && SESSION_STATUSES.includes(status);
+    const canSyncAuto = () => Boolean(user) && Boolean(token) && SESSION_STATUSES.includes(status) && linkedProfiles().length > 0;
 
     function clearAutoTimer() {
       if (autoTimer !== null) {
@@ -1081,7 +1127,9 @@
     }
 
     function onProfileChanged() {
-      if (applying || !canSyncAuto()) return;
+      if (applying) return;
+      if (user) publish(); // another tab may have linked or unlinked the profile
+      if (!canSyncAuto()) return;
       if (inflightSync) {
         dirty = true;
         return;
@@ -1123,8 +1171,12 @@
       persistHint();
       attachAutoSync();
       setStatus("signed_in");
-      syncNow(); // first sync right away; never rejects, so it is fine not to await it
-      return { ok: true, user: publicUser() };
+      // Signing in never links or uploads anything by itself: a first sign-in
+      // waits for linkProfile() / importFromDrive(). A profile that is already
+      // linked to this account (an earlier session, another sign-in) syncs now.
+      const linked = linkedProfiles().length > 0;
+      if (linked) syncNow(); // never rejects, so it is fine not to await it
+      return { ok: true, user: publicUser(), linkRequired: !linked };
     }
 
     function signIn() {
@@ -1132,7 +1184,7 @@
       ensureLoaded();
       if (inflightSignIn) return inflightSignIn;
       if (user && token && SESSION_STATUSES.includes(status)) {
-        return Promise.resolve({ ok: true, already: true, user: publicUser() });
+        return Promise.resolve({ ok: true, already: true, user: publicUser(), linkRequired: linkedProfiles().length === 0 });
       }
       const runId = session;
       setStatus("signing_in");
@@ -1202,6 +1254,164 @@
       return revoke ? revokeToken(previousToken).then((revoked) => ({ ok: true, revoked })) : Promise.resolve({ ok: true });
     }
 
+    // ----- Choosing what goes to the Drive (SEC-005) -----
+
+    // The person's explicit "save THIS profile to my Drive". Links the local profile
+    // to the signed-in account and runs the first sync (merge with what the Drive
+    // holds, upload). One local profile per account: when another one is already
+    // linked the answer is "already-linked" and the UI can offer unlinkProfile().
+    // Resolves { ok, linked: true, profileId, ...sync result } or a failure; when
+    // the link was made but the sync could not run (for example the session has to
+    // be reconnected) the failure carries `linked: true` and the sync starts on the
+    // next successful sign-in.
+    async function linkProfile(profileId) {
+      if (!isConfigured()) return failure("not-configured");
+      ensureLoaded();
+      if (!user) return failure("not-signed-in");
+      const profile = getProfile();
+      if (!profile || typeof profile.list !== "function" || typeof profile.setGoogleSub !== "function") return failure("profile-unavailable");
+      const id = typeof profileId === "string" ? profileId : "";
+      let all = [];
+      try {
+        all = profile.list() || [];
+      } catch (error) {
+        all = [];
+      }
+      const entry = all.find((item) => isObject(item) && item.id === id);
+      if (!entry) return failure("profile-not-found");
+      if (entry.googleSub && entry.googleSub !== user.sub) return failure("linked-elsewhere");
+      if (entry.googleSub !== user.sub) {
+        const other = linkedProfiles().find((item) => item.id !== id);
+        if (other) return failure("already-linked", { profileId: other.id });
+        let done = false;
+        applying = true;
+        try {
+          done = profile.setGoogleSub(id, user.sub) !== false;
+        } catch (error) {
+          done = false;
+        } finally {
+          applying = false;
+        }
+        if (!done) return failure("link-failed");
+      }
+      // syncNow() switches to "syncing" synchronously (which publishes the new link
+      // state with it) or answers with a failure; publish() then only matters in
+      // the failure case and is otherwise a no-op.
+      const run = syncNow();
+      publish();
+      return Object.assign({ linked: true, profileId: id }, await run);
+    }
+
+    // Stops syncing a profile with this account (the local profile and the copy in
+    // the Drive both stay as they are; the next linkProfile() decides again).
+    function unlinkProfile(profileId) {
+      if (!isConfigured()) return failure("not-configured");
+      ensureLoaded();
+      if (!user) return failure("not-signed-in");
+      const profile = getProfile();
+      if (!profile || typeof profile.list !== "function" || typeof profile.setGoogleSub !== "function") return failure("profile-unavailable");
+      const id = typeof profileId === "string" ? profileId : "";
+      if (!linkedProfiles().some((item) => item.id === id)) return failure("profile-not-found");
+      let done = false;
+      applying = true;
+      try {
+        done = profile.setGoogleSub(id, "") !== false;
+      } catch (error) {
+        done = false;
+      } finally {
+        applying = false;
+      }
+      if (!done) return failure("link-failed");
+      clearAutoTimer();
+      publish();
+      return { ok: true, profileId: id };
+    }
+
+    // The explicit "bring my Drive progress to this device" choice for a first
+    // sign-in: downloads the account's profile and imports it (it arrives linked),
+    // uploads nothing. Resolves { ok, imported, empty? } like syncNow(); when
+    // nothing on this account's Drive exists, empty is true. A full device answers
+    // "import-failed" with detail "limit". When a profile is already linked this
+    // is just a sync.
+    async function importFromDrive() {
+      if (!isConfigured()) return failure("not-configured");
+      ensureLoaded();
+      if (!user) return failure("not-signed-in");
+      if (!token) return failure(status === "signing_in" ? "busy" : "reconnect-required");
+      if (inflightSync) return inflightSync;
+      if (linkedProfiles().length) return syncNow();
+
+      const runId = session;
+      lastSyncStartedAt = nowMs();
+      clearAutoTimer();
+      dirty = false;
+      setStatus("syncing");
+      const run = performSync(runId, "import")
+        .then(
+          (result) => (runId === session ? onSyncSuccess(result) : failure("signed-out")),
+          (error) => (runId === session ? onSyncFailure(error) : failure("signed-out")),
+        )
+        .then((result) => {
+          if (inflightSync === run) inflightSync = null;
+          if (runId === session) publish();
+          return result;
+        });
+      inflightSync = run;
+      return run;
+    }
+
+    // Read-only look at what this account's Drive holds, so the UI can say "Drive
+    // already has progress for 'Ana' (120 positions)" before the person chooses.
+    // Resolves { ok: true, exists, profiles: [{ id, name, rounds, sessions, notebook, xp, updatedAt }] }
+    // (only entries linked to this account, sanitized by Profile.merge) or a failure.
+    async function remoteSummary() {
+      if (!isConfigured()) return failure("not-configured");
+      ensureLoaded();
+      if (!user) return failure("not-signed-in");
+      const profile = getProfile();
+      if (!profile || typeof profile.merge !== "function") return failure("profile-unavailable");
+      const runId = session;
+      const ctx = {
+        check() {
+          if (runId !== session) throw new AuthError("signed-out");
+        },
+      };
+      try {
+        await ensureToken();
+        ctx.check();
+        const remote = await fetchRemote(ctx);
+        const doc = restrictToAccount(remote.primaryDoc, user.sub);
+        if (!doc) return { ok: true, exists: false, profiles: [] };
+        const clean = profile.merge(doc, doc);
+        if (!isObject(clean) || !Array.isArray(clean.profiles)) throw new AuthError("bad-remote");
+        const count = (value) => (Array.isArray(value) ? value.length : 0);
+        return {
+          ok: true,
+          exists: clean.profiles.length > 0,
+          profiles: clean.profiles.filter(isObject).map((entry) => {
+            const data = isObject(entry.data) ? entry.data : {};
+            return {
+              id: String(entry.id || ""),
+              name: cleanText(entry.name, 80),
+              rounds: count(data.rounds),
+              sessions: count(data.sessions),
+              notebook: count(data.notebook),
+              xp: Number.isFinite(data.xp) ? data.xp : 0,
+              updatedAt: Number.isFinite(data.updatedAt) ? data.updatedAt : 0,
+            };
+          }),
+        };
+      } catch (error) {
+        const err = toAuthError(error, "unknown");
+        if (err.code === "signed-out") return failure(err.code);
+        if (err.code === "reconnect-required" || err.code === "unauthorized") {
+          if (runId === session) markNeedsReconnect(err.code);
+          return failure(err.code);
+        }
+        return failure(err.code, err.status ? { status: err.status } : undefined);
+      }
+    }
+
     // Optional: lets the sign-in button pre-load the Google script when the user
     // is about to press it (hover/focus), so the popup opens inside the click.
     // Nothing calls this on its own.
@@ -1245,6 +1455,10 @@
       signIn,
       signOut,
       syncNow,
+      linkProfile,
+      unlinkProfile,
+      importFromDrive,
+      remoteSummary,
       onChange,
       preload,
       errorKey,
@@ -1273,6 +1487,7 @@
     MIN_AUTO_INTERVAL_MS,
     MAX_BACKOFF_MS,
     REQUEST_TIMEOUT_MS,
+    MAX_REMOTE_PROFILES,
   });
   // Pure building blocks, exposed for tests.
   api.internals = Object.freeze({
@@ -1284,6 +1499,7 @@
     stableStringify,
     docSignature,
     normalizeLinkedIds,
+    restrictToAccount,
     firstLinkedId,
     buildMultipart,
     pickBoundary,

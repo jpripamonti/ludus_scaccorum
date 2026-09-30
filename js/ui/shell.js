@@ -640,6 +640,15 @@
     if (brand) brand.setAttribute("aria-label", t("shell.brand"));
     const skip = getDoc() && typeof getDoc().querySelector === "function" ? getDoc().querySelector(".skip-link") : null;
     if (skip) skip.textContent = t("shell.skip");
+    paintSkipTarget();
+  }
+
+  // The skip link must land on the visible main landmark: the landing page is a sibling of #app-main (which holds every
+  // routed screen), so pointing at #app-main from the landing would jump past the hero and its start button.
+  function paintSkipTarget() {
+    const doc = getDoc();
+    const skip = doc && typeof doc.querySelector === "function" ? doc.querySelector(".skip-link") : null;
+    if (skip && typeof skip.setAttribute === "function") skip.setAttribute("href", state.screen === "landing" ? "#landing-screen" : "#app-main");
   }
 
   function applyVisibility() {
@@ -760,6 +769,7 @@
     if (doc && doc.body) doc.body.dataset.screen = id || "";
     closePopover(false);
     paintActive();
+    paintSkipTarget();
     applyVisibility();
     mirrorHash(id);
     focusScreen(id, payload && payload.prev);

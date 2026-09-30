@@ -412,7 +412,23 @@ function makeEnv(options = {}) {
   });
   const statuses = [];
   auth.onChange((snap) => statuses.push(snap.status));
-  return { auth, clock, timers, bus, storage, drive, google, view, profile, document, statuses };
+  // Since SEC-005 signing in links nothing. Most of the flows below are about
+  // sync, not about the first link, so `env.auth` signs in AND links the active
+  // profile (the person's explicit choice) unless options.explicit is set; the
+  // untouched instance is always `env.raw`.
+  const linked = Object.assign({}, auth, {
+    async signIn(...args) {
+      const result = await auth.signIn(...args);
+      if (result.ok && result.linkRequired) {
+        const active = profile.active && profile.active();
+        // Not awaited: the first sync starts synchronously and a later
+        // syncNow() collapses onto it, as it did when sign-in linked by itself.
+        if (active) auth.linkProfile(active.id);
+      }
+      return result;
+    },
+  });
+  return { auth: options.explicit ? auth : linked, raw: auth, clock, timers, bus, storage, drive, google, view, profile, document, statuses };
 }
 
 // Signs in and waits for the sign-in sync to finish.
@@ -699,9 +715,13 @@ test("sync only imports when the remote is ahead, only uploads when local is ahe
 test("a new device with no profile imports the cloud profile", async () => {
   const drive = makeDrive();
   drive.addFile(remoteDoc(["r5", "r6"], { id: "pCloud" }));
-  const env = makeEnv({ drive, profileOptions: { profiles: [], active: null } });
-  ok((await env.auth.signIn()).ok);
-  const sync = await env.auth.syncNow();
+  const env = makeEnv({ drive, explicit: true, profileOptions: { profiles: [], active: null } });
+  const signedInResult = await env.auth.signIn();
+  ok(signedInResult.ok);
+  eq(signedInResult.linkRequired, true, "a first sign-in asks what to do");
+  same(await env.auth.syncNow(), { ok: false, error: "link-required" }, "and syncs nothing by itself");
+  eq(drive.count("download"), 0, "not even a download");
+  const sync = await env.auth.importFromDrive();
   same({ ok: sync.ok, imported: sync.imported, uploaded: sync.uploaded }, { ok: true, imported: true, uploaded: false });
   eq(env.profile.state.profiles.length, 1);
   eq(env.profile.state.profiles[0].id, "pCloud");
@@ -730,7 +750,8 @@ test("another account on the same device: nothing to sync, nothing leaked", asyn
   const env = makeEnv({ profileOptions: { profiles, active: "pA" } });
   ok((await env.auth.signIn()).ok);
   const sync = await env.auth.syncNow();
-  same({ ok: sync.ok, empty: sync.empty, uploaded: sync.uploaded }, { ok: true, empty: true, uploaded: false });
+  same(sync, { ok: false, error: "link-required" }, "the only profile belongs to another account: nothing is linked to this one");
+  same(await env.raw.linkProfile("pA"), { ok: false, error: "linked-elsewhere" });
   eq(env.drive.files.size, 0);
   eq(env.drive.count("create"), 0);
 });
@@ -1198,7 +1219,7 @@ test("the popup that never answers times out; sign-out cancels a pending sign-in
 });
 
 test("concurrent sign-in calls share one popup", async () => {
-  const env = makeEnv();
+  const env = makeEnv({ explicit: true });
   const a = env.auth.signIn();
   const b = env.auth.signIn();
   eq(a, b, "same promise");
@@ -1222,7 +1243,7 @@ test("token requests run one at a time", async () => {
 // ---------- Google script loader ----------
 
 test("Google's script is injected on demand, once, without a version suffix", async () => {
-  const env = makeEnv({ noGoogleYet: true });
+  const env = makeEnv({ noGoogleYet: true, explicit: true });
   const { auth, document, google, view } = env;
   eq(document.created.length, 0);
   const first = auth.signIn();
@@ -1508,6 +1529,15 @@ function makeDevice(tag, drive, clock, options = {}) {
   return { tag, real, auth, calls, storage, bus, timers, google };
 }
 
+// Signs a real-Profile device in and links its active profile (the explicit
+// step of SEC-005); like a person pressing the button twice, the first sync then
+// starts on its own and a following syncNow() collapses onto it.
+async function signInLinked(device) {
+  const result = await device.auth.signIn();
+  if (result.ok && result.linkRequired) device.auth.linkProfile(device.real.active().id);
+  return result;
+}
+
 // The profile data with the bookkeeping that legitimately differs stripped.
 function dataOf(device) {
   const doc = JSON.parse(device.real.exportJSON("all", { sync: true }));
@@ -1525,7 +1555,7 @@ test("two devices, one Google account, the real Profile: they converge and then 
   A.real.ensureActive();
   [0, 1, 2].forEach((n) => ok(A.real.recordRound(round(n))));
   ok(A.real.recordRound(badRound(3)));
-  ok((await A.auth.signIn()).ok);
+  ok((await signInLinked(A)).ok);
   const firstSync = await A.auth.syncNow();
   same({ ok: firstSync.ok, created: firstSync.created, imported: firstSync.imported }, { ok: true, created: true, imported: false });
   eq(drive.files.size, 1);
@@ -1538,7 +1568,7 @@ test("two devices, one Google account, the real Profile: they converge and then 
   B.real.ensureActive();
   [100, 101].forEach((n) => ok(B.real.recordRound(round(n))));
   ok(B.real.recordRound(badRound(102)));
-  ok((await B.auth.signIn()).ok);
+  ok((await signInLinked(B)).ok);
   const bSync = await B.auth.syncNow();
   same({ ok: bSync.ok, created: bSync.created, imported: bSync.imported, uploaded: bSync.uploaded }, { ok: true, created: false, imported: true, uploaded: true });
   eq(B.real.list().length, 1, "B did not grow a second profile: its own was linked to the account");
@@ -1598,8 +1628,8 @@ test("the real Profile: local-only rounds on both devices merge when they sync a
   B.real.ensureActive();
   ok(A.real.recordRound(round(1)));
   ok(B.real.recordRound(round(2)));
-  ok((await A.auth.signIn()).ok);
-  ok((await B.auth.signIn()).ok);
+  ok((await signInLinked(A)).ok);
+  ok((await signInLinked(B)).ok);
   const [a, b] = await Promise.all([A.auth.syncNow(), B.auth.syncNow()]);
   ok(a.ok && b.ok);
   // Both first-synced in parallel, so Drive may hold two files; the next syncs converge them.
@@ -1621,7 +1651,7 @@ test("the real Profile: switching Google account never copies the previous accou
   const device = makeDevice("a", driveA, clock);
   device.real.ensureActive();
   ok(device.real.recordRound(round(1)));
-  ok((await device.auth.signIn()).ok);
+  ok((await signInLinked(device)).ok);
   await device.auth.syncNow();
   eq(driveA.files.size, 1);
   await device.auth.signOut();
@@ -1631,11 +1661,316 @@ test("the real Profile: switching Google account never copies the previous accou
     storage: device.storage, bus: device.bus, profile: { constants: Profile.constants, list: device.real.list, active: device.real.active, setGoogleSub: device.real.setGoogleSub, exportJSON: device.real.exportJSON, merge: device.real.merge, importJSON: device.real.importJSON },
     now: clock.now, setTimeout: device.timers.setTimeout, clearTimeout: device.timers.clearTimeout, i18n: Ludus.i18n,
   });
-  ok((await other.signIn()).ok);
+  const signedIn2 = await other.signIn();
+  ok(signedIn2.ok);
+  eq(signedIn2.linkRequired, true, "the profile belongs to the first account: nothing is linked to this one");
   const sync = await other.syncNow();
-  ok(sync.ok);
+  same(sync, { ok: false, error: "link-required" }, "so there is nothing to sync");
+  same(await other.linkProfile(device.real.active().id), { ok: false, error: "linked-elsewhere" }, "and the profile cannot be taken over silently");
   eq(driveB.files.size, 0, "the first account's rounds were not uploaded to the second account's Drive");
   eq(driveB.count("create"), 0);
+  eq(driveB.count("update"), 0);
+});
+
+// ---------- Explicit link (SEC-005), account scope (SEC-006), stale hint (SEC-016) ----------
+
+test("a first sign-in links nothing and uploads nothing: the person chooses which profile goes to the Drive", async () => {
+  const env = makeEnv({ explicit: true });
+  const { auth, drive, profile, timers } = env;
+  const result = await auth.signIn();
+  ok(result.ok);
+  eq(result.linkRequired, true, "the sign-in answer says a choice is pending");
+  await settle();
+  same(drive.log.map((entry) => entry.kind), ["identity"], "only the identity was read: no list, no download, no upload");
+  eq(profile.state.calls.setSub, 0, "no profile was linked");
+  eq(profile.state.profiles[0].googleSub, "");
+  eq(drive.files.size, 0);
+  const state = auth.state();
+  eq(state.status, "signed_in");
+  eq(state.linkRequired, true);
+  same(state.linkedProfiles, []);
+  same(await auth.syncNow(), { ok: false, error: "link-required" }, "a sync before the choice answers link-required");
+  eq(auth.state().status, "signed_in", "and is not an error state");
+  eq(auth.state().error, "");
+  eq(timers.count, 0, "no automatic sync is scheduled");
+  profile.play("r9");
+  eq(timers.count, 0, "a change on the profile does not schedule one either");
+  eq(drive.log.length, 1);
+
+  const linked = await auth.linkProfile("p1");
+  same({ ok: linked.ok, linked: linked.linked, profileId: linked.profileId, created: linked.created }, { ok: true, linked: true, profileId: "p1", created: true });
+  same(drive.log.map((entry) => entry.kind), ["identity", "list", "create"], "now the file is created");
+  same(JSON.parse(drive.log[2].parsed.content).profiles.map((entry) => entry.id), ["p1"]);
+  same(auth.state().linkedProfiles, [{ id: "p1", name: "Ana" }]);
+  eq(auth.state().linkRequired, false);
+  eq(profile.state.profiles[0].googleSub, SUB);
+  // From now on the profile syncs by itself.
+  profile.play("r10");
+  eq(timers.count, 1, "an automatic sync is scheduled after a change");
+});
+
+test("linkProfile uploads only the chosen profile on a device with two people", async () => {
+  const profiles = [
+    { id: "pAna", name: "Ana", color: "#2f6f4f", createdAt: 1, googleSub: "", data: { rounds: ["a1"], updatedAt: 1 } },
+    { id: "pBeto", name: "Beto", color: "#2f6f4f", createdAt: 2, googleSub: "", data: { rounds: ["b1"], updatedAt: 1 } },
+  ];
+  const env = makeEnv({ explicit: true, profileOptions: { profiles, active: "pAna" } });
+  ok((await env.auth.signIn()).ok);
+  const result = await env.auth.linkProfile("pBeto");
+  ok(result.ok);
+  const body = Array.from(env.drive.files.values())[0].content;
+  ok(body.includes("b1") && !body.includes("a1"), "the active profile (Ana) was not the one uploaded: the chosen one was");
+  eq(env.profile.state.profiles.find((entry) => entry.id === "pAna").googleSub, "", "Ana stays local");
+  eq(env.profile.state.profiles.find((entry) => entry.id === "pBeto").googleSub, SUB);
+});
+
+test("linkProfile and unlinkProfile refuse what they should", async () => {
+  const profiles = [
+    { id: "pMine", name: "Ana", color: "#2f6f4f", createdAt: 1, googleSub: "", data: { rounds: ["a1"], updatedAt: 1 } },
+    { id: "pOther", name: "Beto", color: "#2f6f4f", createdAt: 2, googleSub: "2002", data: { rounds: ["b1"], updatedAt: 1 } },
+    { id: "pThird", name: "Cami", color: "#2f6f4f", createdAt: 3, googleSub: "", data: { rounds: ["c1"], updatedAt: 1 } },
+  ];
+  const env = makeEnv({ explicit: true, profileOptions: { profiles, active: "pMine" } });
+  const { auth, profile, drive } = env;
+  same(await auth.linkProfile("pMine"), { ok: false, error: "not-signed-in" });
+  same(auth.unlinkProfile("pMine"), { ok: false, error: "not-signed-in" });
+  ok((await auth.signIn()).ok);
+  same(await auth.linkProfile("nope"), { ok: false, error: "profile-not-found" });
+  same(await auth.linkProfile(undefined), { ok: false, error: "profile-not-found" });
+  same(await auth.linkProfile("pOther"), { ok: false, error: "linked-elsewhere" }, "a profile of another account is never taken over");
+  eq(profile.state.profiles[1].googleSub, "2002");
+  eq(drive.count("create"), 0);
+  ok((await auth.linkProfile("pMine")).ok);
+  same(await auth.linkProfile("pThird"), { ok: false, error: "already-linked", profileId: "pMine" }, "one profile per account");
+  eq(profile.state.profiles[2].googleSub, "");
+  ok((await auth.linkProfile("pMine")).ok, "linking the same profile again is just a sync");
+  same(auth.unlinkProfile("pThird"), { ok: false, error: "profile-not-found" }, "only a profile linked to this account can be unlinked");
+  same(auth.unlinkProfile("pOther"), { ok: false, error: "profile-not-found" }, "and never another account's");
+  eq(profile.state.profiles[1].googleSub, "2002");
+  same(auth.unlinkProfile("pMine"), { ok: true, profileId: "pMine" });
+  eq(profile.state.profiles[0].googleSub, "");
+  eq(auth.state().linkRequired, true, "the choice is pending again");
+  ok((await auth.linkProfile("pThird")).ok, "and a different profile can be chosen");
+
+  // A profile store that cannot save the link.
+  const broken = makeEnv({ explicit: true });
+  ok((await broken.auth.signIn()).ok);
+  broken.profile.setGoogleSub = () => false;
+  same(await broken.auth.linkProfile("p1"), { ok: false, error: "link-failed" });
+  broken.profile.setGoogleSub = () => { throw new Error("boom"); };
+  same(await broken.auth.linkProfile("p1"), { ok: false, error: "link-failed" }, "a store that throws is reported, not thrown");
+  const noApi = makeEnv({ explicit: true, profile: {} });
+  ok((await noApi.auth.signIn()).ok);
+  same(await noApi.auth.linkProfile("p1"), { ok: false, error: "profile-unavailable" });
+  same(await makeEnv({ explicit: true, clientId: "" }).auth.linkProfile("p1"), { ok: false, error: "not-configured" });
+  same(makeEnv({ explicit: true, clientId: "" }).auth.unlinkProfile("p1"), { ok: false, error: "not-configured" });
+});
+
+test("a link made while the session needs reconnecting is kept and syncs after the reconnect", async () => {
+  const env = makeEnv({ explicit: true });
+  const { auth, drive } = env;
+  ok((await auth.signIn()).ok);
+  await auth.signOut(); // forget the token AND the hint
+  // Sign in again, let the token go (reload-like state): remembered user, no token.
+  const again = makeEnv({ explicit: true, storage: env.storage, drive });
+  again.storage.set("ludus.auth.v1", { v: 1, signedIn: true, sub: SUB, name: "Ana Perez", picture: "" });
+  const fresh = makeEnv({ explicit: true, storage: again.storage, drive });
+  eq(fresh.auth.needsReconnect(), true);
+  const result = await fresh.auth.linkProfile("p1");
+  same({ ok: result.ok, error: result.error, linked: result.linked }, { ok: false, error: "reconnect-required", linked: true });
+  eq(fresh.profile.state.profiles[0].googleSub, SUB, "the choice was recorded");
+  eq(drive.count("create"), 0, "nothing was uploaded without a session");
+  const back = await fresh.auth.signIn();
+  ok(back.ok);
+  eq(back.linkRequired, false, "the reconnect does not ask again");
+  await settle();
+  eq(drive.count("create"), 1, "and the sync ran on its own");
+});
+
+test("a profile already linked to the account keeps syncing after a sign-in, without asking again", async () => {
+  const profiles = [{ id: "p1", name: "Ana", color: "#2f6f4f", createdAt: 1, googleSub: SUB, data: { rounds: ["r1"], updatedAt: 1 } }];
+  const env = makeEnv({ explicit: true, profileOptions: { profiles, active: "p1" } });
+  const result = await env.auth.signIn();
+  ok(result.ok);
+  eq(result.linkRequired, false);
+  await settle();
+  eq(env.drive.count("create"), 1, "a link made by an earlier version or session syncs right away");
+  same(env.auth.state().linkedProfiles, [{ id: "p1", name: "Ana" }]);
+});
+
+test("importFromDrive: a device that already has its own profiles gets the cloud one next to them, and uploads nothing", async () => {
+  const drive = makeDrive();
+  drive.addFile(remoteDoc(["r5", "r6"], { id: "pCloud" }));
+  const env = makeEnv({ drive, explicit: true });
+  ok((await env.auth.signIn()).ok);
+  const result = await env.auth.importFromDrive();
+  same({ ok: result.ok, imported: result.imported, uploaded: result.uploaded }, { ok: true, imported: true, uploaded: false });
+  eq(drive.count("update") + drive.count("create"), 0, "nothing was written to the Drive");
+  same(env.profile.state.profiles.map((entry) => entry.id).sort(), ["p1", "pCloud"], "the cloud profile arrived next to the local one");
+  eq(env.profile.state.profiles.find((entry) => entry.id === "p1").googleSub, "", "the local profile was not linked");
+  same(env.profile.rounds("p1"), ["r1", "r2"], "nor changed");
+  same(env.auth.state().linkedProfiles.map((entry) => entry.id), ["pCloud"]);
+  eq(env.auth.state().linkRequired, false);
+  // Now it is an ordinary linked account: a normal sync works.
+  ok((await env.auth.syncNow()).ok);
+});
+
+test("importFromDrive: an empty Drive, a full device, no session, and an already linked profile", async () => {
+  const env = makeEnv({ explicit: true });
+  same(await env.auth.importFromDrive(), { ok: false, error: "not-signed-in" });
+  ok((await env.auth.signIn()).ok);
+  same(await env.auth.importFromDrive(), { ok: true, imported: false, uploaded: false, created: false, empty: true }, "nothing on this account's Drive");
+  eq(env.auth.state().status, "signed_in");
+  eq(env.auth.state().linkRequired, true, "still a pending choice");
+
+  const drive = makeDrive();
+  drive.addFile(remoteDoc(["r5"], { id: "pCloud" }));
+  const full = makeEnv({ drive, explicit: true });
+  ok((await full.auth.signIn()).ok);
+  full.profile.state.importResult = { ok: false, error: "limit" };
+  const failed = await full.auth.importFromDrive();
+  same({ ok: failed.ok, error: failed.error, detail: failed.detail }, { ok: false, error: "import-failed", detail: "limit" }, "a full device says so");
+
+  const linkedEnv = makeEnv({ explicit: true });
+  ok((await linkedEnv.auth.signIn()).ok);
+  ok((await linkedEnv.auth.linkProfile("p1")).ok);
+  const viaImport = await linkedEnv.auth.importFromDrive();
+  ok(viaImport.ok, "with a profile already linked it is an ordinary sync");
+
+  const remembered = makeEnv({ explicit: true });
+  remembered.storage.set("ludus.auth.v1", { v: 1, signedIn: true, sub: SUB, name: "Ana", picture: "" });
+  const reload = makeEnv({ explicit: true, storage: remembered.storage });
+  same(await reload.auth.importFromDrive(), { ok: false, error: "reconnect-required" });
+});
+
+test("remoteSummary: a read-only look at what the Drive holds, only for this account", async () => {
+  const drive = makeDrive();
+  const doc = remoteDoc(["r1", "r2", "r3"], { id: "pCloud", updatedAt: 42 });
+  doc.profiles.push({ id: "pStranger", name: "Stranger", color: "#2f6f4f", createdAt: 1, googleSub: "999999", data: { rounds: ["x1"], updatedAt: 5 } });
+  doc.profiles[0].name = "Ana <b>";
+  drive.addFile(doc);
+  const env = makeEnv({ drive, explicit: true });
+  same(await env.auth.remoteSummary(), { ok: false, error: "not-signed-in" });
+  ok((await env.auth.signIn()).ok);
+  const before = drive.log.length;
+  const summary = await env.auth.remoteSummary();
+  eq(summary.ok, true);
+  eq(summary.exists, true);
+  eq(summary.profiles.length, 1, "the stranger's entry is not shown");
+  same({ id: summary.profiles[0].id, name: summary.profiles[0].name, rounds: summary.profiles[0].rounds, updatedAt: summary.profiles[0].updatedAt }, { id: "pCloud", name: "Ana <b>", rounds: 3, updatedAt: 42 }, "names stay plain data for the UI to escape");
+  same(drive.log.slice(before).map((entry) => entry.kind), ["list", "download"], "only reads");
+  eq(env.profile.state.calls.import, 0);
+  eq(env.profile.state.calls.setSub, 0);
+  eq(env.auth.state().linkRequired, true, "and the choice is still pending");
+
+  const empty = makeEnv({ explicit: true });
+  ok((await empty.auth.signIn()).ok);
+  same(await empty.auth.remoteSummary(), { ok: true, exists: false, profiles: [] });
+
+  const broken = makeDrive();
+  broken.addFile("not json at all");
+  const bad = makeEnv({ drive: broken, explicit: true });
+  ok((await bad.auth.signIn()).ok);
+  same(await bad.auth.remoteSummary(), { ok: false, error: "bad-remote" });
+  eq(broken.count("update") + broken.count("create") + broken.count("delete"), 0);
+});
+
+test("sync never imports entries that are not linked to the signed-in account (SEC-006)", async () => {
+  const drive = makeDrive();
+  const doc = remoteDoc(["r2", "r9"], { id: "p1" });
+  doc.profiles.push({ id: "pNoSub", name: "NoSub", color: "#2f6f4f", createdAt: 1, data: { rounds: ["n1"], updatedAt: 5 } });
+  doc.profiles.push({ id: "pOther", name: "Other Person", color: "#2f6f4f", createdAt: 1, googleSub: "999999", data: { rounds: ["o1"], updatedAt: 5 } });
+  doc.profiles.push({ id: "pEmpty", name: "Empty sub", color: "#2f6f4f", createdAt: 1, googleSub: "", data: { rounds: ["e1"], updatedAt: 5 } });
+  drive.addFile(doc);
+  const env = makeEnv({ drive });
+  ok((await env.auth.signIn()).ok);
+  const sync = await env.auth.syncNow();
+  ok(sync.ok, JSON.stringify(sync));
+  same(env.profile.state.profiles.map((entry) => entry.id), ["p1"], "only the linked profile exists locally: no NoSub, no Other Person");
+  same(env.profile.rounds("p1"), ["r1", "r2", "r9"], "and it received what belongs to it");
+  const stored = JSON.parse(Array.from(drive.files.values())[0].content);
+  same(stored.profiles.map((entry) => entry.id), ["p1"], "rewriting the file drops what is not this account's");
+  ok(!JSON.stringify(stored).includes("o1") && !JSON.stringify(stored).includes("n1"));
+
+  // A Drive whose only content belongs to somebody else: nothing is imported and our own data replaces it.
+  const foreign = makeDrive();
+  foreign.addFile(remoteDoc(["z1"], { id: "pZ", sub: "999999" }));
+  const env2 = makeEnv({ drive: foreign });
+  ok((await env2.auth.signIn()).ok);
+  const sync2 = await env2.auth.syncNow();
+  ok(sync2.ok);
+  same(env2.profile.state.profiles.map((entry) => entry.id), ["p1"]);
+  eq(sync2.imported, false);
+  eq(sync2.uploaded, true);
+  // And importFromDrive never brings a stranger's profile in either.
+  const foreign2 = makeDrive();
+  foreign2.addFile(remoteDoc(["z1"], { id: "pZ", sub: "999999" }));
+  const env3 = makeEnv({ drive: foreign2, explicit: true, profileOptions: { profiles: [], active: null } });
+  ok((await env3.auth.signIn()).ok);
+  const imp = await env3.auth.importFromDrive();
+  same({ ok: imp.ok, empty: imp.empty, imported: imp.imported }, { ok: true, empty: true, imported: false });
+  eq(env3.profile.state.profiles.length, 0);
+});
+
+test("a document with more entries than this app ever writes is refused as a whole (SEC-006)", async () => {
+  const many = (n, sub) => Array.from({ length: n }, (_, i) => ({ id: `pm${i}`, name: `M${i}`, color: "#2f6f4f", createdAt: i + 1, googleSub: sub, data: { rounds: [`m${i}`], updatedAt: i + 1 } }));
+  ok(constants.MAX_REMOTE_PROFILES >= 4 && constants.MAX_REMOTE_PROFILES <= 32, "a small cap, above what the app stores");
+  const tooMany = makeDrive();
+  tooMany.addFile(remoteDoc([], { profiles: many(constants.MAX_REMOTE_PROFILES + 1, SUB) }));
+  const env = makeEnv({ drive: tooMany });
+  ok((await env.auth.signIn()).ok);
+  const sync = await env.auth.syncNow();
+  same({ ok: sync.ok, error: sync.error }, { ok: false, error: "bad-remote" }, "refused, not half imported");
+  eq(env.profile.state.profiles.length, 1, "nothing was imported");
+  eq(tooMany.count("update") + tooMany.count("create"), 0, "and the file was not overwritten");
+  eq(env.auth.state().status, "error");
+
+  // At the cap it still works, and entries of the same account fold into one profile.
+  const atCap = makeDrive();
+  atCap.addFile(remoteDoc([], { profiles: many(constants.MAX_REMOTE_PROFILES, SUB) }));
+  const env2 = makeEnv({ drive: atCap });
+  ok((await env2.auth.signIn()).ok);
+  const sync2 = await env2.auth.syncNow();
+  ok(sync2.ok, JSON.stringify(sync2));
+  eq(env2.profile.state.profiles.length, 1, "no profile explosion, however many entries the document has");
+
+  // Foreign entries do not count towards any cap: they are simply not imported.
+  const foreign = makeDrive();
+  foreign.addFile(remoteDoc([], { profiles: many(12, "999999") }));
+  const env3 = makeEnv({ drive: foreign });
+  ok((await env3.auth.signIn()).ok);
+  ok((await env3.auth.syncNow()).ok);
+  eq(env3.profile.state.profiles.length, 1);
+});
+
+test("onChange reports the link state: who is linked, and whether a choice is pending", async () => {
+  const env = makeEnv({ explicit: true });
+  const seen = [];
+  env.auth.onChange((snap) => seen.push({ status: snap.status, linkRequired: snap.linkRequired, linked: snap.linkedProfiles.map((entry) => entry.id) }));
+  ok((await env.auth.signIn()).ok);
+  ok((await env.auth.linkProfile("p1")).ok);
+  same(seen[0], { status: "signing_in", linkRequired: false, linked: [] });
+  same(seen[1], { status: "signed_in", linkRequired: true, linked: [] }, "signed in, waiting for the choice");
+  const last = seen[seen.length - 1];
+  same(last, { status: "signed_in", linkRequired: false, linked: ["p1"] });
+  ok(seen.some((entry) => entry.status === "syncing" && entry.linked.join() === "p1"), "the sync started with the profile linked");
+  await env.auth.signOut();
+  same(env.auth.state().linkedProfiles, [], "nothing is linked to nobody");
+  eq(env.auth.state().linkRequired, false);
+});
+
+test("a stale Google hint is removed when the site has no client id (SEC-016)", async () => {
+  const stale = memoryStorage();
+  stale.set("ludus.auth.v1", { v: 1, signedIn: true, sub: SUB, name: "Ghost", picture: "" });
+  const env = makeEnv({ clientId: "", storage: stale });
+  eq(stale.map.has("ludus.auth.v1"), true, "nothing is touched before anything asks");
+  eq(env.auth.user(), null);
+  eq(stale.map.has("ludus.auth.v1"), false, "the hint is gone as soon as the module looks at it");
+  const other = memoryStorage();
+  other.set("ludus.auth.v1", { v: 1, signedIn: true, sub: SUB, name: "Ana", picture: "" });
+  const configured = makeEnv({ storage: other });
+  eq(configured.auth.user().name, "Ana", "a configured site keeps its hint");
+  eq(other.map.has("ludus.auth.v1"), true);
 });
 
 // ---------- Runner ----------

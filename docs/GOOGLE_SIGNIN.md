@@ -155,11 +155,17 @@ the CSP, keep those.
 | Google | Sign-in and Drive requests | As with any "Sign in with Google" site, Google sees that this site was used to sign in and receives the Drive calls. |
 | GitHub Pages | Ordinary web-server logs | Same as for anybody visiting the site. Nothing from Drive or the progress goes there. |
 
-Which profiles sync: only profiles **linked to the signed-in Google account**.
-The active profile is linked automatically the first time an account signs in
-on a device that has none linked. Other profiles on the same device (for
-example the second player of a duel) are not uploaded, and a profile linked to
-one Google account is never uploaded to a different account's Drive.
+Which profiles sync: only profiles **linked to the signed-in Google account**,
+in both directions. Signing in does **not** link or upload anything by itself:
+the first time an account signs in on a device the app asks which local profile
+to save to the Drive (or to bring the Drive's progress to the device), so on a
+shared device the wrong person's progress cannot be uploaded silently. Other
+profiles on the same device (for example the second player of a duel) are not
+uploaded, a profile linked to one Google account is never uploaded to a
+different account's Drive, and entries of the Drive file that are not linked to
+the signed-in account are never imported (a file with more than 16 entries is
+refused as invalid). An account has one cloud profile; the contract for the
+account screen is in section 13 of `docs/ARCHITECTURE.md`.
 
 ### Privacy notes
 
@@ -192,7 +198,7 @@ one Google account is never uploaded to a different account's Drive.
   touched. Deleting local data is done from the app's settings.
 * **The owner, switching the feature off**: empty `googleClientId` in `config.js`
   and redeploy. Existing users keep their local progress; the stale hint is
-  ignored and removed on the next sign-out.
+  ignored and removed the first time the app looks at it.
 * **The owner, killing access completely**: delete the OAuth client (or the
   Cloud project) in the console.
 
@@ -227,6 +233,20 @@ one Google account is never uploaded to a different account's Drive.
   app to open it up.
 * **One cloud file per Google account**: switching accounts on a device never
   copies progress from one account into the other.
+* **Shared origin on `*.github.io`.** A GitHub Pages user site serves every
+  project of the account from ONE origin (`https://<user>.github.io`), and
+  browsers isolate storage, service workers and Google OAuth clients by origin,
+  not by path. Any other page hosted under the same `<user>.github.io` can read
+  this app's `localStorage` (`ludus.profiles.v1`, `ludus.p.<id>.v1`,
+  `ludus.auth.v1` with the account's `sub`, name and photo URL) and its
+  IndexedDB cache, share its Cache Storage (the service worker only ever deletes
+  caches whose name starts with `ludus-scaccorum-`), and can call Google Identity
+  with this public client id to get a `drive.appdata` token for the same hidden
+  file, because the authorized JavaScript origin is the whole host, not a path.
+  Neither the code nor the CSP can change that. Only host other projects you
+  trust under that account, or (better, if the progress file matters) serve this
+  app from its own origin: a custom domain, or a dedicated user or organisation
+  Pages site, and register only that origin in the OAuth client.
 
 ---
 
@@ -381,11 +401,17 @@ mantenelos.
 | GitHub Pages | Logs normales de servidor web | Igual que para cualquier visita al sitio. Nada de Drive ni del progreso pasa por ahí. |
 
 Qué perfiles se sincronizan: solo los **vinculados a la cuenta de Google con la
-sesión iniciada**. El perfil activo se vincula solo la primera vez que una cuenta
-inicia sesión en un dispositivo que no tiene ninguno vinculado. Los demás
-perfiles del mismo dispositivo (por ejemplo, el segundo jugador de un duelo) no
-se suben, y un perfil vinculado a una cuenta de Google nunca se sube al Drive de
-otra cuenta.
+sesión iniciada**, en los dos sentidos. Iniciar sesión **no** vincula ni sube nada
+por sí solo: la primera vez que una cuenta inicia sesión en un dispositivo, la app
+pregunta qué perfil local guardar en el Drive (o si se trae el progreso del Drive
+a este dispositivo), así que en un dispositivo compartido no se puede subir en
+silencio el progreso de la persona equivocada. Los demás perfiles del mismo
+dispositivo (por ejemplo, el segundo jugador de un duelo) no se suben, un perfil
+vinculado a una cuenta de Google nunca se sube al Drive de otra cuenta, y las
+entradas del archivo de Drive que no están vinculadas a la cuenta con la sesión
+iniciada nunca se importan (un archivo con más de 16 entradas se rechaza por
+inválido). Una cuenta tiene un solo perfil en la nube; el contrato para la pantalla
+de cuenta está en la sección 13 de `docs/ARCHITECTURE.md`.
 
 ### Notas de privacidad
 
@@ -421,7 +447,7 @@ otra cuenta.
   borran desde los ajustes de la app.
 * **El dueño, para apagar la función**: vaciá `googleClientId` en `config.js` y
   volvé a desplegar. Quien ya usaba la app conserva su progreso local; la pista
-  vieja se ignora y se borra en el próximo cierre de sesión.
+  vieja se ignora y se borra la primera vez que la app la mira.
 * **El dueño, para cortar todo el acceso**: borrá el cliente OAuth (o el proyecto
   de Cloud) en la consola.
 
@@ -460,3 +486,18 @@ otra cuenta.
   (máx. 100); publicá la app para abrirla a todos.
 * **Un archivo en la nube por cuenta de Google**: cambiar de cuenta en un
   dispositivo nunca copia progreso de una cuenta a la otra.
+* **Origen compartido en `*.github.io`.** Un sitio de usuario de GitHub Pages sirve
+  todos los proyectos de la cuenta desde UN solo origen (`https://<usuario>.github.io`),
+  y los navegadores aíslan el almacenamiento, los service workers y los clientes
+  OAuth de Google por origen, no por ruta. Cualquier otra página alojada bajo el
+  mismo `<usuario>.github.io` puede leer el `localStorage` de esta app
+  (`ludus.profiles.v1`, `ludus.p.<id>.v1`, `ludus.auth.v1` con el `sub`, el nombre
+  y la URL de la foto de la cuenta) y su caché de IndexedDB, comparte su Cache
+  Storage (el service worker solo borra cachés cuyo nombre empieza con
+  `ludus-scaccorum-`) y puede llamar a Google Identity con este client id público
+  para obtener un token de `drive.appdata` del mismo archivo oculto, porque el
+  origen de JavaScript autorizado es todo el host, no una ruta. Ni el código ni la
+  CSP pueden cambiarlo. Alojá bajo esa cuenta solo proyectos en los que confíes o
+  (mejor, si el archivo de progreso importa) servila desde su propio origen: un
+  dominio propio o un sitio de Pages de usuario u organización dedicado, y
+  registrá solo ese origen en el cliente OAuth.

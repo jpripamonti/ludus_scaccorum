@@ -633,6 +633,174 @@ test("source PGNs: every file has the standard tags and only movetext", () => {
   });
 });
 
+// ------------------------------------------------ hand-written texts (QA: CNT-006, CNT-017..020, CNT-028)
+
+// Every text of a game: title, blurb and moment notes, in both languages.
+function gameTexts(game) {
+  const out = [];
+  ["es", "en"].forEach((lang) => {
+    out.push({ lang, where: `${game.id} title`, text: game.title[lang] });
+    out.push({ lang, where: `${game.id} blurb`, text: game.blurb[lang] });
+    game.positions.filter((p) => p.note).forEach((p) => out.push({ lang, where: `${game.id} note@${p.ply}`, text: p.note[lang] }));
+  });
+  return out;
+}
+
+const ES_TO_EN = { R: "K", D: "Q", T: "R", A: "B", C: "N" };
+
+// Replays every quoted move of a text from the game's own position at that ply: the quote must be legal, its check
+// and mate marks must be true, and the piece letters must be the ones of the text's language.
+function checkQuotedMoves(game, { lang, where, text }) {
+  const moves = [];
+  Classics.quotedMoveRuns(text).forEach((run) => {
+    assert.ok(run.ply <= game.moves.length, `${where}: move number beyond the game`);
+    const chess = new Chess();
+    for (let i = 0; i < run.ply; i += 1) chess.makeMove(sanToMove(game.moves[i], chess));
+    run.words.forEach((word) => {
+      const written = word.text.replace(/[!?]+$/, "");
+      if (lang === "es") assert.ok(!/^[KQBN]/.test(written) && !/=[KQBN]/.test(written), `${where}: "${word.text}" uses English piece letters in a Spanish text (R D T A C)`);
+      else assert.ok(!/^[DTAC]/.test(written) && !/=[DTAC]/.test(written), `${where}: "${word.text}" uses Spanish piece letters in an English text`);
+      const english = lang === "es" ? written.replace(/^[RDTAC]/, (l) => ES_TO_EN[l]).replace(/=([RDTAC])/, (m, l) => `=${ES_TO_EN[l]}`) : written;
+      const move = sanToMove(english, chess);
+      assert.ok(move, `${where}: the quoted move "${word.text}" is not legal there (${chess.fen()})`);
+      assert.strictEqual(moveToSan(chess, move).replace(/[+#]$/, ""), english.replace(/[+#]$/, ""), `${where}: "${word.text}" is not written the canonical way`);
+      chess.makeMove(move);
+      const check = chess.inCheck(chess.turn);
+      const mate = check && chess.generateMoves().length === 0;
+      if (/#$/.test(word.text.replace(/[!?]+$/, ""))) assert.ok(mate, `${where}: "${word.text}" is marked as mate but is not`);
+      else if (/\+$/.test(written)) assert.ok(check && !mate, `${where}: "${word.text}" is marked as check but ${mate ? "it is mate" : "it is not check"}`);
+      moves.push(english.replace(/[+#]$/, ""));
+    });
+  });
+  return moves;
+}
+
+test("texts: every quoted move replays legally, with the piece letters of its language, and both languages quote the same moves", () => {
+  let quoted = 0;
+  data.games.forEach((g) => {
+    const byWhere = {};
+    gameTexts(g).forEach((item) => {
+      const moves = checkQuotedMoves(g, item);
+      quoted += moves.length;
+      (byWhere[item.where] = byWhere[item.where] || {})[item.lang] = moves;
+    });
+    Object.keys(byWhere).forEach((where) => {
+      assert.deepStrictEqual(byWhere[where].es, byWhere[where].en, `${where}: the Spanish and the English text quote different moves`);
+    });
+  });
+  assert.ok(quoted > 150, `the texts quote many moves (found ${quoted})`);
+  // Quotes without a move number ("...Ne2+, ...Nxd4+") are not replayed, but the letters of a whole text still have to match its language.
+  const loose = (letters) => new RegExp(`(?<![A-Za-z0-9])[${letters}](?:[a-h][1-8]?|[1-8])?x?[a-h][1-8](?:=[QRBNDTAC])?[+#]?(?![A-Za-z0-9])`, "g");
+  data.games.forEach((g) => {
+    gameTexts(g).forEach(({ lang, where, text }) => {
+      const wrong = text.match(lang === "es" ? loose("KQBN") : loose("DTAC"));
+      assert.ok(!wrong, `${where}: ${lang === "es" ? "English" : "Spanish"} piece letters in a ${lang} text: ${wrong}`);
+    });
+  });
+});
+
+test("texts: Spanish notation is unambiguous and Classics.localizeQuotedMoves re-spells quotes for the notation setting", () => {
+  const Chess2 = chessApi;
+  assert.strictEqual(typeof Classics.localizeQuotedMoves, "function");
+  const es = "Sacrificio de caballo: 10.Cxb5 cxb5 11.Axb5+ y luego 17...Dxf3! 18.gxf3 Tg6+; 25.Rd2 gxf1=D+ y 1.b3.";
+  const en = "Knight sacrifice: 10.Nxb5 cxb5 11.Bxb5+ and then 17...Qxf3! 18.gxf3 Rg6+; 25.Kd2 gxf1=Q+ and 1.b3.";
+  if (typeof Chess2.localizeSan === "function") {
+    // auto follows the language of the page; the settings style overrides it
+    assert.strictEqual(Classics.localizeQuotedMoves(es, "es", { lang: "es" }), es);
+    assert.strictEqual(Classics.localizeQuotedMoves(en, "en", { lang: "en" }), en);
+    const esWithEnglishLetters = "Sacrificio de caballo: 10.Nxb5 cxb5 11.Bxb5+ y luego 17...Qxf3! 18.gxf3 Rg6+; 25.Kd2 gxf1=Q+ y 1.b3.";
+    const enWithSpanishLetters = "Knight sacrifice: 10.Cxb5 cxb5 11.Axb5+ and then 17...Dxf3! 18.gxf3 Tg6+; 25.Rd2 gxf1=D+ and 1.b3.";
+    assert.strictEqual(Classics.localizeQuotedMoves(es, "es", { lang: "en" }), esWithEnglishLetters, "a Spanish text on an English page reads in English letters");
+    assert.strictEqual(Classics.localizeQuotedMoves(en, "en", { lang: "es" }), enWithSpanishLetters, "an English text on a Spanish page reads in Spanish letters");
+    assert.strictEqual(Classics.localizeQuotedMoves(es, "es", { lang: "es", style: "english" }), esWithEnglishLetters, "an explicit english style wins over the language");
+    assert.strictEqual(Classics.localizeQuotedMoves(en, "en", { lang: "en", style: "spanish" }), enWithSpanishLetters, "an explicit spanish style wins over the language");
+  }
+  // prose that only looks like moves is left alone: results, dates, years, ordinals
+  ["La partida quedó registrada 1-0 el 17 de agosto de 1895 (2½-2½).", "1.er Congreso y 18.º campeonato, 2021. Fue la 136."].forEach((text) => {
+    assert.deepStrictEqual(Classics.quotedMoveRuns(text), [], text);
+    assert.strictEqual(Classics.localizeQuotedMoves(text, "es", { lang: "en" }), text);
+  });
+  // every Spanish letter maps to a different English one: the quote can always be read back
+  assert.strictEqual(new Set(Object.values(ES_TO_EN)).size, 5);
+});
+
+test("texts: one Spanish spelling per person, and the display tables cover every White, Black and Event tag", () => {
+  const banned = /\b(Kasparov|Karpov|Kramnik|Korchnoi|Saemisch|Jose Raul|Mikhail Kasparov)\b/;
+  data.games.forEach((g) => {
+    gameTexts(g).filter((item) => item.lang === "es").forEach((item) => assert.ok(!banned.test(item.text), `${item.where}: Spanish texts use Kaspárov, Kárpov, Kórchnoi, Sämisch, José Raúl: "${item.text.match(banned)}"`));
+    [g.white, g.black].forEach((raw) => assert.ok(data.names[raw] && data.names[raw].es && data.names[raw].en, `${g.id}: no display name for "${raw}"`));
+    assert.ok(data.events[g.event] && data.events[g.event].es && data.events[g.event].en, `${g.id}: no display form for the event "${g.event}"`);
+  });
+  const usedNames = new Set(data.games.flatMap((g) => [g.white, g.black]));
+  const usedEvents = new Set(data.games.map((g) => g.event));
+  assert.deepStrictEqual(Object.keys(data.names).sort(), [...usedNames].sort(), "names has no unused entries");
+  assert.deepStrictEqual(Object.keys(data.events).sort(), [...usedEvents].sort(), "events has no unused entries");
+  // the forms the Spanish UI shows
+  assert.strictEqual(Classics.displayName("Garry Kasparov", "es"), "Garry Kaspárov");
+  assert.strictEqual(Classics.displayName("Garry Kasparov", "en"), "Garry Kasparov");
+  assert.strictEqual(Classics.displayName("Anatoly Karpov", "es"), "Anatoli Kárpov");
+  assert.strictEqual(Classics.displayName("Jose Raul Capablanca", "es"), "José Raúl Capablanca");
+  assert.strictEqual(Classics.displayName("Jose Raul Capablanca", "en"), "José Raúl Capablanca");
+  assert.strictEqual(Classics.displayEvent("Tal Memorial", "es"), "Memorial Tal");
+  assert.strictEqual(Classics.displayEvent("Casual game", "es"), "Partida amistosa");
+  assert.strictEqual(Classics.displayEvent("Amsterdam", "es"), "Torneo de Ámsterdam");
+  // a person's own games pass through unchanged, and so does prototype-ish input
+  ["magnus_fan_77", "constructor", "__proto__", "", undefined, null].forEach((raw) => {
+    assert.strictEqual(Classics.displayName(raw, "es"), raw === undefined || raw === null ? "" : raw);
+    assert.strictEqual(Classics.displayEvent(raw, "en"), raw === undefined || raw === null ? "" : raw);
+  });
+  // the library list carries the display forms next to the raw tags
+  const item = Classics.list().find((g) => g.id === "karpov-kasparov-1985-g16");
+  assert.deepStrictEqual(item.display.white, { es: "Anatoli Kárpov", en: "Anatoly Karpov" });
+  assert.deepStrictEqual(item.display.black, { es: "Garry Kaspárov", en: "Garry Kasparov" });
+  assert.strictEqual(item.white, "Anatoly Karpov", "the raw tag stays the stable key");
+  // a position's meta keeps the raw strings too (stored notebook cards carry them)
+  const position = Classics.positions("karpov-kasparov-1985-g16", { count: 1, shuffle: false })[0];
+  assert.strictEqual(position.meta.players, "Anatoly Karpov vs Garry Kasparov");
+});
+
+test("texts: dates are never finer than what was confirmed", () => {
+  // day/month precision needs evidence (docs/CLASSICS_DATA.md "Fact-check pass"); everything else is year-only
+  const CONFIRMED = {
+    "immortal-1851": "1851.06.21", "lasker-bauer-1889": "1889.08.26", "steinitz-bardeleben-1895": "1895.08.17",
+    "rotlewi-rubinstein-1907": "1907.12.26", "levitsky-marshall-1912": "1912.07.20", "saemisch-nimzowitsch-1923": "1923.03.??",
+    "botvinnik-capablanca-1938": "1938.11.22", "byrne-fischer-1956": "1956.10.17", "spassky-bronstein-1960": "1960.02.??",
+    "tal-larsen-1965": "1965.08.??", "larsen-spassky-1970": "1970.03.31", "fischer-spassky-1972-g6": "1972.07.23",
+    "karpov-kasparov-1985-g16": "1985.10.15", "short-timman-1991": "1991.10.21", "deepblue-kasparov-1997-g6": "1997.05.11",
+    "kasparov-topalov-1999": "1999.01.20", "aronian-anand-2013": "2013.01.15", "carlsen-nepomniachtchi-2021-g6": "2021.12.03",
+  };
+  data.games.forEach((g) => {
+    const yearOnly = `${g.year}.??.??`;
+    assert.ok(g.date === yearOnly || g.date === CONFIRMED[g.id], `${g.id}: date ${g.date} has no confirmation (add the evidence to its sources and to this list, or make it year-only)`);
+  });
+});
+
+test("texts: claims that were corrected stay corrected (Marshall attack, Kasparov-Topalov rooks, Deep Blue note, Evans and Carlsen hedges)", () => {
+  const game = (id) => data.games.find((g) => g.id === id);
+  // CNT-017: "kept for years" is unproven, so the blurb either says so or does not say it
+  const cm = game("capablanca-marshall-1918");
+  assert.ok(!/guardaba desde hacía años/.test(cm.blurb.es) && /no está probado/.test(cm.blurb.es), "es blurb hedges the 'saved for years' story");
+  assert.ok(!/had kept his new|in reserve for years/.test(cm.blurb.en) && /unproven/.test(cm.blurb.en), "en blurb hedges the 'saved for years' story");
+  // CNT-018: replay the game; only 24.Rxd4 (and later 37.Rd7) gives a rook away, 25.Re7+ and 30.Rxb7 do not
+  const kt = game("kasparov-topalov-1999");
+  const { fens } = replay(kt);
+  const whiteRooksAfter = (ply) => (fens[ply + 1].split(" ")[0].match(/R/g) || []).length; // fens[i + 1] is the position after ply i
+  assert.strictEqual(whiteRooksAfter(47) - whiteRooksAfter(46), -1, "24...cxd4 captures the rook of 24.Rxd4");
+  assert.strictEqual(whiteRooksAfter(49), whiteRooksAfter(47), "25.Re7+ Kb6 does not lose a rook");
+  assert.strictEqual(whiteRooksAfter(59), whiteRooksAfter(57), "30.Rxb7 Qc4 does not lose a rook");
+  gameTexts(kt).forEach((item) => assert.ok(!/(segundo|tercer) sacrificio de torre|tres sacrificios de torre|(second|third) rook sacrifice|three rook sacrifices/i.test(item.text), `${item.where}: counts rook sacrifices the board does not show`));
+  // CNT-020: the Deep Blue note says the same in both languages
+  const db = game("deepblue-kasparov-1997-g6").positions.find((p) => p.note);
+  assert.ok(/enrocar/.test(db.note.es) && /castle/.test(db.note.en), "both notes say Black can no longer castle");
+  assert.ok(!/tears apart/.test(db.note.en), "the English note no longer says more than the Spanish one");
+  // CNT-019: superlatives that can go stale or were unsourced
+  assert.ok(/hasta ahora/.test(game("carlsen-nepomniachtchi-2021-g6").blurb.es) && /so far/.test(game("carlsen-nepomniachtchi-2021-g6").blurb.en), "the longest-game claim is hedged");
+  assert.ok(!/casi ausente|almost absent/.test(game("kasparov-anand-1995-riga").blurb.es + game("kasparov-anand-1995-riga").blurb.en), "the 'absent for a century' claim is gone");
+  assert.ok(!/antologad|anthologised/.test(game("polugaevsky-nezhmetdinov-1958").blurb.es + game("polugaevsky-nezhmetdinov-1958").blurb.en), "the unsourced 'most anthologised' claim is gone");
+  // the Réti game is a casual game (Tartakower called it a Freipartie), not a tournament called "Vienna"
+  assert.strictEqual(game("reti-tartakower-1910").event, "Casual game");
+});
+
 // ---------------------------------------------------------------- runner
 
 (async () => {

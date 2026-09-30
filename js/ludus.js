@@ -214,8 +214,21 @@
     return SUPPORTED_LANGUAGES.includes(lower) ? lower : DEFAULT_LANGUAGE;
   }
 
-  // Mirrors app.js detectInitialLanguage(): a stored choice wins, otherwise
-  // English when the browser prefers it, otherwise Spanish.
+  // The language a browser asks for: the first Spanish or English entry of its
+  // preference list wins, and anything else (French, German, Portuguese...) gets
+  // English, the language a stranger is most likely to read. Only a browser that
+  // really asks for Spanish gets Spanish. Mirrored by app.js detectInitialLanguage().
+  function languageFromBrowserList(list) {
+    const languages = Array.isArray(list) ? list : [];
+    for (let i = 0; i < languages.length; i += 1) {
+      const code = String(languages[i] || "").toLowerCase();
+      if (code === "es" || code.startsWith("es-") || code.startsWith("es_")) return "es";
+      if (code === "en" || code.startsWith("en-") || code.startsWith("en_")) return "en";
+    }
+    return "en";
+  }
+
+  // A stored choice wins, otherwise the browser's preference (see above).
   function detectInitialLanguage() {
     try {
       const storage = getLocalStorage();
@@ -226,11 +239,9 @@
     }
     try {
       const nav = root.navigator || (root.window && root.window.navigator) || {};
-      const languages = Array.isArray(nav.languages) && nav.languages.length ? nav.languages : [nav.language];
-      const prefersEnglish = languages.some((entry) => String(entry || "").toLowerCase().startsWith("en"));
-      return prefersEnglish ? "en" : "es";
+      return languageFromBrowserList(Array.isArray(nav.languages) && nav.languages.length ? nav.languages : [nav.language]);
     } catch (error) {
-      return DEFAULT_LANGUAGE;
+      return "en";
     }
   }
 

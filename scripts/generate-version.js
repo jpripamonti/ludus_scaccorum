@@ -1,10 +1,18 @@
-// Derives one content hash from every code file the site ships (app.js,
-// styles.css, config.js, everything under js/ and css/) plus the precache
-// list, and stamps it into:
-//   - index.html: the ?v= query of every local <script src> and stylesheet
-//     <link>, and <meta name="ludus-version"> (read at runtime as Ludus.version,
-//     which js/ludus.js appends to lazily loaded scripts);
-//   - sw.js: CACHE_NAME and the CORE_ASSETS precache list.
+// Derives one content hash from EVERYTHING the deployed app loads and stamps it
+// into the files that have to agree about it:
+//
+//   hashed: app.js, styles.css, config.js, manifest.json, everything under js/,
+//           css/, assets/ and vendor/ (documentation inside them - *.md, *.txt,
+//           SHA256SUMS - does not count), index.html with its own stamps
+//           normalised away, sw.js with its generated constants normalised away,
+//           and the precache list. A change to any of them, the CSP meta tag and
+//           the engine included, is a new version.
+//   stamped into:
+//     - index.html: the ?v= query of every local <script src> and stylesheet
+//       <link>, and <meta name="ludus-version"> (read at runtime as Ludus.version,
+//       which js/ludus.js appends to lazily loaded scripts);
+//     - sw.js: CACHE_NAME, CORE_ASSETS and the engine block (ENGINE_CACHE,
+//       ENGINE_FILES).
 //
 // This replaces the hand-bumped "?v=maestroNNN" scheme: a content change now
 // changes the hash automatically, so it is no longer possible to ship an
@@ -12,13 +20,17 @@
 // See scripts/smoke-check.js for the check that fails the build on drift.
 //
 // The precache list is derived, not hand-edited: every local script and
-// stylesheet that index.html loads is precached (versioned); the static
-// entries already in sw.js (icons, images, manifest, "./", "./index.html")
-// are kept as they are. The engine (vendor/), lazily loaded data
-// (js/data/*.js) and anything else index.html does not load are deliberately
-// NOT precached; the service worker caches them the first time they are used.
+// stylesheet that index.html loads and every lazily loaded data script
+// (js/data/*.js, the Classics library) is precached (versioned); the static
+// entries already in sw.js (icons, images, manifest, "./", "./index.html") are
+// kept as they are. The engine (vendor/, 7.3 MB, only needed once somebody
+// plays) is deliberately NOT precached: the service worker stores it the first
+// time it is used, in its OWN cache named after the SHA-256 of the engine files
+// (ENGINE_CACHE), which survives deploys that do not touch the engine, and only
+// serves bytes whose SHA-256 is listed in ENGINE_FILES.
 //
-// Usage: node scripts/generate-version.js  (rewrites index.html and sw.js)
+// Usage: node scripts/generate-version.js  (rewrites index.html and sw.js;
+// running it again changes nothing)
 // `computeVersionInfo()` and the pure helpers below are also required by
 // smoke-check.js to verify the checked-in files without rewriting anything.
 
@@ -31,9 +43,20 @@ const path = require("path");
 const root = path.resolve(__dirname, "..");
 const HASH_LENGTH = 12;
 const CACHE_PREFIX = "ludus-scaccorum-static-";
-// Top-level files and directories whose content is part of the version.
-const HASHED_FILES = ["app.js", "styles.css", "config.js"];
-const HASHED_DIRS = ["js", "css"];
+const ENGINE_CACHE_PREFIX = "ludus-scaccorum-engine-";
+// Top-level files and directories whose content is part of the version
+// (index.html and sw.js are hashed too, see normalizedIndexHtml / normalizedServiceWorker).
+const HASHED_FILES = ["app.js", "styles.css", "config.js", "manifest.json"];
+const HASHED_DIRS = ["js", "css", "assets", "vendor"];
+// Files inside those directories that are documentation, not something the app
+// loads: editing them must not make every installed copy download the app again.
+const DOC_FILE = /(?:\.(?:md|txt)|(?:^|\/)SHA256SUMS)$/i;
+// The engine: what sw.js serves from ENGINE_CACHE (workers and WebAssembly).
+const ENGINE_DIR = "vendor";
+const ENGINE_FILE = /\.(?:js|wasm)$/i;
+// Lazily loaded data scripts (Ludus.util.loadScript): precached so they are
+// there offline from the first visit and versioned with the app.
+const LAZY_DATA_DIR = "js/data";
 
 function readFile(rel) {
   return fs.readFileSync(path.join(root, rel));
@@ -75,11 +98,35 @@ function listFilesUnder(dir) {
   return found;
 }
 
-// The files whose content defines the version, sorted by path.
+// The files whose content defines the version, sorted by path. index.html and
+// sw.js are included by computeVersionInfo() through their normalised forms.
 function hashedFiles() {
   const files = HASHED_FILES.filter((rel) => fs.existsSync(path.join(root, rel)));
-  HASHED_DIRS.forEach((dir) => files.push(...listFilesUnder(dir)));
+  HASHED_DIRS.forEach((dir) => files.push(...listFilesUnder(dir).filter((rel) => !DOC_FILE.test(rel))));
   return files.sort();
+}
+
+// The engine files and their SHA-256, sorted by path: { "vendor/x.js": "<hex>" }.
+function engineFiles() {
+  const out = {};
+  listFilesUnder(ENGINE_DIR)
+    .filter((rel) => ENGINE_FILE.test(rel))
+    .sort()
+    .forEach((rel) => {
+      out[rel] = crypto.createHash("sha256").update(readFile(rel)).digest("hex");
+    });
+  return out;
+}
+
+// Short id of the engine: same files, same id, whatever else was deployed.
+function engineId(files) {
+  const lines = Object.keys(files).sort().map((rel) => `${rel} ${files[rel]}\n`).join("");
+  return crypto.createHash("sha256").update(lines).digest("hex").slice(0, HASH_LENGTH);
+}
+
+// The lazily loaded data scripts as canonical precache entries.
+function lazyDataAssets() {
+  return listFilesUnder(LAZY_DATA_DIR).filter((rel) => rel.endsWith(".js")).sort().map((rel) => `./${rel}`);
 }
 
 // ---- index.html helpers (pure: they take and return strings) ----
@@ -162,7 +209,25 @@ function buildCanonicalAssets(rawAssets, html) {
   const staticAssets = rawAssets.map(stripVersion).filter((asset) => !isVersionedAsset(asset));
   const head = staticAssets.filter((asset) => asset === "./" || asset === "./index.html");
   const tail = staticAssets.filter((asset) => asset !== "./" && asset !== "./index.html");
-  return [...head, ...htmlCodeAssets(html), ...tail];
+  const scripts = htmlCodeAssets(html);
+  const lazy = lazyDataAssets().filter((asset) => !scripts.includes(asset));
+  return [...head, ...scripts, ...lazy, ...tail];
+}
+
+// index.html with its own stamps (?v=..., the ludus-version meta) blanked: the
+// version must not depend on itself, but anything else in the page (the CSP, the
+// markup, the preload hints) is part of it.
+function normalizedIndexHtml(html) {
+  return stampIndexHtml(html, "");
+}
+
+// sw.js with the constants generate-version writes blanked, for the same reason.
+function normalizedServiceWorker(swSource) {
+  return String(swSource)
+    .replace(/const CACHE_NAME = "[^"]*";/, 'const CACHE_NAME = "";')
+    .replace(/const ENGINE_CACHE = "[^"]*";/, 'const ENGINE_CACHE = "";')
+    .replace(/const ENGINE_FILES = \{[\s\S]*?\};/, "const ENGINE_FILES = {};")
+    .replace(/const CORE_ASSETS = \[[\s\S]*?\];/, "const CORE_ASSETS = [];");
 }
 
 function computeVersionInfo() {
@@ -179,8 +244,15 @@ function computeVersionInfo() {
     hash.update(readFile(rel));
     hash.update("\n");
   }
+  hash.update("file:index.html (normalised)\n");
+  hash.update(normalizedIndexHtml(html));
+  hash.update("\nfile:sw.js (normalised)\n");
+  hash.update(normalizedServiceWorker(swSource));
+  hash.update("\n");
   hash.update(JSON.stringify(canonicalAssets));
   const versionHash = hash.digest("hex").slice(0, HASH_LENGTH);
+  const engine = engineFiles();
+  const engineCacheName = `${ENGINE_CACHE_PREFIX}${engineId(engine)}`;
 
   const versionedAssets = canonicalAssets.map((assetPath) =>
     isVersionedAsset(assetPath) ? `${assetPath}?v=${versionHash}` : assetPath,
@@ -189,6 +261,8 @@ function computeVersionInfo() {
   return {
     versionHash,
     cacheName: `${CACHE_PREFIX}${versionHash}`,
+    engineCacheName,
+    engineFiles: engine,
     hashedFiles: files,
     canonicalAssets,
     rawAssets,
@@ -198,11 +272,19 @@ function computeVersionInfo() {
   };
 }
 
+function engineBlock(files) {
+  const lines = Object.keys(files).sort().map((rel) => `  "${rel}": "${files[rel]}",`).join("\n");
+  return `const ENGINE_FILES = {\n${lines}\n};`;
+}
+
 function stampServiceWorker(swSource, info) {
   const assetsBlock = info.versionedAssets.map((a) => `  "${a}",`).join("\n");
+  // Replacer functions, not strings: "$" sequences in the text must stay literal.
   return swSource
-    .replace(/const CACHE_NAME = "[^"]*";/, `const CACHE_NAME = "${info.cacheName}";`)
-    .replace(/const CORE_ASSETS = \[[\s\S]*?\];/, `const CORE_ASSETS = [\n${assetsBlock}\n];`);
+    .replace(/const CACHE_NAME = "[^"]*";/, () => `const CACHE_NAME = "${info.cacheName}";`)
+    .replace(/const ENGINE_CACHE = "[^"]*";/, () => `const ENGINE_CACHE = "${info.engineCacheName}";`)
+    .replace(/const ENGINE_FILES = \{[\s\S]*?\};/, () => engineBlock(info.engineFiles))
+    .replace(/const CORE_ASSETS = \[[\s\S]*?\];/, () => `const CORE_ASSETS = [\n${assetsBlock}\n];`);
 }
 
 function main() {
@@ -215,6 +297,7 @@ function main() {
 
   console.log(`generate-version: content hash ${info.versionHash} (${info.hashedFiles.length} files hashed)`);
   console.log(`  sw.js CACHE_NAME -> ${info.cacheName}`);
+  console.log(`  sw.js ENGINE_CACHE -> ${info.engineCacheName} (${Object.keys(info.engineFiles).length} engine files)`);
   console.log(`  sw.js CORE_ASSETS -> ${info.versionedAssets.length} entries`);
   console.log(`  index.html: ${localAssetTags(info.html).length} script/stylesheet tags and <meta name="ludus-version"> -> ${info.versionHash}`);
 }
@@ -223,6 +306,11 @@ module.exports = {
   computeVersionInfo,
   isVersionedAsset,
   hashedFiles,
+  engineFiles,
+  engineId,
+  lazyDataAssets,
+  normalizedIndexHtml,
+  normalizedServiceWorker,
   localAssetTags,
   htmlCodeAssets,
   stampIndexHtml,
@@ -230,6 +318,9 @@ module.exports = {
   ludusVersionMeta,
   HASH_LENGTH,
   CACHE_PREFIX,
+  ENGINE_CACHE_PREFIX,
+  HASHED_FILES,
+  HASHED_DIRS,
 };
 
 if (require.main === module) main();

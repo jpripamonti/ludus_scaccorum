@@ -134,14 +134,27 @@ model. Table 3 gives the boundaries.
 | --- | --- | --- |
 | `brilliant` | best (or equivalent) **and** the caller says it is a sacrifice | `perfect` |
 | `great` | best (or equivalent) **and** the only move (section 7) | `perfect` |
-| `perfect` | best or equivalent (inside the band) | `perfect` |
+| `perfect` | `E` up to 0.06: best or equivalent (inside the band), and any move that still scores 10.0 | `perfect` |
 | `very_good` | `E` up to 2 | `very_good` |
 | `good` | `E` up to 4.5 | `good` |
 | `interesting` | `E` up to 8 | `interesting` |
 | `dubious` | `E` up to 12 | `dubious` |
 | `bad` | `E` up to 19 | `bad` |
-| `blunder` | above 19, or a mate blunder (section 6) | `blunder` |
+| `blunder` | above 19, or allowing a mate (section 6) | `blunder` |
 | `no_move` | no move, timeout or skip | `no_move` |
+
+**The words.** The codes are stable ids (profiles store them, the CSS and the
+glyph table are keyed by them); what the person reads is one ladder, defined only
+here (`Scoring.qualityLabel`) and used by the coach, the progress screen, the
+summary and the notebook: *Perfect / Very good / Good / Inaccuracy / Dubious /
+Mistake / Serious mistake* (es: *Perfecta / Muy buena / Buena / Imprecisa / Dudosa
+/ Error / Error grave*), plus *Brilliant*, *Great move* and *No move*. The code
+`interesting` therefore reads "Inaccuracy" (it covers roughly a 60 to 100 cp loss,
+and "interesting" is a positive word for a clear loss) and `bad` reads "Mistake".
+A move that scores 10.0 is always *Perfect* (the label threshold is the loss that
+still rounds to 10.0, `PERFECT_E = 0.06`, so a 1.01 % loss no longer scores 10.0 and
+reads "Very good"). A hint never changes the label (section 8), so a perfect move
+played with a level-1 hint is *Perfect* at 8.5 points.
 
 `brilliant` and `great` are only awarded when **no hint was used**: a move you
 were pointed to is not brilliant. `qualityMeta(code)` gives `{ order, colorToken,
@@ -158,22 +171,35 @@ centipawns is a mate worth" has no good answer.
 
 * **Allowing a mate** (your move leads to `mate <= 0` for you while the best
   line is not itself mated): `qualityCode: "blunder"`, `reason: "allows_mate"`,
-  `cpLoss: 2500`.
+  `cpLoss: 2500`, accuracy capped at 10, so points never exceed **1.0**,
+  whatever the strictness (in the tiers model they score 0).
 * **Missing a forced mate** (the best line mates for you and your move does not
-  mate): `"blunder"`, `reason: "missed_mate"`, `cpLoss: 1200 + 40 *
-  min(mateIn, 20)` (the legacy convention).
-* In both cases accuracy is capped at 10, so points never exceed **1.0**,
-  whatever the strictness. This is a deliberate second plateau: if you missed a
-  mate but stayed at +9.5, the win% loss is small, and the cap is what keeps the
-  verdict aligned with the product rule "a missed mate is a blunder". Below the
-  cap the usual curve still orders results (leaving the mate for a lost position
-  scores less than leaving it for a winning one). In the tiers model they score 0.
+  mate): `reason: "missed_mate"`, `isBest: false`, `cpLoss: 1200 + 40 *
+  min(mateIn, 20)` (the legacy convention). The win% curve saturates at +-10
+  pawns, so a move that keeps +9.5 gives up almost nothing next to a mate; the
+  miss itself therefore costs a fixed amount of effective loss on top of the win%
+  the move gave up: `E = k * (excess + 8)` when the mate was in one or two,
+  `k * (excess + 6)` for a longer one (`MISSED_MATE_E_SHORT`, `MISSED_MATE_E_LONG`).
+  A clean miss that keeps the win is an *Inaccuracy* (mate in 3 or more, about 5 to
+  6 points) or *Dubious* (mate in one or two, about 4 to 5); the more of the win
+  the move throws away the further down the ladder it goes (Table 4), and it is a
+  *Serious mistake* only when the move leaves clearly less than the win (under about
+  +5.00 against a mate in two, under +4.90 against a longer one). Points stay
+  monotone in the advantage kept. The
+  assessment says whether the move is still winning (`keptWin`, win% of at least
+  75, about +3.00), and `Scoring.reasonLabel(reason, lang, assessment)` uses it
+  to say "...although your move is still winning" instead of sounding like a lost
+  game; called without the assessment it gives the plain sentence, which is true
+  in both cases. (Before, every missed mate scored at most 1.0 whatever was kept:
+  a 1.0 for +9.5 against mate in six, while a move one move slower than the best
+  mate cost 0.6 points.)
 * **A slower mate that still mates** is a small deduction, not a blunder:
   `E = k * min(6, 0.75 * extraMoves)` on top of any centipawn excess, `reason:
   "ok"`, `isBest: false`, `mateExtraMoves` set. With the defaults one move
   slower costs about 0.6 points and the deduction never goes below "interesting"
   (about 5.8 points, Table 4). The same rule applies to a defender who gets mated sooner
-  than necessary when every move loses to mate.
+  than necessary when every move loses to mate. The coach says it ("your move
+  also leads to a forced mate, but X gets there sooner").
 * A mate that is faster than the reference, or a mate when the reference is not
   one, is simply better than the best: loss 0, full marks.
 
@@ -186,11 +212,15 @@ See Table 4 for concrete numbers.
   best (two different mates in 1 are equally best). In `"masters"` mode the
   master's move counts within 3 %.
 * `rank`: 1-based index of the move in `lines`, or `null`.
-* `onlyMove`: the best line beats the best *other* line by at least **12 win%**
-  (needs 2 or more lines; `gapToSecondPct` is `null` with one line). Extension
-  over the contract: finding the only mating move counts as an only move even if
-  the runner-up is also "winning" on paper (best is a mate for the mover, the
-  runner-up is not).
+* `onlyMove`: the best line beats the best *other* line by at least **12 win%**,
+  i.e. **every other listed line gives up at least 12 % of the win chance** (needs
+  2 or more lines; `gapToSecondPct` is `null` with one line). It means "the
+  alternatives are clearly worse", **not** "the only move that keeps the
+  advantage": the runner-up may still be winning (best +5.00, runner-up +2.00 is an
+  18 % gap). The old extension that counted the only *mating* move as an only move
+  whatever the runner-up was is gone: a runner-up that keeps +9 is not materially
+  worse, and three of the 29 "great" answers of the content audit had a runner-up
+  at +3.00 or better.
 * `great` = best and `onlyMove`; `brilliant` = best and
   `options.isSacrifice === true` (the caller decides what a sacrifice is; the
   scorer does not look at the board). Neither is granted after using a hint.
@@ -284,7 +314,7 @@ Each cell: `win% loss -> points (label)`. Best move worth the evaluation in the 
 
 | label | E up to | win% loss up to | about cp loss (from 0.00) | points at the boundary | tiers-model points |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| perfect | 0 | 1.0 | 10 | 10.0 | 10 |
+| perfect | 0.06 | 1.06 | 10 | 10.0 | 10 |
 | very_good | 2 | 3.0 | 35 | 8.5 | 7.5 |
 | good | 4.5 | 5.5 | 60 | 6.9 | 5 |
 | interesting | 8 | 9.0 | 100 | 5.2 | 2.5 |
@@ -303,8 +333,12 @@ Each cell: `win% loss -> points (label)`. Best move worth the evaluation in the 
 | best is mate in 2, you mate in 6 | 7.8 | good | ok |
 | best is mate in 2, you mate in 10 | 5.8 | interesting | ok |
 | best is mate in 2, you mate in 30 | 5.8 | interesting | ok |
-| best is mate in 2, you play +3.00 (missed mate) | 1.0 | blunder | missed_mate |
-| best is mate in 2, you play +9.50 (missed mate) | 1.0 | blunder | missed_mate |
+| best is mate in 2, you play +9.50 (missed mate, still winning) | 4.5 | dubious | missed_mate |
+| best is mate in 2, you play +5.00 (missed mate, still winning) | 1.7 | blunder | missed_mate |
+| best is mate in 2, you play +3.00 (missed mate) | 0.5 | blunder | missed_mate |
+| best is mate in 6, you play +9.50 (missed mate, still winning) | 5.4 | interesting | missed_mate |
+| best is mate in 6, you play +5.00 (missed mate, still winning) | 2.1 | bad | missed_mate |
+| best is mate in 6, you play +1.00 (the win is gone) | 0.0 | blunder | missed_mate |
 | best is +0.50, you play a move that gets mated in 2 | 0.0 | blunder | allows_mate |
 | every move is mated: best is -M5, you allow -M2 | 8.3 | good | ok |
 
@@ -376,11 +410,63 @@ from Table 1 (the tests assert the target ranges, not the exact quoted digits).
 ## 15. Known limitations
 
 * The score model knows nothing about the board: `brilliant` depends entirely on
-  the caller's `isSacrifice`, and "only move" is measured on the MultiPV lines it
-  is given (with `multiPv: 1` there is no only move).
+  the caller's `isSacrifice` (from `Insights.moveFeatures(fen, uci, { lines })`: the
+  material settled along the engine's line, section 16), and "only move" is
+  measured on the MultiPV lines it is given (with `multiPv: 1` there is no only
+  move).
 * Lines of different depths are compared as if equally reliable (for example a
-  fresh `searchMoves` line against the MultiPV lines). At the movetimes the app
-  uses the difference is a few centipawns, well inside the 1 % band.
+  fresh `searchMoves` line against the MultiPV lines). Measured on the 28 classic
+  games (132 answers called mistakes of 3 to 8 win%), two independent 1.5 s
+  searches of the same move differ by **1.9 win% on average** (up to 7.6): 10 % of
+  those "mistakes" were under 2 % in a second search, and 15 % of the old "solid
+  alternative" claims (under 3 % lost) were more than 3.5 % behind the best in the
+  second search. The *points* and the label ladder are thresholds on the measured
+  loss and say nothing about equivalence; the coach's sentences that do claim it
+  carry a margin (section 16).
 * Mate distances beyond 50 moves are indistinguishable (`mate 60` = `mate 50`).
 * With a win% clamp at +-10.00 pawns, moves that are all "completely winning"
   are equal to the scorer even if their centipawn values differ.
+
+## 16. What the coach may say (`js/insights.js`)
+
+The sentences under the verdict are generated from the same assessment, and the
+choices that depend on these numbers live here so that one document explains them.
+
+* **Verdict and noise.** `Insights` calls a move *equivalent* ("a solid alternative,
+  nearly as good") only below **1.5 win%** lost (or when the assessment says it is
+  inside the configured band), *close* from 1.5 to 3 ("the gap is small, about the
+  size of the engine's margin of error") and starts explaining what went wrong from
+  3. On the audit corpus 8 % of the claims below 1.5 % were more than 3.5 % worse in
+  a second search (15 % below 3 %). A forced mate that was missed or allowed is never
+  equivalent or close, whatever the win% says, and a slower mate is told as such.
+* **Evidence.** A sentence that says a move wins or loses material is only written
+  when the material along the engine's line agrees. The line (the `pv` of the
+  reference lines, or the line of the restricted search of the user's move, passed as
+  `userPv`) is played on the board and, after every ply, the captures that are hanging
+  at that moment are settled with a legal-move quiescence search; the result is the
+  mover's material change in pawn units. A line *wins material* when it ends 1.5 units
+  up (1 for a plain capture) or in checkmate, and *loses material* when it ends 2
+  down. Forks, pins, skewers, discovered attacks and "a check worth looking at" are
+  only named when the best line wins material or mates after them; a capture is only
+  called winning when the material settled right after it and at the end of the line
+  agree; without a line of three plies only captures can be confirmed.
+* **Sacrifice** (`Insights.moveFeatures(fen, uci, { lines }).sacrifice`, what `brilliant`
+  needs): the settled material of the move's line falls at least 2 units below the
+  start at some ply from the opponent's reply on, within six plies. The old rule
+  (what the opponent wins on the destination square) was false for about a third of
+  the moves that carried the tag and missed queen offers and exchange sacrifices.
+* **Mate lengths.** "In N moves or fewer" (never "in N"): the engine may have found a
+  shorter mate later, never a longer one. Up to 8 for a mate the learner missed and up
+  to 6 for one they allowed (the claims above that length were not reproducible); beyond
+  that the sentence says "a forced mate" / "a decisive attack" without a number.
+* **When nothing is found.** The generic sentence says "we could not find a simple
+  reason: it may be positional or a deeper tactic"; when the move lost 8 win% or more it
+  says the best move "was clearly better" and never offers "it may be positional" as a
+  comfort. At most three messages (two when a mate explains the answer), one tactical
+  explanation of the best move, no "solid" next to a mistake.
+* **Notation.** Moves are stored and compared in English SAN (`Nf3`). What the person
+  reads goes through `Ludus.chess.localizeSan(san, lang)`: Spanish letters
+  (R rey, D dama, T torre, A alfil, C caballo, promotions `=D`; castling, pawn moves,
+  captures and checks unchanged) when the setting `notation.style` is `spanish`, or
+  `auto` (the default) and the language is Spanish; English letters otherwise.
+  `Ludus.chess.spokenSan(san, lang)` gives the same move in words for a screen reader.

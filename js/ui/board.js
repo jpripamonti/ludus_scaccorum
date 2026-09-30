@@ -1319,9 +1319,32 @@
     }
 
     build(S.orientation);
-    // The pieces are the first thing a person waits for: start fetching the twelve SVGs now.
+    // The pieces are the first thing a person waits for once a board shows, but the view is created at boot, long
+    // before any board is on screen: the landing has none, and fetching the twelve SVGs there only competes with the
+    // hero and the scripts. So they are warmed (when the browser is idle) the first time the router leaves the landing,
+    // or at once when there is no router to ask. A service-worker precache also holds them for returning visitors.
     try {
-      if (typeof win.Image === "function") "PNBRQKpnbrqk".split("").forEach((p) => { new win.Image().src = pieceUrl(p); });
+      if (typeof win.Image === "function") {
+        let warmed = false;
+        const warm = () => {
+          if (warmed) return;
+          warmed = true;
+          const fetchAll = () => "PNBRQKpnbrqk".split("").forEach((p) => { new win.Image().src = pieceUrl(p); });
+          if (typeof win.requestIdleCallback === "function") win.requestIdleCallback(fetchAll, { timeout: 3000 });
+          else fetchAll();
+        };
+        const router = L().router;
+        const current = router && typeof router.current === "function" ? router.current() : null;
+        if (current && current !== "landing") warm();
+        else if (bus && typeof bus.on === "function" && router) {
+          const off = bus.on("screen:changed", (payload) => {
+            if (payload && payload.id && payload.id !== "landing") {
+              warm();
+              if (typeof off === "function") off();
+            }
+          });
+        } else warm();
+      }
     } catch (error) {
       // preloading is an optimisation
     }

@@ -292,7 +292,7 @@ const CTRL = String.fromCharCode(0, 7, 27);
 
   Ludus.i18n.setLanguage("es", { persist: false });
   const spanish = make().p.ensureActive();
-  eq(spanish.name, "Jugador", "the default name follows the language");
+  eq(spanish.name, "Participante", "the default name follows the language");
   Ludus.i18n.setLanguage("en", { persist: false });
 }
 
@@ -307,10 +307,17 @@ const CTRL = String.fromCharCode(0, 7, 27);
   eq(rb.profileId, b.id);
   eq(p.stats(a.id).totalPositions, 1);
   eq(p.stats(b.id).totalPositions, 1);
+  // COR-009: a NAMED profile that does not exist (deleted in another tab) is not
+  // redirected to whoever is active, and no fresh "Player" is created for it.
   const stray = p.recordRound(rr(3, { profileId: "gone" }));
-  eq(stray.profileId, a.id, "an unknown profileId falls back to the active profile");
+  eq(stray, false, "an unknown profileId is refused");
+  eq(p.lastError(), "unknown-profile");
+  eq(p.stats(a.id).totalPositions, 1, "nothing was credited to the active profile");
+  eq(p.list().length, 2, "and no profile was created for it");
   const viaNull = p.recordRound(rr(4, { profileId: null }));
   eq(viaNull.profileId, a.id, "a null profileId means the active profile");
+  const viaMissing = p.recordRound(rr(5));
+  eq(viaMissing.profileId, a.id, "an omitted profileId means the active profile");
   eq(p.stats(a.id).totalPositions, 3);
   eq(p.rounds(b.id).length, 1);
   eq(p.rounds("nope").length, 0);
@@ -1196,7 +1203,7 @@ const CTRL = String.fromCharCode(0, 7, 27);
   eq(p.recordRound(rr(3)), false, "a full storage refuses the round");
   eq(p.lastError(), "storage");
   eq(storage.snapshot(), before, "and nothing already stored is touched");
-  eq(events.length, eventCount, "no event announces a change that did not happen");
+  eq(events.filter((entry) => entry.evt !== "storage:failed").length, eventCount, "no event announces a change that did not happen (only the storage warning is sent)");
   same(p.rounds().map((round) => round.id), ["r2", "r1"], "memory rolled back with the store");
   eq(p.stats().totalPositions, 2);
   eq(p.notebook.grade(cardId, 90, T0), false, "grading fails the same way");
@@ -1414,6 +1421,229 @@ const CTRL = String.fromCharCode(0, 7, 27);
   ok(storage.map.has("ludus.p.bad key.v1") && storage.map.has("ludus.settings.v2"), "and only those");
   eq(p.wipe("nope"), false);
   eq(p.active(), null);
+}
+
+// ---------- Hints, skips, unknown profiles and storage health (COR-002, COR-004, COR-009, COR-010) ----------
+
+{
+  // COR-002: a review that used ANY hint is not a pass.
+  const { p, clock } = make();
+  p.recordRound(bad(1, { ts: clock.now() }));
+  const id = p.notebook.list()[0].id;
+  // Put the card in box 2 with a first unaided pass and one more.
+  ok(p.notebook.grade(id, 90, T0).passed, "an unaided pass advances the card");
+  eq(p.notebook.get(id).box, 1);
+  const hinted = p.notebook.grade(id, 100, T0 + 1000, { hintsUsed: 1 });
+  eq(hinted.passed, false, "a level 1 hint (the piece is marked) is not a pass");
+  eq(hinted.box, 1, "the card goes back to box 1");
+  const hinted2 = p.notebook.grade(id, 100, T0 + 2000, { hintsUsed: 2 });
+  eq(hinted2.passed, false, "a level 2 hint (both squares are shown) is not a pass either");
+  eq(hinted2.newlyCleared, false);
+  const revealed = p.notebook.grade(id, 100, T0 + 3000, { hintsUsed: 3 });
+  eq(revealed.passed, false, "a revealed answer still is not");
+  const unaided = p.notebook.grade(id, 100, T0 + 4000, { hintsUsed: 0 });
+  eq(unaided.passed, true);
+  eq(unaided.box, 2, "and an unaided pass moves up one box");
+}
+
+{
+  // The same rule through recordRound (a review session records a round of source "notebook").
+  const { p, clock } = make();
+  p.recordRound(bad(1, { ts: clock.now() }));
+  const card = p.notebook.list()[0];
+  clock.advance(86400000 * 2);
+  const hintedReview = p.recordRound(rr(2, { fen: card.fen, source: "notebook", accuracy: 100, points: 6.5, qualityCode: "perfect", isBest: true, hintsUsed: 2, ts: clock.now() }));
+  eq(hintedReview.card.passed, false, "a review answered with a level 2 hint does not pass");
+  eq(hintedReview.card.newlyCleared, false);
+  eq(p.notebook.get(card.id).box, 1, "the card is back in box 1");
+  eq(p.notebook.counts().cleared, 0, "nothing was cleared with the answer shown");
+  ok(!p.achievements.unlocked().some((entry) => entry.id === "first_card_cleared"), "'Mistake overcome' needs an unaided pass");
+  clock.advance(86400000 * 2);
+  const clean = p.recordRound(rr(3, { fen: card.fen, source: "notebook", accuracy: 100, points: 10, qualityCode: "perfect", isBest: true, hintsUsed: 0, ts: clock.now() }));
+  eq(clean.card.passed, true, "the same review without hints passes");
+  eq(clean.card.box, 2);
+}
+
+{
+  // Achievements that say "you found it" need hintsUsed === 0; quick draw / sharp eye already did.
+  const ids = (q) => q.achievements.unlocked().map((entry) => entry.id).sort();
+  const strong = { qualityCode: "perfect", accuracy: 100, points: 6.5, isBest: true, onlyMove: true, lines: [{ uci: "d2d4", san: "d4", score: 60000, pv: ["d2d4"] }] };
+  let { p } = make();
+  p.recordRound(rr(1, Object.assign({ hintsUsed: 2 }, strong)));
+  same(ids(p), ["first_round"], "a level 2 hint unlocks neither Perfect move, Only move nor Mate in sight");
+  p.recordRound(rr(2, Object.assign({ hintsUsed: 1 }, strong)));
+  same(ids(p), ["first_round"], "nor does a level 1 hint");
+  const progress = p.achievements.progress();
+  eq(progress.first_perfect.current, 0);
+  eq(progress.only_move.current, 0);
+  eq(progress.mate_found.current, 0);
+  p.recordRound(rr(3, Object.assign({ hintsUsed: 0 }, strong)));
+  same(ids(p), ["first_perfect", "first_round", "mate_found", "only_move"], "the same move without hints unlocks them");
+
+  // A sacrifice found with a hint does not count; a hot streak is broken by a hinted round.
+  ({ p } = make());
+  p.recordRound(rr(1, { isBest: true, accuracy: 90, points: 9, tags: ["sacrifice_best"], hintsUsed: 1 }));
+  ok(!ids(p).includes("sacrifice"), "a hinted sacrifice is not an inspired sacrifice");
+  ({ p } = make());
+  for (let i = 1; i <= 12; i += 1) p.recordRound(rr(i, { accuracy: 90, points: 9, hintsUsed: i === 5 ? 1 : 0, ts: T0 + i }));
+  eq(p.achievements.progress().hot_streak.current, 7, "one hinted round resets the run (5 before, 7 after: the best run is 7)");
+  ok(!ids(p).includes("hot_streak"));
+  for (let i = 13; i <= 20; i += 1) p.recordRound(rr(i, { accuracy: 90, points: 9, ts: T0 + i }));
+  ok(ids(p).includes("hot_streak"), "ten unaided positions in a row unlock it");
+  ["first_perfect", "hot_streak", "only_move", "sacrifice", "mate_found"].forEach((achievement) => {
+    ok(/sin pistas/.test(Ludus.i18n.t(`achievement.${achievement}.desc`, null, "es")), `${achievement} says so in Spanish`);
+    ok(/without hints/.test(Ludus.i18n.t(`achievement.${achievement}.desc`, null, "en")), `${achievement} says so in English`);
+  });
+}
+
+{
+  // COR-010: skipped, timed-out and revealed positions are played, not solved.
+  const ids = (q) => q.achievements.unlocked().map((entry) => entry.id).sort();
+  const skip = (n, extra) => rr(n, Object.assign({ userUci: null, userSan: "", qualityCode: "no_move", accuracy: 0, points: 0, isBest: null, rank: null, cpLoss: 0, winLossPct: 0 }, extra));
+  const { p, named } = make();
+  p.recordRound(skip(1));
+  p.recordRound(skip(2, { timedOut: true, timeSpentMs: 90000 }));
+  p.recordRound(skip(3, { hintsUsed: 3 }));
+  same(ids(p), [], "three skipped / timed out / revealed positions unlock nothing");
+  const stats = p.stats();
+  eq(stats.totalPositions, 3, "they are positions played");
+  eq(stats.solvedPositions, 0, "and none of them is solved");
+  eq(p.achievements.progress().first_round.current, 0);
+  eq(named("achievement:unlocked").length, 0);
+  p.recordRound(rr(4));
+  same(ids(p), ["first_round"], "the first real answer is the first step");
+  eq(p.stats().solvedPositions, 1);
+  eq(p.stats().totalPositions, 4);
+  eq(p.achievements.progress().positions_100.current, 1);
+}
+
+{
+  // One hundred skips are not one hundred positions solved.
+  const { p } = make();
+  for (let i = 0; i < 100; i += 1) p.recordRound(rr(i, { userUci: null, qualityCode: "no_move", accuracy: 0, points: 0, ts: T0 + i }));
+  eq(p.stats().totalPositions, 100);
+  ok(!p.achievements.unlocked().some((entry) => entry.id === "positions_100"), "100 skips do not unlock One hundred positions");
+}
+
+{
+  // A classic session needs at least one answered position.
+  const ids = (q) => q.achievements.unlocked().map((entry) => entry.id).sort();
+  const session = (id, byQuality) => ({ id, ts: T0, kind: "classic", mode: "solo", positions: 3, points: 0, maxPoints: 30, avgAccuracy: 0, durationMs: 1000, byQuality });
+  const { p } = make();
+  p.recordSession(session("s1", { no_move: 3 }));
+  ok(!ids(p).includes("first_classic"), "a classic session of three skips is not a completed classic game");
+  eq(p.achievements.progress().first_classic.current, 0);
+  p.recordSession(session("s2", { no_move: 2, blunder: 1 }));
+  ok(ids(p).includes("first_classic"), "one answered position is enough");
+  eq(p.achievements.progress().first_classic.current, 1, "and only that session counted");
+  const legacy = make().p;
+  legacy.recordSession(session("s3", {}));
+  ok(ids(legacy).includes("first_classic"), "a session without a quality breakdown is trusted");
+}
+
+{
+  // COR-009: rounds and sessions of a profile that no longer exists are refused, never redirected.
+  const { p, storage } = make();
+  const a = p.create({ name: "A" });
+  const b = p.create({ name: "B" });
+  p.setActive(b.id);
+  p.remove(a.id);
+  const before = storage.snapshot();
+  eq(p.recordRound(rr(1, { profileId: a.id })), false, "a round of the deleted profile is refused");
+  eq(p.lastError(), "unknown-profile");
+  eq(p.recordSession({ id: "s1", ts: T0, kind: "own", mode: "solo", positions: 1, points: 5, maxPoints: 10, avgAccuracy: 50, durationMs: 1, profileId: a.id }), false);
+  eq(p.lastError(), "unknown-profile");
+  eq(p.recordSession({ id: "s2", ts: T0, kind: "own", mode: "duel", positions: 1, points: 5, maxPoints: 10, avgAccuracy: 50, durationMs: 1, duel: { names: ["A", "B"], scores: [1, 2], profileIds: [a.id, "zzz"] } }), false, "a duel between two deleted profiles is not credited to the active one");
+  eq(p.lastError(), "unknown-profile");
+  eq(p.daily.complete("2026-03-02", 80, a.id), false);
+  eq(p.notebook.add(bad(2, { profileId: a.id })), null);
+  eq(storage.snapshot(), before, "nothing was written");
+  eq(p.stats(b.id).totalPositions, 0, "the active profile got nothing");
+  eq(p.list().length, 1, "and no new profile was made");
+  ok(/no longer exists/.test(Ludus.i18n.t(p.errorKey("unknown-profile"), null, "en")), "there is a sentence for it");
+  ok(/ya no existe/.test(Ludus.i18n.t(p.errorKey("unknown-profile"), null, "es")));
+
+  // With no profile left, an omitted id still means "the active one, created on first use".
+  p.remove(b.id);
+  ok(p.recordRound(rr(3)).ok, "an omitted profileId still creates and uses the active profile");
+  eq(p.list().length, 1);
+  // A duel that names one deleted and one live profile is recorded for the live one.
+  const live = p.list()[0];
+  ok(p.recordSession({ id: "s3", ts: T0, kind: "own", mode: "duel", positions: 1, points: 5, maxPoints: 10, avgAccuracy: 50, durationMs: 1, duel: { names: ["A", "B"], scores: [1, 2], profileIds: ["gone", live.id] } }).ok);
+}
+
+{
+  // UX-007 / PERF-009 / COR-004: storage failures are detected, counted and announced once.
+  const { p, storage, named } = make();
+  const healthy = p.storageStatus();
+  same(healthy, { ok: true, available: true, reason: "", failures: 0, unsavedRounds: 0, unsavedSessions: 0, lastFailureAt: 0, lastFailureKey: "", recovered: false }, "a healthy store reports ok");
+  ok(p.recordRound(rr(1)).ok);
+  eq(named("storage:failed").length, 0);
+  storage.failWrites = true;
+  eq(p.recordRound(rr(2)), false);
+  eq(p.lastError(), "storage", "the caller can tell why");
+  let status = p.storageStatus();
+  eq(status.ok, false);
+  eq(status.reason, "quota", "a write that fails while storage is reachable is a full quota");
+  eq(status.failures, 1);
+  eq(status.unsavedRounds, 1);
+  eq(named("storage:failed").length, 1, "announced on the bus");
+  same(Object.keys(named("storage:failed")[0]).sort(), ["at", "key", "reason"]);
+  eq(named("storage:failed")[0].reason, "quota");
+  ok(/^ludus\.p\./.test(named("storage:failed")[0].key), "with the key that failed");
+  p.recordRound(rr(3));
+  eq(p.recordSession({ id: "s1", ts: T0, kind: "own", mode: "solo", positions: 1, points: 5, maxPoints: 10, avgAccuracy: 50, durationMs: 1 }), false);
+  status = p.storageStatus();
+  eq(status.failures, 3);
+  eq(status.unsavedRounds, 2);
+  eq(status.unsavedSessions, 1);
+  eq(named("storage:failed").length, 1, "but only once per page load");
+  storage.failWrites = false;
+  ok(p.recordRound(rr(4)).ok);
+  status = p.storageStatus();
+  eq(status.ok, true, "a later write that succeeds turns ok back on");
+  eq(status.recovered, true, "and says that something was lost meanwhile");
+  eq(status.unsavedRounds, 2, "the counters stay");
+}
+
+{
+  // Blocked storage (private mode, site data off): Ludus.storage.available is false.
+  const storage = memoryStorage();
+  storage.available = false;
+  storage.failWrites = true;
+  const { p, named } = make({ storage });
+  const status = p.storageStatus();
+  eq(status.ok, false, "unusable from the start");
+  eq(status.available, false);
+  eq(status.reason, "blocked");
+  eq(named("storage:failed").length, 0, "nothing is announced before something asks for it");
+  p.attach();
+  eq(named("storage:failed").length, 1, "attach() announces it once, at boot");
+  eq(named("storage:failed")[0].reason, "blocked");
+  p.attach();
+  eq(named("storage:failed").length, 1, "attach() again does not repeat it");
+  eq(p.recordRound(rr(1)), false, "the round is not saved");
+  eq(p.storageStatus().reason, "blocked");
+  eq(p.storageStatus().unsavedRounds, 1);
+  eq(named("storage:failed").length, 1);
+  p.detach();
+}
+
+{
+  // A storage that throws on every call never makes the profile throw.
+  const storage = memoryStorage();
+  storage.throwAlways = true;
+  const { p } = make({ storage, rethrow: false });
+  let threw = false;
+  try {
+    p.recordRound(rr(1));
+    p.recordSession({ id: "s1", ts: T0, kind: "own", mode: "solo", positions: 1, points: 5, maxPoints: 10, avgAccuracy: 50, durationMs: 1 });
+    p.storageStatus();
+  } catch (error) {
+    threw = true;
+  }
+  eq(threw, false, "never throws");
+  eq(p.storageStatus().ok, false);
 }
 
 // ---------- Export and import ----------

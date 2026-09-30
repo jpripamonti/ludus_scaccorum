@@ -144,8 +144,16 @@ function makeCore(options = {}) {
 {
   const { L } = makeCore({ languages: ["es-AR"] });
   assert.strictEqual(L.i18n.lang(), "es", "a Spanish browser starts in Spanish");
-  assert.strictEqual(makeCore({ languages: ["en-GB", "es"] }).L.i18n.lang(), "en", "any English preference starts in English (same rule as app.js)");
-  assert.strictEqual(makeCore({ languages: ["fr-FR"] }).L.i18n.lang(), "es", "unsupported browser languages fall back to Spanish");
+  assert.strictEqual(makeCore({ languages: ["en-GB", "es"] }).L.i18n.lang(), "en", "the first supported entry of the preference list wins (same rule as app.js)");
+  assert.strictEqual(makeCore({ languages: ["es-MX", "en-US"] }).L.i18n.lang(), "es", "...in either order");
+  // UX-005: only a browser that asks for Spanish gets Spanish; everybody else (French, German, Portuguese...) gets English.
+  ["fr-FR", "pt-BR", "de-DE", "it-IT", "ca-ES", "zh-CN", "et", "eo"].forEach((code) => {
+    assert.strictEqual(makeCore({ languages: [code] }).L.i18n.lang(), "en", `${code} gets English, not Spanish`);
+  });
+  assert.strictEqual(makeCore({ languages: ["fr-FR", "es-AR"] }).L.i18n.lang(), "es", "an unsupported first choice does not hide a supported second one");
+  assert.strictEqual(makeCore({ languages: ["es"] }).L.i18n.lang(), "es");
+  assert.strictEqual(makeCore({ languages: ["ES-ar"] }).L.i18n.lang(), "es", "codes are case-insensitive");
+  assert.strictEqual(makeCore({ languages: [] }).L.i18n.lang(), "en", "no language at all: English");
 
   // The stored choice is the raw string app.js writes under "ludus.language".
   const stored = createFakeLocalStorage(new Map([["ludus.language", "en"]]));

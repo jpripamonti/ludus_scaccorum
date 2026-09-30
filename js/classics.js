@@ -9,6 +9,8 @@
 //   Ludus.Classics.random(count, { exclude, maxDifficulty, gameIds, random, includeTrivial })
 //   Ludus.Classics.daily(dateKey, { maxDifficulty, includeTrivial })   same position for the same "YYYY-MM-DD"
 //   Ludus.Classics.story(gameId)          the whole game as a playable list of plies
+//   Ludus.Classics.displayName(raw, lang) / displayEvent(raw, lang)   the es/en form of a raw PGN White/Black/Event tag
+//   Ludus.Classics.localizeQuotedMoves(text, textLang)   the moves quoted inside a blurb or note, spelled as the notation setting says
 //
 // Position objects have the shape of docs/ARCHITECTURE.md section 9 (source
 // "classic", reference.lines from the precomputed Stockfish pass). `ply` is
@@ -62,7 +64,7 @@
   const KIND_TEXT = {
     "only-move": {
       label: { es: "Única jugada", en: "Only move" },
-      hint: { es: "Las alternativas pierden claramente; solo una jugada mantiene la ventaja.", en: "The alternatives are clearly worse; only one move keeps the advantage." },
+      hint: { es: "Las alternativas son claramente peores: una sola jugada saca lo mejor de la posición.", en: "The alternatives are clearly worse: one move gets the most out of the position." },
     },
     "tactic": {
       label: { es: "Táctica", en: "Tactic" },
@@ -167,6 +169,99 @@
     return PLAYING_TEXT[side] ? pickLang(PLAYING_TEXT[side], lang) : "";
   }
 
+  // The data keeps the raw PGN tags ("Garry Kasparov", "Casual game": stable keys that stored notebook cards also carry);
+  // notes.json "names" / "events" hold their es/en display forms, one spelling per person and event in each language.
+  // Anything unknown (a person's own games, or the data not being loaded yet) comes back unchanged.
+  function displayForm(tableKey, raw, lang) {
+    const text = String(raw === undefined || raw === null ? "" : raw);
+    const p = prepare();
+    const table = p && p.source[tableKey];
+    const entry = table && Object.prototype.hasOwnProperty.call(table, text) ? table[text] : null;
+    return entry ? pickLang(entry, lang) : text;
+  }
+
+  function displayName(raw, lang) {
+    return displayForm("names", raw, lang);
+  }
+
+  function displayEvent(raw, lang) {
+    return displayForm("events", raw, lang);
+  }
+
+  // ------------------------------------------------------- quoted moves in texts
+
+  // Blurbs and moment notes quote moves ("15.Bxh7+ Kxh7 16.Qxh5+", "34...Kf2+"). Each language spells the pieces its own
+  // way in the stored text (es: R rey, D dama, T torre, A alfil, C caballo; en: K Q R B N), so the Spanish page reads right
+  // without any help. A person who chose another notation in Settings gets the quotes re-spelled by localizeQuotedMoves.
+  const ES_TO_EN_LETTER = { R: "K", D: "Q", T: "R", A: "B", C: "N" };
+  const QUOTED_MOVE = /^(?:O-O-O|O-O|[KQRBNDTAC]?[a-h]?[1-8]?x?[a-h][1-8](?:=[KQRBNDTAC])?)[+#]?[!?]{0,2}$/;
+
+  // The runs of quoted moves in a text: [{ ply, words: [{ text, start, end }] }]. A run starts at a move number ("15." for
+  // White, "15..." for Black) and goes on while the next words are moves (with or without their own number). `ply` is the
+  // 0-based index of the run's first move in the game. `text` of a word is the move as written, annotations included.
+  function quotedMoveRuns(text) {
+    const source = String(text === undefined || text === null ? "" : text);
+    const runs = [];
+    const anchor = /(?<![A-Za-z0-9])(\d{1,3})(\.{1,3})(?=[KQRBNDTACOa-h])/g;
+    let found = anchor.exec(source);
+    while (found) {
+      const words = [];
+      let cursor = found.index;
+      let ply = 2 * (Number(found[1]) - 1) + (found[2].length === 3 ? 1 : 0);
+      const firstPly = ply;
+      let consistent = true;
+      while (cursor < source.length) {
+        const word = /^\S+/.exec(source.slice(cursor));
+        if (!word) break;
+        let body = word[0];
+        let offset = cursor;
+        const numbered = /^(\d{1,3})(\.{1,3})(.+)$/.exec(body);
+        if (numbered) {
+          if (2 * (Number(numbered[1]) - 1) + (numbered[2].length === 3 ? 1 : 0) !== ply) consistent = false;
+          offset += numbered[1].length + numbered[2].length;
+          body = numbered[3];
+        } else if (!words.length) {
+          break;
+        }
+        const core = body.replace(/[.,;:)»”"]+$/, "");
+        if (!QUOTED_MOVE.test(core)) break;
+        words.push({ text: core, start: offset, end: offset + core.length });
+        ply += 1;
+        if (core.length !== body.length) break; // punctuation after a move closes the run
+        cursor += word[0].length;
+        while (/\s/.test(source[cursor] || "")) cursor += 1;
+      }
+      if (words.length && consistent) runs.push({ ply: firstPly, words });
+      anchor.lastIndex = Math.max(anchor.lastIndex, cursor);
+      found = anchor.exec(source);
+    }
+    return runs;
+  }
+
+  function englishSan(word, textLang) {
+    if (textLang !== "es") return word;
+    return word.replace(/^[RDTAC]/, (letter) => ES_TO_EN_LETTER[letter]).replace(/=([RDTAC])/, (match, letter) => `=${ES_TO_EN_LETTER[letter]}`);
+  }
+
+  // `textLang` is the language the text was written in ("es" | "en"). The moves come out as Ludus.chess.localizeSan would
+  // write them for the current notation setting (auto = the language of the page). Without that helper the text is unchanged.
+  function localizeQuotedMoves(text, textLang, options) {
+    const source = String(text === undefined || text === null ? "" : text);
+    const chess = root.Ludus && root.Ludus.chess;
+    if (!chess || typeof chess.localizeSan !== "function") return source;
+    const from = textLang === "es" ? "es" : "en";
+    const lang = options && options.lang ? options.lang : currentLang();
+    let out = "";
+    let last = 0;
+    quotedMoveRuns(source).forEach((run) => {
+      run.words.forEach((word) => {
+        out += source.slice(last, word.start) + chess.localizeSan(englishSan(word.text, from), lang, options);
+        last = word.end;
+      });
+    });
+    return out + source.slice(last);
+  }
+
   // ---------------------------------------------------------------- data
 
   let prepared = null; // { source, byId, list, all }
@@ -261,6 +356,7 @@
     game.positions.forEach((p) => {
       kinds[p.kind] = (kinds[p.kind] || 0) + 1;
     });
+    const shown = (tableKey, raw) => ({ es: displayForm(tableKey, raw, "es"), en: displayForm(tableKey, raw, "en") });
     return {
       id: game.id,
       title: game.title,
@@ -268,6 +364,7 @@
       black: game.black,
       event: game.event,
       site: game.site,
+      display: { white: shown("names", game.white), black: shown("names", game.black), event: shown("events", game.event) },
       year: game.year,
       date: game.date,
       result: game.result,
@@ -587,6 +684,10 @@
     themeLabel,
     difficultyLabel,
     playingLabel,
+    displayName,
+    displayEvent,
+    quotedMoveRuns,
+    localizeQuotedMoves,
     registerI18n,
   };
 });

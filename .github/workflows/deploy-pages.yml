@@ -1,5 +1,11 @@
 name: Deploy to GitHub Pages
 
+# Two jobs on purpose (least privilege). `build` runs project code (the hash
+# generator and the whole test suite) and can only read the repository; `deploy`
+# holds the Pages / OIDC token but runs nothing from the repository: it only
+# publishes the artifact `build` made. scripts/smoke-check.js fails a change that
+# puts `pages: write` or `id-token: write` back on the workflow or on the build job.
+
 on:
   push:
     branches:
@@ -8,19 +14,16 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
@@ -53,15 +56,26 @@ jobs:
           rsync -av --delete vendor/ _site/vendor/
           find _site -name '.DS_Store' -delete
 
-      - name: Setup Pages
-        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
-        with:
-          enablement: true
-
       - name: Upload artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Setup Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+        with:
+          enablement: true
 
       - name: Deploy
         id: deployment

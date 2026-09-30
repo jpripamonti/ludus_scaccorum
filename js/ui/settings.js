@@ -115,6 +115,8 @@
       "settings.section.sound.lead": "Efectos cortos que se sintetizan en tu dispositivo, sin descargar nada. Probalos acá.",
       "settings.section.access": "Accesibilidad",
       "settings.section.access.lead": "Texto más grande, más contraste y menos movimiento. Se aplica a toda la app.",
+      "settings.section.privacy": "Privacidad",
+      "settings.section.privacy.lead": "Lo que esta app guarda en tu navegador cuando practicás con tus propias partidas. No tiene servidor propio: nada de esto se envía a nosotros.",
       "settings.section.more": "Otros ajustes",
       "settings.section.more.lead": "Ajustes que no entran en otra sección.",
 
@@ -122,8 +124,23 @@
       "settings.ui.reset.aria": "Restablecer la sección {section} a sus valores originales",
       "settings.ui.reset.done": "Restablecimos «{section}» a sus valores originales.",
       "settings.ui.reset.undo": "Deshacer",
+      "settings.ui.reset.undo.aria": "Deshacer el restablecimiento de «{section}»",
+      "settings.ui.reset.dismiss": "Cerrar este aviso",
       "settings.ui.reset.undone": "Volvimos a tus valores anteriores.",
       "settings.ui.reset.nothing": "Esta sección ya tiene sus valores originales.",
+      "settings.ui.privacy.keep": "Recordar mis partidas descargadas",
+      "settings.ui.privacy.keep.hint": "Guarda en este navegador, por hasta 7 días, las partidas que descargás de Lichess o Chess.com y tu nombre de usuario, para no pedirlas de nuevo. Si lo apagás, se borran ahora y solo quedan mientras tengas abierta esta pestaña. En una computadora compartida conviene apagarlo.",
+      "settings.ui.privacy.clear": "Borrar ahora las partidas guardadas",
+      "settings.ui.privacy.clear.heading": "Partidas guardadas",
+      "settings.ui.privacy.clear.button": "Borrar ahora",
+      "settings.ui.privacy.clear.hint": "Borra las partidas descargadas y los nombres de usuario recordados. Tu progreso y tu cuaderno no se tocan.",
+      "settings.ui.privacy.clear.title": "¿Borrar las partidas guardadas?",
+      "settings.ui.privacy.clear.body": "Se borran de este navegador las partidas que descargaste y los nombres de usuario recordados. Tu progreso, tus perfiles y tu cuaderno no se tocan, y podés volver a descargar tus partidas cuando quieras.",
+      "settings.ui.privacy.clear.confirm": "Borrar",
+      "settings.ui.privacy.cleared": "Listo: borramos las partidas guardadas y los usuarios recordados.",
+      "settings.ui.privacy.off.done": "No vamos a guardar tus partidas descargadas, y borramos las que había.",
+      "settings.ui.privacy.on.done": "Volvimos a recordar tus partidas descargadas por hasta 7 días.",
+      "settings.ui.privacy.error": "No pudimos borrar los datos guardados. Probá de nuevo.",
       "settings.ui.resetAll.heading": "Volver a empezar",
       "settings.ui.resetAll.lead": "Todos los ajustes vuelven a sus valores originales. Tu progreso, tus perfiles y tu cuaderno no se tocan.",
       "settings.ui.resetAll": "Restablecer todos los ajustes",
@@ -263,6 +280,8 @@
       "settings.section.sound.lead": "Short effects synthesized on your device, nothing to download. Try them here.",
       "settings.section.access": "Accessibility",
       "settings.section.access.lead": "Larger text, more contrast and less motion. It applies to the whole app.",
+      "settings.section.privacy": "Privacy",
+      "settings.section.privacy.lead": "What this app keeps in your browser when you practise with your own games. It has no server of its own: none of this is sent to us.",
       "settings.section.more": "Other settings",
       "settings.section.more.lead": "Settings that do not fit another section.",
 
@@ -270,8 +289,23 @@
       "settings.ui.reset.aria": "Reset the {section} section to its original values",
       "settings.ui.reset.done": "“{section}” is back to its original values.",
       "settings.ui.reset.undo": "Undo",
+      "settings.ui.reset.undo.aria": "Undo the reset of “{section}”",
+      "settings.ui.reset.dismiss": "Dismiss this notice",
       "settings.ui.reset.undone": "Your previous values are back.",
       "settings.ui.reset.nothing": "This section already has its original values.",
+      "settings.ui.privacy.keep": "Remember my downloaded games",
+      "settings.ui.privacy.keep.hint": "Keeps the games you download from Lichess or Chess.com and your username in this browser for up to 7 days, so they are not requested again. If you turn it off they are deleted now and only last while this tab is open. On a shared computer, turning it off is wise.",
+      "settings.ui.privacy.clear": "Delete saved games now",
+      "settings.ui.privacy.clear.heading": "Saved games",
+      "settings.ui.privacy.clear.button": "Delete now",
+      "settings.ui.privacy.clear.hint": "Deletes the downloaded games and the remembered usernames. Your progress and notebook are not touched.",
+      "settings.ui.privacy.clear.title": "Delete the saved games?",
+      "settings.ui.privacy.clear.body": "The games you downloaded and the remembered usernames are deleted from this browser. Your progress, profiles and notebook are not touched, and you can download your games again whenever you like.",
+      "settings.ui.privacy.clear.confirm": "Delete",
+      "settings.ui.privacy.cleared": "Done: the saved games and remembered usernames are deleted.",
+      "settings.ui.privacy.off.done": "Your downloaded games will not be kept, and the ones that were saved are deleted.",
+      "settings.ui.privacy.on.done": "Your downloaded games are remembered again for up to 7 days.",
+      "settings.ui.privacy.error": "We could not delete the saved data. Try again.",
       "settings.ui.resetAll.heading": "Start over",
       "settings.ui.resetAll.lead": "Every setting goes back to its original value. Your progress, profiles and notebook are not touched.",
       "settings.ui.resetAll": "Reset all settings",
@@ -827,6 +861,9 @@
     notes: [], // { node, update(values) }
     sectionEls: new Map(),
     resetButtons: [],
+    undoHosts: new Map(), // section id -> the live region under its heading
+    undoOpen: new Map(), // section id -> { paths } while an undo notice is showing
+    undoBusy: false, // true while Undo itself writes the old values back
     summaryEl: null,
     previewBody: null,
     previewRule: null,
@@ -1374,7 +1411,102 @@
       button);
   }
 
+  // ----- privacy: what is kept about downloaded games (QA SEC-008) -----
+  // The app core owns the preference and the cache (app.js, Ludus.game.savedDownloads); the screen only offers them. Without that API
+  // (the page is still booting, or a test) there is no privacy section at all, never a dead control.
+  function privacyApi() {
+    const game = L().game;
+    const api = game && game.savedDownloads;
+    return api && typeof api.keep === "function" && typeof api.setKeep === "function" && typeof api.clear === "function" ? api : null;
+  }
+
+  function buildPrivacySection() {
+    const api = privacyApi();
+    const headingId = nextId("settings-section");
+    const keepLabelId = nextId("settings-label");
+    const keepHintId = nextId("settings-hint");
+    const note = h("p", { class: "settings-note settings-privacy-note", hidden: true });
+    const say = (message) => {
+      note.textContent = message || "";
+      setHidden(note, !message);
+      if (message) announce(message);
+    };
+    const clearSaved = () => Promise.resolve()
+      .then(() => api.clear())
+      .then(() => true)
+      .catch((error) => {
+        logError("[Ludus.Screens.settings] clearing the saved games failed", error);
+        return false;
+      });
+    const keep = h("input", {
+      type: "checkbox",
+      role: "switch",
+      class: "settings-privacy-keep",
+      "aria-labelledby": keepLabelId,
+      "aria-describedby": keepHintId,
+      onchange: () => {
+        const on = Boolean(keep.checked);
+        try {
+          api.setKeep(on);
+        } catch (error) {
+          logError("[Ludus.Screens.settings] the preference could not be saved", error);
+        }
+        // Turning it off also deletes what is already kept: "do not keep" that still held last week's games would be a lie.
+        if (on) say(t("settings.ui.privacy.on.done"));
+        else clearSaved().then((ok) => say(ok ? t("settings.ui.privacy.off.done") : t("settings.ui.privacy.error")));
+      },
+    });
+    setChecked(keep, api.keep());
+    const clearButton = h("button", {
+      type: "button",
+      class: "btn btn-secondary settings-privacy-clear",
+      "data-action": "clear-saved",
+      "aria-label": t("settings.ui.privacy.clear"),
+      onclick: () => {
+        const ui = L().ui;
+        const run = () => clearSaved().then((ok) => say(ok ? t("settings.ui.privacy.cleared") : t("settings.ui.privacy.error")));
+        if (ui && typeof ui.confirm === "function") {
+          ui.confirm({
+            title: t("settings.ui.privacy.clear.title"),
+            body: t("settings.ui.privacy.clear.body"),
+            confirmLabel: t("settings.ui.privacy.clear.confirm"),
+            danger: true,
+          }).then((yes) => {
+            if (yes) run();
+          });
+        } else if (typeof root.confirm === "function" && root.confirm(t("settings.ui.privacy.clear.title"))) {
+          run();
+        }
+      },
+    }, h("span", { class: "btn-label" }, t("settings.ui.privacy.clear.button")));
+    const keepRow = h("div", { class: "settings-row is-switch settings-row-privacy-keep" },
+      h("div", { class: "settings-row-control" },
+        h("label", { class: "switch settings-switch" },
+          keep,
+          h("span", { class: "switch-track", "aria-hidden": "true" }),
+          h("span", { class: "switch-text" },
+            h("span", { class: "settings-label", id: keepLabelId }, t("settings.ui.privacy.keep")),
+            h("span", { class: "switch-hint settings-hint", id: keepHintId }, t("settings.ui.privacy.keep.hint"))))));
+    const clearRow = h("div", { class: "settings-row settings-row-privacy-clear" },
+      h("div", { class: "settings-row-text" },
+        h("h3", { class: "settings-label" }, t("settings.ui.privacy.clear.heading")),
+        h("p", { class: "settings-hint" }, t("settings.ui.privacy.clear.hint"))),
+      h("div", { class: "settings-row-control" }, clearButton, note));
+    return h("section", { class: cls("card", "settings-section", "settings-section-privacy"), "aria-labelledby": headingId, "data-section": "privacy" },
+      h("header", { class: "settings-section-head" },
+        h("span", { class: "settings-section-icon", "aria-hidden": "true" }, icon("shield", { size: 22 })),
+        h("div", { class: "settings-section-titles" },
+          h("h2", { class: "settings-h2", id: headingId, tabindex: "-1" }, t("settings.section.privacy")),
+          h("p", { class: "settings-lead" }, t("settings.section.privacy.lead")))),
+      h("div", { class: "settings-section-body" }, h("div", { class: "settings-rows" }, keepRow, clearRow)));
+  }
+
   function buildSection(section) {
+    if (section.custom === "privacy") {
+      const node = buildPrivacySection();
+      state.sectionEls.set(section.id, node);
+      return node;
+    }
     const headingId = nextId("settings-section");
     const body = h("div", { class: "settings-section-body" });
     const specs = section.paths.map(specOf).filter(Boolean);
@@ -1413,8 +1545,12 @@
       if (tests) body.appendChild(tests);
     }
 
+    // A persistent, keyboard-reachable Undo lives here (right after the Reset button in reading and Tab order); an empty live region that is
+    // filled when a reset happens, so screen readers announce it once (QA A11Y-005).
+    const undoHost = h("div", { class: "settings-undo-host", role: "status", "aria-live": "polite" });
+    state.undoHosts.set(section.id, undoHost);
     const el = h("section", { class: cls("card", "settings-section", `settings-section-${section.id}`), "aria-labelledby": headingId, "data-section": section.id },
-      sectionHeader(section, headingId), body);
+      sectionHeader(section, headingId), undoHost, body);
     state.sectionEls.set(section.id, el);
     return el;
   }
@@ -1530,17 +1666,69 @@
         logError("[Ludus.Screens.settings] reset failed", error);
       }
     });
-    announce(t("settings.ui.reset.done", { section: name }));
-    toast(t("settings.ui.reset.done", { section: name }), {
-      kind: "success",
-      action: {
-        label: t("settings.ui.reset.undo"),
-        onClick: () => {
-          changed.forEach((path) => setValue(path, before[path]));
-          announce(t("settings.ui.reset.undone"));
+    // The toast with a five-second Undo used to be the only way back and a keyboard could not reach it in time; now the notice stays under the
+    // section heading until it is used, closed or the person changes something in the section (QA A11Y-005). Without a host (a test, an
+    // old layout) the toast remains the fallback.
+    if (!showUndo(section, name, before, changed)) {
+      announce(t("settings.ui.reset.done", { section: name }));
+      toast(t("settings.ui.reset.done", { section: name }), {
+        kind: "success",
+        action: {
+          label: t("settings.ui.reset.undo"),
+          onClick: () => {
+            changed.forEach((path) => setValue(path, before[path]));
+            announce(t("settings.ui.reset.undone"));
+          },
         },
+      });
+    }
+  }
+
+  function resetButtonOf(sectionId) {
+    const item = state.resetButtons.find((entry) => entry.section.id === sectionId);
+    return item ? item.button : null;
+  }
+
+  function closeUndo(sectionId, options) {
+    const opts = options || {};
+    const host = state.undoHosts.get(sectionId);
+    state.undoOpen.delete(sectionId);
+    if (host) host.textContent = "";
+    if (opts.focus) {
+      // The Undo button just disappeared: focus goes back to where the person started, never to the page top.
+      const button = resetButtonOf(sectionId);
+      if (button && typeof button.focus === "function") button.focus();
+    }
+  }
+
+  function showUndo(section, name, before, changed) {
+    const host = state.undoHosts.get(section.id);
+    if (!host) return false;
+    closeUndo(section.id);
+    const undo = h("button", {
+      type: "button", class: "btn btn-secondary btn-sm settings-undo-btn", "data-action": "undo",
+      "aria-label": t("settings.ui.reset.undo.aria", { section: name }),
+      onclick: () => {
+        state.undoBusy = true;
+        try {
+          changed.forEach((path) => setValue(path, before[path]));
+        } finally {
+          state.undoBusy = false;
+        }
+        closeUndo(section.id, { focus: true });
+        announce(t("settings.ui.reset.undone"));
       },
-    });
+    }, icon("undo", { size: 16 }), h("span", { class: "btn-label" }, t("settings.ui.reset.undo")));
+    const dismiss = h("button", {
+      type: "button", class: "btn btn-ghost btn-icon btn-sm settings-undo-close", "data-action": "dismiss-undo",
+      "aria-label": t("settings.ui.reset.dismiss"),
+      onclick: () => closeUndo(section.id, { focus: true }),
+    }, icon("x", { size: 16 }));
+    host.appendChild(h("div", { class: "settings-undo" },
+      h("p", { class: "settings-undo-text" }, t("settings.ui.reset.done", { section: name })),
+      undo, dismiss));
+    state.undoOpen.set(section.id, { paths: changed.slice() });
+    return true;
   }
 
   function resetAll() {
@@ -1606,6 +1794,14 @@
       state.dirty = true;
       return;
     }
+    // A change made after a reset (another control, another tab) makes "Undo" unsafe: it would overwrite it. Undo's own writes do not count.
+    if (!state.undoBusy && state.undoOpen.size) {
+      const path = payload && payload.path;
+      Array.from(state.undoOpen.keys()).forEach((sectionId) => {
+        const section = state.sections.find((item) => item.id === sectionId);
+        if (!path || (section && section.paths.includes(path))) closeUndo(sectionId);
+      });
+    }
     if (state.controls.length) syncAll(payload && payload.path);
   }
 
@@ -1620,12 +1816,15 @@
     state.notes = [];
     state.sectionEls = new Map();
     state.resetButtons = [];
+    state.undoHosts = new Map();
+    state.undoOpen = new Map();
     state.previewBody = null;
     state.previewRule = null;
     state.prevPoints = new Map();
     state.boardPreview = null;
     const schema = schemaList();
     const sections = buildSections(schema, groupList());
+    if (privacyApi()) sections.push({ id: "privacy", icon: "shield", groups: [], paths: [], custom: "privacy" });
     state.sections = sections;
     el.textContent = "";
     el.classList.add("settings");

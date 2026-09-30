@@ -385,18 +385,18 @@
   // That gives the UI a progress bar for free and keeps evaluation uniform.
 
   const ACHIEVEMENTS = [
-    { id: "first_round", category: "volume", glyph: "♟", target: 1, measure: (c) => c.totalPositions,
+    { id: "first_round", category: "volume", glyph: "♟", target: 1, measure: (c) => c.solvedPositions,
       text: [["Primer paso", "First step"], ["Resolvé tu primera posición.", "Solve your first position."]] },
     { id: "first_perfect", category: "moves", glyph: "★", target: 1, measure: (c) => c.perfectMoves,
-      text: [["Jugada perfecta", "Perfect move"], ["Encontrá la mejor jugada de una posición.", "Find the best move in a position."]] },
+      text: [["Jugada perfecta", "Perfect move"], ["Encontrá la mejor jugada de una posición, sin pistas.", "Find the best move in a position, without hints."]] },
     { id: "hot_streak", category: "moves", glyph: "✹", target: HOT_STREAK_LENGTH, measure: (c) => c.hotStreak,
-      text: [["Racha caliente", "Hot streak"], ["Encadená 10 posiciones seguidas con más de 80 de precisión.", "Chain 10 positions in a row above 80 accuracy."]] },
+      text: [["Racha caliente", "Hot streak"], ["Encadená 10 posiciones seguidas con más de 80 de precisión, sin pistas.", "Chain 10 positions in a row above 80 accuracy, without hints."]] },
     { id: "only_move", category: "moves", glyph: "⚑", target: 1, measure: (c) => c.onlyMovesFound,
-      text: [["Jugada única", "Only move"], ["Encontrá una jugada única: la mejor estaba muy por encima de las demás.", "Find an only-move: the best move stood far above the alternatives."]] },
+      text: [["Jugada única", "Only move"], ["Encontrá una jugada única, sin pistas: la mejor estaba muy por encima de las demás.", "Find an only-move without hints: the best move stood far above the alternatives."]] },
     { id: "sacrifice", category: "moves", glyph: "⚔", target: 1, measure: (c) => c.sacrifices,
-      text: [["Sacrificio inspirado", "Inspired sacrifice"], ["Encontrá la mejor jugada cuando implicaba entregar material.", "Find the best move when it meant giving up material."]] },
+      text: [["Sacrificio inspirado", "Inspired sacrifice"], ["Encontrá la mejor jugada, sin pistas, cuando implicaba entregar material.", "Find the best move, without hints, when it meant giving up material."]] },
     { id: "mate_found", category: "moves", glyph: "♚", target: 1, measure: (c) => c.matesFound,
-      text: [["Ojo de mate", "Mate in sight"], ["Encontrá la mejor jugada en una posición con mate forzado.", "Find the best move in a position with a forced mate."]] },
+      text: [["Ojo de mate", "Mate in sight"], ["Encontrá la mejor jugada, sin pistas, en una posición con mate forzado.", "Find the best move, without hints, in a position with a forced mate."]] },
     { id: "quick_draw", category: "moves", glyph: "↯", target: 1, measure: (c) => c.quickDraws,
       text: [["Reflejos rápidos", "Quick draw"], ["Jugá una jugada casi perfecta en 5 segundos o menos, sin pistas.", "Play a near-perfect move in 5 seconds or less, without hints."]] },
     { id: "sharp_eye", category: "moves", glyph: "◉", target: 20, measure: (c) => c.cleanSharp,
@@ -417,9 +417,9 @@
       text: [["Error superado", "Mistake overcome"], ["Superá tu primera tarjeta del cuaderno de errores.", "Clear your first card from the mistake notebook."]] },
     { id: "notebook_10", category: "notebook", glyph: "☷", target: 10, measure: (c) => c.clearedCards,
       text: [["Cuaderno al día", "Notebook master"], ["Superá 10 tarjetas del cuaderno de errores.", "Clear 10 mistake notebook cards."]] },
-    { id: "positions_100", category: "volume", glyph: "Ⅽ", target: 100, measure: (c) => c.totalPositions,
+    { id: "positions_100", category: "volume", glyph: "Ⅽ", target: 100, measure: (c) => c.solvedPositions,
       text: [["Cien posiciones", "One hundred positions"], ["Resolvé 100 posiciones.", "Solve 100 positions."]] },
-    { id: "positions_500", category: "volume", glyph: "Ⅾ", target: 500, measure: (c) => c.totalPositions,
+    { id: "positions_500", category: "volume", glyph: "Ⅾ", target: 500, measure: (c) => c.solvedPositions,
       text: [["Quinientas posiciones", "Five hundred positions"], ["Resolvé 500 posiciones.", "Solve 500 positions."]] },
     { id: "perfect_session", category: "sessions", glyph: "✦", target: 1, measure: (c) => c.perfectSessions,
       text: [["Sesión perfecta", "Perfect session"], ["Terminá una sesión de 5 o más posiciones con el puntaje máximo.", "Finish a session of 5 or more positions with full marks."]] },
@@ -468,6 +468,8 @@
     "read-only": ["Estos datos vienen de una versión más nueva de la app y no se pueden modificar.", "This data comes from a newer version of the app and cannot be changed."],
     "invalid-mode": ["Modo de importación no válido.", "Invalid import mode."],
     "no-such-profile": ["No se encontró ese perfil.", "That profile was not found."],
+    // A code of Profile.lastError() that a screen may want to explain (Profile.errorKey).
+    "unknown-profile": ["Ese perfil ya no existe en este dispositivo, así que lo que jugaste no se guardó.", "That profile no longer exists on this device, so what you played was not saved."],
   };
 
   function buildBundle() {
@@ -476,7 +478,8 @@
       bundle.es[key] = pair[0];
       bundle.en[key] = pair[1];
     };
-    put("profile.defaultName", ["Jugador", "Player"]);
+    // Neutral in both languages ("Jugador" was the masculine generic, CNT-035).
+    put("profile.defaultName", ["Participante", "Player"]);
     put("profile.level.title", ["{rank} {sub}", "{rank} {sub}"]);
     Object.keys(RANK_TEXT).forEach((rank) => put(`profile.rank.${rank}`, RANK_TEXT[rank]));
     Object.keys(CATEGORY_TEXT).forEach((category) => put(`achievement.category.${category}`, CATEGORY_TEXT[category]));
@@ -1232,6 +1235,34 @@
     return Math.max(count, data.rounds.length);
   }
 
+  // A round that was skipped, timed out or closed by the last hint (the move was
+  // shown) is a position PLAYED (it pays no XP but it is on the record and it
+  // can make a notebook card), not a position SOLVED: no achievement and no
+  // "solved N positions" counter may count it (COR-010). Skips and timeouts
+  // carry the quality "no_move"; a revealed answer carries hintsUsed 3.
+  const isUnsolvedRound = (round) => round.qualityCode === "no_move" || round.hintsUsed >= 3 || round.timedOut === true;
+
+  // Positions solved over the whole lifetime: the ledger counts every position
+  // played (including the ones that rolled out of the 600-round window), and the
+  // unsolved ones still in the window are taken out. Older unsolved rounds are
+  // indistinguishable from solved ones in the ledger and stay counted.
+  function solvedRounds(data) {
+    let unsolved = 0;
+    data.rounds.forEach((round) => {
+      if (isUnsolvedRound(round)) unsolved += 1;
+    });
+    return Math.max(0, lifetimeRounds(data) - unsolved);
+  }
+
+  // A session counts as completed only when at least one position was answered
+  // with a move. Sessions without a quality breakdown (older data) are trusted.
+  function sessionAnswered(session) {
+    const counts = session.byQuality || {};
+    const total = Object.keys(counts).reduce((sum, code) => sum + counts[code], 0);
+    if (total === 0) return true;
+    return total - (counts.no_move || 0) > 0;
+  }
+
   function improvementOf(rounds) {
     const window = Math.min(IMPROVEMENT_WINDOW, Math.floor(rounds.length / 2));
     if (window < 10) return null;
@@ -1310,6 +1341,7 @@
     const level = levelInfo(data.xp);
     return {
       totalPositions: lifetimeRounds(data),
+      solvedPositions: solvedRounds(data),
       windowPositions: rounds.length,
       overallAccuracy: overall.count ? roundTo(overall.accuracySum / overall.count, 1) : null,
       avgPoints: overall.count ? roundTo(overall.pointsSum / overall.count, 2) : null,
@@ -1345,22 +1377,26 @@
       const scan = { perfectMoves: 0, onlyMovesFound: 0, sacrifices: 0, matesFound: 0, quickDraws: 0, cleanSharp: 0, hotStreak: 0, sources: new Set() };
       let run = 0;
       data.rounds.forEach((round) => {
-        if (PERFECT_QUALITIES.includes(round.qualityCode) || round.accuracy >= 99.5) scan.perfectMoves += 1;
-        if (round.onlyMove && round.isBest) scan.onlyMovesFound += 1;
-        if (round.qualityCode === "brilliant" || (round.isBest && round.tags.includes("sacrifice_best"))) scan.sacrifices += 1;
-        if (round.isBest && round.lines.length && round.lines[0].score >= MATE_SCORE) scan.matesFound += 1;
+        // Accuracy ignores hints by design (the points pay for them), but a
+        // "you found it" achievement must not: a hint that marked the piece or
+        // the square gave the answer away (COR-002).
+        const unaided = round.hintsUsed === 0 && !isUnsolvedRound(round);
+        if (unaided && (PERFECT_QUALITIES.includes(round.qualityCode) || round.accuracy >= 99.5)) scan.perfectMoves += 1;
+        if (unaided && round.onlyMove && round.isBest) scan.onlyMovesFound += 1;
+        if (unaided && (round.qualityCode === "brilliant" || (round.isBest && round.tags.includes("sacrifice_best")))) scan.sacrifices += 1;
+        if (unaided && round.isBest && round.lines.length && round.lines[0].score >= MATE_SCORE) scan.matesFound += 1;
         if (round.accuracy >= 95 && round.hintsUsed === 0 && round.timeSpentMs > 0 && round.timeSpentMs <= 5000) scan.quickDraws += 1;
         if (round.accuracy >= 90 && round.hintsUsed === 0) scan.cleanSharp += 1;
-        run = round.accuracy >= HOT_STREAK_ACCURACY ? run + 1 : 0;
+        run = unaided && round.accuracy >= HOT_STREAK_ACCURACY ? run + 1 : 0;
         if (run > scan.hotStreak) scan.hotStreak = run;
-        scan.sources.add(round.source);
+        if (!isUnsolvedRound(round)) scan.sources.add(round.source);
       });
       return scan;
     });
     const sessionsScan = () => lazy("sessions", () => {
       const scan = { classic: 0, perfect: 0, duelWins: 0 };
       data.sessions.forEach((session) => {
-        if (session.kind === "classic") scan.classic += 1;
+        if (session.kind === "classic" && sessionAnswered(session)) scan.classic += 1;
         if (isPerfectSession(session)) scan.perfect += 1;
         if (session.mode === "duel" && session.duel) {
           const me = session.duel.me === 1 ? 1 : 0;
@@ -1371,6 +1407,7 @@
     });
     return {
       get totalPositions() { return lazy("total", () => lifetimeRounds(data)); },
+      get solvedPositions() { return lazy("solved", () => solvedRounds(data)); },
       get perfectMoves() { return roundsScan().perfectMoves; },
       get onlyMovesFound() { return roundsScan().onlyMovesFound; },
       get sacrifices() { return roundsScan().sacrifices; },
@@ -1418,8 +1455,11 @@
   const isMistake = (round) => round.accuracy < PASS_ACCURACY
     || (round.isBest === false && MISTAKE_QUALITIES.includes(round.qualityCode));
 
-  // A revealed answer (3 hints) never counts as a pass.
-  const passesReview = (accuracy, hintsUsed) => accuracy >= PASS_ACCURACY && hintsUsed < 3;
+  // A review that used ANY hint is not a pass: level 1 marks the piece, level 2
+  // the square and level 3 plays the move, so the card was not recalled unaided.
+  // It is treated like a failed review (box 1, due tomorrow), which is what a
+  // card that needed help deserves (COR-002).
+  const passesReview = (accuracy, hintsUsed) => accuracy >= PASS_ACCURACY && !(hintsUsed > 0);
 
   function newCardFromRound(round, now) {
     return {
@@ -1629,12 +1669,16 @@
     }
 
     function safeSet(key, value) {
+      let done = false;
       try {
         const storage = getStorage();
-        return Boolean(storage) && storage.set(key, value) === true;
+        done = Boolean(storage) && storage.set(key, value) === true;
       } catch (error) {
-        return false;
+        done = false;
       }
+      if (done) health.ok = true;
+      else health.pendingKey = typeof key === "string" ? key : "";
+      return done;
     }
 
     function safeRemove(key) {
@@ -1660,7 +1704,60 @@
 
     function fail(code) {
       lastError = code;
+      if (code === "storage") noteStorageFailure();
       return false;
+    }
+
+    // ----- storage health (UX-007, PERF-009, COR-004) -----
+    //
+    // The game keeps going when the browser refuses to store anything (private
+    // mode, blocked site data, a full quota): rounds are scored and celebrated
+    // but nothing is saved. Nothing else may pretend otherwise, so a failed
+    // operation is counted here and announced ONCE per page load on the bus as
+    // "storage:failed" { reason: "blocked" | "quota", key, at } (also at attach()
+    // when storage was unusable from the start). A screen that mounts later asks
+    // storageStatus() instead. `ok` is about the LAST write (it turns true again
+    // when a later write succeeds), the counters are cumulative since load.
+    const health = { ok: true, failures: 0, unsavedRounds: 0, unsavedSessions: 0, lastFailureAt: 0, lastFailureKey: "", reason: "", pendingKey: "", announced: false };
+
+    function storageUsable() {
+      try {
+        const storage = getStorage();
+        return Boolean(storage) && storage.available !== false;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function announceStorageFailure() {
+      if (health.announced) return;
+      health.announced = true;
+      emit("storage:failed", { reason: health.reason || "quota", key: health.lastFailureKey, at: health.lastFailureAt });
+    }
+
+    function noteStorageFailure() {
+      health.ok = false;
+      health.failures += 1;
+      health.lastFailureAt = nowMs();
+      health.lastFailureKey = health.pendingKey;
+      health.reason = storageUsable() ? "quota" : "blocked";
+      announceStorageFailure();
+    }
+
+    function storageStatus() {
+      const available = storageUsable();
+      const ok = available && health.ok;
+      return {
+        ok,
+        available,
+        reason: ok ? "" : (available ? health.reason || "quota" : "blocked"),
+        failures: health.failures,
+        unsavedRounds: health.unsavedRounds,
+        unsavedSessions: health.unsavedSessions,
+        lastFailureAt: health.lastFailureAt,
+        lastFailureKey: health.lastFailureKey,
+        recovered: ok && health.failures > 0,
+      };
     }
 
     function defaultName() {
@@ -1829,9 +1926,19 @@
       return index.active;
     }
 
+    // Which profile a write means. An omitted id (undefined, null or "") means the
+    // active profile, created on first use. An id that is NAMED but unknown (the
+    // profile was deleted in another tab while a session was still running) is
+    // never redirected: crediting one person's rounds to whoever happens to be
+    // active, or to a fresh "Player", is worse than refusing. It answers null
+    // with lastError "unknown-profile" (COR-009).
     function resolveWrite(id) {
       const index = readIndex();
-      if (typeof id === "string" && id && index.profiles.some((profile) => profile.id === id)) return id;
+      if (id !== undefined && id !== null && id !== "") {
+        if (typeof id === "string" && index.profiles.some((profile) => profile.id === id)) return id;
+        fail("unknown-profile");
+        return null;
+      }
       const profile = ensureActive();
       return profile ? profile.id : null;
     }
@@ -1961,7 +2068,11 @@
     function recordRound(input) {
       lastError = "";
       const id = resolveWrite(input && input.profileId);
-      if (!id) return lastError ? false : fail("no-profile");
+      if (!id) {
+        // No profile could be made for it because nothing can be stored: still a lost round.
+        if (lastError === "storage") health.unsavedRounds += 1;
+        return lastError ? false : fail("no-profile");
+      }
       const ctx = strict();
       const round = sanitizeRound(input, ctx, true);
       if (!round) return fail("invalid-round");
@@ -1996,7 +2107,10 @@
         card = applyRoundToNotebook(data, round, ctx.now);
         state.notebook = Boolean(card);
       });
-      if (!tx) return false;
+      if (!tx) {
+        if (lastError === "storage") health.unsavedRounds += 1;
+        return false;
+      }
       if (tx.duplicate) return { ok: true, duplicate: true, profileId: id, round: returned, xpGained: 0, card: null, unlocked: [], level: levelInfo(dataCache.get(id).xp), levelUp: false };
       const result = fromMutation(tx, id, { round: returned, xpGained: gained + bonusXp, bonusXp, card });
       result.levelUp = result.level.level > levelInfo(xpBefore).level;
@@ -2019,6 +2133,13 @@
         });
         return targets;
       }
+      // A duel that names local profiles, none of which exists any more, is not
+      // redirected to the active profile either (COR-009).
+      const named = pair.filter((value) => typeof value === "string" && value);
+      if (session.mode === "duel" && named.length && !named.some((value) => known.has(value))) {
+        fail("unknown-profile");
+        return [];
+      }
       const id = resolveWrite(session.profileId);
       return id ? [{ id, me: 0 }] : [];
     }
@@ -2030,7 +2151,10 @@
       const base = sanitizeSession(input, ctx, true);
       if (!base) return fail("invalid-session");
       const targets = sessionTargets(input);
-      if (!targets.length) return lastError ? false : fail("no-profile");
+      if (!targets.length) {
+        if (lastError === "storage") health.unsavedSessions += 1;
+        return lastError ? false : fail("no-profile");
+      }
       let first = null;
       for (const target of targets) {
         const session = clone(base);
@@ -2050,7 +2174,10 @@
             data.xpLog[`b:session:${session.id}`] = [bonusXp, ctx.now];
           }
         });
-        if (!tx) return false;
+        if (!tx) {
+          if (lastError === "storage") health.unsavedSessions += 1;
+          return false;
+        }
         const result = tx.duplicate
           ? { ok: true, duplicate: true, profileId: target.id, unlocked: [], level: levelInfo(dataCache.get(target.id).xp), levelUp: false }
           : fromMutation(tx, target.id, {});
@@ -2679,6 +2806,12 @@
       const bus = getBus();
       if (!bus) return false;
       attachStorageListener();
+      // Storage that was unusable from the start (blocked site data, private mode)
+      // is announced right away, not at the first lost round.
+      if (!storageUsable()) {
+        health.reason = "blocked";
+        announceStorageFailure();
+      }
       detachFns = [
         bus.on("round:completed", (payload) => {
           if (payload && payload.round && payload.round.profileId !== null) recordRound(payload.round);
@@ -2747,6 +2880,7 @@
       attach,
       detach,
       lastError: () => lastError,
+      storageStatus,
       errorKey: (code) => `profile.import.error.${code}`,
     };
   }
