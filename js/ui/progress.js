@@ -210,9 +210,10 @@
       "progress.ach.count": "{n} de {total} desbloqueados",
       "progress.ach.filter": "Mostrar logros",
       "progress.ach.all": "Todos",
-      "progress.ach.done": "Desbloqueados",
+      "progress.ach.done": "Logrados",
       "progress.ach.todo": "Pendientes",
       "progress.ach.unlocked": "Desbloqueado el {date}",
+      "progress.ach.unlocked.nodate": "Desbloqueado",
       "progress.ach.locked": "Bloqueado",
       "progress.ach.progress": "{cur} de {target}",
       "progress.ach.progress.aria": "{name}: {cur} de {target}",
@@ -384,6 +385,7 @@
       "progress.ach.done": "Unlocked",
       "progress.ach.todo": "Pending",
       "progress.ach.unlocked": "Unlocked on {date}",
+      "progress.ach.unlocked.nodate": "Unlocked",
       "progress.ach.locked": "Locked",
       "progress.ach.progress": "{cur} of {target}",
       "progress.ach.progress.aria": "{name}: {cur} of {target}",
@@ -1455,7 +1457,7 @@
         h("h3", { class: "progress-ach-name" }, row.name),
         h("p", { class: "progress-ach-desc" }, row.description),
         row.unlocked
-          ? h("p", { class: "progress-ach-state is-done" }, icon("check", { size: 16 }), row.ts ? t("progress.ach.unlocked", { date: dateText(row.ts) }) : t("progress.ach.done"))
+          ? h("p", { class: "progress-ach-state is-done" }, icon("check", { size: 16 }), row.ts ? t("progress.ach.unlocked", { date: dateText(row.ts) }) : t("progress.ach.unlocked.nodate"))
           : h("div", { class: "progress-ach-progress" },
             h("p", { class: "progress-ach-state" }, icon("lock", { size: 14 }), h("span", { class: "sr-only" }, `${t("progress.ach.locked")}. `),
               t("progress.ach.progress", { cur: num(row.current, 1), target: num(row.target) })),

@@ -77,6 +77,8 @@
     entry("board", "board.lastMove", "boolean", true),
     entry("board", "board.animation", "enum", "auto", { options: ["auto", "on", "off"] }),
     entry("board", "board.drag", "boolean", true),
+    // Piece letters in written moves (Ludus.chess.localizeSan reads it): "auto" follows the language.
+    entry("board", "notation.style", "enum", "auto", { options: ["auto", "english", "spanish"] }),
     entry("sound", "sound.enabled", "boolean", true),
     entry("sound", "sound.volume", "number", 0.5, { min: 0, max: 1, step: 0.05, unit: "%", displayScale: 100, showWhen: { path: "sound.enabled", value: true } }),
     entry("sound", "haptics", "boolean", true),
@@ -220,6 +222,7 @@
     "board.lastMove": [["Resaltar la última jugada", "Highlight the last move"], ["Pinta el origen y el destino de la última jugada.", "Tints the origin and destination of the last move."]],
     "board.animation": [["Animación de piezas", "Piece animation"], ["Automática respeta la configuración de tu sistema.", "Automatic follows your system setting."]],
     "board.drag": [["Arrastrar piezas", "Drag pieces"], ["Además de tocar origen y destino, podés arrastrar la pieza.", "Besides tapping origin and destination, you can drag the piece."]],
+    "notation.style": [["Letras de las piezas", "Piece letters"], ["Cómo se escriben las jugadas. Automático sigue el idioma: en español la R es el rey, la D la dama, la T la torre, la A el alfil y la C el caballo.", "How moves are written. Automatic follows the language: in Spanish notation R is the king, D the queen, T the rook, A the bishop and C the knight."]],
     "sound.enabled": [["Sonidos", "Sounds"], ["Efectos al mover, capturar y acertar.", "Effects for moves, captures and good answers."]],
     "sound.volume": [["Volumen", "Volume"], ["Qué tan fuertes suenan los efectos.", "How loud the effects are."]],
     "haptics": [["Vibración", "Vibration"], ["Vibración corta en celulares compatibles.", "A short vibration on supported phones."]],
@@ -245,6 +248,7 @@
       forest: ["Bosque", "Forest"], slate: ["Pizarra", "Slate"], contrast: ["Alto contraste", "High contrast"],
     },
     "board.animation": { auto: ["Automática", "Automatic"], on: ["Activada", "On"], off: ["Desactivada", "Off"] },
+    "notation.style": { auto: ["Según el idioma", "Follow the language"], english: ["Inglesas (K Q R B N)", "English (K Q R B N)"], spanish: ["Españolas (R D T A C)", "Spanish (R D T A C)"] },
     "clock.mode": { timed: ["Con tiempo", "Timed"], untimed: ["Sin tiempo", "Untimed"] },
     "engine.strength": {
       fast: ["Rápido", "Fast"], balanced: ["Equilibrado", "Balanced"], deep: ["Profundo", "Deep"], custom: ["Personalizado", "Custom"],

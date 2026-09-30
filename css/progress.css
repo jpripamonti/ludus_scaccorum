@@ -19,6 +19,10 @@
 /* The screen root is .progress-root: a bare .progress is the kit's bar (system.css) and must not be restyled from here. */
 .progress-root {
   display: grid;
+  /* An explicit minmax(0, 1fr) track: an implicit `auto` column grows to the min-content of its widest card (the
+     achievement filter's unbreakable words), which dragged the whole screen into a sideways scroll at 320px and at
+     text size 130% (QA VIS-002 / A11Y-006). */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-6);
   min-width: 0;
 }
@@ -88,7 +92,7 @@
 }
 .progress-empty-note .ui-icon { flex: none; margin-top: 3px; }
 
-.progress-card { --card-pad: clamp(18px, 2.4vw, 28px); display: grid; gap: var(--space-4); align-content: start; min-width: 0; }
+.progress-card { --card-pad: clamp(18px, 2.4vw, 28px); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-content: start; min-width: 0; }
 .progress-card-head { display: grid; gap: var(--space-1); }
 
 /* ── Hero: level and streak ── */
@@ -352,6 +356,15 @@
 .progress-ach-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-3) var(--space-5); }
 .progress-ach-filter { max-width: 100%; }
 .progress-ach-filter > button { min-width: 3.5rem; padding: 0 var(--space-3); }
+/* The filter needs about 17rem in Spanish ("Todos | Logrados | Pendientes"); when its card is narrower than that (a 320px phone,
+   or a larger text size, because the query is in rem) the three choices stack as full-width rows instead of clipping a label
+   (QA VIS-002 / CNT-027 / A11Y-006). */
+.progress-ach-card { container: progress-ach / inline-size; }
+@container progress-ach (max-width: 18rem) {
+  .progress-ach-filter { display: grid; width: 100%; border-radius: var(--radius-lg); }
+  .progress-ach-filter > button { width: 100%; }
+  .progress-ach-filter > * + * { border-left: 0; border-top: 1px solid var(--color-hairline-strong); }
+}
 .progress-ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
 .progress-ach {
   display: grid;

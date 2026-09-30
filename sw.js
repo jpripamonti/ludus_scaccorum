@@ -3,6 +3,7 @@ const CACHE_NAME = "ludus-scaccorum-static-733a37b810ca";
 const CORE_ASSETS = [
   "./",
   "./index.html",
+  "./js/boot.js?v=733a37b810ca",
   "./styles.css?v=733a37b810ca",
   "./css/system.css?v=733a37b810ca",
   "./css/shell.css?v=733a37b810ca",

@@ -5,6 +5,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#0b1118" />
+  <!-- The whole interface is dark: the browser paints its own canvas dark too, so nothing flashes white before the stylesheets arrive. -->
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="Entrenador de ajedrez gratuito y sin registro: aprendé de tus errores y de partidas clásicas, y ganá más puntos cuanto más cerca juegues de la mejor jugada del motor." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Scaccorum" />
   <meta name="ludus-version" content="733a37b810ca" />
   <link rel="manifest" href="./manifest.json" />
   <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
@@ -17,6 +22,10 @@
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=()" />
   <title>Ludus Scaccorum - Entrenamiento de Errores</title>
+  <!-- Boot guards (js/boot.js): a tiny synchronous same-origin script that runs before the first paint. It marks
+       returning visitors (no landing flash), hides the app when it is framed and shows a notice on browsers too old
+       for the app; it is the only script that is not at the end of <body>. -->
+  <script src="js/boot.js?v=733a37b810ca"></script>
   <link rel="stylesheet" href="styles.css?v=733a37b810ca" />
   <link rel="stylesheet" href="css/system.css?v=733a37b810ca" />
   <link rel="stylesheet" href="css/shell.css?v=733a37b810ca" />

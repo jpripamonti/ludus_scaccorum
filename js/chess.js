@@ -559,5 +559,98 @@
     }) || null;
   }
 
-  return { Chess, files, uciToMove, moveToUci, moveToSan, sanToMove };
+  // ---------- Notation (piece letters) ----------
+  //
+  // moveToSan always produces ENGLISH letters (K Q R B N); that form is what is
+  // stored and compared everywhere. Only when a move is SHOWN to a person it goes
+  // through localizeSan, which writes Spanish letters for people who read them:
+  // R rey, D dama, T torre, A alfil, C caballo. The mapping is injective and the
+  // two alphabets never collide on a SAN: piece letters are uppercase and files
+  // lowercase (Ab5 is a bishop move, axb5 a pawn capture), and in Spanish mode
+  // "R" can only mean the king. Castling (O-O), pawn moves, captures (x), checks (+, #)
+  // and the "=" of a promotion are the same in both.
+  const SPANISH_LETTERS = Object.freeze({ K: "R", Q: "D", R: "T", B: "A", N: "C" });
+  const NOTATION_STYLES = Object.freeze(["auto", "english", "spanish"]);
+
+  function readNotationSetting() {
+    try {
+      const settings = root.Ludus && root.Ludus.Settings;
+      const value = settings && typeof settings.get === "function" ? settings.get("notation.style") : "auto";
+      return NOTATION_STYLES.includes(value) ? value : "auto";
+    } catch (error) {
+      return "auto";
+    }
+  }
+
+  function currentLanguageCode() {
+    try {
+      const i18n = root.Ludus && root.Ludus.i18n;
+      return i18n && typeof i18n.lang === "function" ? String(i18n.lang()) : "es";
+    } catch (error) {
+      return "es";
+    }
+  }
+
+  // "english" | "spanish": what a person sees, from the notation setting
+  // ("auto" follows `lang`, which defaults to the current language).
+  // `options.style` overrides the stored setting (a preview in the settings screen).
+  function notationStyle(lang, options) {
+    let style = options && typeof options === "object" ? options.style : undefined;
+    if (!NOTATION_STYLES.includes(style)) style = readNotationSetting();
+    if (style === "english" || style === "spanish") return style;
+    const code = String(lang == null ? currentLanguageCode() : lang).toLowerCase();
+    return code === "spanish" || code.slice(0, 2) === "es" ? "spanish" : "english";
+  }
+
+  // English SAN -> the SAN as the person reads it. Never throws, never changes
+  // anything but the piece letters (the leading one and the one after "=").
+  // NOT idempotent by design: feed it the English SAN from moveToSan, never
+  // text that was already localized ("Rg1" is a king move once it is Spanish).
+  function localizeSan(san, lang, options) {
+    if (typeof san !== "string" || !san) return san == null ? "" : String(san);
+    if (notationStyle(lang, options) !== "spanish") return san;
+    return san
+      .replace(/^[KQRBN]/, (letter) => SPANISH_LETTERS[letter])
+      .replace(/=([QRBN])/, (match, letter) => `=${SPANISH_LETTERS[letter]}`);
+  }
+
+  // A SAN as words, for a screen reader or a tooltip ("Rg1" is read "R g 1"):
+  // "Nxf3+" -> "knight takes f3, check" / "caballo captura en f3, jaque".
+  // `lang` is "es" or "en"; text that is not SAN comes back unchanged.
+  const SPOKEN = {
+    es: {
+      K: "rey", Q: "dama", R: "torre", B: "alfil", N: "caballo", P: "peón",
+      to: "a", from: "desde", takes: "captura en", castleShort: "enroque corto", castleLong: "enroque largo",
+      promotes: "corona en", check: "jaque", mate: "jaque mate",
+    },
+    en: {
+      K: "king", Q: "queen", R: "rook", B: "bishop", N: "knight", P: "pawn",
+      to: "to", from: "from", takes: "takes", castleShort: "castles kingside", castleLong: "castles queenside",
+      promotes: "promotes to", check: "check", mate: "checkmate",
+    },
+  };
+
+  function spokenSan(san, lang) {
+    if (typeof san !== "string") return san == null ? "" : String(san);
+    const words = SPOKEN[String(lang == null ? currentLanguageCode() : lang).toLowerCase().slice(0, 2) === "es" ? "es" : "en"];
+    const suffix = /#$/.test(san) ? `, ${words.mate}` : /\+$/.test(san) ? `, ${words.check}` : "";
+    const core = san.replace(/[+#]+$/, "");
+    if (core === "O-O") return `${words.castleShort}${suffix}`;
+    if (core === "O-O-O") return `${words.castleLong}${suffix}`;
+    const match = core.match(/^([KQRBN])?([a-h])?([1-8])?(x)?([a-h][1-8])(?:=([QRBN]))?$/);
+    if (!match) return san;
+    const [, letter, fileHint, rankHint, capture, destination, promo] = match;
+    // "Rad1" is "rook from a, to d1" and "exd5" "pawn from e takes d5": the
+    // comma keeps the file letter from running into the destination.
+    const origin = `${fileHint || ""}${rankHint || ""}`;
+    const head = origin && (letter || capture) ? `${words[letter || "P"]} ${words.from} ${origin}${capture ? "" : ","}` : words[letter || "P"];
+    let text = `${head} ${capture ? words.takes : words.to} ${destination}`;
+    if (promo) text += `, ${words.promotes} ${words[promo]}`;
+    return text + suffix;
+  }
+
+  return {
+    Chess, files, uciToMove, moveToUci, moveToSan, sanToMove,
+    localizeSan, notationStyle, spokenSan, SPANISH_LETTERS, NOTATION_STYLES,
+  };
 });

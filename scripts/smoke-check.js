@@ -43,6 +43,7 @@ function listFiles(dir, extension) {
 }
 
 const LOGIC_MODULES = [
+  "js/boot.js",
   "js/ludus.js",
   "js/chess.js",
   "js/pgn.js",

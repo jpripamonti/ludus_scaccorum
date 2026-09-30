@@ -88,7 +88,8 @@ function make(options = {}) {
 
 {
   const schema = Settings.schema;
-  eq(schema.length, 23, "the contract lists 23 paths");
+  // 23 paths of the contract + notation.style (piece letters); later additions only grow it.
+  ok(schema.length >= 24 && schema.some((spec) => spec.path === "notation.style"), "the contract's 23 paths plus notation.style");
   eq(new Set(schema.map((spec) => spec.path)).size, schema.length, "paths are unique");
   ok(Object.isFrozen(schema) && schema.every((spec) => Object.isFrozen(spec)), "the schema is frozen");
   const groupIds = Settings.groups.map((group) => group.id);
@@ -298,7 +299,7 @@ function make(options = {}) {
   const stored = JSON.parse(storage.map.get("ludus.settings.v2"));
   eq(stored.v, 2, "stored blob is versioned");
   eq(stored.values["board.theme"], "slate");
-  eq(Object.keys(stored.values).length, 23, "every path is stored");
+  eq(Object.keys(stored.values).length, Settings.schema.length, "every path is stored");
   const b = make({ storage }).s;
   eq(b.get("board.theme"), "slate", "a new instance reads what was saved");
   eq(b.get("a11y.textScale"), 1.3);
