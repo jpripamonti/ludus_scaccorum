@@ -176,10 +176,14 @@ const MIN_TURN_TIME_SECONDS = 5;
 const MAX_TURN_TIME_SECONDS = 360;
 const MIN_LEGAL_MOVES_FOR_CANDIDATE = 3;
 const LOCAL_FALLBACK_MAX_DEPTH = 3;
+// The backup engine gives the page back to the browser after this many milliseconds of work (see createLocalSlicer).
+const LOCAL_SLICE_MS = 12;
 // The strong engine is a 7 MB download, so give it room on a slow connection
 // and retry rather than falling back to the shallow local one for good.
 const ENGINE_READY_TIMEOUT_MS = 30000;
 const ENGINE_LOAD_ATTEMPTS = 3;
+// How many times a strong engine that died in the middle of a session is brought back (from the next round).
+const ENGINE_REVIVALS = 2;
 const ENGINE_RETRY_BASE_MS = 1500;
 // How long a starting session waits for it before playing on the local engine
 // while the download keeps going in the background.
@@ -372,14 +376,7 @@ const TRANSLATIONS = {
     "result.boardToolsLabel": "Herramientas del tablero",
     "scoring.system.simple.label": "Precisión (0 a 10)",
     "scoring.system.simple.description": "Cuanto más cerca esté tu jugada de la mejor del motor, más puntos: hasta 10 por posición.",
-    "quality.no_move": "Sin jugada",
-    "quality.perfect": "Perfecta",
-    "quality.very_good": "Muy buena",
-    "quality.good": "Buena",
-    "quality.interesting": "Interesante",
-    "quality.dubious": "Dudosa",
-    "quality.bad": "Mala",
-    "quality.blunder": "Error grave",
+    // The quality words ("quality.*") live only in js/scoring.js: one ladder for every screen (CNT-014).
     "common.notAvailable": "No disponible",
     "common.unknown": "desconocido",
     "common.searching": "Pensando...",
@@ -670,14 +667,7 @@ const TRANSLATIONS = {
     "result.boardToolsLabel": "Board tools",
     "scoring.system.simple.label": "Precision (0 to 10)",
     "scoring.system.simple.description": "The closer your move is to the engine's best, the more points: up to 10 per position.",
-    "quality.no_move": "No move",
-    "quality.perfect": "Perfect",
-    "quality.very_good": "Very good",
-    "quality.good": "Good",
-    "quality.interesting": "Interesting",
-    "quality.dubious": "Dubious",
-    "quality.bad": "Bad",
-    "quality.blunder": "Serious mistake",
+    // The quality words ("quality.*") live only in js/scoring.js (see the Spanish dictionary above).
     "common.notAvailable": "Not available",
     "common.unknown": "unknown",
     "common.searching": "Thinking...",
@@ -1198,6 +1188,12 @@ const STATE = {
   // The strong engine (Ludus.Engine over a Worker) once it is up; until then, or
   // after it fails, the shallow local search answers (see analyzePosition).
   engine: { mode: "local", instance: null, ready: false },
+  // Where the strong engine stands: idle | loading | ready | failed | unsupported (this browser cannot run it);
+  // whether its file is in the browser's cache, how far the download got, and how many times it has died this page.
+  engineStatus: "idle",
+  engineFilesReady: false,
+  engineDownload: { loaded: 0, total: 0, ratio: 0, at: 0, state: "idle" },
+  engineFailures: 0,
   // analyzePosition(): finished results, the requests still running, and the
   // counter that cancels everything started before it (new session, leaving).
   analysis: { cache: new Map(), inflight: new Map(), generation: 0 },
@@ -1556,8 +1552,9 @@ function updateOnlineProviderUi() {
     : (preferredLocale() === "en" ? "e.g. MagnusCarlsen" : "Ej: MagnusCarlsen");
 }
 
+// The name the wizard will use: what is typed, without an "@" and as a profile address would give it (normalizeRemoteUsername).
 function getConfiguredRemoteUsername() {
-  return String(onlineUserInputEl ? onlineUserInputEl.value : "").trim();
+  return normalizeRemoteUsername(onlineUserInputEl ? onlineUserInputEl.value : "");
 }
 
 // True when a downloaded base still belongs to the provider and the username
@@ -2091,7 +2088,7 @@ function renderResultFallback(context) {
   const insightsApi = ludusModule("Insights");
   const notes = [];
   const assessment = answer.assessment;
-  if (answer.uci && scoring) notes.push(scoring.reasonLabel(assessment.reason, STATE.language));
+  if (answer.uci && scoring) notes.push(scoring.reasonLabel(assessment.reason, STATE.language, assessment));
   if (answer.hintsUsed >= 1 && answer.hintsUsed < 3 && assessment.hintPenalty > 0) {
     notes.push(t("scoring.note.hint_penalty", { percent: Math.round((assessment.hintCost || 0) * 100) }));
   }
@@ -2102,7 +2099,7 @@ function renderResultFallback(context) {
   } catch (error) {
     // Insights are decoration.
   }
-  if (context.engine && context.engine.source === "local") notes.push(t("analysis.status.localEngineNotice"));
+  if (context.engine && context.engine.source === "local") notes.push(engineFallbackNotice());
   if (roundResultEl) roundResultEl.textContent = notes.filter(Boolean).join(" ");
   if (resultLiveEl) resultLiveEl.classList.remove("sr-only");
 }
@@ -2389,21 +2386,25 @@ function renderPlayHeader() {
     if (playScoreMaxEl) playScoreMaxEl.textContent = played > 0 ? `/ ${formatPoints(played * POINTS_PER_POSITION)}` : "";
     if (playScoreEl && (STATE.score || 0) > (STATE.ui.lastShownScore || 0)) {
       // A small bump when the points grow (css/coach.css; no motion under reduced motion).
+      // The animation restarts on the next frame: reading offsetWidth to force it made every answer pay a synchronous layout.
       playScoreEl.classList.remove("is-bump");
-      void (playScoreEl.offsetWidth);
-      playScoreEl.classList.add("is-bump");
+      if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => playScoreEl.classList.add("is-bump"));
+      else playScoreEl.classList.add("is-bump");
     }
     STATE.ui.lastShownScore = STATE.score || 0;
   }
   const coach = ludusModule("Coach");
   if (coach && sessionDotsEl && typeof coach.dotsModel === "function") {
     try {
-      coach.renderDots(sessionDotsEl, coach.dotsModel({
-        total,
-        current: phase === "thinking" || phase === "evaluating" || phase === "handoff" ? STATE.index : -1,
-        rounds: dotRounds(),
-        lang: STATE.language,
-      }));
+      // The dots are a function of the session, the number of positions, the round in play, the answers so far and
+      // the language: drawn again only when one of those changed (a 200-position session rebuilt 200 nodes per call).
+      const current = phase === "thinking" || phase === "evaluating" || phase === "handoff" ? STATE.index : -1;
+      const roundCount = STATE.session && Array.isArray(STATE.session.rounds) ? STATE.session.rounds.length : 0;
+      const dotsKey = [STATE.session ? STATE.session.id : "", total, current, roundCount, STATE.language].join("|");
+      if (dotsKey !== STATE.ui.dotsKey) {
+        STATE.ui.dotsKey = dotsKey;
+        coach.renderDots(sessionDotsEl, coach.dotsModel({ total, current, rounds: dotRounds(), lang: STATE.language }));
+      }
     } catch (error) {
       console.error("[Ludus] the progress dots failed to draw", error);
     }
@@ -3297,8 +3298,27 @@ function validateWizardStep(step = STATE.setupWizard.step) {
   return { valid: true, reason: t("wizard.validation.ready") };
 }
 
-function goToWizardStep(step) {
+// The steps of the wizard are entries of the browser's history (Ludus.router sub-states): Back goes to the step
+// before, then home, like any multi-step form; Forward goes on. options.fromHistory: the browser already moved.
+function syncWizardHistory(previousStep, step) {
+  const router = ludusModule("router");
+  if (!router || typeof router.pushSub !== "function" || router.current() !== "setup") return;
+  const sub = step === wizardFirstStep() ? null : { step };
+  if (step > previousStep) router.pushSub(sub);
+  else if (step === previousStep - 1 && router.subDepth() > 0 && router.popSub()) return;
+  else if (step < previousStep) router.replaceSub(sub);
+}
+
+// Back or Forward landed on a step of the wizard. A search that was running goes with the step it belonged to.
+function wizardStepFromHistory(sub) {
+  if (STATE.ui.setupAnalyzing || STATE.analysisInProgress) cancelSetupWork();
+  goToWizardStep(sub && Number(sub.step) ? Number(sub.step) : wizardFirstStep(), { fromHistory: true });
+}
+
+function goToWizardStep(step, options = {}) {
+  const previousStep = Number(STATE.setupWizard.step) || wizardFirstStep();
   STATE.setupWizard.step = clamp(Number(step) || wizardFirstStep(), wizardFirstStep(), 3);
+  if (!options.fromHistory) syncWizardHistory(previousStep, STATE.setupWizard.step);
   renderWizardStep();
   window.scrollTo({ top: 0, behavior: "auto" });
   const heading = document.getElementById(`wizard-step-${STATE.setupWizard.step}-title`);
@@ -3368,6 +3388,7 @@ const wizardFormControlEls = [
   wizardProviderChessComBtn,
   onlineUserInputEl,
   wizardRetryUserBtn,
+  wizardRetryDownloadBtn,
   wizardSwitchPlatformBtn,
   wizardClearCacheBtn,
   ...wizardSizeChipEls,
@@ -3560,8 +3581,11 @@ function goHome(params) {
 // Shows the own-games wizard. Used by the landing page when home is not
 // available, and by Ludus.game.openOwnGamesSetup for the screens that know
 // already who plays.
+let wizardOpenedInThisPage = false;
+
 function openSetupFromLanding({ format = null, statusMessage = "", skipModeStep = false } = {}) {
   if (setupPanelEl) setupPanelEl.style.display = "";
+  wizardOpenedInThisPage = true;
   routerShow("setup");
   if (format) {
     const normalized = normalizeGameFormat(format);
@@ -4257,7 +4281,19 @@ function computeLossAgainstBest(bestMoverScore, choiceMoverScore) {
   };
 }
 
+// The game phase of a position: one classifier for the whole app (Insights.gamePhase, which looks at the
+// pieces left, the queens and the move number). The rule below is only what stands in for it when Ludus.Insights
+// is not there (a module that failed to load must not stop a round).
 function getGamePhase(board) {
+  const insightsApi = ludusModule("Insights");
+  try {
+    if (insightsApi && typeof insightsApi.gamePhase === "function") {
+      const phase = insightsApi.gamePhase(board);
+      if (phase === "opening" || phase === "middlegame" || phase === "endgame") return phase;
+    }
+  } catch (error) {
+    // fall through to the stand-in
+  }
   let nonPawnMaterial = 0;
   let queens = 0;
   for (const piece of board.board) {
@@ -4273,12 +4309,32 @@ function getGamePhase(board) {
   return "middlegame";
 }
 
+// What a mistake is, for the positions of the person's own games: the loss of WIN CHANCE (percentage points of
+// Scoring.winPercent) of the move they played against the best one, the very measure a round is scored with. A
+// centipawn loss is not comparable across positions (150 cp is a blunder in a level position and nothing when the
+// game is already won or lost), and a mistake detected in one unit and scored in another was replayed for 9.4 of 10.
+// The sensitivity setting is still written in centipawns of a level position ("80 cp"): that is converted here.
+function lossPctForCp(cp) {
+  const scoring = ludusModule("Scoring");
+  const value = clamp(Number(cp) || 0, 0, 2000);
+  if (scoring && typeof scoring.winPercent === "function") return Math.max(0, scoring.winPercent(value) - scoring.winPercent(0));
+  return 50 * (2 / (1 + Math.exp(-0.00368208 * Math.min(value, 1000))) - 1);
+}
+
+// Win-chance points the played move gives up against the best move (both mover-point-of-view scores, mates included).
+function winLossPct(bestMoverScore, playedMoverScore) {
+  const scoring = ludusModule("Scoring");
+  if (!scoring || typeof scoring.winPercent !== "function" || !Number.isFinite(bestMoverScore) || !Number.isFinite(playedMoverScore)) return NaN;
+  return Math.max(0, scoring.winPercent(bestMoverScore) - scoring.winPercent(playedMoverScore));
+}
+
+// The threshold of a position: the base one, a little looser in an opening and tighter in an endgame (where
+// every tempo counts), in centipawns as before and in win-chance points (what the detection compares with).
 function adaptiveThreshold(baseThresholdCp, board) {
   const phase = getGamePhase(board);
   const base = clamp(Number(baseThresholdCp) || 150, 50, 800);
-  if (phase === "opening") return { phase, threshold: Math.round(base * 1.1) };
-  if (phase === "endgame") return { phase, threshold: Math.round(base * 0.75) };
-  return { phase, threshold: base };
+  const threshold = phase === "opening" ? Math.round(base * 1.1) : phase === "endgame" ? Math.round(base * 0.75) : base;
+  return { phase, threshold, thresholdPct: lossPctForCp(threshold) };
 }
 
 function adaptiveMoveTime(baseMoveTimeMs, board, options = {}) {
@@ -4623,16 +4679,24 @@ async function evaluateRoundAnswers(base, position, answers, plan, hooks = {}) {
     const hintsUsed = clamp(Math.round(Number(answer.hintsUsed) || 0), 0, 3);
     let isSacrifice = false;
     try {
-      const features = uci && insightsApi ? insightsApi.moveFeatures(fen, uci) : null;
+      // `lines` lets "sacrifice" (and so "brilliant") follow the engine's line for the move.
+      const features = uci && insightsApi ? insightsApi.moveFeatures(fen, uci, { lines }) : null;
       isSacrifice = Boolean(features && features.sacrifice);
+      // A classic's sacrifice that the engine's best defence declines (17...Be6!! offers the queen, the engine answers by
+      // taking a knight instead) is no sacrifice along the engine's line, but it is the master's brilliancy: the data
+      // (scripts/build-classics.js) already knows it from the game's own continuation.
+      if (!isSacrifice && uci && uci === position.gameMoveUci && position.classic && position.classic.kind === "sacrifice") isSacrifice = true;
     } catch (error) {
       isSacrifice = false;
     }
     const input = { lines, userUci: uci, masterUci, settings, reason, hintsUsed };
     let assessment = scoring.assess(input, { isSacrifice });
+    // The engine's line after a move that is not among the lines: what the coach checks its claims about material against.
+    let userPv;
     if (assessment.needsEvaluation && uci && !assessment.error) {
       const outside = await scoreOutsideLines(uci);
       if (outside.aborted) return null;
+      if (outside.line && Array.isArray(outside.line.pv)) userPv = outside.line.pv;
       if (Number.isFinite(outside.score)) {
         assessment = scoring.assess({ ...input, userScore: outside.score }, { isSacrifice });
       }
@@ -4649,6 +4713,7 @@ async function evaluateRoundAnswers(base, position, answers, plan, hooks = {}) {
           bestUci: assessment.bestUci,
           assessment,
           lines,
+          userPv,
           masterUci,
           timing: { timeSpentMs: answer.timeSpentMs, limitMs: isUntimedSession() ? 0 : STATE.timer.durationMs, timedOut: reason === "timeout" },
         });
@@ -4726,6 +4791,10 @@ async function evaluateRoundAnswers(base, position, answers, plan, hooks = {}) {
 
 
 // ---------- Local fallback evaluator ----------
+// The 3-ply search that answers when the strong engine is not there. It used to be a plain minimax over cloned
+// boards in ONE synchronous task: 1.2-1.4 s of frozen page per analysis on a phone (3 s at 4x CPU) and 4 s to score
+// a round. Now it is alpha-beta with captures searched first (most of the tree is cut: the same answers, a tenth
+// of the nodes) and it gives the page back to the browser every few milliseconds, so the screen keeps moving.
 
 const pieceValues = { P: 100, N: 320, B: 330, R: 500, Q: 900, K: 0, p: -100, n: -320, b: -330, r: -500, q: -900, k: 0 };
 function evaluateMaterial(board) {
@@ -4738,38 +4807,78 @@ function evaluateMaterial(board) {
   return score;
 }
 
-function evaluatePosition(board, depth) {
-  if (depth <= 0) return evaluateMaterial(board);
+// Search order: the most valuable victim taken by the least valuable piece first (MVV-LVA), promotions next,
+// then the moves as they were generated (stable, so equal moves keep their order).
+function moveOrderKey(board, move) {
+  let key = 0;
+  if (move.capture || move.enPassant) {
+    const victim = move.enPassant ? 100 : Math.abs(pieceValues[board.board[move.to]] || 0);
+    const attacker = Math.abs(pieceValues[board.board[move.from]] || 0);
+    key = 10000 + victim * 10 - attacker / 10;
+  }
+  if (move.promotion) key += 9000;
+  return key;
+}
+
+function orderedMoves(board) {
   const moves = board.generateMoves();
+  return moves
+    .map((move, index) => ({ move, index, key: moveOrderKey(board, move) }))
+    .sort((a, b) => (b.key - a.key) || (a.index - b.index))
+    .map((entry) => entry.move);
+}
+
+// The value of a position for White after searching `depth` plies with alpha-beta (the exact minimax value when the
+// window is the whole line, a bound when the caller narrows it).
+function evaluatePosition(board, depth, alpha = -Infinity, beta = Infinity) {
+  if (depth <= 0) return evaluateMaterial(board);
+  const moves = orderedMoves(board);
   if (moves.length === 0) return board.inCheck(board.turn) ? (board.turn === "w" ? -99999 : 99999) : 0;
   let best = board.turn === "w" ? -Infinity : Infinity;
-  moves.forEach((move) => {
+  for (const move of moves) {
     const clone = board.clone();
     clone.makeMove(move);
-    const score = evaluatePosition(clone, depth - 1);
+    const score = evaluatePosition(clone, depth - 1, alpha, beta);
     if (board.turn === "w") {
       if (score > best) best = score;
-    } else if (score < best) {
-      best = score;
+      if (best > alpha) alpha = best;
+    } else {
+      if (score < best) best = score;
+      if (best < beta) beta = best;
     }
-  });
+    if (alpha >= beta) break;
+  }
   return best;
 }
 
-function searchBestMove(board, depth) {
-  let bestScore = board.turn === "w" ? -Infinity : Infinity;
+// Gives the page back to the browser when a slice of work has lasted long enough to be felt (12 ms): the clock, the
+// board and the overlay keep moving while the backup engine thinks.
+function createLocalSlicer() {
+  const now = () => (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now());
+  let sliceStart = now();
+  return async function maybeYield() {
+    if (now() - sliceStart < LOCAL_SLICE_MS) return;
+    await yieldToUi();
+    sliceStart = now();
+  };
+}
+
+// The best move for the side to move and its score for White, in root order (the first of equal moves wins, as
+// it always did): each later move is searched with the best score so far as the window, so most are refuted at once.
+async function searchBestMove(board, depth, maybeYield) {
+  const white = board.turn === "w";
+  let bestScore = white ? -Infinity : Infinity;
   let bestMove = null;
-  board.generateMoves().forEach((move) => {
+  for (const move of board.generateMoves()) {
     const clone = board.clone();
     clone.makeMove(move);
-    const score = evaluatePosition(clone, depth - 1);
-    if (board.turn === "w") {
-      if (score > bestScore) { bestScore = score; bestMove = move; }
-    } else if (score < bestScore) {
+    const score = evaluatePosition(clone, depth - 1, white ? bestScore : -Infinity, white ? Infinity : bestScore);
+    if (white ? score > bestScore : score < bestScore) {
       bestScore = score;
       bestMove = move;
     }
-  });
+    if (maybeYield) await maybeYield();
+  }
   return { move: bestMove, score: Math.round(bestScore) };
 }
 
@@ -4784,7 +4893,7 @@ function searchBestMove(board, depth) {
 // vendor/stockfish-18-lite-single.js.
 let engineTransportFactory = null;
 // Timings a test may shorten (Ludus.game.configureEngine); null: the constants.
-const timingOverrides = { minEvalVisibleMs: null, engineRetryBaseMs: null };
+const timingOverrides = { minEvalVisibleMs: null, engineRetryBaseMs: null, engineStallMs: null };
 // Bumped every time the engine is dropped, so a load that finishes after the
 // person already went home does not leave an engine running behind their back.
 let engineEpoch = 0;
@@ -4806,15 +4915,97 @@ function localFallbackDepth(depth) {
   return clamp(Number(depth) || LOCAL_FALLBACK_MAX_DEPTH, 1, LOCAL_FALLBACK_MAX_DEPTH);
 }
 
+// Why the strong engine is not the one answering, for the words that say so: "unsupported" (this browser cannot
+// run it), "offline" (it cannot be fetched now), "failed" (it died or never started), "loading" (on its way).
+function engineFallbackReason() {
+  if (STATE.engine.mode === "stockfish" && STATE.engine.ready) return "";
+  if (STATE.engineStatus === "unsupported") return "unsupported";
+  if (engineLoad) return "loading";
+  if (typeof navigator !== "undefined" && navigator.onLine === false && !STATE.engineFilesReady) return "offline";
+  return STATE.engineStatus === "failed" ? "failed" : "loading";
+}
+
+// The sentence that goes with the backup engine, for the reason it is in use.
+function engineFallbackNotice() {
+  const reason = engineFallbackReason();
+  if (reason === "unsupported") return t("core.engine.unsupported");
+  if (reason === "offline") return t("core.engine.offline");
+  return t("analysis.status.localEngineNotice");
+}
+
+// The browser can run the engine's WebAssembly (it needs SIMD: Chrome 91, Firefox 89, Safari 16.4 and later)?
+// A test or an end-to-end run that hands the engine another transport skips the question: a fake needs no wasm.
+function engineSupported() {
+  if (typeof engineTransportFactory === "function") return true;
+  const engineApi = ludusModule("Engine");
+  try {
+    if (engineApi && typeof engineApi.supported === "function") return engineApi.supported();
+  } catch (error) {
+    return false;
+  }
+  return true;
+}
+
+// Brings the engine's files into the browser's cache while showing how far it got, so the Worker that starts
+// afterwards finds them at once. The download has NO wall-clock limit (a cold 7 MB file takes a minute on a slow
+// connection and used to be abandoned at 30 s, three times in a row): it is given up only when no byte has
+// arrived for ENGINE_DOWNLOAD_STALL_MS. Resolves to true when the file is complete (or there is nothing to fetch).
+async function downloadEngineFiles() {
+  if (STATE.engineFilesReady || typeof engineTransportFactory === "function" || typeof fetch !== "function" || typeof AbortController !== "function") return true;
+  const controller = new AbortController();
+  let stallTimer = null;
+  const armStall = () => {
+    if (stallTimer) clearTimeout(stallTimer);
+    stallTimer = setTimeout(() => controller.abort(), timingOverrides.engineStallMs !== null ? timingOverrides.engineStallMs : ENGINE_DOWNLOAD_STALL_MS);
+  };
+  STATE.engineDownload = { loaded: 0, total: 0, ratio: 0, at: Date.now(), state: "downloading" };
+  try {
+    armStall();
+    const response = await fetch(ENGINE_FILE_URL, { signal: controller.signal });
+    if (!response.ok) throw new Error("engine file " + response.status);
+    const total = Number(response.headers && response.headers.get ? response.headers.get("content-length") : 0) || 0;
+    const reader = response.body && typeof response.body.getReader === "function" ? response.body.getReader() : null;
+    if (!reader) {
+      await response.arrayBuffer();
+    } else {
+      let loaded = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        loaded += value.byteLength;
+        armStall();
+        STATE.engineDownload = { loaded, total, ratio: total ? clamp(loaded / total, 0, 1) : null, at: Date.now(), state: "downloading" };
+      }
+    }
+    STATE.engineFilesReady = true;
+    STATE.engineDownload = { ...STATE.engineDownload, ratio: 1, state: "done" };
+    return true;
+  } catch (error) {
+    STATE.engineDownload = { ...STATE.engineDownload, state: controller.signal.aborted ? "stalled" : "failed" };
+    return false;
+  } finally {
+    if (stallTimer) clearTimeout(stallTimer);
+  }
+}
+
 // One attempt at starting the strong engine. The worker requests the engine
-// file itself, so the app no longer fetches it first just to check it is there.
+// file itself (the page has already brought it into the cache, see downloadEngineFiles).
 async function setupStockfish() {
   resetEngineToLocal();
   const epoch = engineEpoch;
   const engineApi = ludusModule("Engine");
   if (!engineApi || typeof engineApi.create !== "function") return false;
+  if (!engineSupported()) {
+    STATE.engineStatus = "unsupported";
+    return false;
+  }
   let instance = null;
   try {
+    if (!(await downloadEngineFiles())) {
+      if (epoch === engineEpoch) STATE.engineStatus = "failed";
+      return false;
+    }
+    if (epoch !== engineEpoch) return false;
     const config = { readyTimeoutMs: ENGINE_READY_TIMEOUT_MS };
     if (typeof engineTransportFactory === "function") config.createTransport = engineTransportFactory;
     instance = engineApi.create(config);
@@ -4825,9 +5016,11 @@ async function setupStockfish() {
       } catch (error) {
         // ignore
       }
+      if (epoch === engineEpoch) STATE.engineStatus = "failed";
       return false;
     }
     STATE.engine = { mode: "stockfish", instance, ready: true };
+    STATE.engineStatus = "ready";
     return true;
   } catch (error) {
     if (instance) {
@@ -4837,7 +5030,10 @@ async function setupStockfish() {
         // ignore
       }
     }
-    if (epoch === engineEpoch) resetEngineToLocal();
+    if (epoch === engineEpoch) {
+      resetEngineToLocal();
+      STATE.engineStatus = "failed";
+    }
     return false;
   }
 }
@@ -4847,10 +5043,12 @@ let engineLoad = null;
 // Loads the strong engine once however many places ask for it, retrying a few
 // times with a growing pause. A first attempt failing on a weak connection is
 // ordinary for a download this size and used to condemn the whole page load to
-// the shallow local engine.
+// the shallow local engine. A browser that cannot run it is told so once and not asked again.
 function ensureStockfishLoading() {
   if (STATE.engine.mode === "stockfish" && STATE.engine.ready) return Promise.resolve(true);
+  if (STATE.engineStatus === "unsupported") return Promise.resolve(false);
   if (!engineLoad) {
+    STATE.engineStatus = "loading";
     engineLoad = (async () => {
       for (let attempt = 0; attempt < ENGINE_LOAD_ATTEMPTS; attempt += 1) {
         if (attempt > 0) {
@@ -4858,6 +5056,11 @@ function ensureStockfishLoading() {
           await sleepMs(baseMs * attempt);
         }
         if (await setupStockfish()) return true;
+        if (STATE.engineStatus === "unsupported") {
+          // Said once, in the words of this browser's limit (the panel says "backup engine" from now on).
+          showToast(t("core.engine.unsupported"), { kind: "info", duration: 9000 });
+          return false;
+        }
       }
       return false;
     })().finally(() => {
@@ -4865,6 +5068,17 @@ function ensureStockfishLoading() {
     });
   }
   return engineLoad;
+}
+
+// The strong engine died in the middle of a session (a silent worker, a crash): it is tried again from the next
+// round, a couple of times, instead of leaving the rest of the session on the shallow engine for good.
+function reviveEngineIfNeeded() {
+  if (STATE.engineFailures < 1 || STATE.engineFailures > ENGINE_REVIVALS || engineLoad) return;
+  if (STATE.engine.mode === "stockfish" && STATE.engine.ready) return;
+  if (!engineSupported()) return;
+  void ensureStockfishLoading().then((ready) => {
+    if (ready && STATE.ui.gamePhase === "thinking") renderThinkingPanel();
+  });
 }
 
 // Stops whatever the engine is doing for this page and invalidates every
@@ -4910,6 +5124,8 @@ function normalizeAnalysisRequest(fen, options) {
     depth,
     searchMoves: cleanUciList(opts.searchMoves),
     onProgress: typeof opts.onProgress === "function" ? opts.onProgress : null,
+    // A shallow look (the screening of the mistake search) is neither read from nor written to the cache.
+    noCache: Boolean(opts.noCache),
   };
 }
 
@@ -4966,23 +5182,25 @@ function localAnalysisLine(board, move, whiteScore, depth) {
 // first: the shallow search must not freeze a click that is still being handled.
 async function runLocalAnalysis(request) {
   await yieldToUi();
+  const maybeYield = createLocalSlicer();
   const board = new Chess(request.fen);
   const depth = localFallbackDepth(request.depth || LOCAL_FALLBACK_MAX_DEPTH);
   if (request.searchMoves.length) {
     const lines = [];
-    request.searchMoves.forEach((uci) => {
+    for (const uci of request.searchMoves) {
       const move = uciToMove(uci, board);
-      if (!move) return;
+      if (!move) continue;
       const clone = board.clone();
       clone.makeMove(move);
       lines.push({ move, whiteScore: evaluatePosition(clone, depth - 1) });
-    });
+      await maybeYield();
+    }
     const scored = lines
       .map((entry) => localAnalysisLine(board, entry.move, entry.whiteScore, depth))
       .sort((a, b) => lineMoverScore(b) - lineMoverScore(a));
     return { lines: scored.slice(0, 1), depth, aborted: false };
   }
-  const best = searchBestMove(board, depth);
+  const best = await searchBestMove(board, depth, maybeYield);
   if (!best.move) return { lines: [], depth, aborted: false };
   return { lines: [localAnalysisLine(board, best.move, best.score, depth)], depth, aborted: false };
 }
@@ -5043,7 +5261,7 @@ async function analyzePosition(fen, options = {}) {
     if (isAborted()) return { lines: [], source: engineSourceName(), depth: 0, aborted: true };
     const source = engineSourceName();
     const key = analysisCacheKey(source, request);
-    const cached = readAnalysisCache(key);
+    const cached = request.noCache ? null : readAnalysisCache(key);
     if (cached) {
       if (request.onProgress) request.onProgress({ ratio: 1, elapsedMs: 0, targetMs: request.movetimeMs, cached: true });
       return { lines: cloneAnalysisLines(cached.lines), source, depth: cached.depth, cached: true, aborted: false };
@@ -5064,7 +5282,9 @@ async function analyzePosition(fen, options = {}) {
           } catch (error) {
             if (isAborted()) return { lines: [], depth: 0, aborted: true, source };
             console.info("The strong engine failed; the fallback takes over.", error);
+            STATE.engineFailures += 1;
             resetEngineToLocal();
+            STATE.engineStatus = "failed";
           }
         }
         const local = await runLocalAnalysis(request);
@@ -5078,7 +5298,7 @@ async function analyzePosition(fen, options = {}) {
     const result = await pending;
     if (result.aborted && !isAborted()) continue; // someone else's cancellation: ask again
     if (joined && request.onProgress) request.onProgress({ ratio: 1, elapsedMs: 0, targetMs: request.movetimeMs, cached: true });
-    if (!result.aborted && !result.timedOut && result.lines.length) {
+    if (!request.noCache && !result.aborted && !result.timedOut && result.lines.length) {
       writeAnalysisCache(analysisCacheKey(result.source, request), { lines: cloneAnalysisLines(result.lines), depth: result.depth });
     }
     if (request.onProgress && !result.aborted) request.onProgress({ ratio: 1, elapsedMs: 0, targetMs: request.movetimeMs, depth: result.depth });
@@ -5225,10 +5445,43 @@ function updateNextSearchStatus(ctx) {
   roundStatusEl.textContent = "";
 }
 
-// Candidate mistake search (own games): cheap single-line searches, best move
-// first and then only the move that was played (searchmoves), each on a short
-// adaptive budget. MultiPV would make every candidate slower for nothing here:
-// the round itself gets the full MultiPV analysis when it is played.
+// A cheap search may miss a tactic or see one that is not there (a 250 ms search of the same position gave
+// the best move's score +16 to +46 cp on different runs when the real best was +185). So it only SCREENS: a
+// candidate whose loss is at least this share of the threshold is looked at properly (verifyMistakeCandidate).
+const MISTAKE_SCREEN_FACTOR = 0.6;
+
+// The second look at a candidate that passed the screening: the analysis of the position with the budget a
+// round is scored with (MultiPV, the same time), the played move scored by that analysis (or by a search of
+// its own when it is outside the lines), and the loss of win chance measured again. A candidate that does
+// not confirm is dropped, and a confirmed one carries the analysis as its reference: the round is then scored against
+// exactly what flagged the position (no second opinion that could disagree), and the hint agrees with it.
+// Resolves to null when it does not confirm or the work was cancelled.
+async function verifyMistakeCandidate(before, fen, playedUci, thresholdPct) {
+  const plan = getRoundEvaluationPlan(before, { fen }, 1);
+  const root = await analyzePosition(fen, { multiPv: plan.multiPv, movetimeMs: plan.movetimeMs });
+  if (root.aborted || !root.lines.length) return null;
+  const lines = compactEngineLines(root.lines);
+  if (!lines.length) return null;
+  // The engine's own best move is the one the person played: nothing to learn here.
+  if (lines[0].uci === playedUci) return null;
+  const inLines = lines.find((line) => line.uci === playedUci);
+  let playedMover;
+  if (inLines) {
+    playedMover = inLines.score;
+  } else {
+    const one = await analyzePosition(fen, { searchMoves: [playedUci], multiPv: 1, movetimeMs: plan.movetimeMs });
+    if (one.aborted || !one.lines[0]) return null;
+    playedMover = lineMoverScore(one.lines[0]);
+  }
+  const lossPct = winLossPct(lines[0].score, playedMover);
+  if (!(lossPct >= thresholdPct)) return null;
+  return { lines, depth: root.depth, source: root.source, bestMover: lines[0].score, playedMover, lossPct };
+}
+
+// Candidate mistake search (own games): cheap single-line searches screen the candidates (the best move first
+// and then only the move that was played, searchmoves, each on a short adaptive budget; MultiPV would make every
+// candidate slower for nothing here), and the few that pass are confirmed by verifyMistakeCandidate. The searches of
+// the screening are never cached: a shallow answer must not be reused as if it were a deep one.
 async function evaluateCandidateForMistake(candidate, ctx) {
   const game = ctx.games[candidate.gameIdx];
   if (!game) return null;
@@ -5254,24 +5507,38 @@ async function evaluateCandidateForMistake(candidate, ctx) {
       const playedUci = moveToUci(move);
       const beforeFen = before.fen();
 
-      const bestResult = await analyzePosition(beforeFen, { multiPv: 1, movetimeMs: budgetMs });
+      const bestResult = await analyzePosition(beforeFen, { multiPv: 1, movetimeMs: budgetMs, noCache: true });
       const bestLine = bestResult.lines[0];
       if (!bestLine) return null;
       const bestUci = lineFirstUci(bestLine);
       // The person played the engine's move: nothing to learn here, and one search saved.
       if (!bestUci || bestUci === playedUci) return null;
-      const playedResult = await analyzePosition(beforeFen, { searchMoves: [playedUci], multiPv: 1, movetimeMs: budgetMs });
+      const playedResult = await analyzePosition(beforeFen, { searchMoves: [playedUci], multiPv: 1, movetimeMs: budgetMs, noCache: true });
       const playedLine = playedResult.lines[0];
       if (!playedLine) return null;
 
-      const bestMover = lineMoverScore(bestLine);
-      const playedMover = lineMoverScore(playedLine);
+      let bestMover = lineMoverScore(bestLine);
+      let playedMover = lineMoverScore(playedLine);
+      let finalBestUci = bestUci;
+      let lossPct = winLossPct(bestMover, playedMover);
+      // Both searches came from the strong engine: a candidate that may be a mistake gets the second, proper look.
+      // (The fallback engine cannot do better than it already did.)
+      let verified = null;
+      if (bestResult.source === "stockfish" && playedResult.source === "stockfish") {
+        if (!(lossPct >= adaptive.thresholdPct * MISTAKE_SCREEN_FACTOR)) return null;
+        verified = await verifyMistakeCandidate(before, beforeFen, playedUci, adaptive.thresholdPct);
+        if (!verified) return null;
+        finalBestUci = verified.lines[0].uci;
+        bestMover = verified.bestMover;
+        playedMover = verified.playedMover;
+        lossPct = verified.lossPct;
+      } else if (!(lossPct >= adaptive.thresholdPct)) {
+        return null;
+      }
       const scored = computeLossAgainstBest(bestMover, playedMover);
 
-      if ((scored.diff || 0) < adaptive.threshold) return null;
-
-      const bestMove = uciToMove(bestUci, before);
-      return {
+      const bestMove = uciToMove(finalBestUci, before);
+      const position = {
         id: `own:${Ludus.util.hashString(beforeFen)}`,
         source: "own",
         fen: beforeFen,
@@ -5280,14 +5547,24 @@ async function evaluateCandidateForMistake(candidate, ctx) {
         gameMoveUci: playedUci,
         gameMoveSan: moveToSan(before, move),
         gameEvalText: formatScoreText(playedMover),
-        bestMoveUci: bestUci,
-        bestMoveSan: bestMove ? moveToSan(before, bestMove) : bestUci,
+        bestMoveUci: finalBestUci,
+        bestMoveSan: bestMove ? moveToSan(before, bestMove) : finalBestUci,
         bestEvalText: formatScoreText(bestMover),
         lossCp: scored.diff || 0,
+        lossPct: Math.round(lossPct * 10) / 10,
         thresholdUsed: adaptive.threshold,
         phase: adaptive.phase,
         gameIndex: candidate.gameIdx + 1,
       };
+      // The analysis that confirmed the mistake is the round's reference (see verifyMistakeCandidate).
+      if (verified) {
+        position.reference = {
+          origin: "runtime",
+          depth: verified.depth,
+          lines: verified.lines.map((line) => ({ uci: line.uci, score: line.score, pv: line.pv })),
+        };
+      }
+      return position;
     }
 
     chess.makeMove(move);
@@ -5726,6 +6003,8 @@ function startRound(options = {}) {
   STATE.duel.handoffReady = false;
   STATE.duel.readyWait = false;
   resetHintState();
+  // An engine that died during the session gets another chance from this round.
+  reviveEngineIfNeeded();
   // A picker, a move waiting for its confirmation or an armed button from the round before never survive into this one.
   closePromotionPicker({ skipFocusReturn: true });
   STATE.pendingMove = null;
@@ -6266,7 +6545,7 @@ async function resolveRound(move, options = {}) {
     const plan = getRoundEvaluationPlan(base, position, answers.length);
     const evaluationVisibleStartedAt = beginRoundEvaluationOverlay(plan);
 
-    await waitForEngineToLoad();
+    await waitForEngineDuringRound();
     if (!isCurrentSessionWork(sessionToken)) return;
 
     const evaluation = await evaluateRoundAnswers(base, position, answers, plan, {
@@ -6339,16 +6618,56 @@ function paintBreak() {
   });
 }
 
-// Someone answering before the strong engine has finished loading waits for it
-// (the overlay is up, with its carousel), but only as long as the session
-// promised: after that the fallback scores the round and the download carries on.
-async function waitForEngineToLoad() {
+// Someone answering before the strong engine has finished loading waits for it (the overlay is up, with its
+// carousel and how far the download is), but only as long as it is coming: the wait ends when the engine is up,
+// when no byte has arrived for as long as a session promised to wait (ENGINE_SESSION_WAIT_MS), or at a ceiling
+// (ENGINE_WAIT_CEILING_MS). After that the fallback scores the round, and the download carries on.
+// options.onProgress(download) says how far it is (STATE.engineDownload), and options.onGiveUp() that the wait ended without it.
+async function waitForEngineToLoad(options = {}) {
   if (STATE.engine.mode === "stockfish" && STATE.engine.ready) return;
-  const loading = engineLoad;
-  if (!loading) return;
-  const startedAt = STATE.session ? STATE.session.startedAt : Date.now();
-  const remainingMs = Math.max(1500, startedAt + ENGINE_SESSION_WAIT_MS - Date.now());
-  await Promise.race([loading, sleepMs(remainingMs)]);
+  if (!engineLoad) return;
+  const startedAt = Date.now();
+  let lastLoaded = -1;
+  let everReceived = false;
+  for (;;) {
+    const loading = engineLoad;
+    if (!loading) return;
+    const outcome = await Promise.race([loading.then(() => "done", () => "done"), sleepMs(400).then(() => "tick")]);
+    if (outcome === "done") return;
+    const download = STATE.engineDownload;
+    if (download.loaded !== lastLoaded) {
+      lastLoaded = download.loaded;
+      if (download.loaded > 0) everReceived = true;
+    }
+    if (typeof options.onProgress === "function") options.onProgress(download);
+    const waited = Date.now() - startedAt;
+    if (waited > ENGINE_WAIT_CEILING_MS || (!everReceived && waited > ENGINE_SESSION_WAIT_MS)) {
+      if (typeof options.onGiveUp === "function") options.onGiveUp();
+      return;
+    }
+  }
+}
+
+// The line under the title of the evaluating overlay.
+function setPositionSearchMeta(text) {
+  if (STATE.ui.positionSearchState) STATE.ui.positionSearchState.meta = String(text || "");
+  if (positionSearchMetaEl) positionSearchMetaEl.textContent = String(text || "");
+}
+
+// A round being scored while the engine is still coming: the overlay says how far the download is, and, if the wait
+// ends without it, that the round is scored by the backup engine (which is also how it will be told in the result).
+function waitForEngineDuringRound() {
+  const meta = STATE.ui.positionSearchState ? STATE.ui.positionSearchState.meta : "";
+  return waitForEngineToLoad({
+    onProgress: (download) => {
+      if (download.state === "downloading" && Number.isFinite(download.ratio)) {
+        setPositionSearchMeta(t("core.engine.downloading", { pct: Math.round(download.ratio * 100) }));
+      }
+    },
+    onGiveUp: () => setPositionSearchMeta(t("core.engine.slow")),
+  }).then(() => {
+    if (STATE.ui.positionSearchState && STATE.ui.positionSearchState.meta !== meta && STATE.engine.ready) setPositionSearchMeta(meta);
+  });
 }
 
 // Puts the board back to the position the round started from. The played move
@@ -8667,10 +8986,20 @@ function resetSessionStateForNewPipeline() {
 async function ensureEngineForSession() {
   if (STATE.engine.mode === "stockfish" && STATE.engine.ready) return;
   analysisStatusEl.textContent = t("analysis.status.prepareEngine");
-  // Do not hold the session hostage to a 7 MB download on a bad connection:
-  // after this wait the session starts on the local engine and the download
-  // carries on, so later rounds can still use the strong one.
-  await Promise.race([ensureStockfishLoading(), sleepMs(ENGINE_SESSION_WAIT_MS)]);
+  // Do not hold the session hostage to a 7 MB download on a bad connection: the wait goes on while bytes keep
+  // arriving (and says how far they are), and ends when they stop: the session then starts on the local engine
+  // and the download carries on, so later rounds can still use the strong one.
+  void ensureStockfishLoading();
+  await waitForEngineToLoad({
+    onProgress: (download) => {
+      if (download.state === "downloading" && Number.isFinite(download.ratio)) {
+        analysisStatusEl.textContent = t("core.engine.downloading", { pct: Math.round(download.ratio * 100) });
+      }
+    },
+    onGiveUp: () => {
+      analysisStatusEl.textContent = t("core.engine.slow");
+    },
+  });
 }
 
 // True when this session is being scored by the shallow local fallback instead
@@ -8812,7 +9141,7 @@ function enterPlayModeWithFirstPosition(firstMistake, ctx) {
     sessionHintEl.textContent = t("game.sessionHintCitizen", { target: STATE.targetPositions, detected: ctx.detected });
   }
   analysisStatusEl.textContent = isUsingFallbackEngine()
-    ? `${t("analysis.status.firstReady")} ${t("analysis.status.localEngineNotice")}`
+    ? `${t("analysis.status.firstReady")} ${engineFallbackNotice()}`
     : t("analysis.status.firstReady");
   // The own-games pipeline joins the same lifecycle as any other session.
   const duel = STATE.gameFormat === "duel";
@@ -8874,6 +9203,7 @@ if (sourceBackBtn) {
 
 if (wizardPrevBtn) {
   wizardPrevBtn.addEventListener("click", () => {
+    // "Previous" is the same step back the browser's Back makes (one history entry less).
     goToWizardStep(STATE.setupWizard.step - 1);
   });
 }
@@ -9361,7 +9691,12 @@ function registerPwaText() {
 
 function watchServiceWorker(registration) {
   const container = navigator.serviceWorker;
-  const hadController = Boolean(container.controller);
+  // Automation and some privacy modes stub serviceWorker out: register() can resolve with nothing
+  // (or with something that is no registration). There is then nothing to watch, and nothing to fail.
+  if (!container || typeof container.addEventListener !== "function") return;
+  if (!registration || typeof registration.addEventListener !== "function") return;
+  const hadController = Boolean(container.controller); // false on the very first visit: the install is not an update
+  let controlled = hadController; // follows the page: a first-visit page is controlled from the claim on
   let swapRequested = false; // this tab asked for the new worker: its controllerchange means "reload now"
   let prompted = false;
 
@@ -9425,7 +9760,7 @@ function watchServiceWorker(registration) {
   }
 
   function track(worker) {
-    if (!worker) return;
+    if (!worker || typeof worker.addEventListener !== "function") return;
     const onState = () => {
       if (worker.state === "installed") {
         if (container.controller) promptReload(); // a newer build is now waiting
@@ -9445,7 +9780,9 @@ function watchServiceWorker(registration) {
   if (registration.waiting && container.controller) promptReload();
 
   container.addEventListener("controllerchange", () => {
-    if (!hadController) return; // the first install claiming this page
+    const wasControlled = controlled;
+    controlled = Boolean(container.controller);
+    if (!wasControlled) return; // the first install claiming this page: nothing old to replace
     if (swapRequested) window.location.reload();
     else promptReload(); // another tab took the new worker: this page still runs the old code
   });
@@ -9460,7 +9797,11 @@ function watchServiceWorker(registration) {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible" || Date.now() - lastCheck < PWA_UPDATE_CHECK_MS) return;
     lastCheck = Date.now();
-    registration.update().catch(() => {});
+    try {
+      Promise.resolve(registration.update()).catch(() => {});
+    } catch (error) {
+      // An update check is a courtesy.
+    }
   });
 }
 
@@ -9468,10 +9809,22 @@ function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   if (window.location.protocol === "file:") return;
   registerPwaText();
+  const unavailable = (error) => console.warn("[Ludus] the service worker could not be registered (the app works online, not offline):", error);
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").then(watchServiceWorker, (error) => {
-      console.warn("[Ludus] the service worker could not be registered (the app works online, not offline):", error);
-    });
+    let pending = null;
+    try {
+      pending = navigator.serviceWorker.register("sw.js");
+    } catch (error) {
+      unavailable(error);
+      return;
+    }
+    Promise.resolve(pending).then((registration) => {
+      try {
+        watchServiceWorker(registration);
+      } catch (error) {
+        console.warn("[Ludus] the service worker could not be watched (offline mode and update prompts are off):", error);
+      }
+    }, unavailable);
   });
 }
 
@@ -9510,10 +9863,19 @@ function registerLegacyScreens() {
     onHide() {
       cancelSetupWork();
     },
+    // Back and Forward walk the steps of the wizard (each one is an entry of the history).
+    onSub: wizardStepFromHistory,
+    // An entry of a wizard that an earlier visit of the page opened cannot be shown (its state is gone).
+    canEnter: () => wizardOpenedInThisPage,
   });
   router.register("game", {
     el: gameLayoutEl,
     title: "core.title.play",
+    // The game replaces its history entry when it is left by a screen change, asks before a Back leaves a session
+    // that has answers to lose (the exit button's question), and is not a place Forward can return to.
+    transient: true,
+    canLeave: () => confirmRestartToSetup(),
+    canEnter: () => isSessionActive(),
     onShow() {
       document.body.classList.add("playing-mode");
       updateRoundTimerUi();
@@ -9596,7 +9958,8 @@ function exposeGameApi() {
     abort: abortSession,
     leave: leaveSession,
     openOwnGamesSetup,
-    hint: requestHint,
+    // The API asks for the next level whatever the taps before it (no slip protection: a script knows what it asks).
+    hint: () => requestHint(),
     session: () => publicSessionInfo(STATE.session),
     resultContext: () => STATE.resultView.context,
     analyzePosition,
@@ -9623,8 +9986,12 @@ function exposeGameApi() {
       engineTransportFactory = typeof opts.createTransport === "function" ? opts.createTransport : null;
       timingOverrides.minEvalVisibleMs = Number.isFinite(opts.minEvalVisibleMs) ? Math.max(0, opts.minEvalVisibleMs) : null;
       timingOverrides.engineRetryBaseMs = Number.isFinite(opts.retryBaseMs) ? Math.max(0, opts.retryBaseMs) : null;
+      timingOverrides.engineStallMs = Number.isFinite(opts.stallMs) ? Math.max(1, opts.stallMs) : null;
       abortEngineWork();
       resetEngineToLocal();
+      STATE.engineStatus = "idle";
+      STATE.engineFilesReady = false;
+      STATE.engineFailures = 0;
       STATE.analysis.cache.clear();
     },
   };

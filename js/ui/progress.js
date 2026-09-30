@@ -93,7 +93,7 @@
       "progress.xp.next": "Faltan {n} XP para {title}",
       "progress.xp.max": "Llegaste al nivel más alto.",
       "progress.xp.total": "{n} XP en total",
-      "progress.xp.rule": "Cada posición suma hasta 100 XP según su precisión.",
+      "progress.xp.rule": "Cada posición suma hasta 100 XP (puntos de experiencia), según su precisión.",
 
       "progress.streak.title": "Racha",
       "progress.streak.days": "días seguidos",
@@ -149,6 +149,7 @@
       "progress.trend.none": "Todavía no completaste ninguna sesión. Cuando termines una, empieza tu curva.",
       "progress.trend.few": "Con una sesión ya hay un punto; con dos empieza a verse la tendencia.",
       "progress.trend.duels": "Los duelos no se incluyen: su precisión mezcla a los dos jugadores.",
+      "progress.trend.scale": "Esta precisión es más exigente que la de Lichess o Chess.com: sirve para compararte con tu propio historial, no con esas cifras.",
       "progress.trend.point": "Sesión {n} de {total}: {acc}% de precisión, {date}",
       "progress.trend.axis": "Precisión (%)",
       "progress.trend.table": "Precisión de cada sesión",
@@ -265,7 +266,7 @@
       "progress.xp.next": "{n} XP to {title}",
       "progress.xp.max": "You reached the highest level.",
       "progress.xp.total": "{n} XP in total",
-      "progress.xp.rule": "Every position is worth up to 100 XP, depending on its accuracy.",
+      "progress.xp.rule": "Every position is worth up to 100 XP (experience points), depending on its accuracy.",
 
       "progress.streak.title": "Streak",
       "progress.streak.days": "days in a row",
@@ -321,6 +322,7 @@
       "progress.trend.none": "You have not completed a session yet. When you finish one, your curve starts.",
       "progress.trend.few": "One session gives a point; with two the trend starts to show.",
       "progress.trend.duels": "Duels are left out: their accuracy mixes both players.",
+      "progress.trend.scale": "This accuracy is stricter than Lichess or Chess.com accuracy: use it to compare yourself with your own history, not with those numbers.",
       "progress.trend.point": "Session {n} of {total}: {acc}% accuracy, {date}",
       "progress.trend.axis": "Accuracy (%)",
       "progress.trend.table": "Accuracy of each session",
@@ -1297,6 +1299,8 @@
       if (sessions.length < 2) host.appendChild(h("p", { class: "progress-note" }, t("progress.trend.few")));
     }
     if (hasDuels) host.appendChild(h("p", { class: "progress-note" }, t("progress.trend.duels")));
+    // The number is not Lichess's accuracy (same curve, decaying 1.8 times faster: docs/SCORING.md section 4): say it where it is drawn (QA CNT-029).
+    if (sessions.length) host.appendChild(h("p", { class: "progress-note progress-trend-scale" }, t("progress.trend.scale")));
   }
 
   // Draws the chart again at the width its box really has (a viewBox scaled down to a phone would shrink the text).

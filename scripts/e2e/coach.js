@@ -11,7 +11,7 @@
 // Environment (all optional):
 //   LUDUS_URL             page to test               (default http://127.0.0.1:5010/)
 //   LUDUS_E2E_ONLY        run only the scenarios whose name contains this text (e.g. "duel")
-//   LUDUS_E2E_VIEWPORTS   comma list of WIDTHxHEIGHT to use in "regimes" and "axe" instead of the eight
+//   LUDUS_E2E_VIEWPORTS   comma list of WIDTHxHEIGHT to use in "regimes" and "axe" instead of the ten
 //                         defaults (e.g. 390x844,1280x800)
 //   LUDUS_CHROMIUM        chrome binary if Playwright cannot launch its own
 //                         (falls back to /opt/pw-browsers/chromium-1194/chrome-linux/chrome)
@@ -21,7 +21,7 @@
 //                         is injected as a script, every other scenario enforces it)
 //
 // Scenarios (each in a fresh context with service workers blocked, CSP enforced):
-//   regimes    Eight viewports (1440x900, 1280x800, 1024x768, 820x1180, 768x1024, 390x844, 360x740, 844x390)
+//   regimes    Ten viewports (1440x900, 1280x800, 1024x768, 820x1180, 768x1024, 390x844, 360x740, 360x640, 320x568, 844x390)
 //              in Spanish and in English. In each: a classic session, thinking -> hint -> a weak move
 //              (evaluating) -> result -> next -> the best move -> summary -> reopen a position. At every
 //              state: no horizontal scroll, the page itself never scrolls, the board is whole on screen,
@@ -34,9 +34,10 @@
 //              exploring the board, the language switch in the middle of a result, a concept dialog, a
 //              skip, the summary (positions reopen, "back to the summary"), share, play again, and the
 //              guard that asks before leaving a running session by the address bar.
-//   duel       Two players on one device, at 1280x800 and 390x844: the handoff hides the first answer, the
-//              scoreboard follows the turn, the shared analysis names the winner, the summary crowns them
-//              and offers a rematch with the same positions.
+//   duel       Two players on one device, at 1280x800, 390x844 and 844x390: the handoff hides the first answer, the
+//              scoreboard follows the turn, the shared analysis names the winner, the second position starts
+//              covered (the clock waits for a tap), the summary crowns them with one card per player and offers a
+//              rematch.
 //   clock      A 5 second clock really runs out (verdict, chip, stopped clock) and an untimed one never does.
 //   own        The own-games flow with the Lichess request answered from a PGN written here: the search
 //              overlay (with its facts carousel) sits on the board at desktop and phone size, the card of
@@ -87,6 +88,8 @@ const DEFAULT_VIEWPORTS = [
   { name: "tablet-768", w: 768, h: 1024, touch: true },
   { name: "phone-390", w: 390, h: 844, touch: true },
   { name: "phone-360", w: 360, h: 740, touch: true },
+  { name: "phone-360-short", w: 360, h: 640, touch: true },
+  { name: "phone-320", w: 320, h: 568, touch: true },
   { name: "phone-land-844", w: 844, h: 390, touch: true },
 ];
 
@@ -251,8 +254,9 @@ function layoutProbe(options) {
     issues.push("the board is not shown");
   } else {
     if (boardRect.left < -0.5 || boardRect.top < -0.5 || boardRect.right > vw + 0.5 || boardRect.bottom > vh + 0.5) issues.push(`the board is not whole on screen (${px(boardRect)} in ${vw}x${vh})`);
-    // 260px, or 60% of the height when the window is short (a phone on its side has 390px).
-    if (boardRect.width < Math.min(260, vh * 0.6)) issues.push(`the board is too small to play on (${Math.round(boardRect.width)}px)`);
+    // 240px (the floor of the stylesheet: 30px squares, what a 320x568 phone leaves once the sheet has its share), or 60% of
+    // the height when the window is short (a phone on its side has 390px).
+    if (boardRect.width < Math.min(240, vh * 0.6)) issues.push(`the board is too small to play on (${Math.round(boardRect.width)}px)`);
     if (Math.abs(boardRect.width - boardRect.height) > 1.5) issues.push(`the board is not square (${px(boardRect)})`);
   }
 
@@ -315,7 +319,18 @@ function layoutProbe(options) {
     // An icon-only dock hides the words visually (they stay for a screen reader): nothing is clipped.
     if (label !== el && label.clientWidth <= 2) return;
     if (label.scrollWidth > label.clientWidth + 1) issues.push(`${describe(el)} clips its label (${label.scrollWidth} > ${label.clientWidth})`);
+    // The dock is a fixed row: a label that wraps to more lines than the button has room for is cut (it was three lines at 320px).
+    if (el.classList.contains("co-dock-btn") && el.scrollHeight > el.clientHeight + 1) issues.push(`${describe(el)} is taller inside than it is (${el.scrollHeight} > ${el.clientHeight}): its label wraps too much`);
   });
+  // The header says which position it is: cut to "Po..." it says nothing (it wraps to two lines instead).
+  ["#round-status"].forEach((selector) => {
+    const el = $(selector);
+    if (!isShown(el)) return;
+    if (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1) issues.push(`${selector} is cut ("${el.textContent.trim()}": ${el.scrollWidth}x${el.scrollHeight} in ${el.clientWidth}x${el.clientHeight})`);
+  });
+  // A celebration is never a toast over the play screen: the result card lists it.
+  const toast = document.querySelector(".toast-stack .toast");
+  if (toast && isShown(toast) && /achievement|levelup/.test(toast.className)) issues.push(`a celebration toast is over the play screen ("${toast.textContent.trim().slice(0, 40)}")`);
 
   // 7. Targets are at least 44x44 (a ::before hit area counts, that is how the small tokens get theirs).
   const targetSelector = "#game-layout button, #game-layout a[href], #game-layout [role='button'], #game-layout input:not([type='hidden']), #game-layout select, #game-layout summary";
@@ -573,7 +588,11 @@ async function classicScenario(browser) {
     await page.keyboard.press("h");
     assert.strictEqual(await page.locator("#board .square.hint-from").count(), 1, "the H key gave the first hint");
     assert.ok((await textOf(page, "#hint-btn-label")).includes("35"), await textOf(page, "#hint-btn-label"));
-    assert.ok((await textOf(page, "#solo-clock-announce")).includes(positions[0].reference.lines[0].uci.slice(0, 2)), "announced in words");
+    // The announcement is written a beat after the key (the region is cleared first, so a repeated sentence is read again).
+    await page.waitForFunction(() => document.querySelector("#hint-announce").textContent.trim().length > 0, null, { timeout: 3000 });
+    assert.ok((await textOf(page, "#hint-announce")).includes(positions[0].reference.lines[0].uci.slice(0, 2)), "announced in words (the hint has a live region of its own)");
+    // Two hints in a row need a beat between them (a double tap must not reveal the move): the second is a deliberate tap.
+    await page.waitForTimeout(600);
     await page.locator("#hint-btn").click();
     assert.strictEqual(await page.locator("#board .square.hint-to").count(), 1, "the second hint marks the destination");
     assert.ok((await textOf(page, "#hint-btn-label")).includes("0"), "the last one warns that it gives the move away");
@@ -675,7 +694,10 @@ async function classicScenario(browser) {
     step("position 2: a skip, said in words; dots and score follow");
     await page.locator("#next-btn").click();
     await waitPhase(page, "thinking");
+    // A skip is the one tap that throws a position away: the first arms it (the button asks), the second confirms.
     await page.locator("#skip-btn").click();
+    await page.waitForTimeout(150);
+    if ((await phaseOf(page)) === "thinking") await page.locator("#skip-btn").click();
     await waitResult(page);
     await settle(page, 500);
     assert.strictEqual(await page.locator(".co-hero").first().getAttribute("data-q"), "no_move");
@@ -814,9 +836,24 @@ async function duelFlow(browser, vp) {
     assert.match(await textOf(page, "#duel-a-score"), /^10$/);
     await inspect(ctx, "4-result");
 
-    step(`${vp.w}x${vp.h}: the second position, then the summary crowns the winner and offers a rematch`);
+    step(`${vp.w}x${vp.h}: the second position starts covered: the first player's clock waits for a tap`);
     await page.locator("#next-btn").click();
+    await waitPhase(page, "handoff");
+    await settle(page, 300);
+    assert.strictEqual(await page.locator("#handoff-overlay").isVisible(), true, "a cover on the new position");
+    assert.ok((await textOf(page, "#handoff-overlay-title")).includes("Ana"), "it names whose turn it is");
+    assert.ok(!(await textOf(page, "#handoff-overlay-eyebrow")).includes("has played"), "and is not the handoff of a player who has moved");
+    assert.strictEqual(await page.locator("#duel-a").getAttribute("aria-current"), "true");
+    const started = await evalState(page, "STATE.roundStartedAt");
+    // (A real touch lands on the cover, which is the tap that starts the round: the board is asked directly.)
+    await page.evaluate(() => onSquareClick("e2"));
+    assert.strictEqual(await evalState(page, "Boolean(STATE.selection)"), false, "the covered board ignores the touch");
+    assert.strictEqual(await page.locator("#hint-btn").isDisabled(), true, "no hint while covered");
+    await inspect(ctx, "4b-ready", { axe: false });
+    await page.waitForTimeout(150);
+    await page.locator("#handoff-overlay").click();
     await waitPhase(page, "thinking");
+    assert.ok((await evalState(page, "STATE.roundStartedAt")) > started, "the tap starts the round");
     await playUci(page, positions[1].reference.lines[0].uci);
     await waitPhase(page, "handoff");
     await page.locator("#handoff-overlay").click();
@@ -831,12 +868,17 @@ async function duelFlow(browser, vp) {
     assert.ok((await textOf(page, ".co-sum-title")).includes("Ana"), "the headline is the winner");
     assert.strictEqual(await page.locator(".co-sum-duelist").count(), 2);
     assert.strictEqual(await page.locator(".co-sum-rewards").count(), 0, "a duel is nobody's progress");
+    assert.strictEqual(await page.locator(".co-breakdown").count(), 0, "no merged mix of two people's moves");
+    assert.ok(!/points/i.test(await textOf(page, ".co-sum-hero")), "no merged points over two people");
+    assert.strictEqual(await page.locator(".toast").count(), 0, "no toast over the summary");
+    assert.strictEqual(await page.locator("#play-header .co-duel").isVisible(), false, "the header scoreboard would repeat the cards");
     assert.match(await textOf(page, "#summary-again-btn"), /Rematch/i);
     await inspect(ctx, "5-summary");
     await page.locator("#summary-again-btn").click();
     await waitPhase(page, "thinking");
-    const same = await page.evaluate((first) => STATE.positions[0].fen === first && STATE.session.mode === "duel" && STATE.session.names[0] === "Ana", positions[0].fen);
-    assert.strictEqual(same, true, "a rematch replays the same positions with the same names");
+    // A rematch is the same duel (mode, names, number of positions); the positions themselves are drawn again (UX-021).
+    const same = await page.evaluate(() => STATE.positions.length === 2 && STATE.session.mode === "duel" && STATE.session.names[0] === "Ana" && STATE.session.names[1] === "Beto");
+    assert.strictEqual(same, true, "a rematch is a new duel of the same length with the same names");
     await page.evaluate(() => Ludus.game.abort());
 
     checkProblems(`duel ${vp.name}`, ctx.problems);

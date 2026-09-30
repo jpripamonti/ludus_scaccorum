@@ -108,7 +108,7 @@
       "settings.section.board": "Tablero",
       "settings.section.board.lead": "Elegí el estilo del tablero y cómo se maneja. Lo ves acá mismo, tal cual va a aparecer cuando juegues.",
       "settings.section.judge": "Cómo se decide la mejor jugada",
-      "settings.section.judge.lead": "Acá elegís qué tan a fondo mira el motor y cómo se convierte la distancia a la mejor jugada en puntos. La vista previa te muestra al instante qué hace cada opción.",
+      "settings.section.judge.lead": "Acá elegís con cuánta profundidad mira el motor y cómo se convierte la distancia a la mejor jugada en puntos. La vista previa te muestra al instante qué hace cada opción.",
       "settings.section.play": "Reloj y ayudas",
       "settings.section.play.lead": "El tiempo que tenés para cada posición, las pistas y qué se considera un error en tus propias partidas.",
       "settings.section.sound": "Sonido y vibración",
@@ -171,7 +171,7 @@
       "settings.ui.lines.one": "Con 1 línea el motor no puede reconocer las «jugadas únicas», las que se marcan como excelentes.",
       "settings.ui.lines.many": "Con {n} líneas se comparan más alternativas y se reconocen las jugadas únicas.",
       "settings.ui.desc.scoring.model.precision": "Los puntos bajan de forma suave a medida que tu jugada empeora.",
-      "settings.ui.desc.scoring.model.tiers": "Puntos fijos por categoría: 10, 7,5, 5, 2,5 o 0. Más fácil de leer, menos fino.",
+      "settings.ui.desc.scoring.model.tiers": "Puntos fijos por categoría: 10; 7,5; 5; 2,5 o 0. Más fácil de leer, menos fino.",
       "settings.ui.desc.scoring.strictness.relaxed": "Perdona los desvíos chicos: el mismo error cuesta menos.",
       "settings.ui.desc.scoring.strictness.standard": "El equilibrio recomendado.",
       "settings.ui.desc.scoring.strictness.strict": "Cada centipeón cuenta: los errores cuestan más.",
@@ -205,14 +205,15 @@
       "settings.ui.preview.case.blunder": "Un error grave: se pierde una pieza ({cp} cp menos)",
       "settings.ui.preview.case.mate": "No ver un mate forzado",
       "settings.ui.preview.case.hint": "La mejor jugada, tras usar una pista",
-      "settings.ui.preview.foot": "El motor solo cambia qué tan fiable es la evaluación, no la escala de puntos. Con una sola línea no se reconocen las jugadas únicas.",
+      "settings.ui.preview.foot": "El motor solo cambia la fiabilidad de la evaluación, no la escala de puntos. Con una sola línea no se reconocen las jugadas únicas.",
       "settings.ui.preview.unavailable": "La vista previa no está disponible en este momento.",
 
       "settings.ui.clock.presets": "Duraciones habituales",
       "settings.ui.clock.preset.aria": "{seconds} segundos por jugada",
       "settings.ui.clock.custom": "Otra duración, en segundos",
       "settings.ui.clock.error": "Escribí un número de segundos entre {min} y {max}.",
-      "settings.ui.clock.now": "Ahora: {seconds} por jugada.",
+      "settings.ui.clock.now": "Ahora: {seconds} por jugada. Es tu reloj de siempre: al armar una sesión con tus propias partidas podés elegir otro tiempo solo para esa sesión.",
+      "settings.ui.movetime.cap": "Durante una ronda el motor nunca piensa más de {cap} por búsqueda, aunque elijas más tiempo.",
       "settings.ui.clock.untimed": "Sin reloj: pensás todo lo que quieras.",
       "settings.ui.hints.costs": "Cada pista resta puntos: el nivel 1 (marca la pieza) cuesta {l1}, el nivel 2 (marca también el destino) cuesta {l2}, y mostrar la jugada deja la posición en 0 puntos.",
       "settings.ui.hints.off": "Sin pistas no aparece el botón de ayuda mientras jugás.",
@@ -277,7 +278,7 @@
       "settings.section.play": "Clock and help",
       "settings.section.play.lead": "The time you get for each position, hints, and what counts as a mistake in your own games.",
       "settings.section.sound": "Sound and vibration",
-      "settings.section.sound.lead": "Short effects synthesized on your device, nothing to download. Try them here.",
+      "settings.section.sound.lead": "Short effects synthesised on your device, nothing to download. Try them here.",
       "settings.section.access": "Accessibility",
       "settings.section.access.lead": "Larger text, more contrast and less motion. It applies to the whole app.",
       "settings.section.privacy": "Privacy",
@@ -323,9 +324,9 @@
 
       "settings.ui.judge.flowLabel": "How a move is scored",
       "settings.ui.judge.flow.1.title": "The engine studies the position",
-      "settings.ui.judge.flow.1.body": "Stockfish finds the best moves and works out the winning chances each one leaves.",
+      "settings.ui.judge.flow.1.body": "Stockfish finds the best moves and works out the win chance each one leaves.",
       "settings.ui.judge.flow.2.title": "It compares them with your move",
-      "settings.ui.judge.flow.2.body": "It measures how much winning chance you give up against the best move, not just how many pawns.",
+      "settings.ui.judge.flow.2.body": "It measures how much win chance you give up against the best move, not just how many pawns.",
       "settings.ui.judge.flow.3.title": "The distance becomes points",
       "settings.ui.judge.flow.3.body": "0 to 10 per position: the closer to the best move, the more points.",
       "settings.ui.strength.fast": "Quick rounds. The engine thinks about {s} per position.",
@@ -334,7 +335,7 @@
       "settings.ui.strength.custom": "You choose the time, right below.",
       "settings.ui.strength.estimate": "The engine thinks {lo} to {hi} per position (less when the position already comes with its analysis). More time makes the evaluation more reliable; it does not change how points are calculated.",
       "settings.ui.lines.one": "With 1 line the engine cannot recognise “only moves”, the ones marked as great.",
-      "settings.ui.lines.many": "With {n} lines more alternatives are compared and only moves are recognised.",
+      "settings.ui.lines.many": "With {n} lines the engine compares more alternatives and can recognise “only moves”, the ones where a single move clearly beats every other.",
       "settings.ui.desc.scoring.model.precision": "Points fall smoothly as your move gets worse.",
       "settings.ui.desc.scoring.model.tiers": "Fixed points per category: 10, 7.5, 5, 2.5 or 0. Easier to read, less fine.",
       "settings.ui.desc.scoring.strictness.relaxed": "Forgives small slips: the same mistake costs fewer points.",
@@ -343,11 +344,11 @@
       "settings.ui.desc.scoring.bestMode.engine": "Only the engine's first move is worth the full 10 points.",
       "settings.ui.desc.scoring.bestMode.band": "A move practically as good as the best one is worth 10 too.",
       "settings.ui.desc.scoring.bestMode.masters": "In classic games the master's actual move also counts when it is close.",
-      "settings.ui.tolerance.now": "Up to {pct} of winning chances, about {cp} cp in an even position.",
+      "settings.ui.tolerance.now": "Up to {pct} of win chance, about {cp} cp in an even position.",
       "settings.ui.rule.title": "With your settings",
       "settings.ui.rule.engine": "Only the engine's move counts as the best.",
-      "settings.ui.rule.band": "The engine's move and any move that gives up less than {pct} of winning chances (about {cp} cp) count as the best.",
-      "settings.ui.rule.masters": "The same, and the master's move also counts when it gives up less than {master} of winning chances.",
+      "settings.ui.rule.band": "The engine's move and any move that gives up less than {pct} of win chance (about {cp} cp) count as the best.",
+      "settings.ui.rule.masters": "The same, and the master's move also counts when it gives up less than {master} of win chance.",
 
       "settings.ui.preview.title": "Preview: what points they would earn",
       "settings.ui.preview.lead": "Example moves in an even position, scored with your current settings. Change any option and watch the points move.",
@@ -370,14 +371,15 @@
       "settings.ui.preview.case.blunder": "A blunder: a piece is lost ({cp} cp less)",
       "settings.ui.preview.case.mate": "Missing a forced mate",
       "settings.ui.preview.case.hint": "The best move, after using a hint",
-      "settings.ui.preview.foot": "Engine strength only changes how reliable the evaluation is, not the points scale. With a single line, only moves are not recognised.",
+      "settings.ui.preview.foot": "Engine strength only changes how reliable the evaluation is, not the points scale. With a single line, “only moves” cannot be recognised.",
       "settings.ui.preview.unavailable": "The preview is not available right now.",
 
       "settings.ui.clock.presets": "Usual durations",
       "settings.ui.clock.preset.aria": "{seconds} seconds per move",
       "settings.ui.clock.custom": "Another duration, in seconds",
       "settings.ui.clock.error": "Type a number of seconds between {min} and {max}.",
-      "settings.ui.clock.now": "Right now: {seconds} per move.",
+      "settings.ui.clock.now": "Right now: {seconds} per move. This is your usual clock: when you set up a session with your own games you can pick another time for that session only.",
+      "settings.ui.movetime.cap": "During a round the engine never thinks longer than {cap} per search, even if you choose more time.",
       "settings.ui.clock.untimed": "No clock: think as long as you like.",
       "settings.ui.hints.costs": "Every hint costs points: level 1 (marks the piece) costs {l1}, level 2 (also marks the destination) costs {l2}, and showing the move leaves the position at 0 points.",
       "settings.ui.hints.off": "With hints off there is no help button while you play.",
@@ -1185,6 +1187,9 @@
         });
       case "clock.seconds":
         return noteNode((values) => t("settings.ui.clock.now", { seconds: formatClock(values["clock.seconds"]) }));
+      case "engine.movetimeMs":
+        // The slider goes higher than a round ever uses: say so instead of promising a wait that never happens (QA PERF-018).
+        return noteNode((values) => (Number(values["engine.movetimeMs"]) > SEARCH_MAX_MS ? t("settings.ui.movetime.cap", { cap: formatSeconds(SEARCH_MAX_MS, lang()) }) : ""));
       case "hints.enabled":
         return noteNode((values) => {
           if (values["hints.enabled"] === false) return t("settings.ui.hints.off");

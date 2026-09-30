@@ -146,8 +146,8 @@
       id: "development_center",
       title: { es: "Desarrollo y centro", en: "Development and centre" },
       body: {
-        es: "En la apertura, peleá por el centro con peones, sacá los caballos y alfiles antes de mover dos veces la misma pieza, y enrocá temprano. Las piezas en el centro alcanzan más casillas, y un rey que se queda en el medio es fácil de atacar. Desde la posición inicial, e4 reclama el centro y abre líneas para el alfil y la dama.",
-        en: "In the opening, fight for the centre with pawns, bring your knights and bishops out before moving the same piece twice, and castle early. Pieces in the centre reach more squares, and a king that stays in the middle is easy to attack. From the starting position, e4 claims the centre and opens lines for the bishop and the queen.",
+        es: "En la apertura, peleá por el centro con peones, sacá los caballos y alfiles antes de mover dos veces la misma pieza, y enrocá temprano. Las piezas en el centro alcanzan más casillas, y un rey que se queda en el medio es fácil de atacar. Desde la posición inicial, e4 es una buena forma de reclamar el centro y abrir líneas para el alfil y la dama (d4 o Cf3 sirven casi igual: la idea importa más que la jugada exacta).",
+        en: "In the opening, fight for the centre with pawns, bring your knights and bishops out before moving the same piece twice, and castle early. Pieces in the centre reach more squares, and a king that stays in the middle is easy to attack. From the starting position, e4 is a good way to claim the centre and open lines for the bishop and the queen (d4 or Nf3 work almost as well: the idea matters more than the exact move).",
       },
       fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
       bestUci: "e2e4",
@@ -157,8 +157,8 @@
       id: "king_safety",
       title: { es: "Seguridad del rey", en: "King safety" },
       body: {
-        es: "Poné tu rey a salvo antes de atacar: enrocá, mantené los peones delante de él y tené cuidado al abrir líneas hacia él. Un rey en el centro puede ser atacado por todas las piezas, así que un tiempo dedicado a enrocar casi siempre vale la pena. Acá las blancas ya sacaron un caballo y un alfil, así que enrocar es el paso natural.",
-        en: "Put your king in safety before you attack: castle, keep the pawns in front of it, and be careful about opening lines towards it. A king in the centre can be attacked by every piece, so a tempo spent castling is almost always worth it. Here White has already developed a knight and a bishop, so castling is the natural next step.",
+        es: "Poné tu rey a salvo antes de atacar: enrocá, mantené los peones delante de él y tené cuidado al abrir líneas hacia él. Un rey en el centro puede ser atacado por todas las piezas, así que un tiempo dedicado a enrocar casi siempre vale la pena. Acá las blancas ya sacaron un caballo y un alfil, así que enrocar es un paso natural (hay otras jugadas buenas, pero no conviene dejar el rey en el centro sin motivo).",
+        en: "Put your king in safety before you attack: castle, keep the pawns in front of it, and be careful about opening lines towards it. A king in the centre can be attacked by every piece, so a tempo spent castling is almost always worth it. Here White has already developed a knight and a bishop, so castling is a natural next step (other moves are fine too, but there is no reason to leave the king in the centre).",
       },
       fen: "r1bqkb1r/pppp1ppp/2n2n2/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
       bestUci: "e1g1",
@@ -168,8 +168,8 @@
       id: "trade_when_ahead",
       title: { es: "Cambiar cuando vas ganando", en: "Trading when ahead" },
       body: {
-        es: "Cuando vas ganando material, cambiar piezas hace que tu ventaja pese más: con menos piezas en el tablero, la pieza de más vale una parte mayor y el rival tiene menos contrajuego. Evitá los cambios cuando vas perdiendo, salvo que te ayuden. Acá las blancas tienen un caballo de más, así que cambiar un par de torres es una forma simple de ir hacia un final ganado.",
-        en: "When you are ahead in material, trading pieces makes your advantage count for more: with fewer pieces left, the extra piece is a bigger share of what remains and the opponent has less counterplay. Avoid trades when you are behind, unless they help you. Here White is a knight up, so trading a pair of rooks is a simple way to head for a winning endgame.",
+        es: "Cuando vas ganando material, cambiar piezas hace que tu ventaja pese más: con menos piezas en el tablero, la pieza de más vale una parte mayor y el rival tiene menos contrajuego. Evitá los cambios cuando vas perdiendo, salvo que te ayuden. Acá las blancas tienen un caballo de más, así que cambiar un par de torres es una forma simple de ir hacia un final ganado (no es la única jugada que gana: es la más fácil de entender).",
+        en: "When you are ahead in material, trading pieces makes your advantage count for more: with fewer pieces left, the extra piece is a bigger share of what remains and the opponent has less counterplay. Avoid trades when you are behind, unless they help you. Here White is a knight up, so trading a pair of rooks is a simple way to head for a winning endgame (it is not the only winning move: it is the easiest to understand).",
       },
       fen: "2r1r1k1/5ppp/8/8/8/2N5/5PPP/2R1R1K1 w - - 0 1",
       bestUci: "e1e8",

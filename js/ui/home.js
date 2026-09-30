@@ -119,6 +119,9 @@
       "home.daily.play": "Jugar ahora",
       "home.daily.more": "Seguir con clásicos",
       "home.daily.done.badge": "Completado",
+      "home.first.play": "Jugar la posición de hoy",
+      "home.first.more": "Ver otras formas de entrenar",
+      "home.daily.already": "Ya hiciste el desafío de hoy. Mañana hay una posición nueva; mientras tanto, practicá con las partidas clásicas.",
       "home.daily.pending.badge": "Pendiente",
       "home.daily.board": "Posición del desafío diario",
       "home.daily.loading": "Cargando el desafío de hoy",
@@ -133,12 +136,13 @@
       "home.error.start": "No se pudo abrir esa opción.",
       "duel.title": "Duelo en un dispositivo",
       "duel.intro": "Se turnan en este mismo dispositivo. Gana quien juegue más cerca de la mejor jugada.",
+      "duel.fair": "Para que sea justo: en cada posición juega primero Jugador 1, con el reloj corriendo, y Jugador 2 mira para otro lado hasta que le toque. Después se pasan el dispositivo: la jugada del primero queda oculta.",
       "duel.players": "Jugadores",
       "duel.player": "Jugador {n}",
       "duel.who": "¿Quién es el jugador {n}?",
-      "duel.guest": "Invitado (escribir un nombre)",
+      "duel.guest": "Sin perfil (escribir un nombre)",
       "duel.guestName": "Nombre del jugador {n}",
-      "duel.guestDefault": "Invitado {n}",
+      "duel.guestDefault": "Participante {n}",
       "duel.source": "Posiciones",
       "duel.source.mix": "Mezcla de clásicos",
       "duel.source.mix.hint": "Posiciones al azar de varias partidas de la historia.",
@@ -259,6 +263,9 @@
       "home.daily.play": "Play now",
       "home.daily.more": "Keep going with classics",
       "home.daily.done.badge": "Completed",
+      "home.first.play": "Play today's position",
+      "home.first.more": "See other ways to train",
+      "home.daily.already": "You already played today's challenge. There is a new position tomorrow; meanwhile, practise with the classic games.",
       "home.daily.pending.badge": "Pending",
       "home.daily.board": "Daily challenge position",
       "home.daily.loading": "Loading today's challenge",
@@ -273,6 +280,7 @@
       "home.error.start": "That option could not be opened.",
       "duel.title": "Duel on one device",
       "duel.intro": "You take turns on this device. Whoever plays closer to the best move wins.",
+      "duel.fair": "To keep it fair: in every position player 1 goes first with the clock running while player 2 looks away until it is their turn. Then you pass the device: the first move stays hidden.",
       "duel.players": "Players",
       "duel.player": "Player {n}",
       "duel.who": "Who is player {n}?",
@@ -860,6 +868,19 @@
       if (accuracy !== null) statNodes.push(ui.stat({ label: t("home.stat.accuracy"), value: `${accuracy}%`, hint: t("home.stat.accuracy.hint"), icon: "chart" }));
     }
 
+    // A profile that has not played yet has no level, streak or XP worth a card: the hero is a greeting and ONE
+    // primary action (on a phone that is the whole first screen), and the empty meters appear with the first round.
+    if (!total) {
+      return h("section", { class: "home-hero home-hero-first card card-accent", "aria-labelledby": "home-greeting" },
+        h("div", { class: "home-hero-main" },
+          h("p", { class: "t-eyebrow" }, todayLabel()),
+          h("h1", { class: "home-greeting", id: "home-greeting", "data-screen-title": "" }, greeting),
+          h("p", { class: "home-sub" }, heroSubline(data)),
+          h("div", { class: "home-hero-actions" },
+            h("button", { type: "button", class: "btn btn-primary btn-lg", "data-fkey": "hero-play", onclick: () => { startDaily(); } }, icon("play", { size: 20 }), h("span", { class: "btn-label" }, t("home.first.play"))),
+            h("button", { type: "button", class: "btn btn-ghost btn-lg", "data-fkey": "hero-more", onclick: scrollToModes }, h("span", { class: "btn-label" }, t("home.first.more"))))));
+    }
+
     return h("section", { class: "home-hero card card-accent", "aria-labelledby": "home-greeting" },
       h("div", { class: "home-hero-main" },
         h("p", { class: "t-eyebrow" }, todayLabel()),
@@ -872,6 +893,20 @@
           ui.progress(level.progress, { size: "lg" }),
           h("p", { class: "home-level-text" }, level.text))),
       h("div", { class: "home-stats" }, statNodes));
+  }
+
+  // "See other ways to train": brings the mode cards into view and puts the focus on the first one.
+  function scrollToModes() {
+    const slot = homeState.slots && homeState.slots.modes;
+    if (!slot) return;
+    const reduce = L().ui && L().ui.reducedMotion ? L().ui.reducedMotion() : false;
+    try {
+      slot.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    } catch (error) {
+      if (typeof slot.scrollIntoView === "function") slot.scrollIntoView();
+    }
+    const first = typeof slot.querySelector === "function" ? slot.querySelector("button, a[href]") : null;
+    if (first && typeof first.focus === "function") first.focus({ preventScroll: true });
   }
 
   // ----- Daily challenge -----
@@ -915,6 +950,14 @@
 
   function startDaily() {
     const run = async () => {
+      // Today's challenge is done: "#/daily" (a link, the PWA shortcut) must not start a second, timed round that pays
+      // XP again. Home shows the completed card; a short message says why nothing started.
+      const status = readProfileData().dailyStatus;
+      if (status && status.done) {
+        go("home");
+        toast(t("home.daily.already"), "info");
+        return false;
+      }
       if (homeState.daily.status !== "ready" || homeState.daily.key !== dailyKeyNow()) await loadDaily(true);
       const position = homeState.daily.position;
       if (!position) {
@@ -1328,7 +1371,7 @@
         h("span", null, t("duel.count.option", { n }))))));
 
     const players = h("fieldset", { class: "duel-fieldset" }, h("legend", { class: "duel-legend" }, t("duel.players")), h("div", { class: "duel-players" }, rows));
-    const body = h("div", { class: "duel-form" }, h("p", { class: "modal-text" }, t("duel.intro")), players, sourceGroup, countGroup, error);
+    const body = h("div", { class: "duel-form" }, h("p", { class: "modal-text" }, t("duel.intro")), h("p", { class: "duel-fair" }, icon("info", { size: 16 }), h("span", null, t("duel.fair"))), players, sourceGroup, countGroup, error);
 
     let handle = null;
     let starting = false;

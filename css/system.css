@@ -366,7 +366,8 @@ html[data-unsupported] body > :not(#boot-notice) { display: none !important; }
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
 }
-/* A 36px button still gets a 44px target: the hit area grows past its box. */
+/* A 36px button still gets a 44px target: the hit area grows past its box. On a touch screen the box itself is 44px
+   (the pseudo-element is invisible to target-size audits and neighbours can overlap it), see the block below. */
 .btn-sm::before {
   content: "";
   position: absolute;
@@ -532,6 +533,15 @@ a.chip::before,
 button.chip:hover,
 a.chip:hover,
 .chip[role="button"]:hover { background: var(--color-surface-3); border-color: var(--color-border-mid); }
+/* Touch: the rule of the house is a 44px target, and a box that really is 44px beats a larger invisible hit area
+   (chips in a wrapped row would overlap each other's). */
+@media (pointer: coarse) {
+  .btn-sm { min-height: var(--hit); }
+  .btn-icon.btn-sm { width: var(--hit); }
+  button.chip,
+  a.chip,
+  .chip[role="button"] { min-height: var(--hit); }
+}
 .chip[aria-pressed="true"],
 .chip.is-selected {
   background: var(--color-gold-bg);
@@ -1163,6 +1173,9 @@ textarea.input { min-height: 96px; resize: vertical; }
 .toast-body { flex: 1 1 auto; min-width: 0; font-size: var(--text-base); line-height: var(--lh-snug); overflow-wrap: anywhere; }
 .toast-action { flex: none; }
 .toast-close { flex: none; }
+/* Both buttons of a toast are real 44px targets (the close icon used to be 36px). */
+.toast .toast-close { width: var(--hit); min-height: var(--hit); }
+.toast .toast-action { min-height: var(--hit); }
 
 /* ── Modal and sheet ── */
 .modal-backdrop {
@@ -1523,6 +1536,88 @@ html[data-motion="reduce"] a.card:hover,
 html[data-motion="reduce"] button.card:hover,
 html[data-motion="reduce"] .wizard-choice-card:hover,
 html[data-motion="reduce"] .wizard-size-chip:hover { transform: none !important; }
+
+/* ── The setup wizard as a screen of the system (#setup-panel) ──
+   The markup and ids belong to app.js; this is the look of the design system on top of the legacy rules of styles.css
+   (Cormorant heading with balanced wrapping, a gold eyebrow for "Step n of 3", larger choices, real 44px targets, a card
+   that uses the height of the window instead of floating at the top with a void below it on desktop). */
+#setup-panel { justify-items: stretch; }
+.wizard-header h2 { font-weight: 650; text-wrap: balance; }
+#setup-panel .wizard-header h2 {
+  max-width: 24ch;
+  font-size: clamp(1.75rem, 1.25rem + 2vw, 2.5rem);
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+}
+/* The eyebrow is first on screen and second in the source: the heading still leads for a screen reader. */
+.wizard-step-indicator {
+  order: -1;
+  color: var(--color-gold);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.wizard-progress-track { height: 6px; }
+#setup-panel .wizard-question {
+  max-width: none;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 650;
+  line-height: var(--lh-tight);
+  letter-spacing: -0.005em;
+  text-wrap: balance;
+}
+.wizard-choice-card { min-height: 5.25rem; font-size: var(--text-lg); line-height: 1.2; }
+.wizard-choice-card.is-selected { font-weight: 700; }
+.wizard-size-chip { min-height: var(--hit); }
+.wizard-summary-title { color: var(--color-text-muted); font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.wizard-summary p { font-size: var(--text-base); }
+
+/* 44px targets: the disclosure rows, the small text button and "back to start" were 23-36px. */
+.wizard-details-help { padding-block: 0; }
+.wizard-details-help summary { display: flex; align-items: center; gap: var(--space-2); min-height: var(--hit); }
+/* A flex summary loses the browser's marker: a chevron says it opens and closes. */
+.wizard-details-help summary::after,
+.wizard-summary-title::after {
+  content: "";
+  flex: none;
+  width: 0.5em;
+  height: 0.5em;
+  margin: -0.2em 0.15em 0 auto;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform var(--dur-1) ease;
+}
+.wizard-details-help:not([open]) > summary::after,
+.wizard-summary-box:not([open]) > .wizard-summary-title::after { transform: rotate(-45deg); margin-top: 0; }
+.wizard-summary-title::after { display: none; }
+.wizard-details-help p { margin: 0 0 var(--space-3); }
+.wizard-text-btn { min-height: var(--hit); }
+.wizard-footer #source-back-btn { min-height: var(--hit); }
+@media (max-width: 920px) {
+  .wizard-summary-title { display: flex; align-items: center; min-height: var(--hit); }
+  .wizard-summary-title::after { display: block; }
+}
+
+/* Desktop: a column as wide as the other screens' reading column, a card that stands on the page (its footer is the
+   bottom edge of a 30-40rem card) and a two-column body with the summary aside. */
+@media (min-width: 921px) {
+  .setup-wizard {
+    width: min(58rem, 100%);
+    min-height: clamp(30rem, 72svh, 41rem);
+    padding: var(--space-7) var(--space-7) 0;
+    gap: var(--space-6);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+  .wizard-body { align-items: start; gap: var(--space-7); grid-template-columns: minmax(0, 1fr) 17rem; }
+  .wizard-footer {
+    margin: 0 calc(var(--space-7) * -1);
+    padding: var(--space-4) var(--space-7);
+    border-radius: 0 0 var(--radius-3xl) var(--radius-3xl);
+  }
+}
 
 /* ── Forced colours (Windows High Contrast and other forced-colors: active modes) ──
    The browser drops every author colour, and with it everything that said "selected", "current" or "how full":

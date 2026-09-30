@@ -451,16 +451,23 @@ choices that depend on these numbers live here so that one document explains the
   called winning when the material settled right after it and at the end of the line
   agree; without a line of three plies only captures can be confirmed.
 * **Sacrifice** (`Insights.moveFeatures(fen, uci, { lines }).sacrifice`, what `brilliant`
-  needs): the settled material of the move's line falls at least 2 units below the
-  start at some ply from the opponent's reply on, within six plies. The old rule
-  (what the opponent wins on the destination square) was false for about a third of
-  the moves that carried the tag and missed queen offers and exchange sacrifices.
+  needs): the settled material of the move's line sits at least 2 units below the start
+  on two plies in a row (or at the end of the line, or right before a mate) within the
+  first six plies, from the opponent's actual reply on, and the line does not leave the
+  mover worse than about -1.00 (a losing side that gives things up is not sacrificing).
+  The old rule (what the opponent wins on the destination square) was false for about a
+  third of the moves that carried the tag and missed queen sacrifices for a mate and
+  exchange sacrifices. An offer that the engine's best defence declines (17...Be6!! in
+  Byrne-Fischer: White takes a knight, not the queen) is no sacrifice along the engine's
+  line; for the classics `app.js` also gives "brilliant" to the master's move of a
+  position the data marks as kind "sacrifice" (the data knows it from the game's own
+  continuation).
 * **Mate lengths.** "In N moves or fewer" (never "in N"): the engine may have found a
   shorter mate later, never a longer one. Up to 8 for a mate the learner missed and up
   to 6 for one they allowed (the claims above that length were not reproducible); beyond
   that the sentence says "a forced mate" / "a decisive attack" without a number.
-* **When nothing is found.** The generic sentence says "we could not find a simple
-  reason: it may be positional or a deeper tactic"; when the move lost 8 win% or more it
+* **When nothing is found.** The generic sentence says "no simple reason shows up: it
+  may be positional or a deeper tactic"; when the move lost 8 win% or more it
   says the best move "was clearly better" and never offers "it may be positional" as a
   comfort. At most three messages (two when a mate explains the answer), one tactical
   explanation of the best move, no "solid" next to a mistake.

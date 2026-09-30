@@ -91,7 +91,7 @@
       "museum.timeline.year.hint": "Entre {from} y {to}",
       "museum.timeline.year.go": "Ir",
       "museum.timeline.year.invalid": "Escribí un año entre {from} y {to}.",
-      "museum.timeline.year.found": "Año {year}: te llevamos a “{title}” ({at}).",
+      "museum.timeline.year.found": "Año {year}: te llevamos a «{title}» ({at}).",
       "museum.timeline.milestones": "{n} hitos",
       "museum.timeline.milestones.one": "1 hito",
       "museum.timeline.more": "Más de esta época",
@@ -336,6 +336,28 @@
     return text.replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   }
 
+  // What a person reads of a move: the SAN through the notation setting (Ludus.chess.localizeSan) and the moves quoted in a fact or a
+  // milestone re-spelled by the data module (Ludus.Classics.localizeQuotedMoves); both unchanged without their helper (QA CNT-006).
+  function shownSan(san) {
+    const chess = L().chess;
+    if (!san || !chess || typeof chess.localizeSan !== "function") return san;
+    try {
+      return chess.localizeSan(san, lang());
+    } catch (error) {
+      return san;
+    }
+  }
+
+  function quotedText(text, language) {
+    const Classics = L().Classics;
+    if (!text || !Classics || typeof Classics.localizeQuotedMoves !== "function") return text;
+    try {
+      return Classics.localizeQuotedMoves(text, language === "en" ? "en" : "es");
+    } catch (error) {
+      return text;
+    }
+  }
+
   function factText(fact, language) {
     if (!fact || !fact.text) return "";
     return fact.text[language === "en" ? "en" : "es"] || fact.text.es || "";
@@ -578,7 +600,7 @@
       h("div", { class: "museum-event-year" }, h("span", { class: "museum-year" }, yearLabel(item))),
       h("article", { class: "museum-event-card card", "aria-labelledby": `${id}-title` },
         h("h4", { class: "museum-event-title", id: `${id}-title`, tabindex: "-1" }, pickLocalized(item.title, language)),
-        h("p", { class: "museum-event-text" }, pickLocalized(item.text, language)),
+        h("p", { class: "museum-event-text" }, quotedText(pickLocalized(item.text, language), language)),
         button,
         panel));
   }
@@ -756,7 +778,7 @@
     const source = typeof fact.source === "string" ? fact.source : "";
     return [
       h("div", { class: "museum-fact-meta" }, categoryChip(fact.cat), year ? h("span", { class: "museum-fact-year" }, year) : null),
-      h("p", { class: "museum-fact-text", tabindex: "-1" }, factText(fact, lang())),
+      h("p", { class: "museum-fact-text", tabindex: "-1" }, quotedText(factText(fact, lang()), lang())),
       featured && source ? h("p", { class: "museum-source" }, h("span", { class: "museum-source-label" }, t("museum.timeline.source")), ` ${source}`) : null,
     ];
   }
@@ -985,7 +1007,7 @@
       h("article", { class: "museum-concept card", "aria-labelledby": `${id}-title` },
         h("div", { class: "museum-concept-board" },
           board,
-          san ? h("p", { class: "museum-concept-move" }, icon("target", { size: 14 }), t("museum.school.best", { san })) : null),
+          san ? h("p", { class: "museum-concept-move" }, icon("target", { size: 14 }), t("museum.school.best", { san: shownSan(san) })) : null),
         h("div", { class: "museum-concept-body" },
           h("h3", { class: "museum-concept-title", id: `${id}-title` }, title),
           h("p", { class: "museum-concept-text" }, pickLocalized(concept.body, language)),
@@ -1384,6 +1406,8 @@
       filterConcepts,
       uciSquares,
       conceptMoveSan,
+      shownSan,
+      quotedText,
     },
     TEXT,
     _state: state,

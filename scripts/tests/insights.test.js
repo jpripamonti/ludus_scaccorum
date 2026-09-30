@@ -7,6 +7,7 @@
 "use strict";
 
 const assert = require("assert");
+const fs = require("fs");
 const path = require("path");
 
 const jsDir = path.resolve(__dirname, "..", "..", "js");
@@ -14,6 +15,7 @@ require(path.join(jsDir, "ludus.js"));
 const { Chess } = require(path.join(jsDir, "chess.js"));
 const Insights = require(path.join(jsDir, "insights.js"));
 const Concepts = require(path.join(jsDir, "concepts.js"));
+const Scoring = require(path.join(jsDir, "scoring.js"));
 
 const { positionFeatures, analyzeChoice, moveFeatures, tagLabelKey, renderMessage, renderMessages, TAGS } = Insights;
 const { i18n } = globalThis.Ludus;
@@ -344,9 +346,12 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
   assert.deepStrictEqual({ p: message(pin, "pin_or_skewer").raw.pinned, sq: message(pin, "pin_or_skewer").raw.sq }, { p: "N", sq: "c6" });
   assert.ok(pin.conceptIds.includes("pin"));
 
-  // The knight takes the queen with a discovered check: one explanation is enough, and the capture is the concrete one.
+  // The knight takes the queen with a discovered check: one explanation of what wins is enough, and the pattern says why.
   const capture = analyzeLine("4k3/5q2/8/4N3/8/8/8/4R1K1 w - - 0 1", "g1g2", ["e5f7", "e8f7", "g1f1"]);
-  assert.deepStrictEqual(capture.tags, ["missed_capture"], "a capture that wins the queen explains the discovered check too");
+  assert.deepStrictEqual(capture.tags, ["discovered_attack"], "the discovered check explains why the capture wins");
+  // The same capture without the pattern is just a capture.
+  const plainCapture = analyzeLine("4k3/8/8/3b4/8/8/8/3RK3 w - - 0 1", "e1e2", ["d1d5", "e8e7", "e1f2"]);
+  assert.deepStrictEqual(plainCapture.tags, ["missed_capture"]);
   const DISCOVERED = "4k3/8/3q4/4N3/8/8/8/4R1K1 w - - 0 1";
   const discovered = analyzeLine(DISCOVERED, "g1g2", ["e5c4", "e8f7", "c4d6"]);
   assert.ok(discovered.tags.includes("discovered_attack"), "Nc4+ uncovers the rook's check and attacks the queen");
@@ -530,6 +535,186 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
   assert.ok(!noBest.error && noBest.tags.includes("hangs_piece"), "without a best move we can still see a hanging piece");
 }
 
+// ---------- Regression corpus: what the QA content audit found false (CNT-001, 003, 005, 009, 010, 015) ----------
+
+{
+  // Real positions of the 28 classic games with Stockfish's lines (scripts/tests/_insights_corpus.json):
+  // each one was a false or contradictory sentence before.
+  const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, "_insights_corpus.json"), "utf8"));
+  const byId = {};
+  fixture.cases.forEach((entry) => { byId[entry.id] = entry; });
+  const settings = Scoring.normalizeSettings({});
+  const run = (entry) => {
+    const lines = entry.lines;
+    if (!entry.user) {
+      const assessment = Scoring.assess({ lines, userUci: null, reason: "skip", settings }, {});
+      return { assessment, result: analyzeChoice({ fen: entry.fen, userUci: null, bestUci: entry.best, assessment, lines }) };
+    }
+    const input = { lines, userUci: entry.user.uci, settings };
+    let assessment = Scoring.assess(input, {});
+    if (assessment.needsEvaluation && entry.user.searched) assessment = Scoring.assess({ ...input, userScore: Scoring.encodeScore(entry.user.searched.score) }, {});
+    const result = analyzeChoice({
+      fen: entry.fen, userUci: entry.user.uci, bestUci: assessment.bestUci, assessment, lines,
+      userPv: entry.user.searched ? entry.user.searched.pv : undefined,
+    });
+    return { assessment, result };
+  };
+  const keys = (result) => result.messages.map((entry) => entry.key);
+  const sacrifice = (entry) => moveFeatures(entry.fen, entry.best, { lines: entry.lines }).sacrifice;
+
+  // CNT-001 / CNT-007: a missed forced mate that keeps +15 is never "a solid alternative, nearly as good".
+  {
+    const { assessment, result } = run(byId["mate-kept-win"]);
+    assert.strictEqual(assessment.reason, "missed_mate");
+    assert.ok(assessment.winLossPct < 3, `the win% says almost nothing was lost (${assessment.winLossPct})`);
+    assert.strictEqual(assessment.keptWin, true);
+    assert.strictEqual(result.verdict, "worse", "a missed mate is never equivalent or close");
+    assert.ok(!keys(result).includes("insight.solid") && !keys(result).includes("insight.close"), keys(result).join());
+    assert.ok(result.tags.includes("missed_mate") && /forced mate in \d+ moves or fewer/.test(renderMessage(result.messages[0], "en")), renderMessage(result.messages[0], "en"));
+    assert.ok(result.messages.length <= 2, "two messages at most when a mate explains the answer");
+    assert.ok(assessment.points > 3 && assessment.points < 7, `a clean miss that keeps the win: ${assessment.points}`);
+    assert.strictEqual(assessment.qualityCode, "interesting");
+  }
+
+  // CNT-005 / CNT-015: no "sacrifice" where nothing is given up; queen sacrifices for a mate are found.
+  ["sac-false-bxf7", "sac-false-rg7", "sac-false-nd4", "sac-false-rd7"].forEach((id) => {
+    assert.strictEqual(sacrifice(byId[id]), false, `${id}: ${byId[id].note}`);
+    const { result } = run(byId[id]);
+    assert.ok(!result.tags.includes("sacrifice_best"), `${id}: ${keys(result).join()}`);
+  });
+  ["queen-sac-mate", "queen-sac-mate-2"].forEach((id) => {
+    assert.strictEqual(sacrifice(byId[id]), true, `${id}: ${byId[id].note}`);
+    assert.ok(run(byId[id]).result.features.best.sacrifice, `${id}: the analysis says it too`);
+  });
+  assert.strictEqual(sacrifice(byId["queen-offer-declined"]), false, "an offer the engine's best defence declines is no sacrifice along its line");
+  // Without a line only the settled reply can be looked at: a queen given away for nothing is still one.
+  assert.strictEqual(moveFeatures("5r1k/6pp/7N/8/8/8/Q7/K7 w - - 0 1", "a2g8").sacrifice, true);
+
+  // CNT-010: "wins the rook" for queen-for-two-rooks, "wins the pawn" in a lost position, a fork that wins nothing.
+  assert.ok(!run(byId["cap-false-qxc8"]).result.tags.includes("missed_capture"), "Qxc8 is queen for two rooks");
+  assert.ok(!run(byId["cap-false-qxd5"]).result.tags.includes("missed_capture"), "Qxd5 loses material along the line");
+  ["fork-false-qa2", "fork-false-qa4"].forEach((id) => assert.ok(!run(byId[id]).result.tags.includes("fork_available"), `${id}: ${byId[id].note}`));
+  // CNT-009: a check that is not the point is not advised.
+  assert.ok(!run(byId["check-false-re7"]).result.tags.includes("missed_check"));
+
+  // CNT-003: a move that loses ten points by force is not "no simple tactic": the engine's line says what it costs.
+  {
+    const { result } = run(byId["tactic-bf1"]);
+    assert.ok(result.tags.includes("loses_material"), keys(result).join());
+    assert.ok(!keys(result).some((key) => key.startsWith("insight.no_clear_reason")));
+    assert.ok(/costs you material: about \d+ points/.test(renderMessage(result.messages[0], "en")), renderMessage(result.messages[0], "en"));
+  }
+
+  // Every case: at most three messages, nothing contradictory next to a mistake, every sentence renders in both languages.
+  fixture.cases.forEach((entry) => {
+    const { result, assessment } = run(entry);
+    assert.ok(!result.error, `${entry.id}: ${result.error}`);
+    assert.ok(result.messages.length <= 3, `${entry.id}: ${keys(result).join()}`);
+    if (result.verdict === "worse" || result.verdict === "nomove") assert.ok(!result.tags.includes("solid"), `${entry.id}: no "solid" next to a mistake`);
+    renderMessages(result.messages, "es").concat(renderMessages(result.messages, "en")).forEach((out) => assert.ok(out && !/[{}]/.test(out), `${entry.id}: ${out}`));
+    assert.ok(Number.isFinite(assessment.points));
+  });
+}
+
+// ---------- Claims are checked against the engine's line (CNT-003, 009, 010, 011, 013, 016) ----------
+
+{
+  // A missed mate is never "solid", and a slower mate says so.
+  const fen = "4k3/8/8/8/8/8/8/R3K3 w - - 0 1";
+  const missed = analyzeChoice({ fen, userUci: "a1a2", bestUci: "a1a3", assessment: { isBest: false, winLossPct: 0.4, reason: "missed_mate", bestScore: 97000, userScore: 1900 } });
+  assert.strictEqual(missed.verdict, "worse");
+  assert.ok(missed.tags.includes("missed_mate") && !missed.tags.includes("solid"));
+  const slower = analyzeChoice({ fen, userUci: "a1a2", bestUci: "a1a3", assessment: { isBest: false, winLossPct: 0.2, reason: "ok", mateExtraMoves: 2, bestScore: 97000, userScore: 95000 } });
+  assert.deepStrictEqual(slower.tags, ["solid"]);
+  assert.strictEqual(slower.messages[0].key, "insight.slower_mate");
+  assert.ok(/gets there sooner/.test(renderMessage(slower.messages[0], "en")) && /llega antes/.test(renderMessage(slower.messages[0], "es")));
+
+  // The noise margin: solid below 1.5 win%, close up to 3, explained from 3.
+  const verdictAt = (loss) => analyzeChoice({ fen, userUci: "a1a2", bestUci: "a1a3", assessment: { isBest: false, winLossPct: loss, reason: "ok" } });
+  assert.strictEqual(verdictAt(1.49).verdict, "equivalent");
+  assert.strictEqual(verdictAt(1.5).verdict, "close");
+  assert.strictEqual(verdictAt(2.99).verdict, "close");
+  assert.strictEqual(verdictAt(3).verdict, "worse");
+  assert.strictEqual(verdictAt(2).messages[0].key, "insight.close");
+  assert.strictEqual(verdictAt(1).messages[0].key, "insight.solid");
+
+  // Mate lengths are upper bounds and only claimed where reliable.
+  const posFen = "5r1k/6pp/7N/8/8/8/Q7/K7 w - - 0 1";
+  const claim = (n) => analyzeChoice({ fen: posFen, userUci: "a1b1", bestUci: "a2g8", assessment: { isBest: false, winLossPct: 60, reason: "missed_mate", bestScore: Scoring.encodeScore({ type: "mate", value: n }), userScore: 300 } });
+  assert.strictEqual(message(claim(8), "missed_mate").key, "insight.missed_mate.forced");
+  assert.strictEqual(message(claim(9), "missed_mate").key, "insight.missed_mate.generic", "no length is claimed beyond 8");
+  const allows = (n) => analyzeChoice({
+    fen: "3r2k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1", userUci: "a1c1", bestUci: "h2h3",
+    assessment: { isBest: false, winLossPct: 90, reason: "allows_mate", userScore: Scoring.encodeScore({ type: "mate", value: -n }), bestScore: 0 },
+  });
+  assert.strictEqual(message(allows(6), "allows_mate").key, "insight.allows_mate.forced");
+  assert.strictEqual(message(allows(7), "allows_mate").key, "insight.allows_mate.generic", "a long mate against the user is not reproducible: no number");
+  assert.ok(!/\b7\b/.test(renderMessage(message(allows(7), "allows_mate"), "en")));
+
+  // The engine's line decides what is worth saying.
+  const fork = "r3k3/8/8/1N6/8/8/P7/4K3 w - - 0 1";
+  assert.ok(!analyzeLine(fork, "e1e2", ["b5c7", "e8d7", "c7b5"]).tags.includes("fork_available"), "a line that gives the knight back");
+  const tactic = analyzeLine("4k3/8/8/3b4/8/8/8/3RK3 w - - 0 1", "e1e2", ["d1d5", "e8e7", "e1f2"]);
+  assert.deepStrictEqual(tactic.tags, ["missed_capture"]);
+
+  // A big loss with nothing found does not reassure; the plain variant keeps the hedge.
+  assert.strictEqual(analyze("4k3/p7/8/8/8/8/8/R3K3 w - - 0 1", "e1d1", "e1f1", { assessment: { isBest: false, winLossPct: 7.9 } }).messages[0].key, "insight.no_clear_reason");
+  assert.strictEqual(analyze("4k3/p7/8/8/8/8/8/R3K3 w - - 0 1", "e1d1", "e1f1", { assessment: { isBest: false, winLossPct: 8 } }).messages[0].key, "insight.no_clear_reason.big");
+
+  // The user's own line decides "loses material": a counter-capture the exchange count cannot see is not blamed.
+  const loses = analyzeChoice({
+    fen: "4k3/8/p7/8/8/2N5/8/4K3 w - - 0 1", userUci: "c3b5", bestUci: "e1d2", assessment: WORSE,
+    userPv: ["c3b5", "a6b5", "e1d2", "e8d7"],
+  });
+  assert.ok(loses.tags.includes("hangs_piece"), "the knight really is lost: the line agrees");
+  const refuted = analyzeChoice({
+    fen: "4k3/8/p7/8/8/2N5/8/4K3 w - - 0 1", userUci: "c3b5", bestUci: "e1d2", assessment: WORSE,
+    userPv: ["c3b5", "e8d7", "b5a7", "d7e6"],
+  });
+  assert.ok(!refuted.tags.includes("hangs_piece"), "a line that keeps the material contradicts the exchange count: nothing is said");
+
+  // At most one tactical explanation and, with a mate, at most two messages.
+  const busy = analyzeLine("r3k3/8/8/1N6/8/8/P7/4K3 w - - 0 1", "e1e2", ["b5c7", "e8d7", "c7a8"], { timing: { timeSpentMs: 9500, limitMs: 10000 } });
+  assert.ok(busy.messages.length <= 3);
+  assert.strictEqual(busy.tags.filter((tag) => ["missed_capture", "fork_available", "pin_or_skewer", "discovered_attack", "tactic_available"].includes(tag)).length, 1);
+  assert.strictEqual(message(busy, "time_trouble").key, "insight.time_trouble");
+  assert.ok(/You used almost all of the clock/.test(renderMessage(message(busy, "time_trouble"), "en")), "CNT-036: the wording no longer claims the learner was short of time");
+  assert.ok(/Usaste casi todo el tiempo/.test(renderMessage(message(busy, "time_trouble"), "es")));
+
+  // A missed check that matters names the move and, after a capture, does not say "quiet moves".
+  const mateLine = analyzeLine("5r1k/6pp/7N/8/8/8/Q7/K7 w - - 0 1", "a2a3", ["a2g8", "f8g8", "h6f7"]);
+  assert.ok(!mateLine.tags.includes("missed_check"), "the back-rank / sacrifice messages already say it");
+}
+
+// ---------- Notation: the coach writes the moves the way the person reads them (CNT-006, A11Y-016) ----------
+
+{
+  const saved = globalThis.Ludus.Settings;
+  try {
+    const fen = "4k3/8/8/3b4/8/8/8/3RK3 w - - 0 1";
+    const result = analyze(fen, "e1e2", "d1d5");
+    assert.strictEqual(result.messages[0].raw.best, "Rxd5", "raw stays English SAN");
+    assert.strictEqual(renderMessage(result.messages[0], "en"), "Rxd5 looks like it wins the bishop on d5, which has no protection.");
+    assert.strictEqual(renderMessage(result.messages[0], "es"), "Txd5 parece ganar el alfil en d5, que está sin protección.", "R is the king in Spanish notation: the rook is T");
+    // The setting wins over the language.
+    globalThis.Ludus.Settings = { get: (key) => (key === "notation.style" ? "english" : undefined) };
+    assert.strictEqual(renderMessage(result.messages[0], "es"), "Rxd5 parece ganar el alfil en d5, que está sin protección.");
+    globalThis.Ludus.Settings = { get: (key) => (key === "notation.style" ? "spanish" : undefined) };
+    assert.strictEqual(renderMessage(result.messages[0], "en"), "Txd5 looks like it wins the bishop on d5, which has no protection.");
+    // The king, promotions and castling.
+    const promo = renderMessage({ key: "insight.missed_promotion", raw: { best: "e8=Q+" } }, "es");
+    assert.ok(/e8=D\+/.test(promo), promo);
+    assert.ok(/O-O/.test(renderMessage({ key: "insight.king_safety.castle", raw: { best: "O-O" } }, "es")));
+    // The moves inside a mate message too ("reply" is the opponent's mate).
+    const allowed = analyze("3r2k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1", "a1a4", "h2h3");
+    assert.strictEqual(allowed.messages[0].raw.reply, "Rd1#");
+    assert.ok(/Td1#/.test(renderMessage(allowed.messages[0], "es")), renderMessage(allowed.messages[0], "es"));
+  } finally {
+    if (saved === undefined) delete globalThis.Ludus.Settings;
+    else globalThis.Ludus.Settings = saved;
+  }
+}
+
 // ---------- Performance ----------
 
 {
@@ -547,6 +732,26 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
   const median = samples[samples.length >> 1];
   assert.ok(median < 15, `analyzeChoice median ${median.toFixed(2)} ms must be < 15 ms`);
   console.log(`  (analyzeChoice on a middlegame: median ${median.toFixed(2)} ms, max ${samples[samples.length - 1].toFixed(2)} ms)`);
+}
+
+{
+  // With the engine's lines every claim replays the line on the board (8 plies, captures settled): it has to stay
+  // a fraction of a frame budget in a crowded position, and a runaway capture tree must not freeze the page.
+  const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, "_insights_corpus.json"), "utf8"));
+  const samples = [];
+  fixture.cases.forEach((entry) => {
+    const user = entry.user ? entry.user.uci : null;
+    const assessment = entry.user ? Scoring.assess({ lines: entry.lines, userUci: user, settings: Scoring.normalizeSettings({}) }, {}) : { isBest: false, winLossPct: 25 };
+    const start = process.hrtime.bigint();
+    const result = analyzeChoice({ fen: entry.fen, userUci: user, bestUci: entry.best, assessment, lines: entry.lines });
+    if (result.features.best) void result.features.best.sacrifice;
+    samples.push(Number(process.hrtime.bigint() - start) / 1e6);
+    assert.ok(!result.error);
+  });
+  samples.sort((a, b) => a - b);
+  const median = samples[samples.length >> 1];
+  assert.ok(median < 60 && samples[samples.length - 1] < 400, `analysis with engine lines: median ${median.toFixed(1)} ms, max ${samples[samples.length - 1].toFixed(1)} ms`);
+  console.log(`  (analyzeChoice with engine lines on ${samples.length} classic positions: median ${median.toFixed(1)} ms, max ${samples[samples.length - 1].toFixed(1)} ms)`);
 }
 
 console.log("insights.test.js: all assertions passed");

@@ -661,6 +661,8 @@ test("trend: one focusable point per session (one tab stop), arrow keys, a toolt
     assert.ok(/^Sesión \d+ de 20: [\d,]+% de precisión, /.test(p.getAttribute("aria-label")), p.getAttribute("aria-label"));
     assert.ok(p.getAttribute("aria-label").startsWith(`Sesión ${i + 1} de 20`));
   });
+  // QA CNT-029: the accuracy shown is not Lichess's; it says so where the curve is drawn.
+  assert.ok(text(q(el, ".progress-trend-card")).includes("más exigente que la de Lichess o Chess.com"));
   const tip = q(el, ".progress-tip");
   assert.strictEqual(hidden(tip), true);
   points[19].dispatch("focus");
@@ -790,6 +792,9 @@ test("achievements: the whole catalogue, unlocked with the date, locked with the
   assert.ok(all(locked, ".sr-only").some((n) => text(n).startsWith("Bloqueado")));
   assert.ok(!/%|de todos los jugadores|players/.test(text(q(el, ".progress-ach-card"))), "no rarity, no invented numbers");
   const filter = (name) => q(el, `.progress-ach-filter [data-filter="${name}"]`);
+  // QA VIS-002 / CNT-027: the longest label of the control is short enough for a 320px phone ("Desbloqueados" collided with its neighbour).
+  assert.deepStrictEqual(["all", "done", "todo"].map((name) => text(filter(name))), ["Todos", "Logrados", "Pendientes"]);
+  assert.ok(["all", "done", "todo"].every((name) => text(filter(name)).length <= 10), "no label longer than 'Pendientes'");
   filter("done").click();
   assert.strictEqual(all(el, ".progress-ach").length, unlocked);
   assert.strictEqual(filter("done").getAttribute("aria-pressed"), "true");

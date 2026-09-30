@@ -21,7 +21,7 @@ const { createFakeLocalStorage } = require("./_fakedom.js");
 
 const repoRoot = path.resolve(__dirname, "..", "..");
 const SCRIPTS = [
-  "js/ludus.js", "js/chess.js", "js/facts.js", "js/reader.js", "js/insights.js", "js/concepts.js", "js/ui/kit.js", "js/ui/museum.js",
+  "js/ludus.js", "js/chess.js", "js/settings.js", "js/facts.js", "js/reader.js", "js/classics.js", "js/insights.js", "js/concepts.js", "js/ui/kit.js", "js/ui/museum.js",
 ];
 
 function createEnv({ language = "es", skip = [] } = {}) {
@@ -351,6 +351,19 @@ test("tablist: click, arrow keys, Home / End and the hash", async () => {
   assert.strictEqual(tabButton(el, "school").getAttribute("aria-selected"), "true", "an unknown tab keeps the current one");
 });
 
+test("notation: example moves and moves quoted in a fact follow the notation setting (QA CNT-006)", async () => {
+  const { Ludus } = createEnv();
+  const h = Ludus.Screens.museum.helpers;
+  assert.strictEqual(h.shownSan("Nc7+"), "Cc7+", "Spanish page, auto: Spanish letters");
+  const berlin = "La Defensa Berlinesa (1.e4 e5 2.Cf3 Cc6 3.Ab5 Cf6) se consideraba pasiva.";
+  assert.strictEqual(h.quotedText(berlin, "es"), berlin, "auto on a Spanish page: the Spanish text as written");
+  Ludus.Settings.set("notation.style", "english");
+  assert.strictEqual(h.shownSan("Nc7+"), "Nc7+");
+  assert.strictEqual(h.quotedText(berlin, "es"), "La Defensa Berlinesa (1.e4 e5 2.Nf3 Nc6 3.Bb5 Nf6) se consideraba pasiva.", "English letters when the setting says so");
+  Ludus.Settings.set("notation.style", "auto");
+  assert.strictEqual(h.quotedText("", "es"), "");
+});
+
 test("tab title: every section names itself, in both languages (QA A11Y-024)", async () => {
   const { Ludus, el, doc } = createEnv();
   Ludus.Screens.museum.mount(el);
@@ -526,7 +539,7 @@ test("chess school: 14 lessons, each with a board, the best-move arrow and its e
     assert.ok(text(card).includes("Jugada del ejemplo:"));
     assert.ok(text(q(card, ".museum-concept-text")).length > 100);
   });
-  assert.ok(text(cards()[0]).includes("Doble ataque (horquilla)") && text(cards()[0]).includes("Nc7+"));
+  assert.ok(text(cards()[0]).includes("Doble ataque (horquilla)") && text(cards()[0]).includes("Cc7+"));
   const filter = q(root, '[role="group"]');
   const tagButtons = findAll(filter, (n) => n.tagName === "BUTTON");
   assert.ok(tagButtons.length >= 13);

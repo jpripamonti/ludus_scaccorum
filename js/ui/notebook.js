@@ -88,7 +88,7 @@
       "notebook.empty.own": "Analizar tus partidas",
       "notebook.empty.how": "Cómo funciona",
       "notebook.empty.step1.title": "Te equivocás",
-      "notebook.empty.step1.body": "Una jugada con menos de 70 de precisión guarda la posición.",
+      "notebook.empty.step1.body": "Una jugada con menos de 70% de precisión guarda la posición.",
       "notebook.empty.step2.title": "Se guarda",
       "notebook.empty.step2.body": "Con la jugada del motor y el tema del error, en la caja 0.",
       "notebook.empty.step3.title": "Vuelve",
@@ -184,6 +184,7 @@
       "notebook.list.empty.body": "Probá con otros filtros o borrá la búsqueda.",
 
       "notebook.card.fallback": "Posición {n}",
+      "notebook.card.named": "{title} (tarjeta {n})",
       "notebook.card.aria": "Tarjeta: {title}",
       "notebook.origin.own": "Tu partida",
       "notebook.origin.own.vs": "Tu partida contra {name}",
@@ -217,6 +218,7 @@
       "notebook.action.review": "Repasar esta",
       "notebook.action.review.aria": "Repasar esta tarjeta: {title}",
       "notebook.action.lines": "Líneas",
+      "notebook.action.lines.aria": "Líneas y repasos: {title}",
       "notebook.action.remove": "Quitar",
       "notebook.action.remove.aria": "Quitar la tarjeta: {title}",
       "notebook.lines.title": "Líneas guardadas del motor",
@@ -260,7 +262,7 @@
       "notebook.empty.own": "Analyse your games",
       "notebook.empty.how": "How it works",
       "notebook.empty.step1.title": "You slip",
-      "notebook.empty.step1.body": "A move below 70 accuracy saves the position.",
+      "notebook.empty.step1.body": "A move below 70% accuracy saves the position.",
       "notebook.empty.step2.title": "It is saved",
       "notebook.empty.step2.body": "With the engine's move and the theme of the mistake, in box 0.",
       "notebook.empty.step3.title": "It comes back",
@@ -356,6 +358,7 @@
       "notebook.list.empty.body": "Try other filters or clear the search.",
 
       "notebook.card.fallback": "Position {n}",
+      "notebook.card.named": "{title} (card {n})",
       "notebook.card.aria": "Card: {title}",
       "notebook.origin.own": "Your game",
       "notebook.origin.own.vs": "Your game against {name}",
@@ -389,6 +392,7 @@
       "notebook.action.review": "Review this one",
       "notebook.action.review.aria": "Review this card: {title}",
       "notebook.action.lines": "Lines",
+      "notebook.action.lines.aria": "Lines and reviews: {title}",
       "notebook.action.remove": "Remove",
       "notebook.action.remove.aria": "Remove the card: {title}",
       "notebook.lines.title": "Stored engine lines",
@@ -854,9 +858,23 @@
 
   // ----- lines of the engine as text -----
 
+  // The SAN a person reads: the stored one (English letters) through the notation setting (Ludus.chess.localizeSan: Spanish R D T A C when the page
+  // or the setting says so). Unchanged without the helper (QA CNT-006).
+  function shownSan(san) {
+    const chess = L().chess;
+    if (!san || !chess || typeof chess.localizeSan !== "function") return san;
+    try {
+      return chess.localizeSan(san, lang());
+    } catch (error) {
+      return san;
+    }
+  }
+
   // "14. Qxd5 Nc6 15. Bxc6" from the FEN, the UCI moves and Ludus.chess; UCI text when the moves do not replay.
-  function formatPv(fen, pv, chessApi) {
+  // `show` (optional) maps each English SAN to what the person reads (the notation setting); the default is the SAN as it is.
+  function formatPv(fen, pv, chessApi, show) {
     const moves = Array.isArray(pv) ? pv : [];
+    const shown = typeof show === "function" ? show : (value) => value;
     const api = chessApi || L().chess;
     if (!moves.length) return "";
     if (!api || !api.Chess || typeof api.uciToMove !== "function" || typeof api.moveToSan !== "function") return moves.join(" ");
@@ -871,8 +889,8 @@
         if (!move) throw new Error("illegal");
         const san = api.moveToSan(chess, move);
         chess.makeMove(move);
-        if (white) out.push(`${number}. ${san}`);
-        else out.push(index === 0 ? `${number}… ${san}` : san);
+        if (white) out.push(`${number}. ${shown(san)}`);
+        else out.push(index === 0 ? `${number}… ${shown(san)}` : shown(san));
         if (!white) number += 1;
         white = !white;
       });
@@ -1177,7 +1195,7 @@
             // One lesson named like the dialog itself: the heading would only say it twice.
             concepts.length === 1 && normalizeText(title) === normalizeText(tagLabel(tag)) ? null : h("h3", { class: "notebook-concept-title" }, title),
             h("p", { class: "notebook-concept-body" }, copy ? copy.body : ""),
-            san ? h("p", { class: "notebook-concept-move" }, icon("lightbulb", { size: 16 }), t("notebook.concept.best", { san })) : null));
+            san ? h("p", { class: "notebook-concept-move" }, icon("lightbulb", { size: 16 }), t("notebook.concept.best", { san: shownSan(san) })) : null));
       })
       : [h("p", { class: "notebook-concept-none" }, t("notebook.concept.none"))];
     const actions = [];
@@ -1256,7 +1274,7 @@
       rows.push(h("div", { class: "notebook-move is-yours" },
         h("dt", { class: "notebook-move-label" }, mine.san ? t("notebook.card.yours") : t("notebook.card.yours.unknown")),
         h("dd", { class: "notebook-move-value" },
-          mine.san ? h("span", { class: "notebook-san" }, mine.san) : null,
+          mine.san ? h("span", { class: "notebook-san" }, shownSan(mine.san)) : null,
           mine.quality && ui && typeof ui.qualityBadge === "function" ? ui.qualityBadge(mine.quality) : null,
           yourMeta.length ? h("span", { class: "notebook-move-meta" }, yourMeta.join(" · ")) : null)));
     }
@@ -1264,7 +1282,7 @@
     rows.push(h("div", { class: "notebook-move is-best" },
       h("dt", { class: "notebook-move-label" }, t("notebook.card.best")),
       h("dd", { class: "notebook-move-value" },
-        bestSan ? h("span", { class: "notebook-san is-best" }, bestSan) : h("span", { class: "notebook-move-meta" }, t("notebook.card.best.pending")))));
+        bestSan ? h("span", { class: "notebook-san is-best" }, shownSan(bestSan)) : h("span", { class: "notebook-move-meta" }, t("notebook.card.best.pending")))));
     return h("dl", { class: "notebook-moves" }, rows);
   }
 
@@ -1285,7 +1303,7 @@
         h("h4", { class: "notebook-panel-title" }, t("notebook.lines.title")),
         lines.length
           ? h("ol", { class: "notebook-lines" }, lines.map((line, index) => {
-            const first = formatPv(card.fen, line.pv && line.pv.length ? line.pv : [line.uci]);
+            const first = formatPv(card.fen, line.pv && line.pv.length ? line.pv : [line.uci], undefined, shownSan);
             return h("li", { class: "notebook-line" },
               h("span", { class: "notebook-line-eval", "aria-label": `${t("notebook.lines.rank", { n: index + 1 })}: ${evalText(line.score)}` }, evalText(line.score)),
               h("span", { class: "notebook-line-pv" }, first));
@@ -1305,6 +1323,8 @@
     const ui = L().ui;
     const { cleared } = profileConstants();
     const title = cardTitle(card, index);
+    // The accessible names say which card: two cards of one game share a title, and twelve "Lines" buttons were indistinguishable (QA A11Y-020).
+    const named = t("notebook.card.named", { title, n: index + 1 });
     const origin = originOf(card, { t, profileName: state.profileName, localize: localizeMeta });
     const side = card.sideToMove === "b" || card.sideToMove === "w" ? card.sideToMove : sideOfFen(card.fen);
     const bestUci = card.bestUci || (card.lines && card.lines[0] && card.lines[0].uci) || "";
@@ -1317,12 +1337,14 @@
     const reviewButton = h("button", {
       type: "button",
       class: "btn btn-secondary notebook-action",
-      "aria-label": t("notebook.action.review.aria", { title }),
+      "aria-label": t("notebook.action.review.aria", { title: named }),
       onclick: () => { void reviewOne(card, reviewButton); },
     }, icon("play", { size: 18 }), h("span", { class: "btn-label" }, t("notebook.action.review")));
     const linesButton = h("button", {
       type: "button",
       class: `btn btn-ghost notebook-action notebook-lines-toggle${open ? " is-open" : ""}`,
+      // The visible word is "Lines" on every card: the name says which card (12 identical buttons were one undifferentiated list, QA A11Y-020).
+      "aria-label": t("notebook.action.lines.aria", { title: named }),
       "aria-expanded": String(open),
       "aria-controls": panelId,
       onclick: () => toggleLines(card, linesButton),
@@ -1330,7 +1352,7 @@
     const removeButton = h("button", {
       type: "button",
       class: "btn btn-ghost btn-icon notebook-remove",
-      "aria-label": t("notebook.action.remove.aria", { title }),
+      "aria-label": t("notebook.action.remove.aria", { title: named }),
       title: t("notebook.action.remove"),
       onclick: () => { void removeCard(card, removeButton); },
     }, trashIcon(18));
@@ -1395,6 +1417,7 @@
       return;
     }
     let ok = false;
+    const removedAt = visibleCards().findIndex((entry) => entry.id === card.id);
     try {
       ok = Boolean(Profile.notebook.remove(card.id));
     } catch (error) {
@@ -1406,8 +1429,9 @@
     }
     state.expanded.delete(card.id);
     toast(t("notebook.remove.done"), "success");
-    // Profile emits notebook:changed, which repaints; the focus goes to the list heading so it is not lost.
-    state.pendingFocus = "list";
+    // Profile emits notebook:changed, which repaints. The focus goes to the card that now sits where the removed one was (the next one, or the
+    // last one when it was the last), scrolled into view: the list heading could be hundreds of pixels above the viewport (QA A11Y-020).
+    state.pendingFocus = { list: true, index: removedAt };
     scheduleRefresh();
   }
 
@@ -1825,7 +1849,27 @@
     if (!state.mounted) return;
     load();
     render();
-    if (options && options.focus === "list") focusNode(state.refs.listTitle);
+    const focus = options && options.focus;
+    if (focus === "list" || (focus && focus.list)) focusAfterRemoval(focus && typeof focus.index === "number" ? focus.index : -1);
+  }
+
+  // The card at `index` of the list as it is now (clamped to the last one); the list heading when there is none.
+  function focusAfterRemoval(index) {
+    const list = state.refs.list;
+    const items = list && list.children ? Array.from(list.children).filter((node) => node.querySelector && node.querySelector(".notebook-card-title")) : [];
+    if (!items.length || index < 0) {
+      focusNode(state.refs.listTitle);
+      return;
+    }
+    const target = items[Math.min(index, items.length - 1)].querySelector(".notebook-card-title");
+    focusNode(target);
+    if (target && typeof target.scrollIntoView === "function") {
+      try {
+        target.scrollIntoView({ block: "center", behavior: "auto" });
+      } catch (error) {
+        // the focus alone still moved
+      }
+    }
   }
 
   function scheduleRefresh() {
@@ -1969,6 +2013,7 @@
       boxBars,
       roundedTopPath,
       formatPv,
+      shownSan,
     },
     TEXT,
     _state: state,

@@ -76,6 +76,11 @@ function makeFakeAuth(initial) {
     signIn() { calls.push("signIn"); return Promise.resolve({ ok: true }); },
     signOut(options) { calls.push(options && options.revoke ? "signOut:revoke" : "signOut"); snapshot = Object.assign({}, snapshot, { status: "signed_out", user: null, needsReconnect: false, error: "" }); listeners.slice().forEach((fn) => fn(snapshot)); return Promise.resolve({ ok: true }); },
     syncNow() { calls.push("syncNow"); return Promise.resolve({ ok: true }); },
+    // The link step of Auth (SEC-005): nothing is uploaded until a profile is chosen. `results` lets a test answer with a failure.
+    results: {},
+    linkProfile(id) { calls.push(`linkProfile:${id}`); return Promise.resolve(this.results.link || { ok: true, linked: true, profileId: id }); },
+    unlinkProfile(id) { calls.push(`unlinkProfile:${id}`); return this.results.unlink || { ok: true, profileId: id }; },
+    importFromDrive() { calls.push("importFromDrive"); return Promise.resolve(this.results.import || { ok: true, imported: true }); },
     preload() { calls.push("preload"); return Promise.resolve(true); },
     errorMessage: (code, lang) => `ERR:${code}:${lang}`,
     set(next) { snapshot = Object.assign({}, snapshot, next); listeners.slice().forEach((fn) => fn(snapshot)); },
@@ -425,7 +430,11 @@ test("create: the dialog asks for a name and a colour, refuses an empty name, cr
   assert.strictEqual(qa(modal, ".account-swatch-input").length, Ludus.Profile.constants.PALETTE.length);
   assert.strictEqual(qa(modal, ".account-swatch-input").filter((radio) => radio.checked).length, 1, "a colour is preselected");
   assert.strictEqual(qa(modal, "[role=\"radiogroup\"]").length, 1);
-  qa(modal, ".account-swatch-input").forEach((radio, i) => assert.strictEqual(radio.getAttribute("aria-label"), `Colour ${i + 1}`));
+  // QA A11Y-026: the swatches are named by colour, every one differently, never "Colour 3".
+  const swatchNames = qa(modal, ".account-swatch-input").map((radio) => radio.getAttribute("aria-label"));
+  assert.strictEqual(new Set(swatchNames).size, swatchNames.length, "distinct names");
+  assert.ok(swatchNames.every((name) => !/^Colour \d+$/.test(name)), `named by colour: ${swatchNames.join(", ")}`);
+  assert.deepStrictEqual(swatchNames.slice(0, 3), ["Green", "Brown", "Blue"]);
   // empty name: stays open with an alert, nothing created
   modalButton(env, "primary").click();
   assert.ok(modalOf(env), "still open");
@@ -849,17 +858,28 @@ test("sync: not configured is a quiet card with the sentence, the owner's pointe
   assert.ok(off, "the informational card");
   assert.ok(!card(env, "sync"));
   const content = text(off);
-  assert.ok(content.includes("Cross-device sync with Google is not enabled on this site yet. Meanwhile, exporting and importing a file moves your progress"));
-  assert.ok(content.includes("docs/GOOGLE_SIGNIN.md"));
+  assert.ok(content.includes("Sync with Google is not available in this version. Meanwhile, downloading your progress and loading it on the other device"));
+  // QA UX-030: a player gets a sentence about what to do, not instructions for the owner of the site.
+  assert.ok(!content.includes("docs/GOOGLE_SIGNIN.md") && !content.includes("Do you run this site"), "no owner instructions for a player");
+  assert.strictEqual(qa(off, "a").length, 0, "no link for a player");
   assert.strictEqual(qa(off, "button").length, 0, "no dead button");
   assert.ok(!q(el, "[data-action=\"signin\"]"));
-  const link = q(off, "a");
+  // ... they appear on localhost and with ?debug (the owner trying it out).
+  env.sandbox.location.hostname = "localhost";
+  env.Ludus.Screens.account.render();
+  assert.ok(text(card(env, "sync-off")).includes("docs/GOOGLE_SIGNIN.md"), "the owner's pointer on localhost");
+  env.sandbox.location.hostname = "example.github.io";
+  env.sandbox.location.search = "?debug";
+  env.Ludus.Screens.account.render();
+  const ownerCard = card(env, "sync-off");
+  assert.ok(text(ownerCard).includes("docs/GOOGLE_SIGNIN.md"), "and with ?debug");
+  const link = q(ownerCard, "a");
   assert.strictEqual(link.getAttribute("href"), "https://github.com/jpripamonti/ludus_scaccorum/blob/main/docs/GOOGLE_SIGNIN.md");
   assert.strictEqual(link.getAttribute("target"), "_blank");
   assert.ok(link.getAttribute("rel").includes("noopener"));
 });
 
-test("sync: signed out offers one button that preloads Google on pointer and focus and signs in on click", () => {
+test("sync: signed out offers one button that preloads Google when pressed (never on hover or focus) and signs in on click", () => {
   const env = createEnv({ language: "en", configured: true });
   const auth = makeFakeAuth();
   env.Ludus.Auth = auth;
@@ -871,14 +891,90 @@ test("sync: signed out offers one button that preloads Google on pointer and foc
   assert.ok(button && !q(sync, "[data-action=\"sync\"]") && !q(sync, "[data-action=\"signout\"]"));
   assert.strictEqual(text(q(sync, ".account-status-badge")), "Signed out");
   assert.deepStrictEqual(auth.calls, [], "nothing is requested before the person acts");
+  // QA SEC-009: Google's script is requested when the press starts, never on hover or focus.
   button.dispatch("pointerenter");
   button.dispatch("focus");
-  assert.deepStrictEqual(auth.calls, ["preload", "preload"]);
+  button.dispatch("mouseover");
+  assert.deepStrictEqual(auth.calls, [], "hovering or tabbing to the button tells Google nothing");
+  button.dispatch("pointerdown");
+  assert.deepStrictEqual(auth.calls, ["preload"]);
   button.click();
-  assert.deepStrictEqual(auth.calls.slice(2), ["signIn"]);
+  assert.deepStrictEqual(auth.calls.slice(1), ["signIn"]);
   // what is stored where is explained
   const stored = text(sync);
   assert.ok(stored.includes("What is stored, and where") && stored.includes("ludus-progress-v1.json") && stored.includes("Nothing else is sent anywhere"));
+});
+
+test("sync: a first sign-in asks which profile goes to the Drive, uploads nothing by itself, and shows the linked one afterwards (QA SEC-005)", async () => {
+  const env = createEnv({ language: "en", configured: true });
+  const auth = makeFakeAuth();
+  env.Ludus.Auth = auth;
+  mountAndShow(env);
+  const { Ludus } = env;
+  const me = Ludus.Profile.active();
+  const other = Ludus.Profile.create({ name: "Bruno" });
+  Ludus.Profile.setActive(me.id);
+  const user = { name: "Ana", email: "ana@example.com", picture: "", sub: "9" };
+  auth.set({ status: "signed_in", user, lastSyncAt: 0, linkRequired: true, linkedProfiles: [] });
+  const sync = () => card(env, "sync");
+  const panel = q(sync(), "[data-link=\"required\"]");
+  assert.ok(panel, "the choice is offered");
+  assert.ok(text(panel).includes("Choose which profile to save to your Drive") && text(panel).includes("Nothing has been saved to your Drive yet"));
+  assert.ok(text(panel).includes("the other profiles on this device stay here"), "it says who does NOT go");
+  const radios = qa(panel, "input[type=\"radio\"]");
+  assert.strictEqual(radios.length, 2, "every local profile is an option");
+  assert.strictEqual(radios.filter((radio) => radio.checked)[0].getAttribute("data-profile-id"), me.id, "the active profile is preselected");
+  assert.ok(q(panel, "[role=\"radiogroup\"]").getAttribute("aria-label"), "the group has a name");
+  assert.ok(!action(sync(), "sync"), "no 'Sync now' while nothing is linked");
+  assert.deepStrictEqual(auth.calls, [], "nothing was asked of Auth by the screen itself");
+  // choosing another profile, then saving it
+  radios.find((radio) => radio.getAttribute("data-profile-id") === other.id).dispatch("change");
+  action(sync(), "link-save").click();
+  await settle();
+  assert.deepStrictEqual(auth.calls, [`linkProfile:${other.id}`], "exactly the chosen profile is linked");
+  // a refusal is said in words and the choice stays
+  auth.results.link = { ok: false, error: "linked-elsewhere" };
+  auth.set({});
+  action(sync(), "link-save").click();
+  await settle();
+  assert.ok(text(q(sync(), "[data-msg=\"link\"]")).includes("ERR:linked-elsewhere"), "the reason is shown");
+  assert.ok(q(sync(), "[data-link=\"required\"]"), "still asking");
+  // bring the Drive's progress here instead: no profile is uploaded
+  auth.results.import = { ok: true, empty: true };
+  action(sync(), "link-import").click();
+  await settle();
+  assert.ok(auth.calls.includes("importFromDrive") && auth.calls.filter((call) => call.startsWith("linkProfile")).length === 2);
+  assert.ok(text(q(sync(), "[data-msg=\"link\"]")).includes("Your Drive has no saved progress yet"));
+  // once a profile is linked: which one, and a way to stop
+  auth.set({ status: "signed_in", user, lastSyncAt: Date.now(), linkRequired: false, linkedProfiles: [{ id: other.id, name: "Bruno" }] });
+  assert.ok(!q(sync(), "[data-link=\"required\"]"));
+  const done = q(sync(), "[data-link=\"done\"]");
+  assert.ok(done && text(done).includes("You are syncing Bruno's profile") && text(done).includes("The other profiles on this device are not uploaded"));
+  assert.ok(action(sync(), "sync"), "'Sync now' is back");
+  action(sync(), "unlink", other.id).click();
+  assert.ok(auth.calls.includes(`unlinkProfile:${other.id}`));
+  assert.ok(text(q(sync(), "[data-msg=\"link\"]")).includes("Bruno is no longer synced"));
+  // an Auth without the link step never asks (back compatibility)
+  auth.set({ status: "signed_in", user, linkRequired: undefined, linkedProfiles: undefined });
+  assert.ok(!q(sync(), "[data-link]") && action(sync(), "sync"));
+});
+
+test("copy: profiles are not private, the export and the Drive file disclose usernames, the pieces licence is named (QA UX-023, SEC-004, SEC-020)", () => {
+  const env = mountAndShow(createEnv({ language: "en", configured: true }));
+  env.Ludus.Auth = makeFakeAuth();
+  env.Ludus.Screens.account.render();
+  assert.ok(text(card(env, "profiles")).includes("do not protect it: anyone using this device can open any profile"));
+  const data = text(card(env, "data"));
+  assert.ok(data.includes("usernames") && data.includes("a link to each game"), "the export says what it holds");
+  assert.ok(!data.includes("or anything else"), "the old claim that it holds nothing else is gone");
+  const sync = text(card(env, "sync"));
+  assert.ok(sync.includes("usernames (your opponents' too)"), "the Drive file discloses the same");
+  const about = text(card(env, "about"));
+  assert.ok(about.includes("GPL, version 2 or later") && about.includes("Colin M. L. Burnett"), "the elected licence is credited");
+  const es = mountAndShow(createEnv({ language: "es", configured: true }));
+  assert.ok(text(card(es, "profiles")).includes("no lo protegen"));
+  assert.ok(text(card(es, "data")).includes("nombres de los jugadores"));
+  assert.ok(text(card(es, "about")).includes("GPL, versión 2 o posterior"));
 });
 
 test("sync: every state renders (connecting, signed in, syncing, error, reconnect) and follows Auth without a reload", () => {

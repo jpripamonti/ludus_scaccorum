@@ -335,6 +335,21 @@
 
   // ---------- Driver ----------
 
+  // WebAssembly SIMD128, which the engine's wasm needs (Chrome 91, Firefox 89, Safari 16.4 and later): a 29-byte module
+  // with one v128 instruction is valid only where the browser can run it. Without it the file would be downloaded (7 MB)
+  // and fail to start, every session; asking first lets the page say so and use the simpler engine at once.
+  const SIMD_PROBE = [0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11];
+
+  function supported() {
+    try {
+      const wasm = root.WebAssembly;
+      if (!wasm || typeof wasm.validate !== "function" || typeof root.Worker !== "function") return false;
+      return wasm.validate(new Uint8Array(SIMD_PROBE)) === true;
+    } catch (error) {
+      return false;
+    }
+  }
+
   function defaultCreateTransport() {
     if (typeof root.Worker === "function") {
       return () => new root.Worker("vendor/stockfish-18-lite-single.js");
@@ -357,6 +372,9 @@
     const abortWaitMs = clampInt(config.abortWaitMs, 0, 10000, 300);
     const stopGraceMs = clampInt(config.stopGraceMs, 1, 60000, 4000);
     const maxSearchMs = clampInt(config.maxSearchMs, 1000, 3600000, 120000);
+    // A search that has produced no line at all after this long means a worker that is gone without an error (a
+    // killed tab process, a wedged wasm): it is declared failed then, not after the whole budget and both grace periods.
+    const silenceMs = clampInt(config.silenceMs, 100, 60000, 3000);
     const now = typeof config.now === "function" ? config.now : defaultNow;
     const timerSource = config.timers && typeof config.timers === "object" ? config.timers : {};
     const timers = {
@@ -415,6 +433,8 @@
       if (job.deadlineTimer !== null) timers.clearTimeout(job.deadlineTimer);
       if (job.abortWaitTimer !== null) timers.clearTimeout(job.abortWaitTimer);
       if (job.trailTimer !== null) timers.clearTimeout(job.trailTimer);
+      if (job.silenceTimer) timers.clearTimeout(job.silenceTimer);
+      job.silenceTimer = null;
       job.pollTimer = null;
       job.deadlineTimer = null;
       job.abortWaitTimer = null;
@@ -553,6 +573,11 @@
       }
       const job = current;
       if (!job || (job.phase !== "searching" && job.phase !== "stopping" && job.phase !== "draining")) return;
+      // Any line of the engine's answer is proof of life.
+      if (job.silenceTimer && (line.startsWith("info ") || line.startsWith("bestmove"))) {
+        timers.clearTimeout(job.silenceTimer);
+        job.silenceTimer = null;
+      }
       if (line.startsWith("info ")) {
         if (job.phase !== "draining") handleInfo(job, line);
       } else if (line.startsWith("bestmove")) {
@@ -714,6 +739,10 @@
       job.phase = "searching";
       const deadline = job.movetimeMs !== null ? job.movetimeMs + stopGraceMs : maxSearchMs;
       job.deadlineTimer = timers.setTimeout(() => onDeadline(job), deadline);
+      job.silenceTimer = timers.setTimeout(() => {
+        job.silenceTimer = null;
+        if (current === job && !job.settled && job.phase === "searching") failTransport(engineError("timeout", "no output from the engine"));
+      }, silenceMs);
       if (!send(`setoption name MultiPV value ${job.multiPv}`)) return;
       if (!send(`position fen ${job.fen}`)) return;
       send(goCommand(job));
@@ -804,6 +833,7 @@
           deadlineTimer: null,
           abortWaitTimer: null,
           trailTimer: null,
+          silenceTimer: null,
           signalCleanup: null,
         });
         if (job.signal && typeof job.signal.addEventListener === "function") {
@@ -885,5 +915,5 @@
     };
   }
 
-  return { create, parseInfoLine, moverScore, MAX_MULTIPV };
+  return { create, parseInfoLine, moverScore, supported, MAX_MULTIPV };
 });

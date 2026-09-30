@@ -325,7 +325,7 @@ test("progress: answers already given show on the cards and on the game page, an
   Ludus.router.show("classics", { game: "opera-1858" });
   await flush();
   const line = q(el, ".classics-progress-text");
-  assert.ok(text(line).includes("Ya practicaste 3 de 6") && text(line).includes("superaste 2") && text(line).includes("72 %"), text(line));
+  assert.ok(text(line).includes("Ya practicaste 3 de 6") && text(line).includes("superaste 2") && text(line).includes("72%"), text(line));
   Ludus.i18n.setLanguage("en", { persist: false });
   assert.ok(text(q(el, ".classics-progress-text")).includes("You have practised 3 of 6") && text(q(el, ".classics-progress-text")).includes("passed 2"));
   // All six practised: the sentence changes and the bar is complete.
@@ -415,9 +415,21 @@ test("display: names, events, sites, results in both languages", async () => {
       assert.ok(!/^(Garry Kasparov|Anatoly Karpov)$/.test(h.displayName(g[side], "es")), `${g.id}: ${g[side]} keeps the Spanish spelling`);
     });
   });
-  // Without the data tables (the classics data not loaded yet) the local fallbacks give the same Spanish forms.
+  // Without the data tables (the classics data not loaded yet) the local fallbacks give the SAME forms as the data, for every tag of every
+  // game, in both languages (they used to drift: "Semifinal del Torneo de Candidatos" against "Match de semifinales de Candidatos").
+  const fromData = {};
+  Ludus.Classics.list().forEach((g) => {
+    ["es", "en"].forEach((lang) => {
+      fromData[`${g.id}/${lang}`] = [h.displayName(g.white, lang), h.displayName(g.black, lang), h.eventLabel(g.event, lang)];
+    });
+  });
   const saved = Ludus.ClassicsData;
   Ludus.ClassicsData = undefined;
+  Ludus.Classics.list().forEach((g) => {
+    ["es", "en"].forEach((lang) => {
+      deepEq([h.displayName(g.white, lang), h.displayName(g.black, lang), h.eventLabel(g.event, lang)], fromData[`${g.id}/${lang}`], `${g.id}/${lang}: the fallback tables agree with the data`);
+    });
+  });
   assert.strictEqual(h.displayName("Garry Kasparov", "es"), "Garry Kaspárov");
   assert.strictEqual(h.eventLabel("Copenhagen", "es"), "Torneo de Copenhague");
   assert.strictEqual(h.eventLabel("Casual game", "es"), "Partida amistosa");
@@ -877,7 +889,7 @@ test("replay controls: next / previous / first / last, the scrubber, the list, f
   btn("last").click();
   assert.strictEqual(counter(el), "33 / 33");
   assert.strictEqual(btn("next").getAttribute("aria-disabled"), "true");
-  assert.ok(text(q(el, ".classics-now")).includes("Fin de la partida") && text(q(el, ".classics-now")).includes("Rd8#"));
+  assert.ok(text(q(el, ".classics-now")).includes("Fin de la partida") && text(q(el, ".classics-now")).includes("Td8#"), "Spanish page: the rook mate is written with the Spanish letter (QA CNT-006)");
   btn("next").click();
   assert.strictEqual(counter(el), "33 / 33", "a click on an aria-disabled button does nothing");
   btn("first").click();
@@ -1175,6 +1187,44 @@ test("loading: a failing load shows an error with a retry (never a blank screen)
   await flush();
   assert.strictEqual(cardIds(el).length, 28, "the retry loads the gallery");
   assert.strictEqual(attempts, 2);
+});
+
+test("notation: every SAN the replay shows follows the notation setting; the replayed SAN stays English (QA CNT-006)", async () => {
+  const { Ludus, el } = createEnv();
+  await Ludus.Classics.load();
+  const h = Ludus.Screens.classics.helpers;
+  assert.strictEqual(h.shownSan("Nxe5+"), "Cxe5+", "auto + Spanish page: Spanish letters");
+  assert.strictEqual(h.shownSan("e4"), "e4");
+  assert.strictEqual(h.shownSan("O-O"), "O-O");
+  assert.strictEqual(h.shownSan("Qxh7#"), "Dxh7#");
+  assert.strictEqual(h.showPly({ moveNumber: 12, color: "b", san: "Nf6" }), "12... Cf6");
+  assert.strictEqual(h.formatPly({ moveNumber: 12, color: "b", san: "Nf6" }), "12... Nf6", "the pure helper keeps the English SAN it is given");
+  Ludus.Settings.set("notation.style", "english");
+  assert.strictEqual(h.shownSan("Nxe5+"), "Nxe5+", "the setting wins over the page language");
+  Ludus.Settings.set("notation.style", "auto");
+  Ludus.Screens.classics.mount(el);
+  Ludus.router.show("classics", { game: "opera-1858" });
+  await flush();
+  const moves = findAll(el, (n) => n.classList && n.classList.contains("classics-move-san")).map((n) => text(n));
+  assert.ok(moves.includes("Td8#") && !moves.includes("Rd8#"), "the move list is in Spanish letters");
+  assert.ok(moves.includes("Cf3"), "a knight move too");
+  const label = findAll(el, (n) => n.getAttribute && /Td8#/.test(n.getAttribute("aria-label") || ""))[0];
+  assert.ok(label, "and so is the accessible name of a move button");
+  Ludus.Settings.set("notation.style", "english");
+  Ludus.Screens.classics.render();
+  await flush();
+  const english = findAll(el, (n) => n.classList && n.classList.contains("classics-move-san")).map((n) => text(n));
+  assert.ok(english.includes("Rd8#") && english.includes("Nf3"), "English letters when the setting says so");
+  // The blurb quotes moves in the language of the page ("24.Txd4!!"); the setting re-spells them.
+  Ludus.Settings.set("notation.style", "auto");
+  Ludus.router.show("classics", { game: "kasparov-topalov-1999" });
+  await flush();
+  assert.ok(text(q(el, ".classics-blurb")).includes("24.Txd4!!"), "Spanish page, auto: the blurb keeps its Spanish letters");
+  Ludus.Settings.set("notation.style", "english");
+  Ludus.Screens.classics.render();
+  await flush();
+  assert.ok(text(q(el, ".classics-blurb")).includes("24.Rxd4!!") && !text(q(el, ".classics-blurb")).includes("Txd4"), "English letters: the blurb follows");
+  Ludus.Settings.set("notation.style", "auto");
 });
 
 test("loading: a download that hangs admits it is slow, then offers a retry (QA UX-026); the data arriving later still shows", async () => {

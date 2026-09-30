@@ -37,13 +37,19 @@ Operational requirement: when replacing these files, update `vendor/SHA256SUMS` 
 - Required attribution: if redistributed under the CC BY-SA 3.0 or GFDL options, credit is required — e.g. "Chess piece set by Colin M.L. Burnett, CC BY-SA 3.0" with a link to the license. The GPLv2+ and BSD options carry their own standard notice/source-availability terms instead of a CC-style credit line.
 - Confidence: high — corroborated independently by the Wikimedia Commons file pages and by lichess.org's own published license file, both of which agree on the author and on GPLv2+ being one of the valid license choices. The local files here are unmodified plain SVGs with the same 45x45 viewBox convention as the canonical set; they carry no embedded metadata of their own, so this confirms the set identity but not a byte-for-byte checksum match.
 
-Operational requirement: keep these files in the third-party inventory. Recommended next step for the project owner: pick one license option from the list above (GPLv2+ matches the project's existing Stockfish GPLv3 dependency) and add a one-line attribution credit for Colin M.L. Burnett somewhere reachable from the UI (e.g. an About/credits section), then record checksums here once that choice is made.
+- **Licence elected for this project (recorded 2026-09-30): the GNU General Public License, version 2 or (at our option) any later version (GPLv2+), used here under GPL version 3 or later (GPL-3.0-or-later).** That is the licence of this project (`LICENSE`) and of its Stockfish component, and the "or later" clause of the GPLv2+ option is what allows it. The other options (GFDL, CC BY-SA 3.0, BSD) are not relied on, so no CC-style credit line is *required* for them; the credit below is given anyway.
+- Notices reproduced (GPL: copyright notice, no-warranty notice, pointer to the licence): `assets/pieces/cburnett/NOTICE.txt` ships next to the SVGs (the `assets/` directory is deployed as a whole, so it is published with them), and the licence text is `LICENSE` at the root of the site and of the repository.
+- Credit shown in the app (Account > About, the landing footer): "Chess pieces: Colin M.L. Burnett (Cburnett), GPL v2 or later, via Wikimedia Commons".
+- The files here are the unmodified SVGs, so they are their own corresponding source. Checksums of the twelve files are not tracked: the set is identified by author, path and the canonical 45x45 viewBox (see "Confidence" above).
+
+Operational requirement: keep these files in the third-party inventory, keep `NOTICE.txt` next to them, and record here any change of licence election.
 
 ## Landing artwork
 
 - Files shipped:
   - `assets/landing/maestro.webp` — approximately 170 KB, 2816x1504, used by every browser that supports WebP.
   - `assets/landing/maestro.jpg` — approximately 383 KB, 2816x1504, fallback for browsers without WebP.
+  - `assets/landing/maestro-1280.webp` and `assets/landing/maestro-2000.webp` — downscaled WebP copies of the same image (about 1280 and 2000 px wide) for phones and laptops, chosen by the landing CSS; same origin and licence as the original.
 - Original: the 7.2 MB PNG the image was delivered as (`assets/landing/maestro.png`, 2816x1504) was removed from the working tree on 2026-08-25 because shipping it cost every first visit roughly 7 MB for a fallback almost no browser used. It remains available in git history at commit `0d44645c730e3bec932b852a9c99c8540d0de8e2` (`git show 0d44645:assets/landing/maestro.png > maestro.png`) and is the source both shipped files were derived from.
 - Origin: created for this project. The project owner generated the image with Google Gemini; it was not taken from a stock library, another artist, or any other external source. Confirmed by the project owner on 2026-08-25.
 - License/source: no third-party license applies. Google's Generative AI Additional Terms state that Google does not claim ownership of content generated with its consumer AI tools, so redistributing this image as part of Ludus Scaccorum is permitted.
@@ -54,7 +60,7 @@ Operational requirement: prefer the WebP asset in production CSS when browser su
 
 ## Fonts (self-hosted)
 
-The interface fonts are served from this site (`assets/fonts/`); no request goes to Google Fonts or any other font provider, so visiting the site discloses nothing to a third party through fonts. Both families are variable fonts in WOFF2 format, restricted to the Latin and Latin Extended subsets (the two "latin" files are precached by the service worker; the "latin-ext" files are only fetched when a glyph outside the Latin range appears). The files are the unmodified WOFF2 subsets distributed by the Fontsource project (`@fontsource-variable/inter` 5.3.0 and `@fontsource-variable/cormorant` 5.3.0 from the npm registry), which repackages the upstream releases.
+The interface fonts are served from this site (`assets/fonts/`); no request goes to Google Fonts or any other font provider, so visiting the site discloses nothing to a third party through fonts. Both families are variable fonts in WOFF2 format, restricted to the Latin and Latin Extended subsets (all four files are precached by the service worker so the typography is the same offline; the browser only fetches a "latin-ext" file when a glyph outside the Latin range appears). The files are the unmodified WOFF2 subsets distributed by the Fontsource project (`@fontsource-variable/inter` 5.3.0 and `@fontsource-variable/cormorant` 5.3.0 from the npm registry), which repackages the upstream releases.
 
 ### Inter
 

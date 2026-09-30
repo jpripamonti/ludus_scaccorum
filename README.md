@@ -49,18 +49,22 @@ Settings let you choose how the best move is decided and scored: engine strength
 - The downloaded PGN, your username and metadata are cached in the browser's IndexedDB for 7 days; a "Clear saved game data" button deletes that cache.
 - Profiles, settings and the notebook are stored in the browser's `localStorage`. Nothing is sent anywhere else. Google sign-in, if enabled, loads Google's script only when you press the button.
 
+### Browser support
+
+The app needs CSS `:has()` and container queries, so the minimum is **Chrome / Edge 105, Firefox 121, Safari / iOS 16** (older browsers get a short "your browser is too old" notice instead of a broken page). The full Stockfish engine also needs WebAssembly SIMD (Chrome / Edge 91, Firefox 89, **Safari / iOS 16.4**); on anything older the app still works, with a weaker built-in backup engine and a notice saying so. The install / offline mode needs service workers and a secure context (HTTPS or `localhost`); without them the app works online only. Firefox and Safari are reasoned from compatibility data, not tested here.
+
 ### Run locally
 
-Requires Node 22 and Python 3.
+Requires Node 22.
 
 ```bash
-npm start            # serves the static files on http://127.0.0.1:5010
+npm start            # serves the deploy files on http://127.0.0.1:5010 (loopback only, nothing else of the repository)
 npm test             # smoke checks + every unit/integration test (about 30 s)
 ```
 
 Browser-level checks live in `scripts/e2e/*.js` (Playwright is **not** a dependency; each script explains how to run it, for example `NODE_PATH=$(npm root -g) node scripts/e2e/gate.js`). They are not part of `npm test`.
 
-After editing any file under `js/`, `css/`, `app.js`, `styles.css` or `config.js`, run `node scripts/generate-version.js` (CI fails if the content hash in `index.html`/`sw.js` is stale).
+After editing any deployed file (`js/`, `css/`, `assets/`, `vendor/`, `app.js`, `styles.css`, `config.js`, `manifest.json`, `sw.js` or `index.html` itself, the CSP included), run `node scripts/generate-version.js` (CI fails if the content hash in `index.html`/`sw.js` is stale). The hash is what makes an installed copy notice a new deploy; see section 16 of [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how the service worker caches the app and the 7 MB engine.
 
 ### Project layout
 
@@ -71,7 +75,7 @@ After editing any file under `js/`, `css/`, `app.js`, `styles.css` or `config.js
 
 ### Deployment
 
-Automatic GitHub Pages deployment runs from GitHub Actions on push to `main` (regenerates the version hash, runs `npm test`, publishes `index.html`, `app.js`, `styles.css`, `config.js`, `sw.js`, `manifest.json`, `js/`, `css/`, `assets/`, `vendor/`).
+Automatic GitHub Pages deployment runs from GitHub Actions on push to `main`: a `build` job with read-only permissions (regenerates the version hash, runs `npm test`, prepares `index.html`, `app.js`, `styles.css`, `config.js`, `sw.js`, `manifest.json`, `js/`, `css/`, `assets/`, `vendor/`) and a separate `deploy` job that only publishes that artifact. If the site shares a `*.github.io` origin with other projects, read the "Shared origin" limit in [`docs/GOOGLE_SIGNIN.md`](docs/GOOGLE_SIGNIN.md).
 
 ### License
 
@@ -118,18 +122,22 @@ En Ajustes elegís cómo se decide y se puntúa la mejor jugada: potencia del mo
 - El PGN descargado, tu usuario y metadatos se guardan en el IndexedDB del navegador durante 7 días; el botón "Borrar datos guardados de partidas" elimina esa caché.
 - Perfiles, ajustes y cuaderno se guardan en el `localStorage` del navegador. No se envía nada a ningún otro lado. Si se habilita el acceso con Google, el script de Google se carga sólo cuando tocás el botón.
 
+### Navegadores compatibles
+
+La app necesita CSS `:has()` y container queries, así que el mínimo es **Chrome / Edge 105, Firefox 121, Safari / iOS 16** (los navegadores más viejos ven un aviso breve de "tu navegador es demasiado viejo" en lugar de una página rota). El motor Stockfish completo necesita además WebAssembly SIMD (Chrome / Edge 91, Firefox 89, **Safari / iOS 16.4**); con algo más viejo la app funciona igual, con un motor de respaldo más flojo y un aviso que lo dice. La instalación y el modo sin conexión necesitan service workers y un contexto seguro (HTTPS o `localhost`); sin eso la app funciona solo con conexión. Firefox y Safari están razonados a partir de las tablas de compatibilidad, no probados acá.
+
 ### Ejecutar en local
 
-Requiere Node 22 y Python 3.
+Requiere Node 22.
 
 ```bash
-npm start            # sirve los archivos estáticos en http://127.0.0.1:5010
+npm start            # sirve los archivos del deploy en http://127.0.0.1:5010 (solo en loopback, nada más del repositorio)
 npm test             # chequeos de humo + todas las pruebas (unos 30 s)
 ```
 
 Las pruebas de navegador están en `scripts/e2e/*.js` (Playwright **no** es una dependencia; cada script explica cómo correrlo, por ejemplo `NODE_PATH=$(npm root -g) node scripts/e2e/gate.js`). No forman parte de `npm test`.
 
-Después de editar cualquier archivo de `js/`, `css/`, `app.js`, `styles.css` o `config.js`, ejecutá `node scripts/generate-version.js` (el CI falla si la huella de contenido en `index.html`/`sw.js` está desactualizada).
+Después de editar cualquier archivo que se publica (`js/`, `css/`, `assets/`, `vendor/`, `app.js`, `styles.css`, `config.js`, `manifest.json`, `sw.js` o el propio `index.html`, la CSP incluida), ejecutá `node scripts/generate-version.js` (el CI falla si la huella de contenido en `index.html`/`sw.js` está desactualizada). La huella es lo que hace que una copia instalada note un deploy nuevo; en la sección 16 de [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) está cómo el service worker guarda la app y el motor de 7 MB.
 
 ### Estructura del proyecto
 
@@ -140,7 +148,7 @@ Después de editar cualquier archivo de `js/`, `css/`, `app.js`, `styles.css` o 
 
 ### Deploy
 
-El deploy automático a GitHub Pages corre con GitHub Actions al pushear a `main` (regenera la huella de versión, ejecuta `npm test` y publica `index.html`, `app.js`, `styles.css`, `config.js`, `sw.js`, `manifest.json`, `js/`, `css/`, `assets/`, `vendor/`).
+El deploy automático a GitHub Pages corre con GitHub Actions al pushear a `main`: un job `build` con permisos de solo lectura (regenera la huella de versión, ejecuta `npm test` y prepara `index.html`, `app.js`, `styles.css`, `config.js`, `sw.js`, `manifest.json`, `js/`, `css/`, `assets/`, `vendor/`) y un job `deploy` aparte que solo publica ese artefacto. Si el sitio comparte origen `*.github.io` con otros proyectos, leé el límite "Origen compartido" en [`docs/GOOGLE_SIGNIN.md`](docs/GOOGLE_SIGNIN.md).
 
 ### Licencia
 

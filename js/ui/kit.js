@@ -4,7 +4,7 @@
 // these functions emit are defined in css/system.css.
 //
 //   Ludus.ui.icon(name, { size, title, className })      inline SVG, 24px grid, stroke icons
-//   Ludus.ui.toast(message, { kind, duration, action })  kind: info|success|warn|error|achievement|levelup; queue of 3
+//   Ludus.ui.toast(message, { kind, duration, action, persistent, focus })  kind: info|success|warn|error|achievement|levelup; queue of 3
 //   Ludus.ui.modal({ title, body, actions, onClose, dismissible, size, variant })
 //   Ludus.ui.confirm({ title, body, confirmLabel, cancelLabel, danger }) -> Promise<boolean>
 //   Ludus.ui.sheet(opts)                                 modal that is a bottom sheet on phones
@@ -866,6 +866,9 @@
 
   const TOAST_MAX_VISIBLE = 3;
   const TOAST_DEFAULT_MS = 5200;
+  // A toast that offers an action ("Undo", "Reload") is a chance to do something, not just a message: it stays long
+  // enough to be reached (WCAG 2.2.1), or until dismissed.
+  const TOAST_ACTION_MS = 12000;
   // The celebratory kinds are what app.js shows for an achievement and a level up.
   const TOAST_KIND_ICON = { info: "info", success: "check", warn: "alert", error: "alert", achievement: "star", levelup: "sparkles" };
   const toastState = { stack: null, polite: null, alert: null, visible: [], queue: [], seq: 0 };
@@ -881,12 +884,30 @@
     return toastState.stack;
   }
 
+  // focus: true put the keyboard focus on the toast's action; when the toast goes, focus returns to where it was (if
+  // it is still on the toast or was lost with it) so the person is not dropped at the top of the page.
+  function restoreToastFocus(record) {
+    const doc = getDoc();
+    const back = record.returnTo;
+    record.returnTo = null;
+    if (!record.tookFocus || !doc || !back || back.isConnected === false || typeof back.focus !== "function") return;
+    const active = doc.activeElement;
+    const lost = !active || active === doc.body || (record.el && typeof record.el.contains === "function" && record.el.contains(active));
+    if (!lost) return;
+    try {
+      back.focus();
+    } catch (error) {
+      // focus restore is best effort
+    }
+  }
+
   function removeToast(record, immediate) {
     if (!record || record.gone) return;
     record.gone = true;
     if (record.timer) timers.clearTimeout(record.timer);
     const index = toastState.visible.indexOf(record);
     if (index !== -1) toastState.visible.splice(index, 1);
+    restoreToastFocus(record);
     const finish = () => {
       if (record.el && typeof record.el.remove === "function") record.el.remove();
       pumpToasts();
@@ -938,8 +959,9 @@
         h("span", { class: "sr-only" }, `${t(`ui.toast.kind.${record.kind}`)}. `),
         h("span", { class: "toast-message" }, record.message)),
     ];
+    let actionBtn = null;
     if (record.action && record.action.label) {
-      parts.push(h("button", {
+      actionBtn = h("button", {
         type: "button",
         class: "btn btn-secondary btn-sm toast-action",
         onclick: () => {
@@ -949,26 +971,55 @@
             removeToast(record);
           }
         },
-      }, String(record.action.label)));
+      }, String(record.action.label));
+      parts.push(actionBtn);
     }
     parts.push(dismiss);
     record.el = h("div", { class: cls("toast", `toast-${record.kind}`), "data-kind": record.kind }, parts);
     ["mouseenter", "focusin"].forEach((evt) => record.el.addEventListener(evt, () => pauseToast(record)));
     ["mouseleave", "focusout"].forEach((evt) => record.el.addEventListener(evt, () => resumeToast(record)));
+    // A toast that has the focus closes with Escape (and gives the focus back).
+    record.el.addEventListener("keydown", (event) => {
+      if (event && event.key === "Escape") {
+        if (typeof event.preventDefault === "function") event.preventDefault();
+        removeToast(record);
+      }
+    });
     list.appendChild(record.el);
     toastState.visible.push(record);
     record.remaining = record.duration;
     armToast(record);
+    if (record.focus && actionBtn) {
+      const doc = getDoc();
+      record.returnTo = doc && doc.activeElement && doc.activeElement !== doc.body ? doc.activeElement : null;
+      timers.raf(() => {
+        if (record.gone || typeof actionBtn.focus !== "function") return;
+        try {
+          actionBtn.focus();
+          record.tookFocus = true;
+        } catch (error) {
+          // focus is best effort
+        }
+      });
+    }
   }
 
   // message: plain text. kind: info | success | warn | error. duration in ms
   // (0 = stays until dismissed; errors default to a longer time). Hovering or
   // focusing a toast pauses its timer. At most three show at once; the rest wait.
+  // A toast with an `action` stays 12 s by default (an explicit shorter duration is raised to 12 s: nobody can press
+  // "Undo" that fast from a keyboard), `persistent: true` keeps any toast until it is dismissed, and `focus: true`
+  // (for a toast that answers the person's own keystroke, like "Undo") moves the focus to the action and gives it back
+  // when the toast goes. Escape closes a toast that has the focus.
   function toast(message, options) {
     const opts = options || {};
     const kind = Object.prototype.hasOwnProperty.call(TOAST_KIND_ICON, opts.kind) ? opts.kind : "info";
-    const defaultMs = kind === "error" ? TOAST_DEFAULT_MS * 1.6 : kind === "warn" ? TOAST_DEFAULT_MS * 1.3 : TOAST_DEFAULT_MS;
-    const duration = opts.duration === undefined ? defaultMs : Math.max(0, Number(opts.duration) || 0);
+    const action = opts.action && typeof opts.action === "object" ? opts.action : null;
+    const hasAction = Boolean(action && action.label);
+    const defaultMs = hasAction ? TOAST_ACTION_MS : kind === "error" ? TOAST_DEFAULT_MS * 1.6 : kind === "warn" ? TOAST_DEFAULT_MS * 1.3 : TOAST_DEFAULT_MS;
+    let duration = opts.duration === undefined ? defaultMs : Math.max(0, Number(opts.duration) || 0);
+    if (hasAction && duration > 0) duration = Math.max(duration, TOAST_ACTION_MS);
+    if (opts.persistent === true) duration = 0;
     toastState.seq += 1;
     const record = {
       id: toastState.seq,
@@ -976,7 +1027,10 @@
       message: String(message === undefined || message === null ? "" : message),
       duration,
       remaining: duration,
-      action: opts.action && typeof opts.action === "object" ? opts.action : null,
+      action,
+      focus: opts.focus === true,
+      returnTo: null,
+      tookFocus: false,
       gone: false,
       paused: false,
       timer: null,

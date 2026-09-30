@@ -676,7 +676,7 @@ test("a position that brings its lines is scored against them; a move outside th
   assertClean(t);
 });
 
-test("mates: missing a forced mate is a blunder with its reason; playing the mate is worth ten", async () => {
+test("mates: missing a forced mate costs points and says why; playing the mate is worth ten", async () => {
   const t = makeEnv();
   const { Ludus, events } = t;
   const mateFen = "7k/5Q2/6K1/8/8/8/8/8 w - - 0 1";
@@ -684,8 +684,10 @@ test("mates: missing a forced mate is a blunder with its reason; playing the mat
   click(t, "f7", "f1"); // wins the queen back? no: a "+9" move that misses the mate
   await waitForResult(t);
   const missed = events.rounds[0];
-  assert.strictEqual(missed.qualityCode, "blunder");
-  assert.ok(missed.points <= 1, `missed mate is capped at 1 point (got ${missed.points})`);
+  // QA pass (COR-011): a missed mate costs a fixed amount on top of the win% given up instead of a cap at 1.0, so a
+  // move that keeps the win (this one keeps almost all of it) is "dubious", far from the mate's 10 and from a blunder.
+  assert.ok(["dubious", "bad", "blunder"].includes(missed.qualityCode), `missed mate in one: ${missed.qualityCode}`);
+  assert.ok(missed.points <= 5, `a missed mate in one never scores like a good move (got ${missed.points})`);
   const context = state(t, "STATE.resultView.context");
   assert.strictEqual(context.assessment.reason, "missed_mate");
   assert.ok(state(t, 'document.getElementById("round-result").textContent').includes("forced mate"), "the reason is explained");
@@ -878,6 +880,14 @@ test("duel: two players are scored against the same reference in one pass, one r
   // The guest's round is not filed under anybody's profile.
   assert.strictEqual(Ludus.Profile.rounds().length, 1);
   assert.strictEqual(Ludus.Profile.rounds()[0].userUci, "e2e4");
+  // What the round earned is kept per player (never added together): the profile's XP on its player, nothing for the guest,
+  // and the coach gets it card by card.
+  assert.ok(state(t, "STATE.session.rewards.players[0].xp") > 0, "the profile player's XP");
+  assert.strictEqual(state(t, "STATE.session.rewards.players[1].xp"), 0, "a guest earns nothing");
+  assert.strictEqual(state(t, "sessionRewardsView().players.length"), 2);
+  assert.strictEqual(state(t, "sessionRewardsView().xp"), undefined, "no combined experience card in a duel");
+  assert.strictEqual(state(t, "duelReviewPlayers().length >= 0"), true);
+  assert.ok(state(t, "duelReviewPlayers().every((player) => player.profileId && player.name)"), "only profile players can review");
 
   // Second position, then the end.
   await env.context.nextPosition();
@@ -1294,6 +1304,7 @@ test("own games: the mistake search uses cheap single lines and the threshold of
 
   // g2g4 is 280 cp worse than e2e4: a mistake at every sensitivity.
   const goBefore = engine.goCommands().length;
+  const logBefore = engine.log.length;
   const found = await env.context.evaluateCandidateForMistake(candidate, ctxFor("g4"));
   assert.ok(found, "a 280 cp mistake is found");
   assert.strictEqual(found.source, "own");
@@ -1302,11 +1313,24 @@ test("own games: the mistake search uses cheap single lines and the threshold of
   assert.strictEqual(found.gameMoveUci, "g2g4");
   assert.strictEqual(found.gameMoveSan, "g4");
   assert.ok(found.lossCp >= 250);
+  assert.ok(found.lossPct > 15, `the loss is measured in win chance too (${found.lossPct})`);
   assert.ok(/^own:/.test(found.id));
   const searches = engine.goCommands().slice(goBefore);
-  assert.strictEqual(searches.length, 2, "one search for the best move and one for the played move");
+  // Two cheap single-line searches screen the candidate; one that may be a mistake is then confirmed by the analysis a round is
+  // scored with (MultiPV, plus a search of its own for the played move, which is outside the lines).
+  assert.strictEqual(searches.length, 4, "screening (best, played) and confirmation (MultiPV root, played)");
   assert.ok(searches[1].endsWith("searchmoves g2g4"));
-  assert.ok(!engine.log.slice(goBefore).some((line) => /MultiPV value [2-9]/.test(line)), "no MultiPV in the search");
+  assert.ok(searches[3].endsWith("searchmoves g2g4"));
+  const screeningLog = engine.log.slice(logBefore, engine.log.indexOf(searches[2], logBefore) - 2); // up to the options that precede the confirmation
+  assert.ok(!screeningLog.some((line) => /MultiPV value [2-9]/.test(line)), "no MultiPV in the screening");
+  assert.ok(engine.log.slice(engine.log.indexOf(searches[2], logBefore) - 2).some((line) => /MultiPV value 3/.test(line)), "the confirmation looks at several lines");
+  // What confirmed the mistake is the round's reference: no second opinion that could disagree, and the hint agrees.
+  assert.strictEqual(found.reference.origin, "runtime");
+  assert.strictEqual(found.reference.lines[0].uci, "e2e4");
+  // The shallow searches are never cached (a 250 ms answer must not stand in for a deep one).
+  const before2 = engine.goCommands().length;
+  await env.context.evaluateCandidateForMistake(candidate, ctxFor("g4"));
+  assert.ok(engine.goCommands().length - before2 >= 2, "the screening searches run again");
 
   // The engine's own move is not a mistake and costs a single search.
   const fine = await env.context.evaluateCandidateForMistake(candidate, ctxFor("e4"));
@@ -1445,6 +1469,819 @@ test("the thinking overlay no longer rotates facts by itself: it mounts and dest
   env.run("stopWizardFacts(); STATE.ui.setupAnalyzing = false");
   assert.strictEqual(created[1].destroyed, 1);
   assertClean(t);
+});
+
+// QA fixes (F1): language, copy, the clock, the guard rails of the play screen, daily, the record of a session.
+test("UX-005: only a Spanish-speaking browser gets Spanish; French, German, Portuguese... get English", async () => {
+  ["fr-FR", "pt-BR", "de-DE", "it-IT", "ca-ES"].forEach((code) => {
+    const t = makeEnv({ languages: [code] });
+    assert.strictEqual(state(t, "STATE.language"), "en", `${code} gets English`);
+    assert.strictEqual(t.dom.document.documentElement.lang, "en");
+  });
+  assert.strictEqual(state(makeEnv({ languages: ["es-AR"] }), "STATE.language"), "es");
+  assert.strictEqual(state(makeEnv({ languages: ["fr-FR", "es-MX"] }), "STATE.language"), "es", "the first supported language of the list wins");
+  assert.strictEqual(state(makeEnv({ languages: ["en-GB", "es"] }), "STATE.language"), "en");
+});
+
+test("CNT-023/024/025/030: the hint names its piece with its article; plurals; no tuteo; no English inside Spanish", async () => {
+  const t = makeEnv();
+  const { env } = t;
+  env.run('setLanguage("es")');
+  assert.strictEqual(env.run('t("core.hint.said.1", { pieceDef: pieceDefiniteName("R"), square: "h1", pct: 15 }, "es")'), "Pista: mové la torre blanca de h1. Cuesta el 15% de los puntos.");
+  assert.strictEqual(env.run('t("core.hint.said.2", { pieceDef: pieceDefiniteName("q"), from: "d8", to: "h4", pct: 35 }, "es")'), "Pista: mové la dama negra de d8 a h4. Cuesta el 35% de los puntos.");
+  env.run('setLanguage("en")');
+  assert.strictEqual(env.run('t("core.hint.said.1", { pieceDef: pieceDefiniteName("N"), square: "g1", pct: 15 }, "en")'), "Hint: move the white knight on g1. It costs 15% of the points.");
+  assert.strictEqual(env.run('t("game.handoff.genericSubtitle", {}, "es")'), "Tocá para revelar", "vos, not tú");
+  // One game, several games; one second, several seconds.
+  assert.strictEqual(env.run('t("provider.usingCachedBase", { provider: "Lichess", user: "ana", games: 1 }, "es")'), "Usamos la base guardada de Lichess para ana: 1 partida.");
+  assert.strictEqual(env.run('t("provider.usingCachedBase", { provider: "Lichess", user: "ana", games: 12 }, "es")'), "Usamos la base guardada de Lichess para ana: 12 partidas.");
+  assert.strictEqual(env.run('t("provider.throttleWait", { seconds: 1 }, "en")'), "Please wait 1 second before downloading again, so we do not overload the service.");
+  assert.strictEqual(env.run('t("provider.throttleHourly", { max: 12, minutes: 5 }, "es")'), "Ya se descargaron partidas 12 veces en la última hora. Probá de nuevo en unos 5 minutos.");
+  assert.strictEqual(env.run('t("provider.throttleHourly", { max: 12, minutes: 1 }, "es")'), "Ya se descargaron partidas 12 veces en la última hora. Probá de nuevo en unos 1 minuto.");
+  // No "(s)" hedge and no English jargon left in the dictionary, and no contraction in English.
+  const dictionary = env.run("TRANSLATIONS");
+  ["es", "en"].forEach((lang) => Object.entries(dictionary[lang]).forEach(([key, text]) => {
+    assert.ok(!/\(s\)/.test(text), `${lang} ${key} has a "(s)" hedge`);
+  }));
+  Object.entries(dictionary.es).forEach(([key, text]) => assert.ok(!/fallback/i.test(text), `es ${key} keeps English jargon`));
+  Object.entries(dictionary.en).forEach(([key, text]) => assert.ok(!/\b\w+n't\b|\b(we|you|they)'(re|ll|ve)\b/i.test(text), `en ${key} uses a contraction: ${text}`));
+  // Both languages have the same keys (nothing is written in one language only).
+  assert.deepStrictEqual(Object.keys(dictionary.es).sort(), Object.keys(dictionary.en).sort());
+});
+
+test("PERF-015: the clock paints what changed and only that; it ticks once per displayed second", async () => {
+  const t = makeEnv();
+  const { env, dom } = t;
+  await t.Ludus.game.startSession({ kind: "classic", title: "Clock", positions: [position(t, 0), position(t, 1)], options: { clock: { mode: "timed", seconds: 60 } } });
+  const value = dom.document.getElementById("solo-clock-value");
+  let writes = 0;
+  let text = value.textContent;
+  Object.defineProperty(value, "textContent", { configurable: true, get: () => text, set: (next) => { writes += 1; text = next; } });
+  const arc = dom.document.getElementById("solo-clock-arc");
+  let arcWrites = 0;
+  const setAttribute = arc.setAttribute.bind(arc);
+  arc.setAttribute = (name, next) => { if (name === "stroke-dashoffset") arcWrites += 1; setAttribute(name, next); };
+  env.run("resetClockPaint()");
+  for (let i = 0; i < 30; i += 1) env.run("updateRoundTimerUi(45000)");
+  assert.strictEqual(text, "00:45");
+  assert.strictEqual(writes, 1, "the same second is written once, not thirty times");
+  assert.strictEqual(arcWrites, 1, "and so is the ring");
+  env.run("updateRoundTimerUi(44000)");
+  assert.strictEqual(writes, 2);
+  assert.strictEqual(text, "00:44");
+  // One wake-up per displayed second: the next tick is set for the moment the digits change (under one second), not every 100 ms.
+  env.run("startRoundTimer()");
+  assert.notStrictEqual(state(t, "STATE.timer.intervalId === null"), true, "a tick is pending");
+  env.run("STATE.timer.deadlineMs = Date.now() + 59500");
+  env.run("scheduleClockTick()");
+  assert.notStrictEqual(state(t, "STATE.timer.intervalId === null"), true);
+  await t.Ludus.game.abort();
+  assertClean(t);
+});
+
+test("UX-003: the clock sleeps while the page is hidden and goes on from the same second; an answer past the deadline is a timeout", async () => {
+  const t = makeEnv();
+  const { env, dom, Ludus, events } = t;
+  await Ludus.game.startSession({ kind: "classic", title: "Lock", positions: [position(t, 0), position(t, 1)], options: { clock: { mode: "timed", seconds: 60 } } });
+  assert.strictEqual(state(t, "STATE.timer.running"), true);
+  const remainingBefore = state(t, "STATE.timer.deadlineMs - Date.now()");
+  // The phone is locked: the page is hidden, the clock pauses (no tick pending), nothing times out.
+  dom.document.visibilityState = "hidden";
+  env.run("onPageVisibilityChange()");
+  assert.strictEqual(state(t, "STATE.timer.paused"), true);
+  assert.strictEqual(state(t, "STATE.timer.intervalId === null"), true, "no tick while hidden");
+  // ...for 100 seconds (longer than the round): the time is not spent.
+  env.run("STATE.timer.roundHiddenAt = Date.now() - 100000");
+  dom.document.visibilityState = "visible";
+  env.run("onPageVisibilityChange()");
+  assert.strictEqual(state(t, "STATE.timer.paused"), false);
+  const remainingAfter = state(t, "STATE.timer.deadlineMs - Date.now()");
+  assert.ok(Math.abs(remainingAfter - remainingBefore) < 1500, `the clock goes on from where it was (${remainingBefore} -> ${remainingAfter})`);
+  assert.ok(state(t, "STATE.timer.pausedMs") >= 99000, "the hidden time is remembered, not spent");
+  assert.strictEqual(events.rounds.length, 0, "no timeout was recorded");
+  assert.strictEqual(state(t, "STATE.roundSubmitted"), false);
+  // The time spent on the round leaves the hidden time out.
+  click(t, "e2", "e4");
+  await waitForResult(t);
+  assert.ok(events.rounds[0].timeSpentMs < 5000, `timeSpentMs ignores the hidden 100 s (${events.rounds[0].timeSpentMs})`);
+
+  // COR-008: a move that arrives after the deadline, before the next tick has noticed, is a timeout (no points).
+  await env.context.nextPosition();
+  env.run("STATE.timer.deadlineMs = Date.now() - 50");
+  click(t, "e7", "e5");
+  await waitForResult(t);
+  assert.strictEqual(events.rounds[1].timedOut, true, "an answer after the deadline is a timeout");
+  assert.strictEqual(events.rounds[1].points, 0);
+  assert.strictEqual(events.rounds[1].userUci, null);
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+test("UX-018/COR-014: skip and the hint that shows the move need a second tap; a double click is one click", async () => {
+  const t = makeEnv();
+  const { env, dom, Ludus, events } = t;
+  await Ludus.game.startSession({ kind: "classic", title: "Taps", positions: [position(t, 0), position(t, 1)], options: { clock: { mode: "untimed" } } });
+  const label = () => dom.document.getElementById("hint-btn-label").textContent;
+  // Level 1, then a second press within the moment of the first is the same press.
+  assert.ok(env.run("requestHint({ fromUi: true })"), "the first press is a hint");
+  assert.strictEqual(state(t, "STATE.hintsUsed"), 1);
+  assert.strictEqual(env.run("requestHint({ fromUi: true })"), null, "a double click is not a second hint");
+  assert.strictEqual(state(t, "STATE.hintsUsed"), 1);
+  await delay(480);
+  assert.ok(env.run("requestHint({ fromUi: true })"), "level 2 a moment later");
+  assert.strictEqual(state(t, "STATE.hintsUsed"), 2);
+  await delay(480);
+  // The third level ends the round for nothing: the first press only arms it.
+  assert.strictEqual(env.run("requestHint({ fromUi: true })"), null, "the reveal asks for a second tap");
+  assert.strictEqual(state(t, "STATE.hintsUsed"), 2, "nothing was revealed");
+  assert.ok(label().includes("Tap again"), `the button says what happens next: ${label()}`);
+  await delay(60);
+  assert.ok(dom.document.getElementById("hint-announce").textContent.includes("worth 0 points"), "and it is said aloud");
+  assert.strictEqual(env.run("requestHint({ fromUi: true })").level, 3, "the second tap reveals");
+  await waitForResult(t);
+  assert.strictEqual(events.rounds[0].hintsUsed, 3);
+  assert.strictEqual(events.rounds[0].points, 0);
+  // The arming does not survive into the next round.
+  await env.context.nextPosition();
+  assert.strictEqual(state(t, "Boolean(armedConfirmations.reveal || armedConfirmations.skip)"), false);
+  // Ludus.game.hint() is the API: no protection (a script knows what it asks).
+  assert.strictEqual(Ludus.game.hint().level, 1);
+  assert.strictEqual(Ludus.game.hint().level, 2);
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+test("UX-018: board.confirmMove puts a \"Confirm move\" step between the destination and the score", async () => {
+  const t = makeEnv();
+  const { env, dom, Ludus, events } = t;
+  Ludus.Settings.set("board.confirmMove", "always");
+  await Ludus.game.startSession({ kind: "classic", title: "Confirm", positions: [position(t, 0), position(t, 1)], options: { clock: { mode: "untimed" } } });
+  const confirmBtn = dom.document.getElementById("confirm-move-btn");
+  assert.strictEqual(confirmBtn.classList.contains("hidden"), true, "no confirmation before a move is chosen");
+  click(t, "e2", "e4");
+  await delay(30);
+  assert.strictEqual(events.rounds.length, 0, "nothing is scored yet");
+  assert.strictEqual(state(t, "STATE.roundSubmitted"), false);
+  assert.strictEqual(state(t, "STATE.pendingMove.to"), 36, "e4 is waiting for its confirmation");
+  assert.strictEqual(confirmBtn.classList.contains("hidden"), false);
+  assert.strictEqual(dom.document.getElementById("confirm-move-label").textContent, "Confirm e4");
+  assert.strictEqual(dom.document.getElementById("hint-btn").classList.contains("hidden"), true, "its button takes the hint's place");
+  // Another square changes the choice; a second tap on the same square confirms.
+  env.run('onSquareClick("e3")');
+  assert.strictEqual(dom.document.getElementById("confirm-move-label").textContent, "Confirm e3");
+  env.run('onSquareClick("d5")');
+  assert.strictEqual(state(t, "STATE.pendingMove === null"), true, "an empty square that is not a destination drops the choice");
+  env.run('onSquareClick("e2")');
+  env.run('onSquareClick("e4")');
+  assert.strictEqual(state(t, "STATE.pendingMove.to"), 36);
+  env.run("cancelBoardSelection()");
+  assert.strictEqual(state(t, "STATE.pendingMove === null"), true, "Escape cancels it");
+  click(t, "e2", "e4");
+  confirmBtn.dispatch("click");
+  await waitForResult(t);
+  assert.strictEqual(events.rounds.length, 1);
+  assert.strictEqual(events.rounds[0].userUci, "e2e4", "the confirmed move is the one that was scored");
+  assert.strictEqual(state(t, "STATE.pendingMove === null"), true);
+  // With the setting off (the default) a move is scored at once.
+  Ludus.Settings.set("board.confirmMove", "off");
+  await env.context.nextPosition();
+  click(t, "e7", "e5");
+  await waitForResult(t);
+  assert.strictEqual(events.rounds.length, 2);
+  // "touch" asks only a finger.
+  Ludus.Settings.set("board.confirmMove", "touch");
+  assert.strictEqual(env.run('noteInputKind("mouse"), moveNeedsConfirmation()'), false);
+  assert.strictEqual(env.run('noteInputKind("touch"), moveNeedsConfirmation()'), true);
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+test("A11Y-003: the single-letter shortcuts can be switched off and are told to assistive technology", async () => {
+  const t = makeEnv();
+  const { env, dom, Ludus } = t;
+  await Ludus.game.startSession({ kind: "classic", title: "Keys", positions: [position(t, 0)], options: { clock: { mode: "untimed" } } });
+  env.run("renderKeyLegend()");
+  assert.strictEqual(dom.document.getElementById("hint-btn").getAttribute("aria-keyshortcuts"), "H");
+  assert.strictEqual(dom.document.getElementById("next-btn").getAttribute("aria-keyshortcuts"), "N");
+  dom.document.querySelector = () => null; // the fake answers every query with an element; "no dialog is open" needs null
+  dom.document.getElementById("consent-overlay").classList.add("hidden");
+  const press = (key, extra = {}) => env.context.onGameKeydown({ key, target: dom.document.getElementById("board"), preventDefault() {}, ...extra });
+  press("h");
+  assert.strictEqual(state(t, "STATE.hintsUsed"), 1, "H asks for a hint");
+  // A held key is not three presses.
+  press("h", { repeat: true });
+  assert.strictEqual(state(t, "STATE.hintsUsed"), 1);
+  Ludus.Settings.set("a11y.shortcuts", false);
+  await delay(480);
+  press("h");
+  assert.strictEqual(state(t, "STATE.hintsUsed"), 1, "switched off: H does nothing");
+  env.run("renderKeyLegend()");
+  assert.strictEqual(dom.document.getElementById("hint-btn").getAttribute("aria-keyshortcuts"), null, "and nothing is promised");
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+test("COR-003: the daily challenge is completed by a real answer, not by a skip, a timeout or a revealed move", async () => {
+  const t = makeEnv();
+  const { env, Ludus, events } = t;
+  const today = "2026-09-30";
+  const dailyPosition = (index) => position(t, index, { dailyKey: today, source: "daily" });
+  await Ludus.game.startSession({ kind: "daily", title: "Daily", positions: [dailyPosition(0), dailyPosition(1), dailyPosition(2)], options: { clock: { mode: "untimed" } } });
+  env.run("armConfirmation = () => true"); // the tests below are about what the daily does, not about the two taps
+  await env.context.submitNoMove("manual_skip");
+  await waitForResult(t);
+  assert.strictEqual(Ludus.Profile.daily.status(today).done, false, "a skip does not complete the day");
+  await env.context.nextPosition();
+  await env.context.submitNoMove("timeout");
+  await waitForResult(t);
+  assert.strictEqual(Ludus.Profile.daily.status(today).done, false, "neither does a timeout");
+  await env.context.nextPosition();
+  env.run("requestHint()"); env.run("requestHint()");
+  env.run("requestHint()");
+  await waitForResult(t);
+  assert.strictEqual(Ludus.Profile.daily.status(today).done, false, "neither does a revealed move");
+  assert.strictEqual(events.rounds.length, 3);
+  await Ludus.game.abort();
+  // A real answer does.
+  await Ludus.game.startSession({ kind: "daily", title: "Daily", positions: [dailyPosition(0)], options: { clock: { mode: "untimed" } } });
+  click(t, "e2", "e4");
+  await waitForResult(t);
+  assert.strictEqual(Ludus.Profile.daily.status(today).done, true, "a move completes it");
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+test("COR-005: the session is recorded the moment its last position is answered; leaving after that asks nothing and loses nothing", async () => {
+  const t = makeEnv();
+  const { env, Ludus, events } = t;
+  await Ludus.game.startSession({ kind: "classic", title: "Last", positions: [position(t, 0), position(t, 1)], options: { clock: { mode: "untimed" } } });
+  click(t, "e2", "e4");
+  await waitForResult(t);
+  assert.strictEqual(events.completed.length, 0, "not yet: one position is left");
+  // Leaving now asks (there is a summary to lose and a position to play).
+  let asked = 0;
+  env.context.showConfirmModal = async () => { asked += 1; return true; };
+  await env.context.nextPosition();
+  click(t, "e7", "e5");
+  await waitForResult(t);
+  assert.strictEqual(events.completed.length, 1, "recorded at the last answer, before the summary is opened");
+  assert.strictEqual(events.completed[0].positions, 2);
+  assert.strictEqual(Ludus.Profile.stats().sessions, 1);
+  // "Back to start" now asks nothing: every position was answered.
+  assert.strictEqual(await Ludus.game.leave(), true);
+  assert.strictEqual(asked, 0, "no question once everything is answered");
+  assert.strictEqual(Ludus.router.current(), "home");
+  assert.strictEqual(events.completed.length, 1, "and is not recorded a second time");
+  assertClean(t);
+});
+
+test("COR-018: a position with a single legal move is no decision and is not offered", async () => {
+  const t = makeEnv();
+  const { Ludus } = t;
+  await assert.rejects(Ludus.game.startSession({ kind: "classic", title: "Forced", positions: [{ fen: "7k/8/8/8/8/8/5q2/5K2 w - - 0 1", source: "classic" }] }), /no playable positions/);
+  // Among playable ones it is simply left out.
+  await Ludus.game.startSession({ kind: "classic", title: "Mixed", positions: [{ fen: "7k/8/8/8/8/8/5q2/5K2 w - - 0 1", source: "classic" }, position(t, 0)] });
+  assert.strictEqual(state(t, "STATE.positions.length"), 1);
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+test("COR-007: the promotion picker closes with the round (a timeout, a skip) and never plays a stale move into the next position", async () => {
+  const t = makeEnv();
+  const { env, dom, Ludus } = t;
+  const promo = { fen: "4k3/P7/8/8/8/8/8/4K3 w - - 0 1", source: "classic" };
+  await Ludus.game.startSession({ kind: "classic", title: "Promo", positions: [promo, { ...promo, id: "classic:promo2", fen: "4k3/1P6/8/8/8/8/8/4K3 w - - 0 1" }], options: { clock: { mode: "untimed" } } });
+  click(t, "a7", "a8");
+  assert.strictEqual(dom.document.getElementById("promotion-picker").classList.contains("hidden"), false, "the picker is open");
+  assert.ok(state(t, "STATE.pendingPromotion !== null"));
+  await env.context.submitNoMove("timeout");
+  assert.strictEqual(dom.document.getElementById("promotion-picker").classList.contains("hidden"), true, "closed with the round");
+  assert.strictEqual(state(t, "STATE.pendingPromotion === null"), true);
+  await waitForResult(t);
+  await env.context.nextPosition();
+  assert.strictEqual(dom.document.getElementById("promotion-picker").classList.contains("hidden"), true, "and not there in the next position");
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+// ---------- the downloads of the person's own games (QA fixes F1) ----------
+
+// A stand-in for fetch: `handler(url, options)` answers with { status, body, headers } or throws.
+function fakeResponse({ status = 200, body = "", headers = {} } = {}) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: { get: (name) => headers[String(name).toLowerCase()] ?? headers[name] ?? null },
+    text: async () => body,
+  };
+}
+
+function ownGamesPgn(user = "Ana", games = 3) {
+  const out = [];
+  for (let i = 0; i < games; i += 1) {
+    out.push([`[Event "E${i}"]`, '[Site "https://lichess.org/x"]', '[Date "2026.08.05"]', `[White "${user}"]`, '[Black "Rival"]', '[Result "1-0"]', "", "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 1-0", ""].join("\n"));
+  }
+  return out.join("\n");
+}
+
+function setupOwnGames(t, { user = "Ana", provider = "lichess" } = {}) {
+  const { env, dom } = t;
+  dom.document.getElementById("online-user-input").value = user;
+  dom.document.getElementById("online-provider-select").value = provider;
+  env.run(`STATE.setupWizard.platform = ${JSON.stringify(provider)}; STATE.sourceMode = ${JSON.stringify(provider)}`);
+  env.context.confirmRemoteFetchConsent = async () => true; // the consent itself is tested on its own
+}
+
+test("UX-006/UX-010: every failure of a download says what really happened, with the remedy that fits; a 429 is not retried", async () => {
+  const cases = [
+    { name: "404", reply: () => fakeResponse({ status: 404 }), key: "download.error.notFound", actions: ["user", "platform"] },
+    { name: "500", reply: () => fakeResponse({ status: 500 }), key: "download.error.server", actions: ["retry", "platform"], status: 500 },
+    { name: "empty", reply: () => fakeResponse({ status: 200, body: "" }), key: "download.error.noGames", actions: ["user", "platform"] },
+    { name: "other user", reply: () => fakeResponse({ status: 200, body: ownGamesPgn("SomeoneElse") }), key: "provider.requestedPlayerMissing", actions: ["user", "platform"] },
+    { name: "offline", reply: () => { throw new TypeError("Failed to fetch"); }, key: "download.error.network", actions: ["retry"] },
+  ];
+  for (const scenario of cases) {
+    const t = makeEnv();
+    setupOwnGames(t);
+    let calls = 0;
+    t.env.context.fetch = async () => { calls += 1; return scenario.reply(); };
+    const result = await t.env.context.fetchLichessPgn();
+    assert.strictEqual(result, false, scenario.name);
+    const failure = state(t, "STATE.setupWizard.downloadFailure");
+    assert.strictEqual(failure.key, scenario.key, `${scenario.name}: ${JSON.stringify(failure)}`);
+    assert.deepStrictEqual(failure.actions, scenario.actions, scenario.name);
+    // Never a raw exception text, in either language.
+    ["en", "es"].forEach((lang) => {
+      const text = t.env.run(`t(${JSON.stringify(failure.key)}, ${JSON.stringify(failure.params)}, ${JSON.stringify(lang)})`);
+      assert.ok(!/Unexpected token|is not valid JSON|undefined|TypeError|Failed to fetch|\{|\}/.test(text), `${scenario.name}/${lang}: ${text}`);
+    });
+    if (scenario.status) assert.strictEqual(failure.params.status, scenario.status);
+    if (scenario.name === "500") assert.strictEqual(calls, 3, "a 5xx is tried again (twice) before it is reported");
+  }
+  // 429: not retried, the pause it asked for is remembered and shown (Retry-After honoured), no Start before it is over.
+  const t = makeEnv();
+  setupOwnGames(t);
+  let calls = 0;
+  t.env.context.fetch = async () => { calls += 1; return fakeResponse({ status: 429, headers: { "retry-after": "40" } }); };
+  assert.strictEqual(await t.env.context.fetchLichessPgn(), false);
+  assert.strictEqual(calls, 1, "a 429 is not retried");
+  const failure = state(t, "STATE.setupWizard.downloadFailure");
+  assert.strictEqual(failure.key, "download.error.rateLimited");
+  assert.strictEqual(failure.params.seconds, 40, "the wait the provider asked for");
+  assert.strictEqual(failure.seconds, 40);
+  const block = t.env.run('remoteFetchThrottleBlock("lichess")');
+  assert.strictEqual(block.key, "download.error.rateLimited", "the page itself waits the pause out");
+  assert.ok(block.seconds > 30 && block.seconds <= 40);
+  assert.strictEqual(t.env.run('remoteFetchThrottleBlock("chesscom")'), null, "the pause is the provider's, not the other one's");
+  // With no Retry-After it is the minute Lichess asks clients to wait.
+  assert.strictEqual(t.env.run("retryAfterMs({ headers: { get: () => null } })"), 60000);
+  assertClean(t);
+});
+
+test("UX-008: a wrong username or a failed request does not cost the courtesy wait; a download that worked does", async () => {
+  const t = makeEnv();
+  setupOwnGames(t);
+  t.env.context.fetch = async () => fakeResponse({ status: 404 });
+  assert.strictEqual(await t.env.context.fetchLichessPgn(), false);
+  assert.strictEqual(t.env.run("remoteFetchThrottleBlock(\"lichess\")"), null, "a typo can be corrected at once");
+  t.env.context.fetch = async () => { throw new TypeError("Failed to fetch"); };
+  assert.strictEqual(await t.env.context.fetchLichessPgn(), false);
+  assert.strictEqual(t.env.run("remoteFetchThrottleBlock(\"lichess\")"), null);
+  t.env.context.fetch = async () => fakeResponse({ status: 200, body: ownGamesPgn("Ana", 30) });
+  assert.strictEqual(await t.env.context.fetchLichessPgn(), true);
+  const block = t.env.run('remoteFetchThrottleBlock("lichess")');
+  assert.strictEqual(block.key, "provider.throttleWait", "after a download that worked the courtesy gap applies");
+  assert.ok(block.seconds > 15 && block.seconds <= 20);
+  assertClean(t);
+});
+
+test("UX-008/COR-016: the saved base does not depend on how many positions the session asked for", async () => {
+  const t = makeEnv();
+  const { env } = t;
+  const entry = (requestedMax, games) => ({ source: { text: "x", requestedMax, games } });
+  assert.strictEqual(env.run("cachedBaseCovers", ), env.context.cachedBaseCovers);
+  assert.strictEqual(env.context.cachedBaseCovers(entry(50, 50), 25), true, "10 positions -> 5 positions: no new download");
+  assert.strictEqual(env.context.cachedBaseCovers(entry(50, 50), 50), true);
+  assert.strictEqual(env.context.cachedBaseCovers(entry(50, 50), 100), false, "a bigger session needs more games");
+  assert.strictEqual(env.context.cachedBaseCovers(entry(100, 40), 200), true, "the person simply has fewer games than were asked for");
+  assert.strictEqual(env.context.cachedBaseCovers({ source: { text: "x", games: 10 } }, 25), false, "an entry that does not say what it covers is not trusted");
+  // The key no longer has the size in it.
+  const a = env.run('cacheSignature({ provider: "lichess", preferredPerf: ["classical"], fallbackBlitz: true })');
+  assert.ok(!/maxGames|minSlowGames/.test(a));
+});
+
+test("SEC-007/SEC-014: the consent is for a provider AND a username, and fails closed", async () => {
+  const t = makeEnv();
+  const { env, dom } = t;
+  const overlay = dom.document.getElementById("consent-overlay");
+  const accept = dom.document.getElementById("consent-overlay-accept");
+  const input = dom.document.getElementById("consent-overlay-username-input");
+  let shown = 0;
+  // Accepts each dialog the way a person would (types the name again, presses accept).
+  const answer = (user) => { input.value = user; accept.dispatch("click"); };
+  const ask = async (provider, user) => {
+    const pending = env.context.confirmRemoteFetchConsent(provider, user);
+    shown += 1;
+    await delay(5);
+    answer(user);
+    return pending;
+  };
+  assert.strictEqual(await ask("lichess", "Ana"), true);
+  assert.strictEqual(shown, 1);
+  assert.strictEqual(state(t, 'Object.keys(STATE.remoteConsent).join()'), "lichess|ana", "the consent is kept for that provider and that person");
+  // The same person again: no second question.
+  assert.strictEqual(await env.context.confirmRemoteFetchConsent("lichess", "ana"), true);
+  // Somebody else, or the same name on the other site: asked again.
+  const before = shown;
+  const other = env.context.confirmRemoteFetchConsent("lichess", "SomeoneElse");
+  await delay(5);
+  assert.strictEqual(overlay.classList.contains("hidden"), false, "another username opens the dialog again");
+  answer("SomeoneElse");
+  assert.strictEqual(await other, true);
+  const site = env.context.confirmRemoteFetchConsent("chesscom", "Ana");
+  await delay(5);
+  assert.strictEqual(overlay.classList.contains("hidden"), false, "another provider too");
+  dom.document.getElementById("consent-overlay-cancel").dispatch("click");
+  assert.strictEqual(await site, false, "cancel sends nothing");
+  assert.ok(shown >= before);
+});
+
+test("SEC-014: showConfirmModal without the dialog's markup answers no (and the leave question is the only one that goes on)", async () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "..", "app.js"), "utf8");
+  // The markup is looked up once at load: load the app in a page that does not have it.
+  const dom = createFakeDom({ languages: ["en"] });
+  const original = dom.document.getElementById;
+  dom.document.getElementById = (id) => (id === "consent-overlay" ? null : original(id));
+  const env = loadApp(dom, { log() {}, info() {}, debug() {}, warn() {}, error() {} });
+  assert.strictEqual(await env.run("showConfirmModal({ title: 'x' })"), false, "no dialog, no consent");
+  assert.strictEqual(await env.run("showConfirmModal({ title: 'x', allowWithoutDialog: true })"), true, "leaving a session does not need it");
+  assert.strictEqual(env.run("consentDialogAvailable()"), false);
+  assert.ok(/allowWithoutDialog/.test(src));
+});
+
+test("SEC-017: only the monthly archives of the person on api.chess.com over https are ever requested", async () => {
+  const t = makeEnv();
+  const { env } = t;
+  const ok = env.run('parseChessComArchiveUrl("https://api.chess.com/pub/player/magnus/games/2026/09", "Magnus")');
+  assert.strictEqual(ok.year, 2026);
+  assert.strictEqual(ok.month, 9);
+  [
+    "https://www.googleapis.com/drive/v3/files/games/2026/09",
+    "https://lichess.org/api/account/games/2026/09",
+    "https://evil.example/pub/player/magnus/games/2026/09",
+    "http://api.chess.com/pub/player/magnus/games/2026/09",
+    "https://api.chess.com.evil.example/pub/player/magnus/games/2026/09",
+    "https://api.chess.com/pub/player/someoneelse/games/2026/09",
+    "https://api.chess.com/pub/player/magnus/games/2026/13",
+    "https://api.chess.com/pub/player/magnus/games/2026/09?token=1",
+    "https://user:pass@api.chess.com/pub/player/magnus/games/2026/09",
+    "/pub/player/magnus/games/2026/09",
+    "not a url",
+    "",
+  ].forEach((bad) => assert.strictEqual(env.run(`parseChessComArchiveUrl(${JSON.stringify(bad)}, "Magnus")`), null, bad));
+});
+
+test("COR-017/UX-013: usernames are checked per platform, '@name' and pasted profile addresses mean the name", async () => {
+  const t = makeEnv();
+  const { env } = t;
+  assert.strictEqual(env.run('remoteUsernameIsValid("ab", "lichess")'), true, "Lichess allows two characters");
+  assert.strictEqual(env.run('remoteUsernameIsValid("ab", "chesscom")'), false, "Chess.com needs three");
+  assert.strictEqual(env.run('remoteUsernameIsValid("a".repeat(31), "lichess")'), false);
+  assert.strictEqual(env.run('remoteUsernameIsValid("a".repeat(26), "chesscom")'), false);
+  assert.strictEqual(env.run('remoteUsernameIsValid("Magnus Carlsen", "lichess")'), false);
+  assert.strictEqual(env.run('normalizeRemoteUsername("@MagnusCarlsen")'), "MagnusCarlsen");
+  assert.strictEqual(env.run('normalizeRemoteUsername("  https://lichess.org/@/DrNykterstein ")'), "DrNykterstein");
+  assert.strictEqual(env.run('normalizeRemoteUsername("https://www.chess.com/member/hikaru")'), "hikaru");
+  assert.strictEqual(env.run('normalizeRemoteUsername("plain_name-1")'), "plain_name-1");
+  // The message names the rule of the platform (and never the old "3 to 30").
+  assert.ok(/2 to 30/.test(env.run('usernameRuleText("lichess")')), env.run('usernameRuleText("lichess")'));
+  assert.ok(/3 to 25/.test(env.run('usernameRuleText("chesscom")')));
+  // What the wizard validates is the name, not what was typed.
+  const { dom } = t;
+  dom.document.getElementById("online-user-input").value = "@ab";
+  dom.document.getElementById("online-provider-select").value = "lichess";
+  assert.strictEqual(state(t, "validateWizardStep(2).valid"), true);
+  dom.document.getElementById("online-provider-select").value = "chesscom";
+  assert.strictEqual(state(t, "validateWizardStep(2).valid"), false);
+  assert.strictEqual(state(t, "validateWizardStep(2).field"), "username");
+  assert.strictEqual(env.run("getConfiguredRemoteUsername()"), "ab", "the download uses the name");
+});
+
+test("UX-013: the line under the username says what is true of it now", async () => {
+  const t = makeEnv();
+  const { env, dom } = t;
+  const status = () => dom.document.getElementById("online-status").textContent;
+  dom.document.getElementById("online-user-input").value = "";
+  env.run("refreshOnlineStatus()");
+  assert.strictEqual(status(), "Enter your username to continue.");
+  dom.document.getElementById("online-user-input").value = "Magnus Carlsen";
+  env.run("refreshOnlineStatus()");
+  assert.ok(/letters, numbers/.test(status()), "an impossible name is said at once, not 'ready to download'");
+  dom.document.getElementById("online-user-input").value = "MagnusCarlsen";
+  env.run("refreshOnlineStatus()");
+  assert.ok(/Tap “Next”/.test(status()), status());
+  assert.ok(!/Start session/.test(status()), "step 2 does not promise a button that is on step 3");
+  // The last step does not say that "the next step" comes.
+  assert.ok(!Object.values(env.run("TRANSLATIONS.en")).some((text) => /move on to the next step/.test(text)));
+});
+
+test("UX-015/A11Y-021: the wizard's clock is the session's own: it reads the setting, changes nothing else, and offers no limit", async () => {
+  const t = makeEnv();
+  const { env, dom, Ludus } = t;
+  assert.strictEqual(Ludus.Settings.get("clock.seconds"), 90);
+  env.run('resetSetupWizard({ mode: "solo" })');
+  assert.strictEqual(state(t, "STATE.setupWizard.clockMode"), "timed");
+  const html = fs.readFileSync(path.join(__dirname, "..", "..", "index.html"), "utf8");
+  assert.ok(/class="wizard-size-chip wizard-timer-chip"[^>]*data-seconds="0"/.test(html), "a chip for no time limit sits next to 90/180/360");
+  // Choosing 180 s changes the wizard, not the person's usual clock.
+  env.run('setWizardClockMode("timed"); setWizardTurnTimeSeconds(180); renderWizardStep()');
+  assert.strictEqual(Ludus.Settings.get("clock.seconds"), 90, "Settings is left alone");
+  assert.strictEqual(state(t, "collectWizardConfig().turnTimeSeconds"), 180);
+  assert.ok(/this session only/i.test(dom.document.getElementById("wizard-clock-note").textContent));
+  // "No time limit" is a choice of the wizard.
+  env.run('setWizardClockMode("untimed"); renderWizardStep()');
+  assert.strictEqual(state(t, "collectWizardConfig().clockMode"), "untimed");
+  assert.strictEqual(Ludus.Settings.get("clock.mode"), "timed", "the setting is untouched");
+  assert.ok(/no limit/i.test(dom.document.getElementById("wizard-summary").innerHTML), dom.document.getElementById("wizard-summary").innerHTML);
+  // Below 30 seconds there is a word about it.
+  env.run('setWizardClockMode("timed"); setWizardTurnTimeSeconds(10); renderWizardStep()');
+  assert.ok(/30 seconds/.test(dom.document.getElementById("wizard-clock-note").textContent));
+  // A new wizard starts again from the setting.
+  env.run('resetSetupWizard({ mode: "solo" })');
+  assert.strictEqual(state(t, "STATE.setupWizard.turnTimeSeconds"), 90);
+  assert.strictEqual(state(t, "STATE.setupWizard.clockMode"), "timed");
+  // The session the pipeline starts carries the wizard's clock.
+  env.run('setWizardClockMode("untimed")');
+  env.run("STATE.targetPositions = 1");
+  const mistake = { id: "own:x", source: "own", fen: t.fens[0], meta: { players: "Ana vs Rival", moveNumber: 1, sideToMove: "w" }, gameMoveUci: "g2g4", gameMoveSan: "g4", bestMoveUci: "e2e4", bestMoveSan: "e4", bestEvalText: "+0.30", gameEvalText: "-2.50", lossCp: 280, thresholdUsed: 80, phase: "opening", gameIndex: 1 };
+  env.run("STATE.clockMode = STATE.setupWizard.clockMode");
+  env.context.enterPlayModeWithFirstPosition(mistake, { detected: 1, analyzed: 1, total: 1 });
+  assert.deepStrictEqual(state(t, "STATE.session.options.clock.mode"), "untimed");
+  assert.strictEqual(state(t, "isUntimedSession()"), true);
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+test("UX-027: the very first session has no clock and says how to play; the next one is an ordinary session", async () => {
+  const t = makeEnv({ firstRun: true });
+  const { env, Ludus, events } = t;
+  assert.strictEqual(state(t, "isFirstRun()"), true);
+  await Ludus.game.startSession({ kind: "classic", title: "First", positions: [position(t, 0), position(t, 1)] });
+  assert.strictEqual(state(t, "isUntimedSession()"), true, "no 90 s clock before the instructions");
+  assert.strictEqual(state(t, "STATE.session.firstRun"), true);
+  click(t, "e2", "e4");
+  await waitForResult(t);
+  assert.strictEqual(Ludus.storage.get("ludus.firstRun.v1", 0), 1, "it ends with the first answer");
+  await Ludus.game.abort();
+  assert.strictEqual(state(t, "isFirstRun()"), false);
+  await Ludus.game.startSession({ kind: "classic", title: "Second", positions: [position(t, 0)] });
+  assert.strictEqual(state(t, "isUntimedSession()"), false, "an ordinary clock from then on");
+  await Ludus.game.abort();
+  // A screen that asks for a clock gets it, even on the first run.
+  const other = makeEnv({ firstRun: true });
+  await other.Ludus.game.startSession({ kind: "classic", title: "Asked", positions: [position(other, 0)], options: { clock: { mode: "timed", seconds: 45 } } });
+  assert.strictEqual(state(other, "isUntimedSession()"), false);
+  await other.Ludus.game.abort();
+  void events;
+});
+
+test("UX-002/COR-020: a reload in the middle of a session warns, and offers to go on with what is left", async () => {
+  const sessionMap = new Map();
+  const fakeSessionStorage = {
+    getItem: (key) => (sessionMap.has(key) ? sessionMap.get(key) : null),
+    setItem: (key, value) => { sessionMap.set(key, String(value)); },
+    removeItem: (key) => { sessionMap.delete(key); },
+  };
+  const first = makeEnv();
+  first.dom.window.sessionStorage = fakeSessionStorage;
+  await first.Ludus.game.startSession({ kind: "classic", title: "Interrupted", positions: [position(first, 0), position(first, 1), position(first, 2)], options: { clock: { mode: "untimed" } } });
+  // Nothing answered yet: nothing to warn about.
+  assert.strictEqual(first.env.run("sessionNeedsLeaveWarning()"), false);
+  click(first, "e2", "e4");
+  await waitForResult(first);
+  assert.strictEqual(first.env.run("sessionNeedsLeaveWarning()"), true, "one answer is something to lose");
+  let prevented = 0;
+  const event = { preventDefault() { prevented += 1; }, returnValue: undefined };
+  first.env.context.onBeforeUnload(event);
+  assert.strictEqual(prevented, 1);
+  assert.strictEqual(event.returnValue, "", "the browser's own warning is asked for");
+  const stored = JSON.parse(sessionMap.get("ludus.sessionProgress.v1"));
+  assert.strictEqual(stored.answered, 1);
+  assert.strictEqual(stored.remaining.length, 2, "what is left of the list is kept");
+  // The page is reloaded: a new page of the same tab finds it.
+  const second = makeEnv();
+  second.dom.window.sessionStorage = fakeSessionStorage;
+  let asked = null;
+  second.env.context.showConfirmModal = async (options) => { asked = options; return true; };
+  await second.env.context.offerSessionResume();
+  assert.ok(asked && /Interrupted/.test(asked.body) && /1 of 3/.test(asked.body) && /2 that are left/.test(asked.body), asked && asked.body);
+  assert.strictEqual(sessionMap.has("ludus.sessionProgress.v1"), false, "offered once");
+  assert.strictEqual(state(second, "STATE.positions.length"), 2, "the session goes on with the two positions that were left");
+  assert.strictEqual(second.Ludus.router.current(), "game");
+  await second.Ludus.game.abort();
+  assert.strictEqual(sessionMap.has("ludus.sessionProgress.v1"), false, "leaving on purpose forgets it");
+  // A duel (or the own games) cannot be rebuilt: it only says that what was answered is saved.
+  const duel = makeEnv();
+  duel.dom.window.sessionStorage = fakeSessionStorage;
+  sessionMap.set("ludus.sessionProgress.v1", JSON.stringify({ v: 1, at: Date.now(), id: "s_x", kind: "classic", title: "Duel", mode: "duel", options: {}, answered: 2, total: 5, remaining: null }));
+  await duel.env.context.offerSessionResume();
+  assert.ok(duel.events.toasts.some((entry) => /interrupted/i.test(entry.message) && /2/.test(entry.message)), JSON.stringify(duel.events.toasts));
+  // Nothing answered, nothing offered.
+  sessionMap.set("ludus.sessionProgress.v1", JSON.stringify({ v: 1, at: Date.now(), id: "s_y", kind: "classic", title: "Empty", mode: "solo", options: {}, answered: 0, total: 5, remaining: null }));
+  const empty = makeEnv();
+  empty.dom.window.sessionStorage = fakeSessionStorage;
+  await empty.env.context.offerSessionResume();
+  assert.strictEqual(empty.events.toasts.length, 0);
+});
+
+test("UX-021: a rematch draws fresh positions; 'same positions' is an explicit choice", async () => {
+  const t = makeEnv();
+  const { env, Ludus } = t;
+  // A small pool of classic positions (the real data file is loaded lazily by a script tag, which Node does not have).
+  const pool = [0, 1, 2, 3, 4].map((index) => position(t, index, { id: `classic:pool${index}` })).concat([{ fen: "7k/5Q2/6K1/8/8/8/8/8 w - - 0 1", source: "classic", id: "classic:pool5" }]);
+  Ludus.Classics = {
+    load: async () => {},
+    positions: (gameId, opts) => pool.filter((entry) => !opts || !opts.exclude || !opts.exclude.includes(entry.id)),
+    random: (count, opts) => pool.filter((entry) => !(opts && opts.exclude && opts.exclude.includes(entry.id))).slice(0, count),
+  };
+  const first = pool.slice(0, 3);
+  await Ludus.game.startSession({ kind: "classic", title: "Duel", mode: "duel", names: ["Ana", "Beto"], positions: first, options: { clock: { mode: "untimed" } } });
+  env.run("STATE.sessionPlayed = 3");
+  env.run("STATE.session.completed = true");
+  const playedIds = first.map((position) => position.id);
+  await env.context.replaySession();
+  const fresh = state(t, "STATE.positions.map((position) => position.id)");
+  assert.strictEqual(fresh.length, 3);
+  assert.ok(fresh.every((id) => !playedIds.includes(id)), "none of the positions whose best moves were just shown");
+  env.run("STATE.sessionPlayed = 3");
+  env.run("STATE.session.completed = true");
+  await env.context.replaySession({ samePositions: true });
+  assert.deepStrictEqual(state(t, "STATE.positions.map((position) => position.id)").sort(), fresh.slice().sort(), "'same positions' replays what was just played");
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+test("PERF-014: a browser that cannot run the engine's WebAssembly is told so and never downloads the file", async () => {
+  const t = makeEnv({ engine: null });
+  const { env, Ludus, events } = t;
+  Ludus.Engine.supported = () => false;
+  let fetched = 0;
+  env.context.fetch = async () => { fetched += 1; return fakeResponse({ status: 200 }); };
+  assert.strictEqual(await env.context.ensureStockfishLoading(), false);
+  assert.strictEqual(state(t, "STATE.engineStatus"), "unsupported");
+  assert.strictEqual(fetched, 0, "the 7 MB file is not fetched for a browser that cannot run it");
+  assert.strictEqual(state(t, "engineFallbackReason()"), "unsupported");
+  assert.ok(/cannot run the strong engine/.test(env.run("engineFallbackNotice()")));
+  assert.ok(events.toasts.some((entry) => /cannot run the strong engine/.test(entry.message)), "said once");
+  assert.strictEqual(await env.context.ensureStockfishLoading(), false, "and not asked again");
+  assert.strictEqual(events.toasts.filter((entry) => /cannot run/.test(entry.message)).length, 1);
+  // The app still works on the backup engine.
+  await Ludus.game.startSession({ kind: "classic", title: "Backup", positions: [position(t, 0)], options: { clock: { mode: "untimed" } } });
+  click(t, "e2", "e4");
+  await waitForResult(t);
+  assert.strictEqual(state(t, "STATE.resultView.context.engine.source"), "local");
+  await Ludus.game.abort();
+});
+
+test("PERF-011: the engine download is given up when it stalls, never because it is slow; its progress is known", async () => {
+  const t = makeEnv({ engine: null });
+  const { env } = t;
+  env.context.Ludus.game.configureEngine({ stallMs: 120, retryBaseMs: 1 });
+  env.context.Ludus.Engine.supported = () => true;
+  // A download that keeps delivering bytes (much longer than the stall limit in total) completes.
+  const chunks = 12;
+  env.context.fetch = async () => {
+    let sent = 0;
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: (name) => (String(name).toLowerCase() === "content-length" ? String(chunks * 1000) : null) },
+      body: { getReader: () => ({ read: async () => { await delay(30); if (sent >= chunks) return { done: true }; sent += 1; return { done: false, value: { byteLength: 1000 } }; } }) },
+    };
+  };
+  const seen = [];
+  const poll = setInterval(() => seen.push(state(t, "STATE.engineDownload.ratio")), 25);
+  assert.strictEqual(await env.context.downloadEngineFiles(), true, "slow but alive: it completes");
+  clearInterval(poll);
+  assert.strictEqual(state(t, "STATE.engineFilesReady"), true);
+  assert.ok(seen.some((ratio) => ratio > 0 && ratio < 1), "progress is known while it runs");
+  // A download that stops delivering is given up after the stall limit.
+  env.run("STATE.engineFilesReady = false");
+  env.context.fetch = async (url, options) => new Promise((resolve, reject) => {
+    options.signal.addEventListener("abort", () => { const error = new Error("aborted"); error.name = "AbortError"; reject(error); });
+  });
+  const started = Date.now();
+  assert.strictEqual(await env.context.downloadEngineFiles(), false);
+  assert.ok(Date.now() - started < 1500, "given up after the stall limit, not after the old wall-clock limit");
+  assert.strictEqual(state(t, "STATE.engineDownload.state"), "stalled");
+  assert.strictEqual(state(t, "STATE.engineFilesReady"), false);
+});
+
+test("PERF-004: the backup engine gives the same answers with a tenth of the work and hands the page back while it thinks", async () => {
+  const t = makeEnv({ engine: null });
+  const { env } = t;
+  // The reference: the plain minimax the backup engine used to be.
+  const reference = env.run(`(() => {
+    const plain = (board, depth) => {
+      if (depth <= 0) return evaluateMaterial(board);
+      const moves = board.generateMoves();
+      if (moves.length === 0) return board.inCheck(board.turn) ? (board.turn === "w" ? -99999 : 99999) : 0;
+      let best = board.turn === "w" ? -Infinity : Infinity;
+      moves.forEach((move) => {
+        const clone = board.clone();
+        clone.makeMove(move);
+        const score = plain(clone, depth - 1);
+        if (board.turn === "w") { if (score > best) best = score; } else if (score < best) best = score;
+      });
+      return best;
+    };
+    return plain;
+  })()`);
+  const fens = [
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 2 3",
+    "7k/5Q2/6K1/8/8/8/8/8 w - - 0 1",
+    "4k3/8/8/8/8/8/4q3/4K3 w - - 0 1",
+    "r1bq1rk1/ppp2ppp/2np1n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 7",
+  ];
+  const { Chess } = t.Ludus.chess;
+  let oldMs = 0;
+  let newMs = 0;
+  for (const fen of fens) {
+    const base = new Chess(fen);
+    let started = Date.now();
+    const moves = base.generateMoves();
+    let bestScore = base.turn === "w" ? -Infinity : Infinity;
+    let bestMove = null;
+    moves.forEach((move) => {
+      const clone = base.clone();
+      clone.makeMove(move);
+      const score = reference(clone, 2);
+      if (base.turn === "w" ? score > bestScore : score < bestScore) { bestScore = score; bestMove = move; }
+    });
+    oldMs += Date.now() - started;
+    started = Date.now();
+    const found = await env.context.searchBestMove(new Chess(fen), 3);
+    newMs += Date.now() - started;
+    assert.strictEqual(found.score, Math.round(bestScore), `${fen}: the same score`);
+    assert.ok(found.move.from === bestMove.from && found.move.to === bestMove.to, `${fen}: the same move`);
+    // A single move scored on its own is exact too.
+    for (const move of moves.slice(0, 3)) {
+      const a = base.clone(); a.makeMove(move);
+      const b = base.clone(); b.makeMove(move);
+      assert.strictEqual(env.context.evaluatePosition(a, 2), reference(b, 2));
+    }
+  }
+  assert.ok(newMs * 2 < oldMs, `alpha-beta does the same in less than half the time (${newMs} ms against ${oldMs} ms)`);
+  // The search gives the page back while it works.
+  let yields = 0;
+  await env.context.searchBestMove(new Chess(fens[1]), 3, async () => { yields += 1; });
+  assert.ok(yields >= 10, `a yield point per root move (${yields})`);
+});
+
+test("COR-006/COR-013: a mistake is a loss of WIN CHANCE, confirmed by a proper analysis; a candidate that does not confirm is dropped", async () => {
+  const t = makeEnv();
+  const { env, engine, fens } = t;
+  assert.strictEqual(await env.context.ensureStockfishLoading(), true);
+  // The same 150 cp is a blunder in a level position and nothing when the game is already decided.
+  const level = env.run("winLossPct(0, -150)");
+  const decided = env.run("winLossPct(900, 750)");
+  const limit = env.run("lossPctForCp(80)");
+  assert.ok(level > limit, `150 cp in a level position (${level.toFixed(1)}%) is above the standard threshold (${limit.toFixed(1)}%)`);
+  assert.ok(decided < limit, `150 cp with +9 on the board (${decided.toFixed(1)}%) is not a mistake`);
+  assert.ok(env.run("winLossPct(100000 - 1000, 0)") > 30, "missing a mate is a big loss");
+  // The thresholds still follow the sensitivity setting ("80 cp of a level position"), in win chance.
+  assert.ok(Math.abs(limit - (t.Ludus.Scoring.winPercent(80) - 50)) < 1e-9);
+  // A noisy first look: the cheap search says the played move loses a lot, the proper analysis says it is fine.
+  const game = { tags: { White: "Ana", Black: "Rival", Event: "Casual", Date: "2024.01.01" }, sanMoves: ["e4"], startFen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" };
+  const ctx = { games: [game], depth: 3, moveTimeMs: 250, thresholdCp: 80 };
+  const candidate = { gameIdx: 0, playerColor: "w", ply: 0 };
+  const realAnalyze = env.context.analyzePosition;
+  env.context.analyzePosition = async (fen, options) => {
+    if (options.noCache) {
+      // the screening: the best move is d2d4 (+200) and the played e2e4 scores +0: a 17% loss on paper
+      if (options.searchMoves && options.searchMoves.length) return { lines: [{ multipv: 1, depth: 8, score: { type: "cp", value: 0 }, pv: ["e2e4"] }], source: "stockfish", depth: 8, aborted: false };
+      return { lines: [{ multipv: 1, depth: 8, score: { type: "cp", value: 200 }, pv: ["d2d4"] }], source: "stockfish", depth: 8, aborted: false };
+    }
+    // the proper analysis: d2d4 is +30 and e2e4 +25 (a fine move)
+    return { lines: [{ multipv: 1, depth: 14, score: { type: "cp", value: 30 }, pv: ["d2d4"] }, { multipv: 2, depth: 14, score: { type: "cp", value: 25 }, pv: ["e2e4"] }], source: "stockfish", depth: 14, aborted: false };
+  };
+  assert.strictEqual(await env.context.evaluateCandidateForMistake(candidate, ctx), null, "a candidate that does not confirm is dropped");
+  // And the other way round: a real mistake the cheap search underrated (+16 against the truth, +185) is still confirmed.
+  env.context.analyzePosition = async (fen, options) => {
+    if (options.noCache) {
+      if (options.searchMoves && options.searchMoves.length) return { lines: [{ multipv: 1, depth: 8, score: { type: "cp", value: 0 }, pv: ["e2e4"] }], source: "stockfish", depth: 8, aborted: false };
+      return { lines: [{ multipv: 1, depth: 8, score: { type: "cp", value: 60 }, pv: ["d2d4"] }], source: "stockfish", depth: 8, aborted: false };
+    }
+    return { lines: [{ multipv: 1, depth: 14, score: { type: "cp", value: 185 }, pv: ["d2d4"] }, { multipv: 2, depth: 14, score: { type: "cp", value: -20 }, pv: ["e2e4"] }], source: "stockfish", depth: 14, aborted: false };
+  };
+  const confirmed = await env.context.evaluateCandidateForMistake(candidate, ctx);
+  assert.ok(confirmed, "confirmed by the proper analysis");
+  assert.strictEqual(confirmed.bestMoveUci, "d2d4", "the best move is the one of the proper analysis, not of the 250 ms look");
+  assert.ok(confirmed.lossPct > 10);
+  assert.strictEqual(confirmed.reference.lines[0].uci, "d2d4");
+  env.context.analyzePosition = realAnalyze;
+  void engine; void fens;
 });
 
 // ---------- run ----------

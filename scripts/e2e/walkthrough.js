@@ -600,7 +600,12 @@ async function journeyFlow(browser, vp, lang) {
       await waitResult(page);
       await stage(journey, index === 0 ? "duel-result" : "duel-result-2", { screen: "game", settle: 900 });
       await page.locator("#next-btn").click();
-      if (index === 0) await waitPhase(page, "thinking");
+      if (index === 0) {
+        // The second position starts covered: the first player's clock waits for their tap.
+        await waitPhase(page, "handoff");
+        await page.locator("#handoff-overlay").click();
+        await waitPhase(page, "thinking");
+      }
     }
     await waitPhase(page, "summary");
     assert.ok((await page.locator(".co-sum-title").innerText()).includes(dueled.names[0]), "the headline names the winner");

@@ -119,8 +119,18 @@ assert.deepStrictEqual(Concepts.byTag("no_such_tag"), []);
 // ---------- The detector recognises the ideas it explains ----------
 
 // For these lessons the best move is one Insights can name; the user plays some
-// other, quieter move and the analysis must point at the concept's own tag.
+// other, quieter move and the analysis must point at the concept's own tag. A
+// sentence about a fork, a skewer or a discovered attack is only written when the
+// engine's line wins material after it, so each lesson brings Stockfish's line
+// for its position (depth ~20, 8 plies).
 {
+  const ENGINE_LINE = {
+    fork: { uci: "b5c7", score: 1063, pv: ["b5c7", "e8d7", "c7a6", "d7c6", "a6b4", "c6b5", "b4c2", "b5a6"] },
+    skewer: { uci: "a1a8", score: 395, pv: ["a1a8", "d8e7", "a8h8", "e7e6", "e1d2", "e6d6", "d2c3", "d6e5"] },
+    discovered_attack: { uci: "e5f7", score: 481, pv: ["e5f7", "e8d7", "g1f2", "d7c6", "f7h8", "c6d6", "f2f3", "d6d7"] },
+    hanging_piece: { uci: "d1d5", score: 410, pv: ["d1d5", "e8e7", "e1f2", "e7e6", "d5d1", "e6e7", "d1e1", "e7d7"] },
+    pin: { uci: "d4d5", score: 522, pv: ["d4d5", "e8e7", "d5e6", "f7e6", "e1a1", "e7f6", "a1a7", "d7d5"] },
+  };
   const OTHER_MOVE = {
     fork: "e1e2",
     skewer: "e1e2",
@@ -149,6 +159,7 @@ assert.deepStrictEqual(Concepts.byTag("no_such_tag"), []);
     const concept = Concepts.get(id);
     const result = Insights.analyzeChoice({
       fen: concept.fen, userUci: OTHER_MOVE[id], bestUci: concept.bestUci, assessment: { isBest: false, winLossPct: 30 },
+      lines: ENGINE_LINE[id] ? [ENGINE_LINE[id]] : undefined,
     });
     assert.ok(!result.error, `${id}: analysis works (${result.error})`);
     const wanted = EXPECTED_TAG[id];
@@ -156,10 +167,16 @@ assert.deepStrictEqual(Concepts.byTag("no_such_tag"), []);
     result.conceptIds.forEach((conceptId) => assert.ok(Concepts.get(conceptId), `${id}: concept ${conceptId} exists`));
   });
   // The concepts point back at themselves through their own tags.
-  const fork = Insights.analyzeChoice({ fen: Concepts.get("fork").fen, userUci: "e1e2", bestUci: "b5c7", assessment: { isBest: false, winLossPct: 30 } });
+  const fork = Insights.analyzeChoice({ fen: Concepts.get("fork").fen, userUci: "e1e2", bestUci: "b5c7", assessment: { isBest: false, winLossPct: 30 }, lines: [ENGINE_LINE.fork] });
   assert.deepStrictEqual(fork.conceptIds.filter((id) => id === "fork"), ["fork"]);
-  const skewer = Insights.analyzeChoice({ fen: Concepts.get("skewer").fen, userUci: "e1e2", bestUci: "a1a8", assessment: { isBest: false, winLossPct: 30 } });
+  const skewer = Insights.analyzeChoice({ fen: Concepts.get("skewer").fen, userUci: "e1e2", bestUci: "a1a8", assessment: { isBest: false, winLossPct: 30 }, lines: [ENGINE_LINE.skewer] });
   assert.ok(skewer.conceptIds.includes("skewer"));
+  const pin = Insights.analyzeChoice({ fen: Concepts.get("pin").fen, userUci: "g1f1", bestUci: "d4d5", assessment: { isBest: false, winLossPct: 30 }, lines: [ENGINE_LINE.pin] });
+  // (the pawn push uses a pin that is already there: no pattern message, but the engine line wins the bishop and says so)
+  assert.ok(pin.tags.includes("tactic_available") || pin.tags.includes("pin_or_skewer"), `the pin lesson is explained: ${pin.tags}`);
+  // Without an engine line nothing is claimed about the pattern (the claim needs the evidence).
+  const bare = Insights.analyzeChoice({ fen: Concepts.get("fork").fen, userUci: "e1e2", bestUci: "b5c7", assessment: { isBest: false, winLossPct: 30 } });
+  assert.ok(!bare.tags.includes("fork_available"));
 }
 
 console.log("concepts.test.js: all assertions passed");

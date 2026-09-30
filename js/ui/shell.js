@@ -93,7 +93,14 @@
       "shell.profile.error.invalid-name": "Escribí un nombre para el perfil.",
       "shell.profile.error.storage": "No se pudo guardar: el almacenamiento del navegador está lleno o bloqueado.",
       "shell.profile.error.generic": "No se pudo crear el perfil.",
-      "shell.profile.default": "Jugador",
+      "shell.profile.default": "Participante",
+      "shell.storage.blocked.title": "El navegador no deja guardar tu progreso",
+      "shell.storage.blocked.body": "Este sitio no puede guardar datos acá (una pestaña privada, o los datos del sitio están bloqueados). Podés seguir jugando, pero las rondas, el cuaderno y las rachas se pierden al cerrar la pestaña.",
+      "shell.storage.quota.title": "Tu progreso no se está guardando",
+      "shell.storage.quota.body": "El almacenamiento del navegador está lleno, así que lo último que jugaste puede no haberse guardado. Descargá una copia desde Cuenta y liberá espacio de este sitio para seguir guardando.",
+      "shell.storage.account": "Ir a Cuenta",
+      "shell.storage.dismiss": "Entendido",
+      "shell.storage.region": "Aviso de almacenamiento",
       "shell.settings": "Ajustes",
     },
     en: {
@@ -134,6 +141,13 @@
       "shell.profile.error.storage": "Could not save: browser storage is full or blocked.",
       "shell.profile.error.generic": "The profile could not be created.",
       "shell.profile.default": "Player",
+      "shell.storage.blocked.title": "Your browser is not saving your progress",
+      "shell.storage.blocked.body": "This site cannot store data here (a private tab, or site data is blocked). You can keep playing, but rounds, notebook and streaks are lost when you close the tab.",
+      "shell.storage.quota.title": "Your progress is not being saved",
+      "shell.storage.quota.body": "Browser storage is full, so your latest rounds may not have been saved. Download a copy from Account and free some space for this site to keep saving.",
+      "shell.storage.account": "Go to Account",
+      "shell.storage.dismiss": "Got it",
+      "shell.storage.region": "Storage notice",
       "shell.settings": "Settings",
     },
   };
@@ -166,7 +180,8 @@
 
   // "#/classics" -> { id: "classics" }; anything else -> null.
   function parseHash(hash) {
-    const match = /^#\/([a-z]+)\/?$/.exec(String(hash || ""));
+    // Case does not matter for a typed or pasted address ("#/NOTEBOOK").
+    const match = /^#\/([a-z]+)\/?$/.exec(String(hash || "").toLowerCase());
     return match && HASH_ROUTES.includes(match[1]) ? { id: match[1] } : null;
   }
 
@@ -186,6 +201,7 @@
     domOffs: [],
     scheduled: false,
     popoverId: 0,
+    bannerDismissed: "",
   };
 
   // ---------- Data ----------
@@ -361,7 +377,8 @@
       class: "sh-profile-chip",
       "aria-haspopup": "dialog",
       "aria-expanded": state.popoverOpen ? "true" : "false",
-      "aria-controls": popoverId,
+      // Only while the popover is open: a collapsed popover is hidden and axe cannot resolve a reference to it.
+      "aria-controls": state.popoverOpen ? popoverId : null,
       "aria-label": t("shell.profile.button", { name, level: levelTitle || "" }).replace(/,\s*$/, ""),
       onclick: () => togglePopover(),
     }, ui.avatar(profile || { name, color: "#2b5f8a" }, { size: 34 }),
@@ -497,6 +514,8 @@
     popover.hidden = false;
     popover.removeAttribute("hidden");
     chip.setAttribute("aria-expanded", "true");
+    const popoverId = typeof popover.getAttribute === "function" ? popover.getAttribute("id") : popover.id;
+    if (popoverId) chip.setAttribute("aria-controls", popoverId);
     const doc = getDoc();
     if (doc && typeof doc.addEventListener === "function") {
       doc.addEventListener("pointerdown", onDocumentPointer, true);
@@ -513,7 +532,10 @@
     state.popoverOpen = false;
     const { chip, popover, profileWrap } = state.refs;
     if (popover) popover.hidden = true;
-    if (chip) chip.setAttribute("aria-expanded", "false");
+    if (chip) {
+      chip.setAttribute("aria-expanded", "false");
+      chip.removeAttribute("aria-controls");
+    }
     const doc = getDoc();
     if (doc && typeof doc.removeEventListener === "function") doc.removeEventListener("pointerdown", onDocumentPointer, true);
     if (profileWrap) {
@@ -643,6 +665,62 @@
     paintSkipTarget();
   }
 
+  // ---------- Storage warning (UX-007, PERF-009) ----------
+
+  // When the browser refuses to store anything (private tab, blocked site data, a full quota) the app keeps working
+  // and keeps celebrating, but nothing is saved. Profile reports it (storageStatus() and the once-per-load bus event
+  // "storage:failed"); this is the place that says so, plainly and persistently, under the header of every screen but
+  // the play screen. It is a polite live region that exists from the start so that its text is announced when it fills.
+  function storageStatus() {
+    const Profile = profileApi();
+    try {
+      return Profile && typeof Profile.storageStatus === "function" ? Profile.storageStatus() : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function ensureBanner() {
+    const doc = getDoc();
+    if (state.refs.banner && state.refs.banner.parentNode) return state.refs.banner;
+    if (!doc || !state.header || !state.header.parentNode) return null;
+    const banner = h("div", { class: "sh-banner-region", id: "shell-banner", role: "status", "aria-live": "polite", "aria-label": t("shell.storage.region") });
+    state.header.parentNode.insertBefore(banner, state.header.nextSibling);
+    state.refs.banner = banner;
+    return banner;
+  }
+
+  function paintStorageBanner() {
+    const banner = ensureBanner();
+    if (!banner) return;
+    const status = storageStatus();
+    const reason = status && !status.ok ? (status.reason === "blocked" ? "blocked" : "quota") : "";
+    const key = reason && state.bannerDismissed !== reason ? `${reason}:${t("shell.storage.dismiss")}` : "";
+    if (state.refs.bannerKey === key) return;
+    state.refs.bannerKey = key;
+    while (banner.firstChild) banner.removeChild(banner.firstChild);
+    if (!key) return;
+    const actions = [];
+    // A full quota can still be exported; with blocked storage there is nothing saved to download.
+    if (reason === "quota") {
+      actions.push(h("button", { type: "button", class: "btn btn-secondary btn-sm", onclick: () => leaveGameThen(() => go("account")) }, h("span", { class: "btn-label" }, t("shell.storage.account"))));
+    }
+    actions.push(h("button", {
+      type: "button",
+      class: "btn btn-ghost btn-sm",
+      onclick: () => {
+        state.bannerDismissed = reason;
+        paintStorageBanner();
+      },
+    }, h("span", { class: "btn-label" }, t("shell.storage.dismiss"))));
+    banner.appendChild(h("div", { class: `sh-banner is-${reason}` },
+      h("span", { class: "sh-banner-icon", "aria-hidden": "true" }, icon("alert", { size: 20 })),
+      h("div", { class: "sh-banner-text" },
+        h("p", { class: "sh-banner-title" }, t(`shell.storage.${reason}.title`)),
+        h("p", { class: "sh-banner-body" }, t(`shell.storage.${reason}.body`))),
+      h("div", { class: "sh-banner-actions" }, actions)));
+  }
+
   // The skip link must land on the visible main landmark: the landing page is a sibling of #app-main (which holds every
   // routed screen), so pointing at #app-main from the landing would jump past the hero and its start button.
   function paintSkipTarget() {
@@ -679,6 +757,7 @@
     paintLabels();
     paintBadges(readDue());
     paintActive();
+    paintStorageBanner();
     applyVisibility();
   }
 
@@ -715,6 +794,9 @@
     }
     const router = L().router;
     if (route.id === "daily") {
+      // A stranger who follows a "#/daily" link must not land in a running clock: boot showed them the landing page
+      // (the first-visit screen), and that is where they stay until they choose to start.
+      if (initial && router && router.current() === "landing") return;
       if (router && router.current() !== "home") go("home");
       const home = L().Screens && L().Screens.home;
       if (home && typeof home.startDaily === "function") home.startDaily();
@@ -837,6 +919,7 @@
     on("notebook:changed", scheduleUpdate);
     on("language:changed", () => update());
     on("session:completed", scheduleUpdate);
+    on("storage:failed", scheduleUpdate);
     listen(root, "hashchange", () => applyHash(false));
     listen(doc, "keydown", (event) => {
       if (event && event.key === "Escape" && state.popoverOpen) closePopover(true);
@@ -870,6 +953,9 @@
     closePopover(false);
     if (state.tabbar && state.tabbar.parentNode) state.tabbar.parentNode.removeChild(state.tabbar);
     state.tabbar = null;
+    if (state.refs.banner && state.refs.banner.parentNode) state.refs.banner.parentNode.removeChild(state.refs.banner);
+    state.refs.banner = null;
+    state.refs.bannerKey = undefined;
     state.mounted = false;
   }
 

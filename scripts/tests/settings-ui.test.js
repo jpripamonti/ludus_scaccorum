@@ -231,7 +231,7 @@ test("ruleSentence: engine only, band with the tolerance in % and cp, masters wi
   const h = Ludus.Screens.settings.helpers;
   assert.strictEqual(h.ruleSentence({ "scoring.bestMode": "engine" }, "en"), "Only the engine's move counts as the best.");
   const band = h.ruleSentence({ "scoring.bestMode": "band", "scoring.tolerancePct": 2 }, "en");
-  assert.ok(band.includes("less than 2 % of winning chances") && /about \d+ cp/.test(band), band);
+  assert.ok(band.includes("less than 2 % of win chance") && /about \d+ cp/.test(band), band);
   const masters = h.ruleSentence({ "scoring.bestMode": "masters", "scoring.tolerancePct": 1 }, "en");
   assert.ok(masters.includes("master's move") && masters.includes("3 %"), masters);
 });
@@ -321,7 +321,7 @@ test("summaryItems: a short sentence per area, and the changes show up", () => {
   assert.strictEqual(byId("board"), "Walnut board");
   assert.strictEqual(byId("clock"), "1:30 per move");
   assert.ok(byId("engine").includes("Balanced") && byId("engine").includes("1.5 s") && byId("engine").includes("3 lines"), byId("engine"));
-  assert.strictEqual(byId("scoring"), "Precision scoring · Standard");
+  assert.strictEqual(byId("scoring"), "Smooth scoring · Standard");
   assert.strictEqual(byId("best"), "Best move: within 1 %");
   assert.strictEqual(byId("hints"), "Hints on");
   assert.strictEqual(byId("sound"), "Sound 50 %");
@@ -735,14 +735,36 @@ test("screen: reset section restores the defaults and offers an undo; a section 
   assert.strictEqual(Ludus.Settings.get("board.theme"), "walnut");
   assert.strictEqual(Ludus.Settings.get("board.animation"), "auto");
   assert.strictEqual(Ludus.Settings.get("scoring.model"), "tiers", "another section is untouched");
-  assert.strictEqual(toasts.length, 1);
-  assert.ok(toasts[0].message.includes("“Board”"));
-  assert.strictEqual(toasts[0].options.action.label, "Undo");
+  // QA A11Y-005: no five-second toast any more: a notice under the section heading that stays until it is used, closed or made unsafe.
+  assert.strictEqual(toasts.length, 0, "no toast with a timed Undo");
+  const boardSection = () => q(el, 'section[data-section="board"]');
+  const notice = () => q(boardSection(), ".settings-undo");
+  assert.ok(notice() && text(notice()).includes("“Board” is back to its original values."), "the notice is there");
+  assert.strictEqual(q(boardSection(), ".settings-undo-host").getAttribute("role"), "status", "inside a live region");
+  const children = Array.from(boardSection().children).map((child) => child.getAttribute("class") || child.tagName);
+  assert.ok(children.indexOf(children.find((c) => c.includes("settings-undo-host"))) === 1, "right after the heading: the next Tab stop after Reset");
   assert.strictEqual(resetBtn("board").getAttribute("aria-disabled"), "true");
-  toasts[0].options.action.onClick();
+  // changing something else in the section makes Undo unsafe: the notice goes
+  Ludus.Settings.set("board.lastMove", false);
+  assert.ok(!notice(), "a later change in the section closes the notice");
+  Ludus.Settings.set("board.lastMove", true);
+  pick(el, "board.theme", "forest");
+  resetBtn("board").click();
+  assert.ok(notice(), "a second reset offers it again");
+  q(notice(), "[data-action=\"dismiss-undo\"]").click();
+  assert.ok(!notice(), "the close button dismisses it");
+  assert.strictEqual(Ludus.Settings.get("board.theme"), "walnut", "closing is not undoing");
+  assert.strictEqual(env.doc.activeElement, resetBtn("board"), "focus goes back to Reset, never to the page top");
+  pick(el, "board.theme", "forest");
+  pick(el, "board.animation", "off");
+  resetBtn("board").click();
+  q(notice(), "[data-action=\"undo\"]").click();
   assert.strictEqual(Ludus.Settings.get("board.theme"), "forest");
   assert.strictEqual(Ludus.Settings.get("board.animation"), "off");
   assert.strictEqual(Ludus.Settings.get("scoring.model"), "tiers");
+  assert.ok(!notice(), "using Undo closes the notice");
+  assert.strictEqual(env.doc.activeElement, resetBtn("board"), "and gives the focus back to Reset");
+  assert.ok(text(q(el, "#settings-live")).includes("previous values are back"), "Undo is announced once");
   // the judge section resets both of its groups
   pick(el, "engine.strength", "deep");
   resetBtn("judge").click();
@@ -875,6 +897,90 @@ test("degradation: storage that throws leaves the screen usable and the values i
   pick(env.el, "board.theme", "classic");
   assert.strictEqual(env.Ludus.Settings.get("board.theme"), "classic");
   assert.strictEqual(isChecked(env.el, "board.theme", "classic"), true);
+});
+
+const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+test("privacy: the section exists only with the app core's API; the switch mirrors the preference; turning it off deletes what is saved (QA SEC-008)", async () => {
+  const none = mountAndShow(createEnv({ language: "en" }));
+  assert.ok(!q(none.el, "section[data-section=\"privacy\"]"), "no API, no section (never a dead control)");
+  assert.ok(!qa(none.el, ".settings-nav-btn").some((button) => button.getAttribute("data-nav") === "privacy"));
+
+  const env = createEnv({ language: "en" });
+  const calls = [];
+  let keep = true;
+  env.Ludus.game = { savedDownloads: { keep: () => keep, setKeep: (value) => { keep = Boolean(value); calls.push(`setKeep:${value}`); }, clear: () => { calls.push("clear"); return Promise.resolve(); } } };
+  mountAndShow(env);
+  const { Ludus, el } = env;
+  const section = q(el, "section[data-section=\"privacy\"]");
+  assert.ok(section, "the privacy section");
+  assert.ok(qa(el, ".settings-nav-btn").some((button) => button.getAttribute("data-nav") === "privacy"), "it is in the side nav");
+  assert.ok(text(section).includes("Remember my downloaded games") && text(section).includes("up to 7 days"));
+  const input = q(section, ".settings-privacy-keep");
+  assert.strictEqual(input.getAttribute("role"), "switch");
+  assert.strictEqual(input.checked, true, "on by default: downloads are kept, as before");
+  assert.ok(input.getAttribute("aria-labelledby") && input.getAttribute("aria-describedby"), "named and described");
+  // off: the preference is saved and what was kept is deleted
+  input.checked = false;
+  input.dispatch("change");
+  await tick();
+  assert.deepStrictEqual(calls, ["setKeep:false", "clear"]);
+  assert.ok(text(q(section, ".settings-privacy-note")).includes("will not be kept") && !q(section, ".settings-privacy-note").hasAttribute("hidden"));
+  assert.ok(text(q(el, "#settings-live")).includes("will not be kept"), "announced");
+  // on again: only the preference
+  input.checked = true;
+  input.dispatch("change");
+  assert.deepStrictEqual(calls.slice(2), ["setKeep:true"]);
+  // the clear button asks first
+  let asked = null;
+  Ludus.ui.confirm = (options) => { asked = options; return Promise.resolve(false); };
+  q(section, "[data-action=\"clear-saved\"]").click();
+  await tick();
+  assert.ok(asked && asked.danger === true && asked.title === "Delete the saved games?");
+  assert.strictEqual(calls.filter((call) => call === "clear").length, 1, "cancel deletes nothing");
+  Ludus.ui.confirm = () => Promise.resolve(true);
+  q(section, "[data-action=\"clear-saved\"]").click();
+  await tick();
+  assert.strictEqual(calls.filter((call) => call === "clear").length, 2);
+  assert.ok(text(q(section, ".settings-privacy-note")).includes("the saved games and remembered usernames are deleted"));
+  // a failing clear is said, not swallowed
+  Ludus.game.savedDownloads.clear = () => Promise.reject(new Error("blocked"));
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    q(section, "[data-action=\"clear-saved\"]").click();
+    await tick();
+  } finally {
+    console.error = originalError;
+  }
+  assert.ok(text(q(section, ".settings-privacy-note")).includes("could not delete"));
+  // Spanish
+  Ludus.i18n.setLanguage("es", { persist: false });
+  Ludus.bus.emit("language:changed", { lang: "es" });
+  assert.ok(text(q(el, "section[data-section=\"privacy\"]")).includes("Recordar mis partidas descargadas"));
+});
+
+test("copy: the clock note says it is the usual clock, the analysis time says its real cap, the garbled English is fixed (QA UX-015, PERF-018, CNT-026)", () => {
+  const env = mountAndShow(createEnv({ language: "en" }));
+  const { Ludus, el } = env;
+  const clockNote = text(q(row(el, "clock.seconds"), ".settings-note"));
+  assert.ok(clockNote.includes("your usual clock") && clockNote.includes("that session only"), clockNote);
+  // the cap note appears only when the chosen time is above what a round ever uses
+  const h = Ludus.Screens.settings.helpers;
+  const spec = Ludus.Settings.schema.find((entry) => entry.path === "engine.movetimeMs");
+  if (spec && Number(spec.max) > 3500) {
+    pick(el, "engine.strength", "custom");
+    Ludus.Settings.set("engine.movetimeMs", 8000);
+    const note = row(el, "engine.movetimeMs") && q(row(el, "engine.movetimeMs"), ".settings-note");
+    assert.ok(note && text(note).includes("never thinks longer than 3.5 s per search"), note && text(note));
+    Ludus.Settings.set("engine.movetimeMs", 2000);
+    assert.strictEqual(text(q(row(el, "engine.movetimeMs"), ".settings-note")), "", "no note under the cap");
+  }
+  const en = Ludus.Screens.settings.TEXT.en;
+  assert.ok(en["settings.ui.lines.many"].includes("“only moves”") && !/only moves are/.test(en["settings.ui.lines.many"]), en["settings.ui.lines.many"]);
+  assert.ok(en["settings.ui.preview.foot"].includes("“only moves” cannot be recognised"), en["settings.ui.preview.foot"]);
+  Object.keys(en).forEach((key) => assert.ok(!/winning chance|win probability/i.test(en[key]), `one term for win chance: ${key}`));
+  assert.ok(!h || typeof h === "object");
 });
 
 runAll().then(() => {

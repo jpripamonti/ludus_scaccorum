@@ -386,8 +386,12 @@ body.bd-drag-active * {
   stroke-width: 4;
   stroke-linejoin: round;
 }
+/* Colour is never the only difference between the arrows (WCAG 1.4.1): the best move is the thick solid one, your move is a
+   thinner solid line, the first player's move in a duel is dotted and the game move is dashed. */
 .bd-arrow-user { --bd-c: var(--bd-user); }
+.bd-arrow-user .board-arrow-line { stroke-width: 10; }
 .bd-arrow-userAlt { --bd-c: var(--bd-user-alt); }
+.bd-arrow-userAlt .board-arrow-line { stroke-dasharray: 0.1 21; stroke-linecap: round; }
 .bd-arrow-game { --bd-c: var(--bd-game); }
 .bd-arrow-game .board-arrow-line { stroke-dasharray: 30 18; stroke-linecap: butt; }
 .bd-arrow-hint { --bd-c: var(--bd-hint); opacity: 0.8; }

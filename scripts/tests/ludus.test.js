@@ -626,7 +626,241 @@ async function loadScriptTests() {
   }
 }
 
-loadScriptTests().then(() => {
+
+// ---------- loadScript: a script that never answers ends in an error, not in a screen that waits for ever (UX-026) ----------
+
+async function loadScriptTimeoutTests() {
+  function hangingEnv() {
+    const dom = createFakeDom();
+    const appended = [];
+    dom.document.head.appendChild = (script) => {
+      appended.push(script);
+      return script; // never loads, never fails
+    };
+    const core = makeCore({ env: { document: dom.document, setTimeout, clearTimeout } });
+    return { L: core.L, appended };
+  }
+  {
+    const { L, appended } = hangingEnv();
+    const started = Date.now();
+    await assert.rejects(L.util.loadScript("js/data/classics.data.js", { timeoutMs: 40 }), /timed out/, "a script that never answers rejects");
+    assert.ok(Date.now() - started < 1000);
+    assert.strictEqual(appended.length, 1);
+    await assert.rejects(L.util.loadScript("js/data/classics.data.js", { timeoutMs: 40 }), /timed out/);
+    assert.strictEqual(appended.length, 2, "after the timeout the next call tries again");
+  }
+  {
+    // A script that answers in time is not rejected later by its own timer.
+    const dom = createFakeDom();
+    dom.document.head.appendChild = (script) => { setTimeout(() => script.onload(), 10); return script; };
+    const { L } = makeCore({ env: { document: dom.document, setTimeout, clearTimeout } });
+    await L.util.loadScript("js/ok.js", { timeoutMs: 60 });
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    await L.util.loadScript("js/ok.js"); // still resolved: the same promise
+  }
+}
+
+// ---------- router: one history entry per screen, Back and Forward move between screens (UX-001) ----------
+
+async function routerHistoryTests() {
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
+  // A window with history, location and popstate, as much as the router needs.
+  function fakeWindow(initialUrl = "http://app.test/") {
+    const entries = [{ state: null, url: initialUrl }];
+    let index = 0;
+    const listeners = {};
+    const location = { get href() { return entries[index].url; }, get hash() { const i = entries[index].url.indexOf("#"); return i < 0 ? "" : entries[index].url.slice(i); } };
+    const fire = (type, event) => (listeners[type] || []).slice().forEach((fn) => fn(event));
+    const history = {
+      get state() { return entries[index].state; },
+      get length() { return entries.length; },
+      pushState(state, title, url) {
+        entries.splice(index + 1);
+        entries.push({ state, url: url === undefined ? entries[index].url : new URL(url, entries[index].url).href });
+        index += 1;
+      },
+      replaceState(state, title, url) {
+        entries[index] = { state, url: url === undefined ? entries[index].url : new URL(url, entries[index].url).href };
+      },
+      back() { this.go(-1); },
+      forward() { this.go(1); },
+      go(delta) {
+        const target = index + delta;
+        if (target < 0 || target >= entries.length) return;
+        setTimeout(() => { index = target; fire("popstate", { state: entries[index].state }); }, 0);
+      },
+    };
+    return { history, location, addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); }, entries, at: () => index, fire };
+  }
+  function makeRouter(extra = {}) {
+    const win = fakeWindow();
+    const dom = createFakeDom();
+    const { L } = makeCore({ env: { document: dom.document, history: win.history, location: win.location, addEventListener: win.addEventListener, setTimeout, clearTimeout } });
+    const log = [];
+    const screen = (id, more = {}) => L.router.register(id, { el: new FakeElement("section"), onShow: () => log.push(`show ${id}`), onHide: () => log.push(`hide ${id}`), ...more, ...(extra[id] || {}) });
+    return { L, win, log, screen };
+  }
+
+  {
+    // One entry per screen: the first adopts the page as it was opened, the others are pushed.
+    const { L, win, log, screen } = makeRouter();
+    ["home", "classics", "notebook"].forEach((id) => screen(id));
+    L.router.show("home");
+    assert.strictEqual(win.entries.length, 1, "the first screen takes the entry the page was opened with");
+    assert.strictEqual(win.history.state.ludus.id, "home");
+    L.router.show("classics");
+    L.router.show("notebook");
+    assert.strictEqual(win.entries.length, 3);
+    L.router.show("notebook");
+    assert.strictEqual(win.entries.length, 3, "showing the screen that is already on show writes nothing");
+    win.history.back();
+    await tick();
+    assert.strictEqual(L.router.current(), "classics", "Back goes one screen up");
+    win.history.back();
+    await tick();
+    assert.strictEqual(L.router.current(), "home");
+    win.history.forward();
+    await tick();
+    assert.strictEqual(L.router.current(), "classics", "Forward goes on");
+    assert.strictEqual(win.entries.length, 3, "moving through the history writes nothing");
+    L.router.show("home");
+    assert.strictEqual(win.entries.length, 3, "a new screen drops the forward entries (as any browser does) and adds its own");
+    assert.ok(log.includes("hide classics"));
+    // An entry that is not ours (a hash typed by hand) is left to the shell.
+    win.fire("popstate", { state: null });
+    assert.strictEqual(L.router.current(), "home");
+    // A hash typed by hand makes an untagged entry: the next screen adopts it instead of adding one.
+    win.history.pushState(null, "", "#/progress");
+    const before = win.entries.length;
+    L.router.show("classics");
+    assert.strictEqual(win.entries.length, before, "the untagged entry is adopted");
+    assert.strictEqual(win.history.state.ludus.id, "classics");
+  }
+
+  {
+    // A transient screen (the game) gives its entry to the screen it is left for.
+    const { L, win, screen } = makeRouter();
+    screen("home");
+    screen("classics");
+    screen("game", { transient: true });
+    L.router.show("home");
+    L.router.show("classics");
+    L.router.show("game");
+    assert.strictEqual(win.entries.length, 3);
+    L.router.show("home");
+    assert.strictEqual(win.entries.length, 3, "the game's entry became home's: no dead entry is left behind");
+    win.history.back();
+    await tick();
+    assert.strictEqual(L.router.current(), "classics", "Back from home goes to where the game was started from");
+  }
+
+  {
+    // A screen can ask before Back leaves it: a "no" leaves the person where they were, a "yes" goes on.
+    let answer = false;
+    let asked = 0;
+    const { L, win, screen } = makeRouter();
+    screen("home");
+    screen("classics");
+    screen("game", { transient: true, canLeave: async (info) => { asked += 1; assert.strictEqual(info.to, "classics"); return answer; } });
+    L.router.show("home");
+    L.router.show("classics");
+    L.router.show("game");
+    const length = win.entries.length;
+    win.history.back();
+    await tick();
+    await tick();
+    assert.strictEqual(asked, 1, "asked once");
+    assert.strictEqual(L.router.current(), "game", "a no: still in the game");
+    assert.strictEqual(win.history.state.ludus.id, "game", "on the game's own entry (the one the browser popped is put back)");
+    assert.strictEqual(win.entries.length, length, "no entries were added by asking");
+    answer = true;
+    win.history.back();
+    await tick();
+    await tick();
+    await tick();
+    assert.strictEqual(asked, 2);
+    assert.strictEqual(L.router.current(), "classics", "a yes: on to where Back was going");
+    assert.strictEqual(win.history.state.ludus.id, "classics");
+    assert.strictEqual(win.entries.length, length, "the history is as if the question had not been asked");
+  }
+
+  {
+    // Entries that cannot be shown any more are skipped (Back) or bounced off (Forward).
+    let alive = true;
+    const { L, win, screen } = makeRouter();
+    screen("home");
+    screen("game", { transient: true, canEnter: () => alive });
+    screen("classics");
+    L.router.show("home");
+    L.router.show("classics");
+    L.router.show("game");
+    L.router.show("classics"); // the game's entry becomes classics'
+    win.history.pushState({ ludus: { id: "game", seq: 99 } }, ""); // a dead game entry ahead (as a finished game leaves)
+    win.history.back();
+    await tick();
+    alive = false;
+    win.history.forward();
+    await tick();
+    await tick();
+    assert.strictEqual(L.router.current(), "classics", "Forward into a finished game bounces back");
+  }
+
+  {
+    // Sub-states: a wizard's steps are entries of the screen.
+    const steps = [];
+    const { L, win, screen } = makeRouter();
+    screen("home");
+    screen("setup", { onSub: (sub) => steps.push(sub && sub.step ? sub.step : 1) });
+    L.router.show("home");
+    L.router.show("setup");
+    assert.strictEqual(L.router.subDepth(), 0);
+    assert.strictEqual(L.router.pushSub({ step: 2 }), true);
+    assert.strictEqual(L.router.pushSub({ step: 2 }), false, "the same sub-state is not pushed twice");
+    L.router.pushSub({ step: 3 });
+    assert.strictEqual(L.router.subDepth(), 2);
+    win.history.back();
+    await tick();
+    assert.deepStrictEqual(steps, [2], "Back lands on step 2");
+    assert.strictEqual(L.router.current(), "setup");
+    assert.strictEqual(L.router.popSub(), true, "the screen's own Previous goes one step back as Back does");
+    await tick();
+    assert.deepStrictEqual(steps, [2, 1]);
+    assert.strictEqual(L.router.popSub(), false, "nothing left to go back to on the screen");
+    win.history.forward();
+    await tick();
+    win.history.forward();
+    await tick();
+    assert.deepStrictEqual(steps.slice(-2), [2, 3], "Forward walks the steps again");
+    // A programmatic jump back is a replacement, not a new entry.
+    const length = win.entries.length;
+    L.router.replaceSub({ step: 2 });
+    assert.strictEqual(win.entries.length, length);
+    assert.strictEqual(win.history.state.ludus.sub.step, 2);
+    // A second Back while a question is open does not stack questions.
+  }
+
+  {
+    // Without a history (Node, a sandboxed frame) the router works as it always did.
+    const dom = createFakeDom();
+    const { L } = makeCore({ env: { document: dom.document } });
+    L.router.register("a", { el: new FakeElement("section") });
+    L.router.register("b", { el: new FakeElement("section") });
+    assert.strictEqual(L.router.show("a"), true);
+    assert.strictEqual(L.router.show("b"), true);
+    assert.strictEqual(L.router.pushSub({ step: 2 }), false);
+    assert.strictEqual(L.router.popSub(), false);
+    assert.strictEqual(L.router.back(), "a");
+    // A history that refuses (a sandboxed frame) does not break navigation either.
+    const refusing = { pushState() { throw new Error("SecurityError"); }, replaceState() { throw new Error("SecurityError"); }, state: null };
+    const core = makeCore({ env: { document: createFakeDom().document, history: refusing, location: { href: "http://x/" }, addEventListener() {} } });
+    core.L.router.register("a", { el: new FakeElement("section") });
+    core.L.router.register("b", { el: new FakeElement("section") });
+    assert.strictEqual(core.L.router.show("a"), true);
+    assert.strictEqual(core.L.router.show("b"), true);
+  }
+}
+
+loadScriptTests().then(loadScriptTimeoutTests).then(routerHistoryTests).then(() => {
   console.log("ludus.test.js passed");
 }, (error) => {
   console.error(error);

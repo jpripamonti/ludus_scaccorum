@@ -158,6 +158,20 @@ The `Chess` class API used across modules: `new Chess(fen?)`, `.fen()`,
 Additions allowed in `js/chess.js`: `isCheckmate()`, `isStalemate()`,
 `isInsufficientMaterial()`, `Chess.pieceValue(p)`.
 
+**Notation (piece letters).** `moveToSan` always writes English letters (`Nf3`), and that
+is what is stored and compared everywhere (records, notebook, `raw` message
+params). Whatever is *shown* goes through `Ludus.chess.localizeSan(san, lang, opts?)`:
+Spanish letters (R rey, D dama, T torre, A alfil, C caballo, promotions `=D`;
+castling, pawn moves, `x`, `+`, `#` unchanged) when the setting `notation.style`
+is `"spanish"`, or `"auto"` (default) and `lang` is Spanish; English otherwise
+(`opts.style` overrides the setting, for a preview). It never throws, is not idempotent
+(feed it the English SAN, never text that was already localized: `Rg1` is a king
+move once it is Spanish) and returns `""` for a missing SAN, so callers that
+may run before it exists guard it: `Ludus.chess.localizeSan ? Ludus.chess.localizeSan(san, lang) : san`.
+Also `Ludus.chess.notationStyle(lang, opts?)` -> `"english"|"spanish"` (what the
+setting resolves to) and `Ludus.chess.spokenSan(san, lang)` (the move in words for
+an `aria-label`: `Nxf3+` -> "caballo captura en f3, jaque" / "knight takes f3, check").
+
 `js/pgn.js` → `Ludus.pgn = { parseTags, resolveGameStartFen, tokenizeSanMoves,
 splitGamesFromText, buildGameFromText, removeVariations, hasOversizedComment,
 cleanTagValue }` (moved verbatim from `app.js`, same limits).
@@ -251,12 +265,14 @@ Also exports `Scoring.qualityMeta(code) -> { order, colorToken, glyph }`,
 ```js
 Insights.positionFeatures(fen) -> { phase:"opening"|"middlegame"|"endgame", material:{w,b,diff}, legalCount, inCheck,
                                     hanging:{w:[sq], b:[sq]}, ... }
-Insights.analyzeChoice({ fen, userUci, bestUci, assessment, lines?, masterUci? })
+Insights.analyzeChoice({ fen, userUci, bestUci, assessment, lines?, userPv?, masterUci? })
   -> { tags: string[],            // e.g. "hangs_piece","missed_capture","missed_mate","allows_mate","missed_check",
-                                  //      "quiet_best","sacrifice_best","back_rank","fork_available","pin","development","king_safety"...
+                                  //      "quiet_best","sacrifice_best","back_rank","fork_available","pin","development","king_safety",
+                                  //      "loses_material","tactic_available"...
        phase,
-       messages: [{ key, params }],   // i18n keys registered by insights.js; already ordered by importance, max 4
+       messages: [{ key, params }],   // i18n keys registered by insights.js; already ordered by importance, max 3 (2 when a mate explains it)
        conceptIds: string[] }          // ids into Concepts
+Insights.gamePhase(fen | Chess | cells[, fullmove]) -> "opening"|"middlegame"|"endgame"
 Insights.tagLabelKey(tag) -> i18n key
 Concepts.list() / get(id) -> { id, title:{es,en}, body:{es,en}, fen, bestUci, tags:[...] }
 ```
@@ -518,15 +534,29 @@ this section lists the differences that matter to integrators. Per-module detail
 * **Router**: `show(id, params)` returns false for an unknown id; `el` may be an element or an id string; sets `document.title`
   from the screen's `title` (i18n key). Nothing is routed through it yet: `app.js` owns the legacy sections
   (`#landing-screen`, `#setup-panel`, `#game-layout`) and must register them as `landing`, `setup`, `game`.
-* **Scoring**: accuracy curve has `CURVE_SCALE = 1.8` (see `docs/SCORING.md`); mate blunders cap accuracy at 10;
+* **Scoring**: accuracy curve has `CURVE_SCALE = 1.8` (see `docs/SCORING.md`); ALLOWING a mate caps accuracy at 10, while
+  MISSING one costs a fixed extra effective loss (8 for a mate in one or two, 6 longer) on top of the win% given up,
+  `assessment.keptWin` says the move still wins and `Scoring.reasonLabel(reason, lang, assessment)` words it;
+  `onlyMove` means every other line is at least 12 win% worse; the label words are one ladder (`Scoring.qualityLabel`:
+  Perfect / Very good / Good / Inaccuracy / Dubious / Mistake / Serious mistake, codes unchanged) and the legacy `quality.*`
+  strings were removed from `app.js`;
   `assess(input, options)` takes `options.isSacrifice`; extra fields `needsEvaluation`, `isMasterMove`, `hintCost`.
   `Scoring.compatQuality(code)` maps to the 8 legacy CSS/quality codes. Colour tokens used: `--color-gold`, `--color-perfect`,
   `--color-good`, `--color-dubious`, `--color-blunder`, `--color-text-muted`.
 * **Engine**: `Engine.create({createTransport?, hashMb?, ...})` defaults to a Worker on
   `vendor/stockfish-18-lite-single.js`; results carry `aborted`, `timedOut`, `terminal`; `analyze` accepts `newGame`.
 * **Insights**: tag `pin_or_skewer`; extra tags `discovered_attack`, `missed_promotion`, `open_file`, `outpost`,
-  `trade_when_ahead`; messages are `{key, params, tag, raw}` where `params` are already localized (call
-  `Insights.renderMessage(m, lang)` after a language switch). `analyzeChoice` also accepts `timing`.
+  `trade_when_ahead`, and (QA pass) `loses_material`, `tactic_available`; messages are `{key, params, tag, raw}` where
+  `params` are already localized (call `Insights.renderMessage(m, lang)` after a language switch; `raw` keeps English SAN
+  and is localized with `Ludus.chess.localizeSan`, section 5). `analyzeChoice` also accepts `timing`, `lines` with their
+  `pv` and `userPv` (the engine's line after a user move that is not among `lines`): every claim that a move wins or
+  loses material is checked against the material along that line (`docs/SCORING.md` section 16); up to 3 messages (2 when
+  a forced mate explains the answer). `Insights.moveFeatures(fen, uci, { lines?, pv? })` follows the line too.
+  **`Insights.gamePhase(fen | Chess | cells[, fullmove]) -> "opening"|"middlegame"|"endgame"` is the one game-phase
+  classifier** (app.js `getGamePhase`/`adaptiveThreshold`/`RoundRecord.phase` call it; the classics builder uses the
+  same rule): endgame when the non-pawn material of both sides (N 3, B 3, R 5, Q 9; 62 at the start) is 16 or less, or
+  four pieces or fewer are left, or there are no queens and it is 26 or less; opening while it is 50 or more up to
+  move 10; middlegame otherwise. Unusable input is `"middlegame"`. On the 248 classic positions: 36 / 194 / 18.
 * **Profile**: max 4 local profiles; `Profile.attach()` subscribes to `round:completed` / `session:completed`
   (duplicate ids are ignored, so attach + direct `recordRound` is safe); `recordRound` returns
   `{ok, round, xpGained, card, unlocked, level, levelUp}`; a new notebook card starts in box 0 and is due immediately;
@@ -644,7 +674,11 @@ the panel is its own scroll region and its footer (`#next-btn`, or `#summary-act
 handoff | result | summary`, `data-view` = `play | summary`, `data-mode` = `solo | duel`, `data-expanded` = the phone/tablet sheet
 open over the board. **Regimes**: side (>= 1100px, or landscape >= 560px: board left, panel right, `--board-size` from the
 viewport), stacked (portrait: the board, the dock, the panel as a sheet; on a phone the board runs edge to edge and in a result
-the handle opens the sheet over the board), and short landscape (an icon-only dock, the title kept for a screen reader).
+the handle opens the sheet over the board), and short landscape (a dock of small two-line labels without icons, the title kept
+for a screen reader). **Short phones** (portrait, under 700px tall: 320x568, 360x640, 375x667) have their own metrics
+(`--co-head-h`, strip, dock, gap, `--co-panel-min` of 184px, 156px in a duel) so the page never scrolls and the board gets what is
+left; on a phone the turn strip and the dock take the width of the screen and only the board is centred. Every name a person typed
+(duel players) wraps anywhere instead of overflowing; "Position 1 of 10" wraps to two lines under 400px instead of being cut.
 `--co-head-h` is the header as it really is: the board is sized from it. The dock under the board swaps its content (hint /
 skip while thinking, best / game / explore / reset on a result) at the same height, and the evaluating state draws skeletons in
 the shape of the result: nothing moves when the answer arrives.
@@ -658,15 +692,27 @@ summary when `Ludus.Coach` is missing). `Ludus.Coach` owns the words and picture
 without a DOM): `renderThinking(el, model, extra)`, `renderEvaluating(el)`, `renderRound(el, context, api)`, `renderDuel(el, context,
 api)`, `renderDots(el, model)`, `renderSummary(el, summary, api)`, `renderSummaryActions(el, summary, api)`, `openConcept(id)`.
 `api` (all optional): `{ lang, pv: { line, ply }, onStep(lineIndex, ply), onOpenRound(index), matchText, gaugeSize, canReplay,
-canReview, onPlayAgain, onReview, onShare }`. The result on screen is always drawn from `STATE.resultView.context` alone, so a
+canReview, reviewPlayers: [{ name, profileId }], onPlayAgain, onReview(profileId?), onShare }`: in a duel `reviewPlayers` (one per
+profile player who has cards; a guest has none) replaces the single review button, and `onReview` receives that profile's id. The
+context carries `classicKind` (the kind of a classic position): the result names the theme and its sentence, the thinking card never
+does (naming the idea before the answer would hand over what is being trained). The result explains its own numbers in a disclosure
+("How to read these numbers": win chance, the signed evaluation, Stockfish and its depth). A sentence never claims "the best move"
+for a move that is only as good as the best (`coach.verdict.equivalent*`), and the loss note is computed from the rounded bars it
+sits under. The result on screen is always drawn from `STATE.resultView.context` alone, so a
 `language:changed` redraws it without recomputing anything and keeps the engine line that is open (`STATE.resultView.pv`).
 
 **What a session keeps for the summary**: `STATE.session.rounds` (index, fen, side, context), so the summary can reopen any
 position (`openSummaryRound(i)`: the board goes back to it, the header follows, `#next-btn` says "back to the summary" and
 `backToSummary()` returns). `Profile.recordRound` is called first by `emitRoundCompleted` to get what the round earned (XP, level,
 notebook card, achievements: `context.rewards`, one entry per answer); the bus event that follows is ignored by `Profile.attach()`.
-Celebrations are one toast at a time and none is shown over the summary of a solo session (the summary lists them); a duel has no
-experience card. Leaving a running session by any road (nav, brand, "More" sheet, the address bar) asks the same question as the exit
+**Celebrations** (level up, achievements) are not toasts while the play screen is up (`playScreenShowsRewards()`): the result card of a
+round lists the XP, the level and the achievements that round earned (a duel, on the card of the player who earned them), the summary
+of a solo session lists the session's, and the summary of a duel shows them per player (`STATE.session.rewards.players`, passed to
+`summaryModel` as `rewards.players`); the sound still plays and a screen reader is told once the verdict has been read. On every other
+screen they are one toast at a time. A duel summary never merges the two players (no combined points, hits or mix of moves).
+**A duel from its second position on starts covered** (`STATE.duel.readyWait`, phase `duel_ready`, `data-phase="handoff"`): the
+first player's clock does not run and the board ignores input until one tap on `#handoff-overlay` (`revealDuelSecondTurn()` handles
+both covers). Leaving a running session by any road (nav, brand, "More" sheet, the address bar) asks the same question as the exit
 button (`shell.js` `leaveGameThen()` -> `Ludus.game.leave()`), and only a yes goes on.
 
 **Rules this screen keeps** (checked by `scripts/e2e/coach.js`): no horizontal scroll and no page scroll, nothing overlaps (header
@@ -674,8 +720,8 @@ items, board, dock, panel), every control is at least 44x44, every text is at le
 on, the quality of an answer is never told by colour alone (glyph, label and words), a visible focus ring on every stop, N / H / E / B
 keys as in the legend, no motion under `prefers-reduced-motion` or `a11y.motion = reduce`, no serious or critical axe violation.
 
-`scripts/tests/coach.test.js` (28): the pure helpers, both languages, the renderers in the fake DOM, degradation without the kit or a
-DOM. Browser: `scripts/e2e/coach.js` (scenarios `regimes` at eight viewports x es / en, `classic`, `duel`, `clock`, `own`, `motion`,
+`scripts/tests/coach.test.js` (39): the pure helpers, both languages, the renderers in the fake DOM, degradation without the kit or a
+DOM. Browser: `scripts/e2e/coach.js` (scenarios `regimes` at ten viewports x es / en, `classic`, `duel`, `clock`, `own`, `motion`,
 `keyboard`, `contrast`, and `axe` with `LUDUS_AXE=/path/to/axe.min.js`); the core flows stay in `play-session.js` and `gate.js`.
 
 ## 20. Design system quick reference (`styles.css`, `css/system.css`, `js/ui/kit.js`, `js/ui/shell.js`, `js/ui/home.js`)
@@ -754,7 +800,7 @@ tone, size})`, `stat({label, value, hint, icon, tone})`, `skeleton({kind: text|t
   the search) call at draw time (a missing classics screen shows the stored text). Never show `meta.event` / `meta.players` raw.
 * A toast never covers what a person needs: while a `.modal-backdrop` is open the toast stack drops behind it (`css/system.css`, an error
   keeps its place), and on the play screen in stacked layouts it sits under the header, not over the exit button, score and clock
-  (`css/coach.css`).
+  (`css/coach.css`). Celebrations (achievements, level ups) are never toasts on the play screen: its panel lists them (section 19).
 * A screen's root class must not be the name of a kit component (the progress screen is `.progress-root`: a bare `.progress` is the bar).
 * `Ludus.router` builds `document.title` from the SHARED dictionary: a screen registered with a key that only app.js's own dictionary
   knows shows the key in the tab (`play.title`). The legacy screens use `core.title.setup` / `core.title.play`; the walkthrough scans

@@ -93,6 +93,18 @@
 
   const cls = (...names) => names.filter(Boolean).join(" ");
 
+  // A move as the person reads it: the SAN that is stored and compared is English (Nf3); Spanish piece letters (Cf3) are only for
+  // the eye, when the language or the notation setting (Ludus.chess.localizeSan, js/chess.js) says so. Never applied twice.
+  function showSan(value, lang) {
+    if (typeof value !== "string" || !value) return value;
+    const chess = L().chess;
+    try {
+      return chess && typeof chess.localizeSan === "function" ? chess.localizeSan(value, lang) : value;
+    } catch (error) {
+      return value;
+    }
+  }
+
   // ---------- Text ----------
 
   const TEXT = {
@@ -532,7 +544,7 @@
   function verdictKey(context, answer, lang) {
     const ans = answer || answerOf(context, 0);
     if (!ans) return { key: "coach.verdict.no_move", params: {} };
-    const best = context && context.best && context.best.san ? context.best.san : "-";
+    const best = context && context.best && context.best.san ? showSan(context.best.san, lang) : "-";
     const params = { best };
     if (!ans.uci) {
       if (ans.hintsUsed >= 3 || ans.noMoveReason === "hint_reveal") return { key: "coach.verdict.revealed", params };
@@ -1160,19 +1172,19 @@
       const bar = options.duel ? winBars(context, answer) : bars;
       put(answer.uci, {
         tag: { kind: options.duel ? `p${index + 1}` : "user", text: options.duel ? answer.name : t("coach.you", {}, lang) },
-        san: answer.san,
+        san: showSan(answer.san, lang),
         evalText: isBest ? formatEval(context.best.score, lang) : Number.isFinite(answer.userScore) ? formatEval(answer.userScore, lang) : "",
         pct: isBest ? bar.best : bar.user,
       });
     });
     if (context.best && context.best.uci) {
-      put(context.best.uci, { tag: { kind: "best", text: t("coach.best", {}, lang) }, san: context.best.san, evalText: formatEval(context.best.score, lang), pct: bars.best });
+      put(context.best.uci, { tag: { kind: "best", text: t("coach.best", {}, lang) }, san: showSan(context.best.san, lang), evalText: formatEval(context.best.score, lang), pct: bars.best });
     }
     if (context.master && context.master.uci) {
       const name = context.masterName || "";
       put(context.master.uci, {
         tag: { kind: "master", text: name ? t("coach.masterMove", { name }, lang) : t("coach.gameMove", {}, lang) },
-        san: context.master.san,
+        san: showSan(context.master.san, lang),
         evalText: Number.isFinite(context.master.score) ? formatEval(context.master.score, lang) : context.master.evalText || "",
         pct: bars.master,
       });
@@ -1245,7 +1257,7 @@
     } else if (answer.uci && answer.assessment && (answer.assessment.qualityCode === "perfect" || answer.assessment.isBest)) {
       body = h("p", { class: "co-empty" }, t("coach.insight.solid", {}, lang));
     } else {
-      body = h("p", { class: "co-empty" }, t("coach.insight.unknown", { best: context.best && context.best.san ? context.best.san : "-" }, lang));
+      body = h("p", { class: "co-empty" }, t("coach.insight.unknown", { best: context.best && context.best.san ? showSan(context.best.san, lang) : "-" }, lang));
     }
     // What kind of position this was (sacrifice, only move...): told now that the answer is in, not before.
     const theme = themeInfo(context.classicKind, lang);
@@ -1384,16 +1396,16 @@
       if (line.isBest) marks.push(pill(t("coach.lines.best", {}, lang), "best"));
       if (line.isUser) marks.push(pill(t("coach.lines.you", {}, lang), "user"));
       if (line.isMaster) marks.push(pill(context.masterName || t("coach.lines.master", {}, lang), "master"));
-      const pvText = tokens.slice(0, 6).map((tok) => (tok.number ? `${tok.number} ${tok.san}` : tok.san)).join(" ");
+      const pvText = tokens.slice(0, 6).map((tok) => (tok.number ? `${tok.number} ${showSan(tok.san, lang)}` : showSan(tok.san, lang))).join(" ");
       const button = h("button", {
         type: "button",
         class: "co-line",
         "aria-pressed": "false",
-        "aria-label": t("coach.lines.aria", { rank: line.rank || index + 1, san: line.san || "", eval: evalText }, lang),
+        "aria-label": t("coach.lines.aria", { rank: line.rank || index + 1, san: showSan(line.san || "", lang), eval: evalText }, lang),
         onclick: () => go(index, state.line === index ? state.ply : Math.min(1, tokens.length)),
       },
       h("span", { class: "co-line-rank", "aria-hidden": "true" }, String(line.rank || index + 1)),
-      h("span", { class: "co-line-move" }, line.san || line.uci),
+      h("span", { class: "co-line-move" }, line.san ? showSan(line.san, lang) : line.uci),
       h("span", { class: "co-line-eval" }, evalText),
       marks.length ? h("span", { class: "co-line-marks" }, marks) : null,
       h("span", { class: "co-line-pv" }, pvText));
@@ -1412,9 +1424,9 @@
       const tokenButtons = tokens.map((tok) => h("button", {
         type: "button",
         class: "co-tok",
-        "aria-label": t("coach.step.token", { san: tok.san }, lang),
+        "aria-label": t("coach.step.token", { san: showSan(tok.san, lang) }, lang),
         onclick: () => go(index, tok.ply),
-      }, tok.number ? h("span", { class: "co-tok-n" }, tok.number) : null, tok.san));
+      }, tok.number ? h("span", { class: "co-tok-n" }, tok.number) : null, showSan(tok.san, lang)));
       const stepper = h("div", { class: "co-stepper", role: "group", "aria-label": t("coach.step.label", { rank: line.rank || index + 1 }, lang), hidden: true },
         h("div", { class: "co-step-ctrl" },
           makeControl("first", t("coach.step.first", {}, lang), () => 0),
@@ -1537,7 +1549,7 @@
         h("h3", { class: "co-player-name", title: answer.name }, answer.name)),
       h("div", { class: "co-player-gauge" }, gaugeNode(points, max, 84, info.tone, "")),
       h("p", { class: "co-player-q" }, h("span", { class: "co-glyph", "aria-hidden": "true" }, info.glyph), h("span", null, info.label)),
-      h("p", { class: "co-player-move" }, answer.uci ? answer.san : t("coach.duel.noMove", {}, lang)),
+      h("p", { class: "co-player-move" }, answer.uci ? showSan(answer.san, lang) : t("coach.duel.noMove", {}, lang)),
       insight ? h("p", { class: "co-player-why" }, insight.text) : null,
       reward && reward.xp > 0 ? h("p", { class: "co-player-xp" }, t("coach.chip.xp", { xp: reward.xp }, lang)) : null,
       // Celebrations belong to the card of the player who earned them (a toast over the play screen would hide the verdict).

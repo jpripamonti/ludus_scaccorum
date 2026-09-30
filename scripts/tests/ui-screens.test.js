@@ -172,6 +172,7 @@ test("helpers: hash routes, date key, greeting part, duel players, counts", () =
   const { parseHash } = Ludus.shell;
   assert.deepStrictEqual(JSON.parse(JSON.stringify(parseHash("#/classics"))), { id: "classics" });
   assert.strictEqual(parseHash("#/daily").id, "daily");
+  assert.strictEqual(parseHash("#/NOTEBOOK").id, "notebook", "a typed address is case-insensitive");
   assert.strictEqual(parseHash("#/nope"), null);
   assert.strictEqual(parseHash("#/home/extra"), null);
   assert.strictEqual(parseHash(""), null);
@@ -195,7 +196,7 @@ test("helpers: hash routes, date key, greeting part, duel players, counts", () =
   assert.strictEqual(helpers.resolveDuelPlayers([{ kind: "profile", profileId: "p1" }, { kind: "profile", profileId: "p1" }], profiles).ok, false);
   assert.strictEqual(helpers.resolveDuelPlayers([{ kind: "profile", profileId: "p1" }, { kind: "guest", guestName: "ana" }], profiles).ok, false, "same name, any case");
   const defaults = helpers.resolveDuelPlayers([{ kind: "guest", guestName: "" }, { kind: "guest", guestName: "" }], profiles);
-  assert.deepStrictEqual(Array.from(defaults.names), ["Invitado 1", "Invitado 2"]);
+  assert.deepStrictEqual(Array.from(defaults.names), ["Participante 1", "Participante 2"]);
   const unknown = helpers.resolveDuelPlayers([{ kind: "profile", profileId: "ghost" }, { kind: "guest", guestName: "x".repeat(60) }], profiles);
   assert.strictEqual(unknown.names[1].length, 20, "names are capped");
   assert.strictEqual(unknown.profileIds[0], null, "an unknown profile id becomes a guest");
@@ -226,6 +227,49 @@ test("home: first run is designed (greeting, four modes, disabled review, daily,
   // The page keeps a single h1 and named sections.
   assert.strictEqual(findAll(root, (el) => el.tagName === "H1").length, 1);
   findAll(root, (el) => el.tagName === "SECTION" && el !== root).forEach((section) => assert.ok(section.getAttribute("aria-labelledby") || section.getAttribute("aria-label"), "every section is named"));
+});
+
+test("home: a first run is a greeting and ONE primary action; the empty meters come with the first round", async () => {
+  const { Ludus, els, calls } = createEnv();
+  Ludus.Screens.home.mount(els.homeEl);
+  Ludus.router.show("home");
+  await flush();
+  const root = els.homeEl;
+  const hero = findAll(root, byClass("home-hero"))[0];
+  assert.ok(hero.classList.contains("home-hero-first"));
+  const play = findAll(hero, byData("data-fkey", "hero-play"))[0];
+  assert.ok(play && play.classList.contains("btn-primary"), "the primary action is in the hero, above everything else");
+  assert.ok(text(play).includes("Jugar la posición de hoy"));
+  assert.ok(findAll(hero, byClass("home-stats")).length === 0 && findAll(hero, byClass("home-level")).length === 0, "no empty streak / XP block");
+  assert.strictEqual(findAll(hero, (el) => el.tagName === "BUTTON").length, 2, "one primary and one quiet secondary action");
+  play.click();
+  await flush();
+  assert.strictEqual(calls.sessions.length, 1);
+  assert.strictEqual(calls.sessions[0].kind, "daily", "the first position is today's challenge");
+  // After the first round the hero is the full one again.
+  seedRounds(Ludus, 1);
+  await flush();
+  const after = findAll(root, byClass("home-hero"))[0];
+  assert.ok(!after.classList.contains("home-hero-first"));
+  assert.ok(findAll(after, byClass("home-stats")).length === 1 && findAll(after, byClass("home-level")).length === 1);
+  // English.
+  const en = createEnv({ language: "en" });
+  en.Ludus.Screens.home.mount(en.els.homeEl);
+  en.Ludus.router.show("home");
+  await flush();
+  assert.ok(text(en.els.homeEl).includes("Play today's position") && text(en.els.homeEl).includes("See other ways to train"));
+});
+
+test("home: a long name wraps inside the greeting (a class the stylesheet can break), no markup from the name", async () => {
+  const { Ludus, els } = createEnv();
+  Ludus.Profile.rename(Ludus.Profile.ensureActive().id, "W".repeat(20));
+  Ludus.Screens.home.mount(els.homeEl);
+  Ludus.router.show("home");
+  await flush();
+  const greeting = findAll(els.homeEl, byClass("home-greeting"))[0];
+  assert.ok(text(greeting).includes("W".repeat(20)));
+  const css = fs.readFileSync(path.join(repoRoot, "css", "home.css"), "utf8");
+  assert.ok(/\.home-greeting\s*\{\s*overflow-wrap:\s*anywhere/.test(css) && /\.home-hero-main\s*\{\s*min-width:\s*0/.test(css), "the greeting breaks inside its card instead of widening the page (VIS-001)");
 });
 
 test("home: mode cards route to the right place", async () => {
@@ -295,7 +339,8 @@ test("home: profile and notebook events refresh the hub (coalesced)", async () =
 });
 
 test("daily challenge: starts a one-position daily session with its date key; done state has no play button", async () => {
-  const { Ludus, els, calls } = createEnv();
+  const env = createEnv();
+  const { Ludus, els, calls } = env;
   await Ludus.Classics.load();
   Ludus.Screens.home.mount(els.homeEl);
   Ludus.router.show("home");
@@ -322,9 +367,17 @@ test("daily challenge: starts a one-position daily session with its date key; do
   assert.ok(text(daily).includes("91%"));
   assert.ok(text(daily).includes("Volvé mañana"));
   assert.ok(text(daily).includes("Racha del desafío: 1 día"));
-  // startDaily() (the "#/daily" route) still works and is the same session.
-  await Ludus.Screens.home.startDaily();
-  assert.strictEqual(calls.sessions.length, 2);
+  // UX-024: once today's challenge is done, startDaily() (the "#/daily" route, the PWA shortcut) starts nothing: a
+  // replay would pay XP again and open a timed round. Home stays, and a message says why.
+  ["home"].forEach((id) => Ludus.router.show(id));
+  const before = calls.sessions.length;
+  const started = await Ludus.Screens.home.startDaily();
+  assert.strictEqual(started, false, "no second session for a completed daily");
+  assert.strictEqual(calls.sessions.length, before);
+  assert.strictEqual(Ludus.router.current(), "home");
+  const toastStack = findAll(env.doc.body, byClass("toast"));
+  assert.ok(toastStack.some((el) => text(el).includes("Ya hiciste el desafío de hoy")), "a friendly message, not silence");
+  Ludus.ui.clearToasts();
 });
 
 test("daily challenge: a failing classics load shows an error with a retry, never a blank card", async () => {
@@ -365,12 +418,15 @@ test("duel setup: two players, mix source, count -> startSession with names and 
   findAll(els.homeEl, byData("data-mode", "duel"))[0].click();
   const dialog = findAll(doc.body, (el) => el.getAttribute("role") === "dialog" && el.classList.contains("modal"))[0];
   assert.ok(dialog, "the duel dialog opened");
+  // UX-022: the dialog says who looks away and what stays hidden, before anybody starts.
+  const fair = findAll(dialog, byClass("duel-fair"))[0];
+  assert.ok(fair && text(fair).includes("juega primero Jugador 1") && text(fair).includes("mira para otro lado") && text(fair).includes("queda oculta"), "fairness guidance in the setup dialog");
   const selects = findAll(dialog, (el) => el.tagName === "SELECT" && el.getAttribute("id") && el.getAttribute("id").startsWith("duel-who"));
   assert.strictEqual(selects.length, 2);
   assert.strictEqual(selects[0].value, `p:${first.id}`, "player 1 defaults to the active profile");
   assert.strictEqual(selects[1].value, `p:${second.id}`, "player 2 defaults to the other profile");
   const options = findAll(selects[0], (el) => el.tagName === "OPTION").map((o) => o.textContent);
-  assert.deepStrictEqual(options, ["Ana", "Luis", "Invitado (escribir un nombre)"]);
+  assert.deepStrictEqual(options, ["Ana", "Luis", "Sin perfil (escribir un nombre)"]);
   // choose count 5
   const count5 = findAll(dialog, (el) => el.tagName === "INPUT" && el.getAttribute("value") === "5")[0];
   count5.dispatch("change");
@@ -426,7 +482,7 @@ test("duel setup: the same player twice is refused, guests get default names, ow
   assert.strictEqual(calls.own.length, 1);
   const options = JSON.parse(JSON.stringify(calls.own[0]));
   assert.strictEqual(options.mode, "duel");
-  assert.deepStrictEqual(options.names, ["Invitado 1", "Invitado 2"]);
+  assert.deepStrictEqual(options.names, ["Participante 1", "Participante 2"]);
   assert.deepStrictEqual(options.profileIds, [null, null]);
   // Reopening after it closed works, and a second click while it is open does not stack another dialog.
   dialog = open();
@@ -598,9 +654,11 @@ test("shell: profile chip and popover switch profiles, cap at 4, open the add-pr
   Ludus.shell.mount(els.app);
   const chip = () => findAll(els.status, byClass("sh-profile-chip"))[0];
   assert.strictEqual(chip().getAttribute("aria-expanded"), "false");
+  assert.strictEqual(chip().getAttribute("aria-controls"), null, "a collapsed popover is not referenced (A11Y-026)");
   assert.ok(chip().getAttribute("aria-label").startsWith("Perfil de Ana"));
   chip().click();
   assert.strictEqual(chip().getAttribute("aria-expanded"), "true");
+  assert.strictEqual(chip().getAttribute("aria-controls"), findAll(els.status, byClass("sh-pop"))[0].getAttribute("id"), "while open, aria-controls points at the popover that exists");
   const rows = findAll(els.status, byClass("sh-pop-row"));
   assert.strictEqual(rows.length, 2);
   assert.strictEqual(rows[0].getAttribute("aria-current"), "true");
@@ -700,6 +758,79 @@ test("shell: hash routes navigate (and #/daily starts the challenge), and never 
   await flush();
   assert.strictEqual(asked.length, 2);
   assert.strictEqual(Ludus.router.current(), "settings", "a yes goes on to the route");
+});
+
+test("shell: a first-time visitor who follows a #/daily link stays on the landing page (no running clock), a known one starts it", async () => {
+  const stranger = createEnv();
+  await stranger.Ludus.Classics.load();
+  stranger.Ludus.Profile.ensureActive();
+  stranger.Ludus.Screens.home.mount(stranger.els.homeEl);
+  stranger.location.hash = "#/daily";
+  stranger.Ludus.shell.mount(stranger.els.app);
+  stranger.Ludus.router.show("landing"); // what boot does for someone who has never been here
+  await flush(10);
+  assert.strictEqual(stranger.Ludus.router.current(), "landing", "the link does not skip the landing page");
+  assert.strictEqual(stranger.calls.sessions.length, 0, "and no timed round starts");
+  const known = createEnv();
+  await known.Ludus.Classics.load();
+  known.Ludus.Profile.ensureActive();
+  known.Ludus.Screens.home.mount(known.els.homeEl);
+  known.location.hash = "#/daily";
+  known.Ludus.shell.mount(known.els.app);
+  known.Ludus.router.show("home"); // what boot does for a returning visitor
+  await flush(10);
+  assert.strictEqual(known.calls.sessions.length, 1, "a returning visitor's shortcut starts the challenge");
+});
+
+test("shell: a storage warning says plainly that progress is not being saved (blocked, then full), can be dismissed and heals", async () => {
+  const { Ludus, els, doc, advance } = createEnv();
+  Ludus.Profile.ensureActive();
+  let status = { ok: true, available: true, reason: "" };
+  Ludus.Profile.storageStatus = () => status;
+  Ludus.shell.mount(els.app);
+  Ludus.router.show("home");
+  advance(10);
+  const region = () => doc.getElementById("shell-banner");
+  assert.ok(region() && region().getAttribute("role") === "status", "a polite live region exists from the start");
+  assert.strictEqual(region().children.length, 0, "and stays empty while everything is saved");
+  // Blocked storage: the very first screen says so.
+  status = { ok: false, available: false, reason: "blocked" };
+  Ludus.shell.update();
+  assert.ok(text(region()).includes("El navegador no deja guardar tu progreso"));
+  assert.ok(text(region()).includes("se pierden al cerrar la pestaña"), "says what it means for the person, not a code");
+  const buttons = findAll(region(), (el) => el.tagName === "BUTTON");
+  assert.deepStrictEqual(buttons.map((b) => text(b)), ["Entendido"], "nothing to export when nothing was ever saved");
+  // Dismissed for this page load, and it stays dismissed across repaints of the same problem.
+  buttons[0].click();
+  assert.strictEqual(region().children.length, 0);
+  Ludus.shell.update();
+  assert.strictEqual(region().children.length, 0, "the same problem does not come back after Got it");
+  // A different problem (the quota filled up later) is news: it is shown, with a way to Account.
+  status = { ok: false, available: true, reason: "quota" };
+  Ludus.shell.update();
+  assert.ok(text(region()).includes("Tu progreso no se está guardando"));
+  const quotaButtons = findAll(region(), (el) => el.tagName === "BUTTON").map((b) => text(b));
+  assert.deepStrictEqual(quotaButtons, ["Ir a Cuenta", "Entendido"]);
+  findAll(region(), (el) => el.tagName === "BUTTON")[0].click();
+  await flush();
+  assert.strictEqual(Ludus.router.current(), "account", "the action goes to Account (download a copy)");
+  // English, and healing: a later write that works removes the notice.
+  Ludus.i18n.setLanguage("en", { persist: false });
+  Ludus.shell.update();
+  assert.ok(text(region()).includes("Your progress is not being saved"));
+  status = { ok: true, available: true, reason: "", recovered: true };
+  Ludus.shell.update();
+  assert.strictEqual(region().children.length, 0, "it goes away when storage works again");
+  // The bus event repaints too (Profile announces the first failure of a page load once).
+  status = { ok: false, available: true, reason: "quota" };
+  Ludus.bus.emit("storage:failed", { reason: "quota", key: "ludus.x", at: 1 });
+  advance(10);
+  await flush();
+  assert.ok(text(region()).includes("Your progress is not being saved"), "storage:failed shows the notice without a manual update");
+  // Without Profile.storageStatus the shell is silent (older builds).
+  Ludus.Profile.storageStatus = undefined;
+  Ludus.shell.update();
+  assert.strictEqual(region().children.length, 0);
 });
 
 test("shell: every way out of a running game asks first, and only a yes goes on", async () => {

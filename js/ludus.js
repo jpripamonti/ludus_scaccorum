@@ -640,9 +640,14 @@
 
   // Loads a same-origin script once. The version is appended as "?v=" so the
   // service worker and HTTP caches treat a new build as a new file. The
-  // promise rejects when the script fails to load (and a later call retries)
+  // promise rejects when the script fails to load (and a later call retries),
+  // when it has not loaded after options.timeoutMs (default 20 s: a connection
+  // that accepted the request and never answers must end in a message and a
+  // "try again", not a screen that waits for ever; a later call retries too),
   // or when there is no document (Node).
-  function loadScript(path) {
+  const LOAD_SCRIPT_TIMEOUT_MS = 20000;
+
+  function loadScript(path, options) {
     const doc = getDocument();
     if (!doc || typeof doc.createElement !== "function") {
       return Promise.reject(new Error("loadScript: no document"));
@@ -653,19 +658,33 @@
     }
     if (scriptLoads.has(target)) return scriptLoads.get(target);
 
+    const requested = options && Number(options.timeoutMs);
+    const timeoutMs = Number.isFinite(requested) && requested > 0 ? requested : LOAD_SCRIPT_TIMEOUT_MS;
     const separator = target.includes("?") ? "&" : "?";
     const promise = new Promise((resolve, reject) => {
       const script = doc.createElement("script");
-      script.src = `${target}${separator}v=${encodeURIComponent(version)}`;
-      script.async = true;
-      script.onload = () => resolve();
-      script.onerror = () => {
-        scriptLoads.delete(target);
+      let timer = null;
+      const clearTimer = () => {
+        if (timer !== null && typeof root.clearTimeout === "function") root.clearTimeout(timer);
+        timer = null;
+      };
+      const dropScript = () => {
         try {
           if (typeof script.remove === "function") script.remove();
         } catch (error) {
           // Ignore.
         }
+      };
+      script.src = `${target}${separator}v=${encodeURIComponent(version)}`;
+      script.async = true;
+      script.onload = () => {
+        clearTimer();
+        resolve();
+      };
+      script.onerror = () => {
+        clearTimer();
+        scriptLoads.delete(target);
+        dropScript();
         reject(new Error(`loadScript: failed to load ${target}`));
       };
       const parent = doc.head || doc.documentElement || doc.body;
@@ -675,6 +694,14 @@
         return;
       }
       parent.appendChild(script);
+      if (typeof root.setTimeout === "function") {
+        timer = root.setTimeout(() => {
+          timer = null;
+          scriptLoads.delete(target);
+          dropScript();
+          reject(new Error(`loadScript: timed out loading ${target}`));
+        }, timeoutMs);
+      }
     });
     scriptLoads.set(target, promise);
     return promise;
@@ -700,6 +727,84 @@
     const stack = [];
     let currentId = null;
     let currentParams = {};
+
+    // ----- Browser history -----
+    // One history entry per screen shown (and per sub-state a screen pushes: a wizard step), so the browser's Back
+    // and Forward (a phone's Back gesture) move between the screens of the app instead of leaving the site. An
+    // entry is history.state = { ludus: { id, sub?, depth?, seq } }; an entry without it (the page as it was opened,
+    // a hash typed by hand) is adopted by the next screen shown. The hash in the address is the shell's business
+    // (js/ui/shell.js mirrors the screen into it and keeps this state).
+    //
+    //   * a screen registered with transient: true (the game, the wizard) replaces its entry when it is left by a
+    //     screen change, instead of leaving a dead entry behind it;
+    //   * canEnter(entry) -> false marks an entry that cannot be shown any more (a finished game): Back skips it and
+    //     Forward bounces off it;
+    //   * canLeave({ to }) -> boolean | Promise<boolean>: asked before a popstate leaves the screen. A "no" leaves
+    //     the person where they were (the entry the browser popped is put back); a "yes" goes on to the entry.
+    //   * pushSub(sub) / popSub(): sub-states of the screen on show; the screen's onSub(sub) hook is called when Back
+    //     or Forward lands on one.
+    let seq = 0;
+    let lastUrl = "";
+    let currentSub = null;
+    let currentDepth = 0;
+    let pendingSilent = null;
+    let guardBusy = false;
+
+    function historyApi() {
+      try {
+        const api = root.history;
+        return api && typeof api.pushState === "function" && typeof api.replaceState === "function" ? api : null;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function currentUrl() {
+      try {
+        return root.location ? String(root.location.href) : "";
+      } catch (error) {
+        return "";
+      }
+    }
+
+    function entryOf(state) {
+      const entry = state && typeof state === "object" ? state.ludus : null;
+      return entry && typeof entry === "object" && typeof entry.id === "string" ? entry : null;
+    }
+
+    function subKey(sub) {
+      try {
+        return sub ? JSON.stringify(sub) : "";
+      } catch (error) {
+        return "";
+      }
+    }
+
+    // mode: "push" | "replace" (the address stays as it is: the shell updates the hash after the screen changes).
+    function writeEntry(mode, id, sub, depth, url) {
+      const api = historyApi();
+      if (!api) return false;
+      seq += 1;
+      const state = { ludus: { id, seq } };
+      if (sub) state.ludus.sub = sub;
+      if (depth) state.ludus.depth = depth;
+      try {
+        if (mode === "push") {
+          if (url) api.pushState(state, "", url);
+          else api.pushState(state, "");
+        } else {
+          api.replaceState(state, "");
+        }
+      } catch (error) {
+        // A sandboxed frame or file:// can refuse; Back then behaves as it always did.
+        return false;
+      }
+      return true;
+    }
+
+    function noteUrl() {
+      lastUrl = currentUrl();
+    }
 
     function resolveEl(entry) {
       const ref = entry.el;
@@ -756,11 +861,17 @@
         title: options.title,
         onShow: options.onShow,
         onHide: options.onHide,
+        onSub: options.onSub,
+        canLeave: options.canLeave,
+        canEnter: options.canEnter,
+        transient: options.transient === true,
       });
       return true;
     }
 
-    function activate(id, params, remember) {
+    // historyMode: "auto" (a screen change made by a caller: writes an entry), "none" (the browser already moved: Back,
+    // Forward, or a bounce).
+    function activate(id, params, remember, historyMode) {
       const target = screens.get(id);
       if (!target) return false;
       const prevId = currentId;
@@ -776,6 +887,18 @@
       screens.forEach((entry) => setVisible(entry, entry === target));
       currentId = id;
       currentParams = params === undefined ? {} : params;
+      if (changing && historyMode !== "none") {
+        const api = historyApi();
+        if (api) {
+          // The page as it was opened (or a hash typed by hand) is adopted by the first screen; the screen a transient
+          // one is left for takes over its entry; any other change is a new entry.
+          const mine = entryOf(api.state);
+          const mode = !mine || prevId === null || (prev && prev.transient) ? "replace" : "push";
+          writeEntry(mode, id, null, 0);
+          currentSub = null;
+          currentDepth = 0;
+        }
+      }
       applyTitle(target);
       try {
         if (typeof root.scrollTo === "function") root.scrollTo(0, 0);
@@ -784,12 +907,13 @@
       }
       callHook(target, "onShow", currentParams);
       if (changing) bus.emit("screen:changed", { id, prev: prevId });
+      noteUrl();
       return true;
     }
 
     // Returns false (and changes nothing) for an id nobody registered.
     function show(id, params) {
-      return activate(id, params, true);
+      return activate(id, params, true, "auto");
     }
 
     function current() {
@@ -800,16 +924,179 @@
     function back() {
       while (stack.length) {
         const previous = stack.pop();
-        if (screens.has(previous.id) && activate(previous.id, previous.params, false)) return previous.id;
+        if (screens.has(previous.id) && activate(previous.id, previous.params, false, "none")) return previous.id;
       }
       return null;
     }
+
+    // ----- Sub-states of the screen on show -----
+
+    function subDepth() {
+      return currentDepth;
+    }
+
+    // A new history entry for a sub-state of the screen on show (the wizard at step 2): Back returns to the one before.
+    // Nothing is written when the state is the one already shown. \`sub\` is a small plain object (or null for the base state).
+    function pushSub(sub) {
+      const api = historyApi();
+      if (!api || !currentId) return false;
+      const next = sub && typeof sub === "object" ? sub : null;
+      if (subKey(next).length > 200 || subKey(next) === subKey(currentSub)) return false;
+      const mine = entryOf(api.state);
+      const depth = next ? currentDepth + 1 : 0;
+      if (!writeEntry(mine ? "push" : "replace", currentId, next, depth)) return false;
+      currentSub = next;
+      currentDepth = depth;
+      noteUrl();
+      return true;
+    }
+
+    // Changes the sub-state of the entry on show without adding one (a programmatic jump that is not a step of the person).
+    function replaceSub(sub) {
+      const api = historyApi();
+      if (!api || !currentId) return false;
+      const next = sub && typeof sub === "object" ? sub : null;
+      if (subKey(next).length > 200) return false;
+      if (!writeEntry("replace", currentId, next, next ? Math.max(1, currentDepth) : 0)) return false;
+      currentSub = next;
+      currentDepth = next ? Math.max(1, currentDepth) : 0;
+      noteUrl();
+      return true;
+    }
+
+    // One sub-state back, the way Back would (true when there was one to go back to).
+    function popSub() {
+      const api = historyApi();
+      if (!api || currentDepth < 1 || typeof api.back !== "function") return false;
+      try {
+        api.back();
+      } catch (error) {
+        return false;
+      }
+      return true;
+    }
+
+    // ----- Back and Forward -----
+
+    // The entry the browser popped is shown, without writing another one and without asking again.
+    function applyPop(entry) {
+      const target = screens.get(entry.id);
+      if (!target) return;
+      if (entry.id === currentId) {
+        currentSub = entry.sub || null;
+        currentDepth = Number(entry.depth) || 0;
+        callHook(target, "onSub", currentSub);
+        noteUrl();
+        return;
+      }
+      activate(entry.id, {}, false, "none");
+      currentSub = entry.sub || null;
+      currentDepth = Number(entry.depth) || 0;
+      if (currentSub) callHook(target, "onSub", currentSub);
+      noteUrl();
+    }
+
+    // Puts back the entry the browser just popped (the one of the screen still on show, at the address it had), so the
+    // person has not gone anywhere while they are asked.
+    function restoreCurrentEntry() {
+      const api = historyApi();
+      if (!api || !currentId) return;
+      writeEntry("push", currentId, currentSub, currentDepth, lastUrl || undefined);
+    }
+
+    function onPopState(event) {
+      const entry = entryOf(event && event.state);
+      // Not ours (an entry of the page as it was opened, a hash typed by hand): the shell's hash router handles it.
+      if (!entry || !screens.has(entry.id)) {
+        noteUrl();
+        return;
+      }
+      const api = historyApi();
+      // The answer to "yes, leave" came back as the pop we asked for: no second question.
+      if (pendingSilent) {
+        const pending = pendingSilent;
+        pendingSilent = null;
+        if (pending.timer) clearTimeout(pending.timer);
+        applyPop(entry);
+        return;
+      }
+      if (guardBusy) {
+        // A second Back while the question is on screen: the first one is still the question.
+        restoreCurrentEntry();
+        return;
+      }
+      const target = screens.get(entry.id);
+      const from = currentId ? screens.get(currentId) : null;
+      if (entry.id !== currentId && target.canEnter) {
+        let enterable = true;
+        try {
+          enterable = target.canEnter(entry) !== false;
+        } catch (error) {
+          enterable = true;
+        }
+        if (!enterable) {
+          // A finished game, a wizard that this page never opened: nothing to show. Back goes on to the entry before it,
+          // Forward returns to where it was: one step back in both cases.
+          if (api && typeof api.back === "function") {
+            try {
+              api.back();
+            } catch (error) {
+              noteUrl();
+            }
+          }
+          return;
+        }
+      }
+      if (from && entry.id !== currentId && typeof from.canLeave === "function") {
+        guardBusy = true;
+        restoreCurrentEntry();
+        let asked;
+        try {
+          asked = Promise.resolve(from.canLeave({ to: entry.id }));
+        } catch (error) {
+          asked = Promise.resolve(false);
+        }
+        asked.then((ok) => ok === true, () => false).then((ok) => {
+          guardBusy = false;
+          if (!ok) return;
+          // Yes: back to the entry the person asked for (a real step back, so the history is left as if the question had not been asked).
+          if (api && typeof api.back === "function") {
+            pendingSilent = { timer: null };
+            pendingSilent.timer = root.setTimeout ? root.setTimeout(() => {
+              if (!pendingSilent) return;
+              pendingSilent = null;
+              applyPop(entry);
+            }, 400) : null;
+            try {
+              api.back();
+            } catch (error) {
+              if (pendingSilent && pendingSilent.timer) clearTimeout(pendingSilent.timer);
+              pendingSilent = null;
+              applyPop(entry);
+            }
+          } else {
+            applyPop(entry);
+          }
+        });
+        return;
+      }
+      applyPop(entry);
+    }
+
+    function listenToHistory() {
+      try {
+        if (historyApi() && typeof root.addEventListener === "function") root.addEventListener("popstate", onPopState);
+      } catch (error) {
+        // No window events (Node, a worker): the router still works, it just writes no history.
+      }
+    }
+    listenToHistory();
 
     bus.on("language:changed", () => {
       if (currentId && screens.has(currentId)) applyTitle(screens.get(currentId));
     });
 
-    return { register, show, current, back };
+    return { register, show, current, back, pushSub, replaceSub, popSub, subDepth, onPopState };
   }
 
   const router = createRouter();

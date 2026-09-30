@@ -1,0 +1,28 @@
+Chess piece set "cburnett" (the twelve SVG files in this directory)
+
+Author:     Colin M.L. Burnett (Wikimedia Commons user "Cburnett")
+Original:   https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces
+            (for example https://commons.wikimedia.org/wiki/File:Chess_klt45.svg, uploaded 2006-12-27)
+
+The author publishes this set under several licences at the redistributor's
+choice: GNU Free Documentation License 1.2 or later, Creative Commons
+Attribution-ShareAlike 3.0, the 3-clause BSD licence, and the GNU General Public
+License version 2 or later.
+
+Ludus Scaccorum redistributes these files, unmodified, under the
+
+    GNU General Public License, version 2 or (at your option) any later version,
+
+and, through that "or later" clause, under version 3 or later of the GPL, which
+is the licence of Ludus Scaccorum itself. The licence text is the file LICENSE
+at the root of this site and of the project's repository
+(https://www.gnu.org/licenses/gpl-3.0.html).
+
+These files are distributed in the hope that they will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+The SVG files are their own corresponding source.
+
+Credit: Chess pieces by Colin M.L. Burnett (Cburnett), GPL v2 or later, via
+Wikimedia Commons.

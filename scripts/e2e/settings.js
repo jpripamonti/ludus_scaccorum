@@ -197,6 +197,8 @@ async function appliesFlow(browser) {
   step("text size, contrast and motion apply to the page at once");
 
   // untimed clock on the real play screen, the theme on the real board
+  // (the very first session of a profile is untimed whatever Settings say, so the first-run flag is set: this checks the setting)
+  await page.evaluate(() => Ludus.storage.set("ludus.firstRun.v1", 1));
   await clickTile(page, "clock.mode", "untimed");
   await clickTile(page, "board.theme", "ocean");
   await page.evaluate(async () => {
@@ -409,12 +411,22 @@ async function resetFlow(browser) {
   assert.strictEqual(await valueOf(page, "board.theme"), "walnut");
   assert.strictEqual(await valueOf(page, "board.animation"), "auto");
   assert.strictEqual(await valueOf(page, "scoring.model"), "tiers", "the other section is untouched");
-  const toast = page.locator(".toast").filter({ hasText: "back to its original values" });
-  await toast.waitFor();
-  await toast.locator(".toast-action").click();
+  // QA A11Y-005: the Undo is a notice under the section heading (no timed toast): it is the very next Tab stop after Reset, it is still there
+  // long after the old five seconds, and using it or closing it gives the focus back to Reset.
+  const notice = page.locator('section[data-section="board"] .settings-undo');
+  await notice.waitFor();
+  assert.strictEqual(await page.locator(".toast").count(), 0, "no toast");
+  assert.match(await notice.innerText(), /back to its original values/);
+  await page.keyboard.press("Tab");
+  assert.strictEqual(await page.evaluate(() => document.activeElement && document.activeElement.getAttribute("data-action")), "undo", "Undo is the next Tab stop");
+  await settle(page, 6500);
+  assert.strictEqual(await notice.count(), 1, "still there after the old toast would be gone");
+  await page.keyboard.press("Enter");
   assert.strictEqual(await valueOf(page, "board.theme"), "forest", "Undo brings the values back");
   assert.strictEqual(await valueOf(page, "board.animation"), "off");
-  step("reset section with undo");
+  assert.strictEqual(await notice.count(), 0, "using it closes the notice");
+  assert.ok(await page.evaluate(() => document.activeElement && document.activeElement.classList.contains("settings-reset")), "focus is back on Reset");
+  step("reset section with a keyboard-reachable, persistent undo");
   await resetBtn("board").click();
   await settle(page, 200);
   await page.locator("#settings-reset-all").click();

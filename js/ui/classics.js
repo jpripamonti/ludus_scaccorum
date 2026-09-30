@@ -78,7 +78,7 @@
     es: {
       "classics.title": "Partidas clásicas",
       "classics.eyebrow": "Aprendé de los maestros",
-      "classics.sub": "Jugá las posiciones clave de las grandes partidas de la historia. Te puntuamos según qué tan cerca estés de la mejor jugada del motor y después te mostramos qué jugó el maestro.",
+      "classics.sub": "Jugá las posiciones clave de las grandes partidas de la historia. Te puntuamos según cuánto te acerques a la mejor jugada del motor y después te mostramos qué jugó el maestro.",
       "classics.stat.games": "partidas",
       "classics.stat.games.one": "partida",
       "classics.stat.positions": "posiciones de entrenamiento",
@@ -117,7 +117,7 @@
       "classics.daily.eyebrow": "Desafío diario",
       "classics.daily.title.pending": "La posición de hoy",
       "classics.daily.title.done": "¡Desafío de hoy completado!",
-      "classics.daily.body.pending": "Una posición por día, siempre distinta. Encontrá la mejor jugada.",
+      "classics.daily.body.pending": "Una posición por día, sin repetirse durante meses. Encontrá la mejor jugada.",
       "classics.daily.body.done": "Tu precisión fue {accuracy}%. Volvé mañana: hay una posición nueva.",
       "classics.daily.turn": "Juegan las {side}",
       "classics.daily.streak": "Racha: {n} días",
@@ -177,9 +177,9 @@
       "classics.card.moves": "{n} jugadas",
       "classics.card.practised": "{played} de {total} practicadas",
       "classics.progress.label": "Practicadas: {played} de {total}",
-      "classics.progress.detail": "Ya practicaste {played} de {total} posiciones de esta partida y superaste {passed}. Precisión media de tu mejor intento: {accuracy} %.",
-      "classics.progress.detail.one": "Ya practicaste 1 de {total} posiciones de esta partida y {passed} superada. Precisión de tu mejor intento: {accuracy} %.",
-      "classics.progress.done": "¡Practicaste todas las posiciones de esta partida! Precisión media de tu mejor intento: {accuracy} %.",
+      "classics.progress.detail": "Ya practicaste {played} de {total} posiciones de esta partida y superaste {passed}. Precisión media de tu mejor intento: {accuracy}%.",
+      "classics.progress.detail.one": "Ya practicaste 1 de {total} posiciones de esta partida y {passed} superada. Precisión de tu mejor intento: {accuracy}%.",
+      "classics.progress.done": "¡Practicaste todas las posiciones de esta partida! Precisión media de tu mejor intento: {accuracy}%.",
 
       "classics.detail.back": "Todas las partidas",
       "classics.detail.result.w": "Ganan las blancas",
@@ -229,7 +229,7 @@
       "classics.player.protagonist": "Entrenás con este bando",
 
       "classics.train.title": "Entrenar esta partida",
-      "classics.train.how": "{playing}: en cada posición elegís tu jugada, te puntuamos según qué tan cerca estés de la mejor jugada del motor y después te mostramos qué jugó el maestro.",
+      "classics.train.how": "{playing}: en cada posición elegís tu jugada, te puntuamos según cuánto te acerques a la mejor jugada del motor y después te mostramos qué jugó el maestro.",
       "classics.train.count": "Cantidad de posiciones",
       "classics.train.all": "Todas ({n})",
       "classics.train.hints": "Pistas",
@@ -294,7 +294,7 @@
       "classics.daily.eyebrow": "Daily challenge",
       "classics.daily.title.pending": "Today's position",
       "classics.daily.title.done": "Today's challenge is complete!",
-      "classics.daily.body.pending": "One position a day, always different. Find the best move.",
+      "classics.daily.body.pending": "One position a day, with no repeats for months. Find the best move.",
       "classics.daily.body.done": "Your accuracy was {accuracy}%. Come back tomorrow: there is a new position.",
       "classics.daily.turn": "{side} to move",
       "classics.daily.streak": "Streak: {n} days",
@@ -767,21 +767,32 @@
     "Anatoly Karpov": "Anatoli Kárpov",
   };
 
-  // The display forms of the raw PGN tags come from the classics data (`Ludus.ClassicsData.names` / `.events`: { "<raw tag>": { es, en } },
-  // docs/CLASSICS_DATA.md), so every screen spells a person and an event one way per language. The local tables below only serve when
-  // the data has not been loaded yet (the coach card and the notebook can draw a stored round before the classics screen was opened).
-  function dataForm(table, raw, language) {
+  // The display forms of the raw PGN tags come from the classics data (Ludus.Classics.displayName / displayEvent over the `names` and
+  // `events` tables of notes.json, docs/CLASSICS_DATA.md), so every screen spells a person and an event one way per language. The local
+  // tables below only serve while the data has not been loaded (the coach card and the notebook can draw a stored round before the
+  // classics screen was opened); a test keeps them equal to the data.
+  function dataLoaded() {
     const data = L().ClassicsData;
-    const map = data && data[table];
-    const entry = map && typeof map === "object" && Object.prototype.hasOwnProperty.call(map, raw) ? map[raw] : null;
-    const text = entry && entry[language === "en" ? "en" : "es"];
-    return typeof text === "string" && text ? text : "";
+    return Boolean(data && Array.isArray(data.games) && data.games.length);
+  }
+
+  function dataForm(kind, raw, language) {
+    const Classics = L().Classics;
+    const fn = Classics && (kind === "names" ? Classics.displayName : Classics.displayEvent);
+    if (typeof fn !== "function" || !dataLoaded()) return null;
+    try {
+      const shown = fn.call(Classics, raw, language === "en" ? "en" : "es");
+      // Unchanged = the data has nothing to say (an old stored tag, somebody's own game): the local table may still know it.
+      return typeof shown === "string" && shown && shown !== raw ? shown : null;
+    } catch (error) {
+      return null;
+    }
   }
 
   function displayName(name, language) {
     const raw = String(name === undefined || name === null ? "" : name);
     const fromData = dataForm("names", raw, language);
-    if (fromData) return fromData;
+    if (fromData !== null) return fromData;
     if (language === "es" && NAME_FIX_ES[raw]) return NAME_FIX_ES[raw];
     return NAME_FIX[raw] || raw;
   }
@@ -793,22 +804,28 @@
     "Third Rosenwald Trophy": { es: "Tercer Trofeo Rosenwald", en: "Third Rosenwald Trophy" },
     "18th RSFSR Championship": { es: "18.º Campeonato de la RSFSR", en: "18th RSFSR Championship" },
     "27th USSR Championship": { es: "27.º Campeonato de la URSS", en: "27th USSR Championship" },
-    "Candidates semifinal match": { es: "Semifinal del Torneo de Candidatos", en: "Candidates semifinal match" },
+    "Candidates semifinal match": { es: "Match de semifinales de Candidatos", en: "Candidates semifinal match" },
     "USSR vs Rest of the World": { es: "URSS contra el Resto del Mundo", en: "USSR vs Rest of the World" },
     "World Championship match": { es: "Match por el Campeonato Mundial", en: "World Championship match" },
     "IBM Man-Machine match": { es: "Match hombre contra máquina de IBM", en: "IBM Man-Machine match" },
-    "Lodz": { es: "Łódź", en: "Łódź" },
+    "Lodz": { es: "Torneo de Łódź", en: "Łódź tournament" },
     "Vienna": { es: "Torneo de Viena", en: "Vienna tournament" },
     "New York": { es: "Torneo de Nueva York", en: "New York tournament" },
     "Copenhagen": { es: "Torneo de Copenhague", en: "Copenhagen tournament" },
     "Amsterdam": { es: "Torneo de Ámsterdam", en: "Amsterdam tournament" },
     "Tal Memorial": { es: "Memorial Tal", en: "Tal Memorial" },
+    "AVRO": { es: "Torneo AVRO", en: "AVRO tournament" },
+    "Bled": { es: "Torneo de Bled", en: "Bled tournament" },
+    "Hastings": { es: "Torneo de Hastings", en: "Hastings tournament" },
+    "Hoogovens": { es: "Torneo Hoogovens", en: "Hoogovens tournament" },
+    "Interpolis": { es: "Torneo Interpolis", en: "Interpolis tournament" },
+    "Tata Steel": { es: "Torneo Tata Steel", en: "Tata Steel tournament" },
   };
 
   function eventLabel(event, language) {
     const raw = String(event === undefined || event === null ? "" : event);
     const fromData = dataForm("events", raw, language);
-    if (fromData) return fromData;
+    if (fromData !== null) return fromData;
     const entry = EVENT_TEXT[raw];
     return entry ? entry[language === "en" ? "en" : "es"] : raw;
   }
@@ -943,6 +960,33 @@
   function formatPly(entry) {
     if (!entry) return "";
     return `${entry.moveNumber}${entry.color === "w" ? "." : "..."} ${entry.san}`;
+  }
+
+  // What a person reads: the SAN through the notation setting (Ludus.chess.localizeSan: Spanish letters R D T A C when the page or the setting
+  // says so). The stored and replayed SAN stays English; only what is drawn or spoken goes through here. Unchanged without the helper.
+  function shownSan(san) {
+    const chess = L().chess;
+    if (!chess || typeof chess.localizeSan !== "function") return san;
+    try {
+      return chess.localizeSan(san, lang());
+    } catch (error) {
+      return san;
+    }
+  }
+
+  function showPly(entry) {
+    return entry ? `${entry.moveNumber}${entry.color === "w" ? "." : "..."} ${shownSan(entry.san)}` : "";
+  }
+
+  // Blurbs and notes quote moves ("24.Txd4!!"): they are re-spelled for the notation setting by the data module (Ludus.Classics.localizeQuotedMoves).
+  function quotedText(text) {
+    const Classics = L().Classics;
+    if (!text || !Classics || typeof Classics.localizeQuotedMoves !== "function") return text;
+    try {
+      return Classics.localizeQuotedMoves(text, lang());
+    } catch (error) {
+      return text;
+    }
   }
 
   // [{ no, white: ply | null, black: ply | null }] for the move list.
@@ -2113,7 +2157,7 @@
   }
 
   function noteText(entry) {
-    return entry && entry.note ? pickText(entry.note, lang()) : "";
+    return entry && entry.note ? quotedText(pickText(entry.note, lang())) : "";
   }
 
   function readingTime(text) {
@@ -2275,7 +2319,7 @@
     r.moveButtons = new Map();
     const cell = (entry) => {
       if (!entry) return h("span", { class: "classics-move-empty" });
-      const label = t("classics.replay.move.label", { no: entry.moveNumber, side: sideName(entry.color), san: entry.san })
+      const label = t("classics.replay.move.label", { no: entry.moveNumber, side: sideName(entry.color), san: shownSan(entry.san) })
         + (entry.training ? `, ${t("classics.replay.move.training")}` : "");
       const button = h("button", {
         type: "button",
@@ -2290,7 +2334,7 @@
           d.replay.goto(entry.ply + 1);
           updateReplay({ focusMove: true });
         },
-      }, h("span", { class: "classics-move-san" }, entry.san), entry.training ? h("span", { class: "classics-move-mark", "aria-hidden": "true" }) : null);
+      }, h("span", { class: "classics-move-san" }, shownSan(entry.san)), entry.training ? h("span", { class: "classics-move-mark", "aria-hidden": "true" }) : null);
       r.moveButtons.set(entry.ply, button);
       return button;
     };
@@ -2386,7 +2430,7 @@
       h("h2", { class: "classics-h3", id: "classics-about-title" }, t("classics.about.title")),
       h("div", { class: "classics-about-grid" },
         h("div", { class: "classics-about-text" },
-          h("p", { class: "classics-blurb" }, pickText(meta.blurb, language)),
+          h("p", { class: "classics-blurb" }, quotedText(pickText(meta.blurb, language))),
           h("div", { class: "classics-about-chips" },
             difficultyMark(meta.difficulty),
             ...themeChips(meta.themes, 8),
@@ -2557,7 +2601,7 @@
     if (model && d.board) {
       d.board.render({ fen: fenAt(model, snap.index), from: shown ? shown.from : null, to: shown ? shown.to : null, check: shown ? shown.check : null });
     }
-    const boardLabel = shown ? t("classics.replay.board", { move: formatPly(shown) }) : t("classics.replay.board.start");
+    const boardLabel = shown ? t("classics.replay.board", { move: showPly(shown) }) : t("classics.replay.board.start");
     const spoken = describeFen(fenAt(model, snap.index), t);
     r.stage.setAttribute("aria-label", spoken ? `${boardLabel}. ${spoken}` : boardLabel);
 
@@ -2624,7 +2668,7 @@
       let text;
       if (!shown) text = t("classics.replay.status.start");
       else {
-        text = t("classics.replay.status", { no: shown.moveNumber, side: sideName(shown.color), san: shown.san });
+        text = t("classics.replay.status", { no: shown.moveNumber, side: sideName(shown.color), san: shownSan(shown.san) });
         if (snap.atEnd) text += ` ${t("classics.replay.status.end", { result: resultText(meta.result) })}`;
       }
       r.live.textContent = text;
@@ -2642,7 +2686,7 @@
       r.now.appendChild(h("p", { class: "classics-now-hint" }, t("classics.replay.start.hint")));
     } else {
       r.now.appendChild(h("p", { class: "t-eyebrow" }, t(`classics.replay.turn.${shown.color}`, { n: shown.moveNumber })));
-      r.now.appendChild(h("p", { class: "classics-now-move" }, formatPly(shown)));
+      r.now.appendChild(h("p", { class: "classics-now-move" }, showPly(shown)));
     }
     if (note) {
       r.now.appendChild(h("div", { class: "classics-note" },
@@ -2952,6 +2996,8 @@
       plyAt,
       nextPlyAt,
       formatPly,
+      shownSan,
+      showPly,
       buildMoveRows,
       createReplayState,
       autoDelayMs,

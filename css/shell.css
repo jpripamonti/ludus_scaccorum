@@ -37,7 +37,10 @@
 /* ── Brand ── */
 .sh-brand {
   display: inline-flex;
-  flex: none;
+  /* Shrinks (and clips the wordmark) before it pushes the language switch off the screen: with the WCAG text-spacing
+     override the wordmark grows by half and the row used to be 11px wider than a phone. */
+  flex: 0 1 auto;
+  min-width: var(--hit);
   align-items: center;
   gap: 10px;
   min-height: var(--hit);
@@ -47,6 +50,7 @@
 }
 .sh-brand-mark {
   display: block;
+  flex: none;
   width: 36px;
   height: 36px;
   border-radius: 10px;
@@ -60,6 +64,10 @@
   line-height: 1;
   letter-spacing: 0.01em;
   white-space: nowrap;
+  /* The wordmark (not the link: its keyboard ring must not be clipped) gives way first. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sh-brand-word span { color: var(--color-gold); }
 
@@ -161,6 +169,7 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  min-width: var(--hit);
   min-height: var(--hit);
   max-width: 260px;
   padding: 4px 6px 4px 4px;
@@ -293,6 +302,39 @@
 .sh-more-label { flex: 1 1 auto; }
 .sh-more-go { display: inline-grid; color: var(--color-text-muted); }
 
+/* ── Storage warning: under the header on every screen but the landing and the play screen ──
+   (js/ui/shell.js paintStorageBanner; the region exists empty and is hidden until it has content). */
+.sh-banner-region:empty,
+body[data-shell="minimal"] .sh-banner-region,
+body[data-shell="off"] .sh-banner-region,
+body[data-screen="game"] .sh-banner-region { display: none; }
+.sh-banner-region { width: min(var(--page-max), calc(100% - 2 * var(--page-gutter))); margin: var(--space-3) auto 0; }
+.sh-banner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-dubious-bd);
+  border-left: 4px solid var(--color-dubious);
+  border-radius: var(--radius-lg);
+  background: var(--color-dubious-bg);
+  color: var(--color-text);
+}
+.sh-banner-icon { display: inline-flex; margin-top: 2px; color: var(--color-dubious); }
+.sh-banner-text { min-width: 0; }
+.sh-banner-title { margin: 0; font-size: var(--text-md); font-weight: 700; line-height: var(--lh-snug); }
+.sh-banner-body { margin: var(--space-1) 0 0; color: var(--color-text); font-size: var(--text-base); line-height: var(--lh-normal); text-wrap: pretty; }
+.sh-banner-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+@media (max-width: 719px) {
+  .sh-banner { grid-template-columns: auto minmax(0, 1fr); }
+  .sh-banner-actions { grid-column: 1 / -1; }
+  .sh-banner-actions .btn { flex: 1 1 auto; }
+}
+@media (forced-colors: active) {
+  .sh-banner { border-color: CanvasText; border-left-width: 6px; }
+}
+
 /* ── Tab bar (phones only) ── */
 .sh-tabbar { display: none; }
 
@@ -367,7 +409,9 @@
     min-height: var(--tabbar-h);
     padding: 6px 2px 5px;
     border-radius: 0;
-    font-size: var(--text-xs);
+    /* One step under --text-xs: five labels of a word each must fit a 320-390px bar, and "Cuaderno" / "Progreso" did
+       not at the 130% text size (they were cut to "Cuader..."). */
+    font-size: 0.6875rem;
     font-weight: 600;
   }
   .sh-tab::after { display: none; }
@@ -397,6 +441,23 @@
     font-size: 0.6875rem;
   }
   .sh-tab .sh-nav-label { overflow: hidden; max-width: 100%; text-overflow: ellipsis; }
+  /* The bar is its own container and its width is measured in rem (the root size follows the text-size setting): when the
+     five labels cannot fit at the reader's text size (under 19rem of content width: a 390px phone at 130% is 18.4rem, a 320px one at
+     100% is 19.5rem and keeps them) the bar shows the icons alone. The words stay in the accessible name (visually hidden, never display:none). */
+  .sh-tabbar { container: tabs / inline-size; }
+  @container tabs (max-width: 19rem) {
+    .sh-tab .sh-nav-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+    }
+    .sh-tab { justify-content: center; }
+  }
 
   body[data-shell="on"] { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-5)); }
   /* The fixed tab bar covers the bottom of the viewport: a control reached by Tab is scrolled ABOVE it, not under it

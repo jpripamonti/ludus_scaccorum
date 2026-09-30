@@ -548,13 +548,16 @@ body.playing-mode #landing-screen { display: none !important; }
     overflow: hidden;
     line-height: 1.15;
     text-overflow: clip;
+    text-wrap: balance;
     white-space: normal;
   }
 }
 @media (max-width: 340px) {
-  /* Nothing else can give: the ring goes, the time stays. */
+  /* Nothing else can give: the ring goes, the time stays, and the "/ 10" of the score is left to a screen reader (the points are
+     the number that matters; with text at 130% "Posición" would otherwise lose its last letter). */
   .co-clock-ring { display: none; }
   .co-clock { padding-left: 10px; }
+  .co-score-max { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 }
 
 /* ── Short phones (320x568, 375x667, 360x640): the page must not scroll and the panel must not be squeezed under the dock.
@@ -1428,6 +1431,9 @@ button.co-concept { min-height: 44px; }
   .co-play[data-view="summary"] #session-summary-result { grid-template-columns: minmax(340px, 0.9fr) minmax(0, 1.4fr); gap: var(--space-5); }
   .co-play[data-view="summary"] #session-summary-result.co-summary-duel { grid-template-columns: minmax(0, 1fr); }
   .co-play[data-view="summary"] .co-sum-positions { grid-column: 1 / -1; }
+  /* The achievements of a first session are six cards tall: two to a row, so the right column is about as tall as the left one. */
+  .co-play[data-view="summary"] .co-sum-rewards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); align-content: start; }
+  .co-play[data-view="summary"] .co-sum-rewards > :not(.co-achievement) { grid-column: 1 / -1; margin: 0; }
 }
 /* In a duel summary the scoreboard of the header would repeat the cards (and push the title out of the row): it is hidden. */
 .co-play[data-view="summary"][data-mode="duel"] .co-duel { display: none; }

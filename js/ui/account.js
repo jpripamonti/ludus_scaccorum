@@ -91,6 +91,7 @@
 
       "account.profiles.title": "Perfiles de este dispositivo",
       "account.profiles.lead": "Dos personas pueden compartir este dispositivo: cada perfil guarda su propio progreso, nivel y cuaderno. En un Duelo, cada jugador elige su perfil.",
+      "account.profiles.private": "Los perfiles ordenan el progreso de cada persona, pero no lo protegen: quien use este dispositivo puede abrir cualquier perfil y descargar sus datos.",
       "account.profiles.count": "{n} de {max} perfiles",
       "account.profiles.list": "Perfiles",
       "account.profile.active": "Activo",
@@ -144,7 +145,7 @@
       "account.storage.aria": "Espacio de almacenamiento usado por Ludus Scaccorum",
       "account.storage.unavailable": "El almacenamiento del navegador no está disponible (por ejemplo, en una ventana privada): el progreso no se puede guardar.",
       "account.export.title": "Descargar tu progreso",
-      "account.export.hint": "El archivo lleva tus jugadas, sesiones, cuaderno y logros. No incluye tu cuenta de Google ni nada más.",
+      "account.export.hint": "El archivo lleva tus jugadas, sesiones, cuaderno y logros. De las partidas que analizaste con tus cuentas de Lichess o Chess.com guarda también los nombres de los jugadores (el tuyo y el de tu rival) y el enlace a cada partida; pensalo antes de compartirlo. No incluye tu cuenta de Google.",
       "account.export.active": "Descargar el perfil de {name}",
       "account.export.all": "Descargar todos los perfiles",
       "account.export.done": "Descargamos {file}.",
@@ -196,6 +197,21 @@
       "account.sync.signout": "Cerrar sesión",
       "account.sync.revoke": "Cerrar sesión y revocar el acceso",
       "account.sync.revoke.hint": "Quita el permiso de Drive: la próxima vez Google vuelve a pedirlo.",
+      "account.link.title": "Elegí qué perfil guardar en tu Drive",
+      "account.link.lead": "Todavía no se guardó nada en tu Drive. Solo el perfil que elijas se sube, y solo ese se baja en tus otros dispositivos: los demás perfiles de este dispositivo se quedan acá.",
+      "account.link.choose": "Perfil para tu Drive",
+      "account.link.option.meta": "{positions} · {level}",
+      "account.link.save": "Guardar este perfil en mi Drive",
+      "account.link.save.aria": "Guardar el perfil de {name} en mi Drive",
+      "account.link.import": "Traer mi progreso de Drive a este dispositivo",
+      "account.link.import.hint": "Si ya sincronizaste antes en otro dispositivo: lo baja y no sube nada.",
+      "account.link.working": "Un momento…",
+      "account.link.imported": "Listo: trajimos tu progreso desde Drive.",
+      "account.link.empty": "Tu Drive todavía no tiene progreso guardado. Elegí un perfil para empezar.",
+      "account.link.synced": "Sincronizás el perfil de {name}. Los demás perfiles de este dispositivo no se suben.",
+      "account.link.unlink": "Dejar de sincronizar este perfil",
+      "account.link.unlink.aria": "Dejar de sincronizar el perfil de {name}",
+      "account.link.unlinked": "Listo: {name} ya no se sincroniza. Su copia en Drive y su progreso en este dispositivo siguen como estaban.",
       "account.sync.as": "Conectado como {name}",
       "account.sync.remembered": "Iniciaste sesión como {name} en este dispositivo. Reconectá para seguir sincronizando.",
       "account.sync.last": "Última sincronización: {when}",
@@ -207,11 +223,11 @@
       "account.sync.signedOut": "Sin sesión",
       "account.sync.storedTitle": "Qué se guarda y dónde",
       "account.sync.stored.device": "En este dispositivo: tus perfiles, tu progreso y tus ajustes, en el almacenamiento del navegador.",
-      "account.sync.stored.drive": "En tu Google Drive: un solo archivo oculto (ludus-progress-v1.json) en la carpeta privada de esta app. Solo esta app puede verlo y no aparece entre tus archivos.",
+      "account.sync.stored.drive": "En tu Google Drive: un solo archivo oculto (ludus-progress-v1.json) en la carpeta privada de esta app, con el progreso del perfil que elijas. Solo esta app puede verlo y no aparece entre tus archivos. Si analizaste partidas de tus cuentas de Lichess o Chess.com, el archivo incluye los nombres de los jugadores (también los de tus rivales) y los enlaces a esas partidas.",
       "account.sync.stored.nothing": "No se envía nada más a ningún lado: no hay servidor de Ludus Scaccorum, y el permiso de acceso vive solo en la memoria de esta pestaña.",
       "account.sync.stored.merge": "La sincronización une el progreso de tus dispositivos: borrar algo en uno no lo borra en los otros.",
       "account.sync.off.title": "Sincronización con Google",
-      "account.sync.off.body": "La sincronización entre dispositivos con Google todavía no está activada en este sitio. Mientras tanto, exportar e importar un archivo lleva tu progreso de un dispositivo a otro.",
+      "account.sync.off.body": "La sincronización con Google no está disponible en esta versión. Mientras tanto, descargar tu progreso y cargarlo en el otro dispositivo (en «Tus datos», más arriba) lo lleva de un lado al otro.",
       "account.sync.off.owner": "¿Administrás este sitio? Los pasos para activarla están en docs/GOOGLE_SIGNIN.md del repositorio.",
       "account.sync.off.link": "Abrir la guía de configuración",
 
@@ -232,7 +248,7 @@
       "account.about.engine": "Motor de análisis",
       "account.about.engine.value": "Stockfish 18 (GPL-3.0), que corre en tu navegador con WebAssembly.",
       "account.about.credits": "Créditos",
-      "account.about.credits.pieces": "Piezas de Colin M. L. Burnett (cburnett), disponibles bajo GPL-2.0 o posterior, entre otras licencias.",
+      "account.about.credits.pieces": "Piezas de ajedrez de Colin M. L. Burnett (cburnett), usadas bajo la licencia GPL, versión 2 o posterior: la opción que elegimos entre las que ofrece su autor (también las publica como CC BY-SA 3.0, GFDL y BSD).",
       "account.about.credits.fonts": "Tipografías Inter y Cormorant, con licencia SIL Open Font.",
       "account.about.links": "Más información",
       "account.about.notices": "Avisos de terceros",
@@ -272,6 +288,7 @@
 
       "account.profiles.title": "Profiles on this device",
       "account.profiles.lead": "Two people can share this device: each profile keeps its own progress, level and notebook. In a Duel, each player picks their own profile.",
+      "account.profiles.private": "Profiles keep each person's progress apart, but they do not protect it: anyone using this device can open any profile and download its data.",
       "account.profiles.count": "{n} of {max} profiles",
       "account.profiles.list": "Profiles",
       "account.profile.active": "Active",
@@ -325,7 +342,7 @@
       "account.storage.aria": "Storage space used by Ludus Scaccorum",
       "account.storage.unavailable": "Browser storage is not available (for example in a private window): progress cannot be saved.",
       "account.export.title": "Download your progress",
-      "account.export.hint": "The file holds your moves, sessions, notebook and achievements. It does not include your Google account or anything else.",
+      "account.export.hint": "The file holds your moves, sessions, notebook and achievements. For the games you analysed from your Lichess or Chess.com accounts it also keeps the players' usernames (yours and your opponent's) and a link to each game, so think before sharing it. It does not include your Google account.",
       "account.export.active": "Download {name}'s profile",
       "account.export.all": "Download all profiles",
       "account.export.done": "Downloaded {file}.",
@@ -377,6 +394,21 @@
       "account.sync.signout": "Sign out",
       "account.sync.revoke": "Sign out and revoke access",
       "account.sync.revoke.hint": "Removes the Drive permission: Google asks for it again next time.",
+      "account.link.title": "Choose which profile to save to your Drive",
+      "account.link.lead": "Nothing has been saved to your Drive yet. Only the profile you choose is uploaded, and only that one comes down on your other devices: the other profiles on this device stay here.",
+      "account.link.choose": "Profile for your Drive",
+      "account.link.option.meta": "{positions} · {level}",
+      "account.link.save": "Save this profile to my Drive",
+      "account.link.save.aria": "Save {name}'s profile to my Drive",
+      "account.link.import": "Bring my Drive progress to this device",
+      "account.link.import.hint": "If you already synced on another device: it downloads and uploads nothing.",
+      "account.link.working": "One moment…",
+      "account.link.imported": "Done: your progress came down from Drive.",
+      "account.link.empty": "Your Drive has no saved progress yet. Choose a profile to start.",
+      "account.link.synced": "You are syncing {name}'s profile. The other profiles on this device are not uploaded.",
+      "account.link.unlink": "Stop syncing this profile",
+      "account.link.unlink.aria": "Stop syncing {name}'s profile",
+      "account.link.unlinked": "Done: {name} is no longer synced. Its copy on Drive and its progress on this device stay as they were.",
       "account.sync.as": "Signed in as {name}",
       "account.sync.remembered": "You signed in as {name} on this device. Reconnect to keep syncing.",
       "account.sync.last": "Last sync: {when}",
@@ -388,11 +420,11 @@
       "account.sync.signedOut": "Signed out",
       "account.sync.storedTitle": "What is stored, and where",
       "account.sync.stored.device": "On this device: your profiles, progress and settings, in the browser's storage.",
-      "account.sync.stored.drive": "In your Google Drive: a single hidden file (ludus-progress-v1.json) in this app's private folder. Only this app can see it and it does not show among your files.",
+      "account.sync.stored.drive": "In your Google Drive: a single hidden file (ludus-progress-v1.json) in this app's private folder, with the progress of the profile you choose. Only this app can see it and it does not show among your files. If you analysed games from your Lichess or Chess.com accounts, the file includes the players' usernames (your opponents' too) and links to those games.",
       "account.sync.stored.nothing": "Nothing else is sent anywhere: there is no Ludus Scaccorum server, and the access permission lives only in this tab's memory.",
       "account.sync.stored.merge": "Sync joins the progress of your devices: deleting something on one does not delete it on the others.",
       "account.sync.off.title": "Sync with Google",
-      "account.sync.off.body": "Cross-device sync with Google is not enabled on this site yet. Meanwhile, exporting and importing a file moves your progress from one device to another.",
+      "account.sync.off.body": "Sync with Google is not available in this version. Meanwhile, downloading your progress and loading it on the other device (under “Your data”, above) moves it from one to the other.",
       "account.sync.off.owner": "Do you run this site? The steps to turn it on are in docs/GOOGLE_SIGNIN.md in the repository.",
       "account.sync.off.link": "Open the setup guide",
 
@@ -413,7 +445,7 @@
       "account.about.engine": "Analysis engine",
       "account.about.engine.value": "Stockfish 18 (GPL-3.0), running in your browser with WebAssembly.",
       "account.about.credits": "Credits",
-      "account.about.credits.pieces": "Chess pieces by Colin M. L. Burnett (cburnett), available under GPL-2.0 or later, among other licences.",
+      "account.about.credits.pieces": "Chess pieces by Colin M. L. Burnett (cburnett), used under the GPL, version 2 or later: the option we chose among those their author offers (he also publishes them as CC BY-SA 3.0, GFDL and BSD).",
       "account.about.credits.fonts": "Inter and Cormorant typefaces, under the SIL Open Font License.",
       "account.about.links": "More information",
       "account.about.notices": "Third-party notices",
@@ -639,9 +671,13 @@
       tone,
       remembered: status === "signed_out" && reconnect,
       showSignIn: !user && status !== "signing_in",
-      canSync: Boolean(user) && !reconnect && !busy,
+      canSync: Boolean(user) && !reconnect && !busy && s.linkRequired !== true,
       canReconnect: reconnect && !busy,
       canSignOut: Boolean(user),
+      // Which local profile goes to this Drive is the person's explicit choice (QA SEC-005): a first sign-in links and uploads
+      // nothing. `linked` is [{ id, name }] (an Auth without the link step gives none and never asks).
+      linkRequired: Boolean(user) && s.linkRequired === true,
+      linked: Array.isArray(s.linkedProfiles) ? s.linkedProfiles.filter((item) => item && typeof item.id === "string") : [],
     };
   }
 
@@ -787,7 +823,9 @@
     installEl: null,
     aboutEl: null,
     importState: null, // { fileName, text, summary }
-    messages: { data: null, install: null },
+    messages: { data: null, install: null, link: null },
+    linkChoice: "", // the profile picked in the "which profile goes to your Drive" step
+    linkBusy: false,
     refocus: null,
   };
 
@@ -917,6 +955,8 @@
     }
     holder.appendChild(list);
     if (rows.length >= max) holder.appendChild(h("p", { class: "account-note" }, t("account.profile.full", { max })));
+    // Nothing separates two profiles on one device: say so plainly (QA UX-023).
+    holder.appendChild(h("p", { class: "account-note account-profiles-private" }, icon("info", { size: 16 }), h("span", null, t("account.profiles.private"))));
     const home = L().Screens && L().Screens.home;
     const duel = home && typeof home.openDuelSetup === "function"
       ? button(t("account.profile.duel"), { kind: "secondary", size: "sm", icon: "swords", onClick: () => {
@@ -952,6 +992,23 @@
     return list.length ? list.slice() : ["#2f6f4f", "#8a4b2a", "#2b5f8a", "#7a3b8f"];
   }
 
+  // The swatches are named by colour, not "Colour 3" (QA A11Y-026); a colour the list does not know keeps its number.
+  const COLOR_NAMES = {
+    "#2f6f4f": { es: "Verde", en: "Green" },
+    "#8a4b2a": { es: "Marrón", en: "Brown" },
+    "#2b5f8a": { es: "Azul", en: "Blue" },
+    "#7a3b8f": { es: "Violeta", en: "Purple" },
+    "#b3541e": { es: "Naranja", en: "Orange" },
+    "#1f7a7a": { es: "Turquesa", en: "Teal" },
+    "#8a2f45": { es: "Bordó", en: "Burgundy" },
+    "#5a6b1f": { es: "Oliva", en: "Olive" },
+  };
+
+  function colorLabel(value, index) {
+    const entry = COLOR_NAMES[String(value).toLowerCase()];
+    return entry ? entry[lang() === "en" ? "en" : "es"] : t("account.create.color.aria", { n: index + 1 });
+  }
+
   const NAME_MAX = 24; // the same limit Profile enforces
 
   function nameField(initial, id, errorId) {
@@ -977,7 +1034,7 @@
     const groupName = nextId("account-color");
     const swatches = palette.map((value, index) => {
       const radio = h("input", {
-        type: "radio", class: "account-swatch-input", name: groupName, value, "aria-label": t("account.create.color.aria", { n: index + 1 }),
+        type: "radio", class: "account-swatch-input", name: groupName, value, "aria-label": colorLabel(value, index),
         onchange: () => {
           color = value;
         },
@@ -1591,6 +1648,119 @@
         user && user.email ? h("p", { class: "account-user-email" }, String(user.email)) : null));
   }
 
+  // ----- which profile goes to the Drive (QA SEC-005 / SEC-006) -----
+
+  function authResultMessage(result) {
+    return result && result.error ? errorMessage(result.error) : errorMessage("unknown");
+  }
+
+  function doLink(profileId, name) {
+    const auth = authApi();
+    if (!auth || typeof auth.linkProfile !== "function" || state.linkBusy) return;
+    state.linkBusy = true;
+    state.messages.link = { kind: "info", text: t("account.link.working") };
+    state.refocus = "[data-action=\"link-save\"]";
+    paintSync();
+    Promise.resolve(auth.linkProfile(profileId)).then((result) => {
+      state.messages.link = result && result.ok ? null : { kind: "error", text: authResultMessage(result) };
+      // A link that was made but could not sync yet (the session has to reconnect) is not an error of the choice: Auth says so in its own state.
+      if (result && !result.ok && result.linked) state.messages.link = null;
+    }).catch((error) => {
+      logError("[Ludus.Screens.account] linking the profile failed", error);
+      state.messages.link = { kind: "error", text: errorMessage("unknown") };
+    }).then(() => {
+      state.linkBusy = false;
+      if (state.visible) paintSync();
+    });
+  }
+
+  function doImportFromDrive() {
+    const auth = authApi();
+    if (!auth || typeof auth.importFromDrive !== "function" || state.linkBusy) return;
+    state.linkBusy = true;
+    state.messages.link = { kind: "info", text: t("account.link.working") };
+    state.refocus = "[data-action=\"link-import\"]";
+    paintSync();
+    Promise.resolve(auth.importFromDrive()).then((result) => {
+      if (result && result.ok) state.messages.link = { kind: "ok", text: result.empty ? t("account.link.empty") : t("account.link.imported") };
+      else state.messages.link = { kind: "error", text: authResultMessage(result) };
+    }).catch((error) => {
+      logError("[Ludus.Screens.account] importing from Drive failed", error);
+      state.messages.link = { kind: "error", text: errorMessage("unknown") };
+    }).then(() => {
+      state.linkBusy = false;
+      if (state.visible) paintSync();
+    });
+  }
+
+  function doUnlink(row) {
+    const auth = authApi();
+    if (!auth || typeof auth.unlinkProfile !== "function") return;
+    let result = null;
+    try {
+      result = auth.unlinkProfile(row.id);
+    } catch (error) {
+      logError("[Ludus.Screens.account] unlinking failed", error);
+    }
+    state.messages.link = result && result.ok ? { kind: "ok", text: t("account.link.unlinked", { name: row.name }) } : { kind: "error", text: authResultMessage(result) };
+    state.refocus = "[data-msg=\"link\"]";
+    paintSync();
+  }
+
+  function linkMessage() {
+    const host = h("div", { class: "account-msg-host", "data-msg": "link", role: "status", "aria-live": "polite", tabindex: "-1" });
+    paintMessage(host, state.messages.link);
+    return host;
+  }
+
+  // First sign-in: pick the profile that will be saved to the Drive, or bring the Drive's progress here. Nothing has been uploaded yet.
+  function linkPanel() {
+    const rows = profileRows();
+    if (!rows.length) return null;
+    if (!rows.some((row) => row.id === state.linkChoice)) state.linkChoice = (rows.find((row) => row.active) || rows[0]).id;
+    const groupName = nextId("account-link");
+    const options = rows.map((row) => {
+      const radio = h("input", {
+        type: "radio", class: "account-link-radio", name: groupName, value: row.id, "data-profile-id": row.id,
+        onchange: () => { state.linkChoice = row.id; },
+      });
+      if (row.id === state.linkChoice) {
+        radio.checked = true;
+        radio.setAttribute("checked", "");
+      }
+      const positions = row.positions ? tCount("account.profile.positions", row.positions) : t("account.profile.positions.none");
+      return h("label", { class: "account-link-option" }, radio,
+        h("span", { class: "account-link-text" },
+          h("span", { class: "account-link-name" }, row.name),
+          h("span", { class: "account-link-meta" }, row.level && row.level.title ? t("account.link.option.meta", { positions, level: row.level.title }) : positions)));
+    });
+    const chosen = () => rows.find((row) => row.id === state.linkChoice) || rows[0];
+    const save = button(t("account.link.save"), {
+      kind: "primary", icon: "cloud", dataset: { action: "link-save" }, busy: state.linkBusy, disabled: state.linkBusy,
+      onClick: () => { const row = chosen(); doLink(row.id, row.name); },
+    });
+    const importButton = button(t("account.link.import"), { kind: "secondary", icon: "download", dataset: { action: "link-import" }, disabled: state.linkBusy, onClick: doImportFromDrive });
+    return h("div", { class: "account-link", "data-link": "required" },
+      h("h3", { class: "account-h3" }, t("account.link.title")),
+      h("p", { class: "account-note" }, t("account.link.lead")),
+      h("fieldset", { class: "account-fieldset account-link-fieldset" },
+        h("legend", { class: "sr-only" }, t("account.link.choose")),
+        h("div", { class: "account-link-options", role: "radiogroup", "aria-label": t("account.link.choose") }, options)),
+      h("div", { class: "account-actions" }, save, importButton),
+      h("p", { class: "account-note" }, t("account.link.import.hint")));
+  }
+
+  // After the choice: which profile is synced, and a way to stop.
+  function linkedNote(model) {
+    const row = model.linked[0];
+    return h("div", { class: "account-link", "data-link": "done" },
+      h("p", { class: "account-note account-link-synced" }, icon("check", { size: 16 }), h("span", null, t("account.link.synced", { name: row.name }))),
+      button(t("account.link.unlink"), {
+        kind: "ghost", size: "sm", ariaLabel: t("account.link.unlink.aria", { name: row.name }), dataset: { action: "unlink", id: row.id },
+        onClick: () => doUnlink(row),
+      }));
+  }
+
   function storedList() {
     return h("div", { class: "account-stored" },
       h("h3", { class: "account-h3" }, t("account.sync.storedTitle")),
@@ -1620,9 +1790,22 @@
         model.lastSyncAt ? t("account.sync.last", { when: formatAgo(model.lastSyncAt, Date.now(), lang()) }) : t("account.sync.never")));
     }
 
+    // Choosing what goes to the Drive comes before any sync (QA SEC-005): only for a signed-in account whose session is alive.
+    if (model.user && !model.remembered && !model.busy) {
+      if (model.linkRequired) {
+        const panel = linkPanel();
+        if (panel) parts.push(panel);
+      } else if (model.linked.length) {
+        parts.push(linkedNote(model));
+      }
+    }
+    if (model.user) parts.push(linkMessage());
+
     const actions = h("div", { class: "account-actions" });
     if (model.showSignIn) {
       const signIn = button(t("account.sync.signin"), { kind: "primary", icon: "cloud", dataset: { action: "signin" }, onClick: doSignIn });
+      // Google's script is only requested once the person presses the button (pointerdown is the start of that press): never on hover or
+      // focus, which would tell Google about a visit that nobody chose (QA SEC-009; docs/GOOGLE_SIGNIN.md).
       const preload = () => {
         try {
           if (auth && typeof auth.preload === "function") auth.preload();
@@ -1630,8 +1813,7 @@
           // the click still loads it
         }
       };
-      signIn.addEventListener("pointerenter", preload);
-      signIn.addEventListener("focus", preload);
+      signIn.addEventListener("pointerdown", preload);
       actions.appendChild(signIn);
     } else if (model.status === "signing_in") {
       actions.appendChild(button(t("account.sync.connecting"), { kind: "primary", busy: true, dataset: { action: "signin" }, onClick: () => {} }));
@@ -1654,6 +1836,16 @@
     return h("div", { class: "account-sync-body" }, parts);
   }
 
+  function isOwnerContext() {
+    try {
+      const loc = root.location || {};
+      const host = String(loc.hostname || "");
+      return host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "::1" || /[?&]debug(=|&|$)/.test(String(loc.search || ""));
+    } catch (error) {
+      return false;
+    }
+  }
+
   function buildSync() {
     if (!authConfigured()) {
       return h("section", { class: "card card-flat account-card account-sync-off", "aria-labelledby": "account-sync-off-title", "data-card": "sync-off" },
@@ -1662,8 +1854,9 @@
           h("div", { class: "account-card-titles" },
             h("h2", { class: "account-h2", id: "account-sync-off-title", tabindex: "-1" }, t("account.sync.off.title")),
             h("p", { class: "account-lead" }, t("account.sync.off.body")))),
-        h("p", { class: "account-note" }, t("account.sync.off.owner")),
-        externalLink(`${REPO_BLOB}/docs/GOOGLE_SIGNIN.md`, t("account.sync.off.link")));
+        // The site-owner instructions are noise for a player: they show on localhost or with ?debug (QA UX-030).
+        isOwnerContext() ? h("p", { class: "account-note" }, t("account.sync.off.owner")) : null,
+        isOwnerContext() ? externalLink(`${REPO_BLOB}/docs/GOOGLE_SIGNIN.md`, t("account.sync.off.link")) : null);
     }
     return card(t("account.sync.title"), t("account.sync.lead"), buildSyncBody(), { id: "sync", icon: "cloud", className: "account-sync" });
   }

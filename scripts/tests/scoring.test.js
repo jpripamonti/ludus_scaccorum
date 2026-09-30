@@ -753,6 +753,18 @@ test("brilliant needs isSacrifice and a best move; great needs best and an only 
   const unordered = assess({ lines: [{ uci: "e2e4", score: 0 }, { uci: "a2a3", score: -400 }, { uci: "d2d4", score: -10 }], userUci: "e2e4" });
   assert.strictEqual(unordered.onlyMove, false);
   assert.strictEqual(CONSTANTS.ONLY_MOVE_GAP_PCT, 12);
+  // CNT-004: "only move" means every other line is materially worse. The only MATING move is not an only move when a
+  // runner-up keeps +8.94 (Larsen-Spassky 1970: gap 3.3%, and "the others were clearly worse" was false) ...
+  const mateBest = (second) => assess({ lines: [{ uci: "e2e4", score: mate(5) }, { uci: "d2d4", score: second }, { uci: "g1f3", score: 100 }], userUci: "e2e4" });
+  assert.strictEqual(mateBest(894).onlyMove, false, "a runner-up at +8.94 is not materially worse than a mate");
+  assert.strictEqual(mateBest(894).qualityCode, "perfect", "so it is perfect, not great");
+  // ... but it is one when the runner-up is clearly worse (+3.00 is 24.8% below a mate).
+  assert.strictEqual(mateBest(300).onlyMove, true);
+  assert.strictEqual(mateBest(300).qualityCode, "great");
+  // The gap is the distance to the BEST OTHER line, in win%: +5.00 against +2.00 is an only move (18.6%) although the runner-up still wins.
+  const winning = assess({ lines: [{ uci: "e2e4", score: 500 }, { uci: "d2d4", score: 200 }], userUci: "e2e4" });
+  assert.strictEqual(winning.onlyMove, true);
+  assert.ok(winning.gapToSecondPct > 18 && winning.gapToSecondPct < 19);
 });
 
 // ---------- unknown moves ----------

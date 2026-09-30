@@ -83,12 +83,18 @@
 //   two terms.
 //
 //   Sacrifice. The move is not checkmate, the moved piece is not the king and
-//   the settled material of its line (or of the reply to it, without a line)
-//   falls at least 2 units below the start at some ply within the first six
-//   (a minor piece for a pawn, an exchange, a queen for a mating attack, ...).
-//   Giving up a single pawn is a gambit, not a sacrifice. It does not matter
-//   whether the material comes back: a sacrifice that is recouped is still
-//   one, and a capture that is simply recaptured never is.
+//   the settled material of its line sits at least 2 units below the start on
+//   two plies in a row (or at the end of the line, or right before a mate)
+//   within the first six plies, counted from the opponent's actual reply on
+//   (a minor piece for a pawn, an exchange, a queen for a mating attack, ...),
+//   while the line does not leave the mover worse than about -1.00 (a losing
+//   side giving things up is not sacrificing). Without a line only the settled
+//   reply to the move can be looked at. Giving up a single pawn is a gambit, not
+//   a sacrifice. It does not matter whether the material comes back: a sacrifice
+//   that is recouped is still one, and a capture that is simply recaptured never
+//   is. An offer the engine's best defence declines (17...Be6!!) is no sacrifice
+//   along its line; app.js also counts the master's move of a classic marked
+//   "sacrifice" by the data.
 //
 //   Phase. Total non-pawn material of both sides (N 3, B 3, R 5, Q 9; 62 at the
 //   start), how many pieces are left and the move number: endgame when that
@@ -119,8 +125,9 @@
 
   // Lower number = shown first. Tags that explain a concrete loss come first.
   const PRIORITY = {
-    allows_mate: 10, missed_mate: 12, hangs_piece: 20, loses_material: 22, missed_capture: 30,
-    fork_available: 32, pin_or_skewer: 34, discovered_attack: 36, back_rank: 38,
+    allows_mate: 10, missed_mate: 12, hangs_piece: 20, loses_material: 22,
+    // Among the tactics the pattern comes before the plain capture: it says WHY the capture wins.
+    fork_available: 28, pin_or_skewer: 29, discovered_attack: 31, missed_capture: 32, back_rank: 38,
     sacrifice_best: 40, missed_promotion: 42, tactic_available: 44, missed_check: 50, king_safety: 52,
     development: 54, open_file: 56, outpost: 57, trade_when_ahead: 58,
     endgame_technique: 60, quiet_best: 70, time_trouble: 80, solid: 90,
@@ -150,10 +157,11 @@
   const WIN_CLAIM = 1.5;
   const LOSS_CLAIM = 2;
   const SACRIFICE_MIN = 2;
+  const SACRIFICE_MIN_SCORE = 100; // centipawns: a "sacrifice" that leaves the mover worse than this is just a bad position
   const TRACE_PLIES = 8;
   const SACRIFICE_PLIES = 6;
   const QS_DEPTH = 6;
-  const QS_NODE_LIMIT = 40000; // per traceLine call
+  const QS_NODE_LIMIT = 6000; // per traceLine call (measured on 3,000 answers: median 156, largest 886)
 
   // ---------------------------------------------------------------------------
   // Strings (Spanish rioplatense "vos" + English)
@@ -215,8 +223,8 @@
       "insight.time_trouble.out": "Se acabó el tiempo antes de que movieras. Con el reloj en contra, mirá primero jaques, capturas y amenazas.",
       "insight.solid": "No es la primera opción del motor, pero {san} parece una alternativa sólida, casi igual de buena.",
       "insight.close": "{san} parece quedar cerca de {best}: la diferencia es chica, del orden del margen de error del motor.",
-      "insight.no_clear_reason": "El motor prefiere {best}, pero no encontramos un motivo sencillo: puede ser posicional o una táctica más profunda.",
-      "insight.no_clear_reason.big": "{best} era claramente mejor, pero no hallamos un motivo sencillo. Antes de mover, mirá las capturas, jaques y amenazas del rival.",
+      "insight.no_clear_reason": "El motor prefiere {best}, pero no aparece un motivo sencillo: puede ser posicional o una táctica más profunda.",
+      "insight.no_clear_reason.big": "{best} era claramente mejor, pero no aparece un motivo sencillo. Antes de mover, mirá las capturas, jaques y amenazas del rival.",
 
       "insight.tag.hangs_piece": "Pieza colgada",
       "insight.tag.missed_capture": "Captura perdida",
@@ -297,8 +305,8 @@
       "insight.time_trouble.out": "Time ran out before you moved. Under the clock, scan checks, captures and threats first.",
       "insight.solid": "Not the engine's first choice, but {san} looks like a solid alternative, nearly as good.",
       "insight.close": "{san} looks close to {best}: the gap is small, about the size of the engine's margin of error.",
-      "insight.no_clear_reason": "The engine prefers {best}, but we could not find a simple reason: it may be positional or a deeper tactic.",
-      "insight.no_clear_reason.big": "{best} was clearly better, but we found no simple reason. Before moving, check your opponent's captures, checks and threats.",
+      "insight.no_clear_reason": "The engine prefers {best}, but no simple reason shows up: it may be positional or a deeper tactic.",
+      "insight.no_clear_reason.big": "{best} was clearly better, but no simple reason shows up. Before moving, check your opponent's captures, checks and threats.",
 
       "insight.tag.hangs_piece": "Hanging piece",
       "insight.tag.missed_capture": "Missed capture",
@@ -798,16 +806,18 @@
     };
   }
 
-  // The engine's line for `uci` (the first move must match), or null.
-  function pvForMove(lines, uci) {
+  // The engine's line for `uci` (the first move must match): { pv, score } or
+  // null (score is the engine's score for the mover, a number or null).
+  function lineForMove(lines, uci) {
     if (!Array.isArray(lines) || !uci) return null;
     for (const line of lines) {
       const pv = line && Array.isArray(line.pv) ? line.pv.filter((move) => typeof move === "string") : null;
       const first = line && typeof line.uci === "string" ? line.uci : pv && pv[0];
-      if (pv && pv.length && first === uci && pv[0] === uci) return pv;
+      if (pv && pv.length && first === uci && pv[0] === uci) return { pv, score: lineScore(line) };
     }
     return null;
   }
+
 
   // What the line of a described move shows. Without a line of its own the
   // move is followed by its settled reply only (`deep` false).
@@ -1094,7 +1104,7 @@
 
   // Everything cheap we know about a move, plus the position after it. `pv` is
   // the engine's line for the move (UCI, starting with it) when there is one.
-  function describeMove(chess, move, pv) {
+  function describeMove(chess, move, pv, score) {
     const { moveToSan, moveToUci } = chessApi();
     const after = chess.clone();
     after.makeMove(move);
@@ -1128,6 +1138,7 @@
       after,
       root: chess,
       pv: Array.isArray(pv) && pv.length ? pv : null,
+      lineScore: Number.isFinite(score) ? score : null,
       cache: {},
     };
   }
@@ -1156,17 +1167,29 @@
     return desc.gain - destLoss(desc);
   }
 
-  // The settled material of the move's line dips at least SACRIFICE_MIN below
-  // the start within the first SACRIFICE_PLIES plies, counted from the opponent's
-  // actual reply on (the first ply alone assumes the opponent takes what is on
-  // offer, and a poisoned pawn is bait, not a sacrifice). With no line, only the
-  // settled reply to the move itself can be looked at.
+  // The settled material of the move's line sits at least SACRIFICE_MIN below
+  // the start on two plies in a row (or at the end of the line) within the first
+  // SACRIFICE_PLIES plies, counted from the opponent's actual reply on: the first
+  // ply alone assumes the opponent takes what is on offer (a poisoned pawn is
+  // bait, not a sacrifice) and a single ply is usually a capture in the middle of
+  // an exchange. A side that is simply losing and giving things up is not
+  // sacrificing: the line must not leave the mover worse than about -1.00 (only
+  // checked when the engine's score is known). With no line, only the settled
+  // reply to the move itself can be looked at.
   function isSacrifice(desc) {
     return memo(desc, "sacrifice", () => {
       if (desc.mate || desc.piece === "K") return false;
       const evidence = evidenceOf(desc);
-      const seen = evidence.plies >= 2 ? evidence.deltas.slice(1, SACRIFICE_PLIES) : evidence.deltas;
-      return seen.length > 0 && Math.min(...seen) <= -SACRIFICE_MIN;
+      if (evidence.matedSelf) return false;
+      if (Number.isFinite(desc.lineScore) && desc.lineScore < -SACRIFICE_MIN_SCORE) return false;
+      if (evidence.plies < 2) return evidence.deltas.length > 0 && evidence.deltas[0] <= -SACRIFICE_MIN;
+      const last = Math.min(evidence.plies, SACRIFICE_PLIES) - 1;
+      for (let i = 1; i <= last; i += 1) {
+        // (a dip that ends in checkmate is the classic sacrifice for a mating attack)
+        if (evidence.deltas[i] <= -SACRIFICE_MIN
+          && (i === evidence.plies - 1 || evidence.deltas[i + 1] <= -SACRIFICE_MIN || (evidence.mate && i === evidence.plies - 2))) return true;
+      }
+      return false;
     });
   }
 
@@ -1729,14 +1752,23 @@
     return chessApi().moveToUci(move);
   }
 
-  function publicMove(desc) {
+  function publicMove(desc, eager) {
     if (!desc) return null;
-    return {
+    const out = {
       uci: desc.uci, san: desc.san, piece: desc.piece, from: desc.from, to: desc.to,
       capture: desc.capture, captured: desc.captured, promotion: desc.promotion, castle: desc.castle,
       check: desc.check, mate: desc.mate, quiet: isQuiet(desc) && !desc.mate,
-      sacrifice: isSacrifice(desc), gain: desc.gain, loss: destLoss(desc),
+      gain: desc.gain, loss: destLoss(desc),
     };
+    // `sacrifice` replays the engine's line (the costly part of an analysis):
+    // a perfect or equivalent answer never needs it, so it is worked out when
+    // somebody reads it. A plain value wherever the result is copied.
+    if (eager) {
+      out.sacrifice = isSacrifice(desc);
+    } else {
+      Object.defineProperty(out, "sacrifice", { enumerable: true, configurable: true, get: () => isSacrifice(desc) });
+    }
+    return out;
   }
 
   function analyze(input) {
@@ -1751,14 +1783,18 @@
     const userMove = input.userUci ? findLegalMove(legal, input.userUci) : null;
     // The engine's lines for both moves, when we were given them: what every
     // claim about material is checked against (see "Evidence" above).
-    const lineOf = (move, extra) => {
-      if (!move) return null;
+    const lineOf = (move, extraPv, extraScore) => {
+      if (!move) return { pv: null, score: null };
       const uci = moveToUciSafe(move);
-      if (Array.isArray(extra) && extra[0] === uci) return extra.filter((entry) => typeof entry === "string");
-      return pvForMove(input.lines, uci);
+      if (Array.isArray(extraPv) && extraPv[0] === uci) {
+        return { pv: extraPv.filter((entry) => typeof entry === "string"), score: scoreNumber(extraScore) };
+      }
+      return lineForMove(input.lines, uci) || { pv: null, score: null };
     };
-    const best = bestMove ? describeMove(chess, bestMove, lineOf(bestMove, null)) : null;
-    const user = userMove ? describeMove(chess, userMove, lineOf(userMove, input.userPv)) : null;
+    const bestLine = lineOf(bestMove, null, null);
+    const userLine = lineOf(userMove, input.userPv, assessment ? assessment.userScore : null);
+    const best = bestMove ? describeMove(chess, bestMove, bestLine.pv, bestLine.score) : null;
+    const user = userMove ? describeMove(chess, userMove, userLine.pv, userLine.score) : null;
 
     const judged = judge({
       userUci: user ? user.uci : null,
@@ -1881,8 +1917,10 @@
       if (!move) return null;
       const opts = options && typeof options === "object" ? options : {};
       const moveUci = moveToUciSafe(move);
-      const pv = Array.isArray(opts.pv) && opts.pv[0] === moveUci ? opts.pv.filter((entry) => typeof entry === "string") : pvForMove(opts.lines, moveUci);
-      return publicMove(describeMove(chess, move, pv));
+      const given = Array.isArray(opts.pv) && opts.pv[0] === moveUci
+        ? { pv: opts.pv.filter((entry) => typeof entry === "string"), score: scoreNumber(opts.score) }
+        : lineForMove(opts.lines, moveUci);
+      return publicMove(describeMove(chess, move, given ? given.pv : null, given ? given.score : null), true);
     } catch (error) {
       return null;
     }

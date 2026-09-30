@@ -271,3 +271,32 @@
 }
 html[data-motion="reduce"] .account-swatch-face,
 html[data-motion="reduce"] .account-swatch-face .ui-icon { transition: none; }
+
+/* ── Which profile goes to the Drive (first sign-in, QA SEC-005) ── */
+.account-link { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--color-gold-dim); border-radius: var(--radius-xl); background: var(--color-gold-bg); }
+.account-link[data-link="done"] { border-color: var(--color-hairline); background: var(--color-surface-2); justify-items: start; }
+.account-link-fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.account-link-options { display: grid; gap: var(--space-2); }
+.account-link-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--hit);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-2);
+  cursor: pointer;
+}
+.account-link-option:hover { background: var(--color-surface-3); }
+.account-link-radio { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--color-gold); }
+.account-link-option:has(.account-link-radio:checked) { border-color: var(--color-gold); box-shadow: inset 0 0 0 1px var(--color-gold-dim); }
+.account-link-option:has(.account-link-radio:focus-visible) { outline: var(--focus-ring); outline-offset: var(--focus-ring-offset); }
+.account-link-text { display: grid; gap: 2px; min-width: 0; }
+.account-link-name { color: var(--color-text); font-weight: 650; overflow-wrap: anywhere; }
+.account-link-meta { color: var(--color-text-muted); font-size: var(--text-sm); }
+.account-link-synced { display: flex; align-items: flex-start; gap: var(--space-2); color: var(--color-text); }
+.account-link-synced .ui-icon { flex: none; margin-top: 3px; color: var(--color-perfect); }
+.account-profiles-private { display: flex; align-items: flex-start; gap: var(--space-2); }
+.account-profiles-private .ui-icon { flex: none; margin-top: 3px; }

@@ -487,6 +487,12 @@ test("engine lines as text: numbered from the FEN, black to move gets an ellipsi
   assert.strictEqual(h.formatPv(FENS[2], ["a1a8"], env.Ludus.chess), "a1a8", "an illegal move: the UCI text");
   assert.strictEqual(h.formatPv(FENS[2], [], env.Ludus.chess), "");
   assert.strictEqual(h.formatPv(FENS[2], ["d2d3", "g8f6"], {}), "d2d3 g8f6", "without a chess module: UCI text");
+  // QA CNT-006: what the person reads goes through the notation setting (Spanish letters on a Spanish page), the stored text does not.
+  assert.strictEqual(h.formatPv(FENS[2], ["d2d3", "g8f6", "e1g1"], env.Ludus.chess, h.shownSan), "4. d3 Cf6 5. O-O");
+  assert.strictEqual(h.shownSan("Qxd5+"), "Dxd5+");
+  assert.strictEqual(h.shownSan("e4"), "e4");
+  assert.strictEqual(h.shownSan(""), "");
+  assert.strictEqual(createEnv({ language: "en" }).Ludus.Screens.notebook.helpers.shownSan("Qxd5+"), "Qxd5+", "an English page keeps the English letters");
 });
 
 // ---------- the screen ----------
@@ -882,7 +888,30 @@ test("remove: asks first; cancel keeps it, confirm deletes it, says so and keeps
   env.advance(10);
   assert.strictEqual(cardEls(env.el).length, 2, "and from the list");
   assert.ok(all(env.doc.body, ".toast").some((t) => text(t).includes("Tarjeta quitada")), "a toast says so");
-  assert.strictEqual(env.doc.activeElement && env.doc.activeElement.getAttribute("id"), "notebook-list-title", "the focus is not lost");
+  // QA A11Y-020: the focus lands on the card now at that place in the list (visible, in the thick of the list), not on the heading above it.
+  const left = cardEls(env.el);
+  const focusedId = env.doc.activeElement && env.doc.activeElement.getAttribute("id");
+  assert.ok(focusedId && focusedId.startsWith("notebook-card-") && left.some((c) => `notebook-card-${c.getAttribute("data-card")}` === focusedId), `the focus is on a remaining card: ${focusedId}`);
+  // removing the last card of the list: the focus goes to the new last one; removing the only card: to the list heading
+  const order = cardEls(env.el).map((c) => c.getAttribute("data-card"));
+  const lastCard = cardEls(env.el).find((c) => c.getAttribute("data-card") === order[order.length - 1]);
+  q(lastCard, ".notebook-remove").click();
+  await Promise.resolve();
+  all(all(env.doc.body, ".modal").pop(), "button").find((b) => text(b) === "Quitar tarjeta").click();
+  await new Promise((resolve) => setImmediate(resolve));
+  env.advance(10);
+  assert.strictEqual(env.doc.activeElement && env.doc.activeElement.getAttribute("id"), `notebook-card-${order[0]}`, "the last card was removed: the new last one has the focus");
+  assert.ok(all(target.ownerDocument.body, "button").length > 0);
+});
+
+test("the Lines button of every card names its card (QA A11Y-020)", () => {
+  const env = createEnv();
+  seedCards(env, 3);
+  open(env);
+  const names = all(env.el, ".notebook-lines-toggle").map((b) => b.getAttribute("aria-label"));
+  assert.strictEqual(names.length, 3);
+  assert.strictEqual(new Set(names).size, 3, "three different names");
+  assert.ok(names.every((name) => name.startsWith("Líneas")), "they still start with the visible word");
 });
 
 test("a failing game core never breaks the screen: an error toast, the buttons work again", async () => {

@@ -438,7 +438,8 @@ async function nogoogleFlow(browser) {
   page.on("request", (request) => { if (/google/.test(request.url())) requests.push(request.url()); });
   const off = page.locator("[data-card=\"sync-off\"]");
   assert.ok(await off.isVisible());
-  assert.match(await text(off), /Cross-device sync with Google is not enabled on this site yet\. Meanwhile, exporting and importing a file moves your progress/);
+  assert.match(await text(off), /Sync with Google is not available in this version\. Meanwhile, downloading your progress and loading it on the other device/);
+  // The site owner's pointer is for localhost / 127.0.0.1 / ?debug only (QA UX-030): this run is served from 127.0.0.1.
   assert.match(await text(off), /docs\/GOOGLE_SIGNIN\.md/);
   assert.strictEqual(await off.locator("button").count(), 0, "no dead button");
   assert.strictEqual(await page.locator("[data-action=\"signin\"]").count(), 0);
@@ -467,15 +468,25 @@ async function googleFlow(browser) {
   assert.match(await text(syncCard(page)), /What is stored, and where/);
   await shot(page, "google-signed-out");
 
-  // hovering the button pre-loads the script; nothing is requested from Drive yet
+  // QA SEC-009: hovering or focusing the button tells Google nothing; the script is requested when the press starts
   await seedRounds(page, 0, 3);
   await page.locator("[data-action=\"signin\"]").hover();
-  await page.waitForFunction(() => Boolean(window.google && window.google.accounts));
-  assert.strictEqual(google.gsiLoads, 1);
+  await page.locator("[data-action=\"signin\"]").focus();
+  await page.waitForTimeout(400);
+  assert.strictEqual(google.gsiLoads, 0, "hover and focus do not load the Google script");
   assert.deepStrictEqual(google.requests, []);
   await page.locator("[data-action=\"signin\"]").click();
   await waitStatus(page, "signed_in");
+  assert.strictEqual(google.gsiLoads, 1);
   const card = syncCard(page);
+  // QA SEC-005: a first sign-in uploads nothing: the person chooses which profile goes to the Drive
+  await card.locator("[data-link=\"required\"]").waitFor();
+  assert.match(await text(card), /Choose which profile to save to your Drive/);
+  assert.strictEqual(google.files.size, 0, "nothing was uploaded by signing in");
+  assert.strictEqual(await card.locator("[data-action=\"sync\"]").count(), 0, "no 'Sync now' before the choice");
+  assert.strictEqual(await card.locator("input[type=\"radio\"]:checked").count(), 1, "one profile is preselected (the active one)");
+  await shot(page, "google-link");
+  await card.locator("[data-action=\"link-save\"]").click();
   // the name is text: no element came out of it
   assert.ok((await text(card.locator(".account-user-name"))).includes("<b>Pérez</b>"), "the name is shown literally");
   assert.strictEqual(await card.locator("b").count(), 0);
@@ -509,6 +520,9 @@ async function googleFlow(browser) {
   assert.strictEqual(await positions(B), 2);
   await B.locator("[data-action=\"signin\"]").click();
   await waitStatus(B, "signed_in");
+  await B.locator("[data-link=\"required\"]").waitFor();
+  assert.strictEqual(google.doc().profiles[0].data.rounds.length, 3, "device B's sign-in did not upload anything by itself");
+  await B.locator("[data-action=\"link-save\"]").click();
   await B.waitForFunction(() => Ludus.Profile.stats().totalPositions === 5, null, { timeout: 15000 });
   assert.strictEqual(await positions(B), 5, "device B now has its own 2 and the 3 of device A");
   assert.strictEqual((await profiles(B)).length, 1, "one shared profile, not two");

@@ -1209,6 +1209,50 @@ test("the quality glyph is never tiny and the scroll region has an inset focus r
   assert.ok(ring && /outline-offset:\s*-\d/.test(ring[1]) && /mask-image:\s*none/.test(ring[1]), "the ring is drawn inside the clipped panel and the fade does not cut it");
 });
 
+test("every move the coach shows goes through Ludus.chess.localizeSan: Spanish letters for Spanish readers, the stored SAN stays English", () => {
+  const env = createEnv({ language: "es" });
+  const { Coach, doc, Ludus } = env;
+  const el = doc.createElement("div");
+  doc.body.appendChild(el);
+  const lines = [{ uci: "g1f3", score: 40 }, { uci: "e2e4", score: 35 }, { uci: "a2a3", score: -20 }];
+  const answer = makeAnswer(env, { uci: "a2a3", san: "a3", lines });
+  const context = makeContext(env, [answer], {
+    best: { uci: "g1f3", san: "Nf3", score: 40 }, master: { uci: "e2e4", san: "e4", score: 35, rank: 2 }, masterName: "Morphy",
+    lines: [
+      { uci: "g1f3", san: "Nf3", score: 40, rank: 1, isBest: true, pvSan: ["Nf3", "Nc6", "Bb5"] },
+      { uci: "e2e4", san: "e4", score: 35, rank: 2, isMaster: true, pvSan: ["e4", "e5"] },
+    ],
+  });
+  Coach.renderRound(el, context, { lang: "es" });
+  const cmp = text(first(el, "co-compare"));
+  assert.ok(cmp.includes("Cf3") && !cmp.includes("Nf3"), `the best move in Spanish letters: ${cmp}`);
+  assert.ok(text(first(el, "co-hero-verdict")).includes("Cf3"), "and in the sentence that names it");
+  const lineText = text(first(el, "co-lines"));
+  assert.ok(lineText.includes("Cf3") && lineText.includes("Ab5"), `the line and its moves: ${lineText}`);
+  assert.ok(all(el, "co-line")[0].getAttribute("aria-label").includes("Cf3"));
+  // English readers, and a Spanish page that asks for English notation, see the stored letters.
+  Coach.renderRound(el, context, { lang: "en" });
+  assert.ok(text(first(el, "co-compare")).includes("Nf3"));
+  Ludus.Settings.set("notation.style", "english");
+  Coach.renderRound(el, context, { lang: "es" });
+  assert.ok(text(first(el, "co-compare")).includes("Nf3"), "the notation setting wins over the language");
+  Ludus.Settings.set("notation.style", "auto");
+  // A build without the helper shows the stored text and never throws.
+  const helper = Ludus.chess.localizeSan;
+  delete Ludus.chess.localizeSan;
+  try {
+    Coach.renderRound(el, context, { lang: "es" });
+    assert.ok(text(first(el, "co-compare")).includes("Nf3"));
+  } finally {
+    Ludus.chess.localizeSan = helper;
+  }
+  // A duel card shows the move of each player the same way.
+  const ana = makeAnswer(env, { uci: "g1f3", san: "Nf3", name: "Ana", lines });
+  const beto = Object.assign(makeAnswer(env, { uci: "a2a3", san: "a3", name: "Beto", lines }), { playerIndex: 1 });
+  Coach.renderDuel(el, makeContext(env, [ana, beto]), { lang: "es" });
+  assert.ok(text(all(el, "co-player")[0]).includes("Cf3"));
+});
+
 test("the coach degrades: no kit, no document, no target and empty data never throw", () => {
   // No kit: the gauge and chips fall back to plain nodes.
   const bare = createEnv({ language: "en", withKit: false });

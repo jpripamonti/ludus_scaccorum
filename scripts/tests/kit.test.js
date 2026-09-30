@@ -440,7 +440,8 @@ test("toast: roles, kinds, queue of three, dismiss, action, pause on hover", () 
   ui.clearToasts();
   assert.strictEqual(ui._state.toast.visible.length, 0);
 
-  // Action + dismiss button + pause on hover (2 s elapsed of 3 s: at least 1.5 s remain afterwards).
+  // Action + dismiss button + pause on hover. A toast with an action is raised to 12 s (a keyboard user cannot reach
+  // "Undo" in 3 s), so 2 s elapsed leave 10 s after resuming.
   const calls = [];
   const withAction = ui.toast("Borrado", { duration: 3000, action: { label: "Deshacer", onClick: () => calls.push("undo") } });
   const buttons = findAll(withAction.el, (el) => el.tagName === "BUTTON");
@@ -451,9 +452,9 @@ test("toast: roles, kinds, queue of three, dismiss, action, pause on hover", () 
   advance(20000);
   assert.strictEqual(ui._state.toast.visible.length, 1, "hovering keeps the toast");
   withAction.el.dispatch("mouseleave");
-  advance(1400);
-  assert.strictEqual(ui._state.toast.visible.length, 1, "at least 1.5 s remain after resuming");
-  advance(200);
+  advance(9000);
+  assert.strictEqual(ui._state.toast.visible.length, 1, "an action toast asked for 3 s lasts 12 s: 10 s remain after resuming");
+  advance(1200);
   assert.strictEqual(ui._state.toast.visible.length, 0);
   const again = ui.toast("Otra", { duration: 0, action: { label: "Deshacer", onClick: () => calls.push("undo") } });
   findAll(again.el, (el) => el.tagName === "BUTTON")[0].click();
@@ -470,6 +471,72 @@ test("toast: roles, kinds, queue of three, dismiss, action, pause on hover", () 
   assert.strictEqual(ui._state.toast.queue.length, 0);
   a.dismiss();
   assert.strictEqual(ui._state.toast.visible.length, 2);
+  ui.clearToasts();
+});
+
+test("toast: an action toast is reachable from the keyboard (time, persistence, focus, Escape)", () => {
+  const { ui, doc, advance } = createEnv();
+  // Time: the default with an action is 12 s, a shorter explicit duration is raised, 0 and persistent keep it.
+  const plain = ui.toast("Listo");
+  const withAction = ui.toast("Borrado", { action: { label: "Deshacer", onClick() {} } });
+  advance(6000);
+  assert.strictEqual(ui._state.toast.visible.length, 1, "the plain toast went at 5.2 s, the action one is still there");
+  advance(6100);
+  assert.strictEqual(ui._state.toast.visible.length, 0, "and it goes after 12 s");
+  assert.ok(plain && withAction);
+  const persistent = ui.toast("Quedate", { persistent: true });
+  const zero = ui.toast("Quedate también", { duration: 0, action: { label: "Deshacer" } });
+  advance(600000);
+  assert.strictEqual(ui._state.toast.visible.length, 2, "persistent: true and duration: 0 stay until dismissed");
+  persistent.dismiss();
+  zero.dismiss();
+
+  // Focus: opt-in; it goes to the action and comes back to the trigger when the toast is gone.
+  const trigger = doc.createElement("button");
+  doc.body.appendChild(trigger);
+  trigger.focus();
+  const calls = [];
+  const undo = ui.toast("Sección restablecida", { focus: true, action: { label: "Deshacer", onClick: () => calls.push("undo") } });
+  const actionBtn = findAll(undo.el, (el) => el.tagName === "BUTTON" && el.classList.contains("toast-action"))[0];
+  assert.strictEqual(doc.activeElement, actionBtn, "focus: true puts the keyboard on Undo");
+  actionBtn.click();
+  assert.deepStrictEqual(calls, ["undo"]);
+  assert.strictEqual(doc.activeElement, trigger, "after Undo the focus is back where the person was");
+
+  // Escape on a focused toast closes it and gives the focus back; without focus: true nothing is moved.
+  trigger.focus();
+  const second = ui.toast("Otra", { focus: true, action: { label: "Deshacer" } });
+  assert.notStrictEqual(doc.activeElement, trigger);
+  second.el.dispatch("keydown", { key: "Escape" });
+  assert.strictEqual(ui._state.toast.visible.length, 0, "Escape dismisses the toast that has the focus");
+  assert.strictEqual(doc.activeElement, trigger);
+  trigger.focus();
+  ui.toast("Sin robar foco", { action: { label: "Deshacer" } });
+  assert.strictEqual(doc.activeElement, trigger, "by default a toast never takes the focus");
+  ui.clearToasts();
+});
+
+test("modal: describedBy accepts true, an id, an element or a list; an alertdialog is described by its body", () => {
+  const { ui, doc } = createEnv();
+  const dialog = (opts) => ui.modal(Object.assign({ title: "Borrar", body: "Se borra para siempre" }, opts));
+  const plain = dialog({});
+  assert.strictEqual(plain.el.getAttribute("aria-describedby"), null, "a plain dialog is described by its title only");
+  plain.close();
+  const whole = dialog({ describedBy: true });
+  assert.ok(/^ui-modal-\d+-body$/.test(whole.el.getAttribute("aria-describedby")), "true points at the body");
+  whole.close();
+  const warning = doc.createElement("p");
+  const node = dialog({ body: [warning, doc.createElement("input")], describedBy: warning });
+  assert.ok(warning.id, "an element without an id is given one");
+  assert.strictEqual(node.el.getAttribute("aria-describedby"), warning.id, "an element is referenced by its id");
+  node.close();
+  assert.strictEqual(dialog({ describedBy: "a-id" }).el.getAttribute("aria-describedby"), "a-id");
+  const both = dialog({ describedBy: ["x-1", warning] });
+  assert.strictEqual(both.el.getAttribute("aria-describedby"), `x-1 ${warning.id}`);
+  const alert = dialog({ role: "alertdialog" });
+  assert.ok(/-body$/.test(alert.el.getAttribute("aria-describedby")), "an alertdialog reads its message on opening");
+  alert.close();
+  assert.strictEqual(dialog({ role: "alertdialog", describedBy: false }).el.getAttribute("aria-describedby"), null, "unless told otherwise");
   ui.clearToasts();
 });
 

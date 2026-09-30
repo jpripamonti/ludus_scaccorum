@@ -509,7 +509,7 @@ body.playing-mode { --page-gutter: 0px; }
 .language-switch-btn {
   position: relative;
   min-width: 46px;
-  min-height: 42px;
+  min-height: var(--hit);
   padding: 0 var(--space-3);
   border: 0;
   border-radius: var(--radius-pill);
@@ -784,7 +784,14 @@ button:disabled {
 /* Anillo de foco global para navegación por teclado.
    Se usa :is() y no :where() para ganarle a `input:focus { outline: none }`,
    que de otro modo dejaría los campos sin anillo. El contorno sigue solo el
-   radio de borde propio de cada elemento, así que no se redefine acá. */
+   radio de borde propio de cada elemento, así que no se redefine acá.
+   OJO con la especificidad: :is() vale lo que su argumento más específico
+   (`[tabindex]:not([tabindex="-1"])` = 0,2,0), o sea esta regla vale (0,3,0) y le
+   gana a cualquier `.componente:focus-visible { outline-offset: ... }`. Para
+   mover el anillo de un componente (p. ej. hacia adentro, dentro de un contenedor
+   con overflow) se redefine la variable, que no compite por especificidad:
+   `.componente { --focus-ring-offset: -3px; }` (así lo hacen `.segmented > *` y
+   `.ld-lang-btn`). */
 :is(button, [href], input, select, textarea, summary, [role="button"], [role="radio"], [role="tab"], [role="switch"], [role="menuitem"], [tabindex]:not([tabindex="-1"])):focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-offset);
