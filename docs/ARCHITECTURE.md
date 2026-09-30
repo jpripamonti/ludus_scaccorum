@@ -578,7 +578,8 @@ validation. Browser-level checks live in `scripts/e2e/*.js` (Playwright is not
 a project dependency; the scripts explain how to run them) and are **not** part
 of `npm test`. `scripts/e2e/gate.js` is the release gate (landing -> home -> classics
 -> a scored classic round -> leave, desktop and phone, fresh profile, no console
-errors); `play-session.js` covers the game core in depth, `smoke.js` the boot and the
+errors); `play-session.js` covers the game core in depth (classic, first-run and own-games scenarios), `navigation.js` its browser history, leave
+guard, wizard steps, reload/resume, hidden-tab clock and download failures, `smoke.js` the boot and the
 service worker precache, `teach.js` what the coach teaches (piece letters in Spanish and
 English and the notation setting, a missed mate scored by the new rule, the quality words). `scripts/e2e/walkthrough.js` is the cross-screen journey of a first
 session (landing -> home -> classics: replay, a best move by drag and a blunder by click -> coach ->
