@@ -144,8 +144,9 @@ function pageFacts() {
     }
     node = walker.nextNode();
   }
-  const text = visible.join(" | ");
-  const rawKeys = text.match(/\b(?:home|classics|museum|notebook|progress|settings|account|shell|play|coach|game|core|cdata|facts|insight|reader|kit|duel|ld|bd|score|common|wizard|provider|buttons|labels|result|evaluation|analysis)\.[a-zA-Z][\w]*(?:\.[\w-]+)+/g) || [];
+  // The tab title is read too: the router builds it from the shared dictionary, and a screen whose key is not in it shows the key.
+  const text = `${visible.join(" | ")} | ${document.title}`;
+  const rawKeys = text.match(/\b(?:home|classics|museum|notebook|progress|settings|account|shell|play|coach|game|core|wizard|meta|cdata|facts|insight|reader|kit|duel|ld|bd|score|common|provider|buttons|labels|result|evaluation|analysis)\.[a-zA-Z][\w-]*(?:\.[\w-]+)*/g) || [];
   const broken = text.match(/\b(?:undefined|NaN|Infinity|\[object Object\])\b/g) || [];
   return {
     scrollWidth: root.scrollWidth,
@@ -601,6 +602,24 @@ async function journeyFlow(browser, vp, lang) {
     await page.locator("#summary-menu-btn").click();
     await waitForScreen(page, "home");
 
+    // ----- 9c. the second person opens their own progress -----
+    say(journey, "9c switching profile from the header: progress and notebook show the other person's data");
+    await page.locator(".sh-profile-chip:visible").first().click();
+    await page.locator(`.sh-pop-row[aria-label*="Bruno"]`).click();
+    assert.strictEqual(await evalIn(page, () => Ludus.Profile.active().name), "Bruno");
+    await goTo(journey, "progress");
+    await page.waitForSelector(".progress-root", { timeout: 10000 });
+    const brunoRounds = await evalIn(page, () => Ludus.Profile.rounds().length);
+    assert.strictEqual(brunoRounds, 2, "Bruno played the two positions of the duel");
+    const brunoText = await page.locator(".progress-root").innerText();
+    assert.ok(/\b2\b/.test(brunoText), "the numbers of the progress screen are Bruno's");
+    await stage(journey, "progress-second-profile", { screen: "progress" });
+    await goTo(journey, "notebook");
+    await page.waitForSelector(".notebook", { timeout: 10000 });
+    const brunoCards = await evalIn(page, () => Ludus.Profile.notebook.counts().total);
+    assert.strictEqual(await page.locator(".notebook-card").count(), Math.min(12, brunoCards), "the notebook lists this profile's cards only");
+    await stage(journey, "notebook-second-profile", { screen: "notebook" });
+
     // ----- 10. museum: the reading room -----
     say(journey, "10 museum: the reading room");
     await goTo(journey, "museum");
@@ -617,6 +636,7 @@ async function journeyFlow(browser, vp, lang) {
     const screens = journey.titles.filter((entry, i, list) => i === 0 || list[i - 1].screen !== entry.screen);
     const distinct = new Set(screens.filter((entry) => ["landing", "home", "classics", "notebook", "progress", "settings", "account", "museum"].includes(entry.screen)).map((entry) => entry.title));
     assert.ok(distinct.size >= 7, `the title changes per screen (${Array.from(distinct).join(" / ")})`);
+    say(journey, `titles: ${screens.map((entry) => `${entry.screen}="${entry.title}"`).join(", ")}`);
 
     say(journey, "no console errors, page errors or failed requests");
     assert.deepStrictEqual(problems, [], `${journey.tag}: the page reported problems:\n  ${problems.join("\n  ")}`);

@@ -755,6 +755,12 @@ body.playing-mode #landing-screen { display: none !important; }
 /* ── Toasts: on this screen they sit under the header, never over the actions ── */
 body.playing-mode .toast-stack { inset: calc(env(safe-area-inset-top, 0px) + 8px) 0 auto; }
 body.playing-mode .toast-stack .toast { width: min(440px, 100%); }
+/* Stacked layouts (phone, tablet portrait): the header holds the exit button, the score and the clock, so a toast goes under it
+   (over the "who moves" strip, which a result does not need) instead of hiding them for six seconds. A duel header is taller. */
+@media (max-width: 1099px) and (orientation: portrait) {
+  body.playing-mode .toast-stack { top: calc(env(safe-area-inset-top, 0px) + 76px); }
+  body.playing-mode:has(.co-play[data-mode="duel"]) .toast-stack { top: calc(env(safe-area-inset-top, 0px) + 100px); }
+}
 
 /* ── Motion ── */
 @media (prefers-reduced-motion: reduce) {

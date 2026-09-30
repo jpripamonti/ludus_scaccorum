@@ -397,6 +397,24 @@ test("the wizard: openOwnGamesSetup skips step 1 and counts only the visible ste
   assertClean(t);
 });
 
+// Regression (found by the walkthrough): the router builds document.title from the SHARED dictionary, and the play and setup
+// screens are registered by app.js, whose own strings are not in it: the tab said "play.title - Ludus Scaccorum".
+test("the document title names the setup and play screens, in both languages", async () => {
+  const t = makeEnv();
+  const { Ludus, dom } = t;
+  Ludus.game.openOwnGamesSetup({ mode: "solo" });
+  assert.strictEqual(dom.document.title, "Guided setup - Ludus Scaccorum");
+  await Ludus.game.startSession({ kind: "classic", title: "Titles", positions: [position(t, 0), position(t, 1)] });
+  assert.strictEqual(Ludus.router.current(), "game");
+  assert.strictEqual(dom.document.title, "Training - Ludus Scaccorum");
+  Ludus.i18n.setLanguage("es");
+  Ludus.router.show("game");
+  assert.strictEqual(dom.document.title, "Entrenamiento - Ludus Scaccorum");
+  assert.ok(!/\b(play|wizard)\.title\b/.test(dom.document.title), "never a raw key");
+  Ludus.game.abort();
+  assertClean(t);
+});
+
 // ---------- scoring a session ----------
 
 test("a solo session: perfect, mediocre, blunder, skip and timeout, with the documented events", async () => {

@@ -780,6 +780,9 @@ const TRANSLATIONS = {
 // modules'). t() finds them through the fallback.
 Ludus.i18n.register({
   es: {
+    // The router sets document.title from the shared dictionary, and the two legacy screens live in app.js's own one.
+    "core.title.play": "Entrenamiento",
+    "core.title.setup": "Configuración guiada",
     "core.hint.next.1": "Pista: la pieza (-{pct}%)",
     "core.hint.next.2": "Pista: la casilla (-{pct}%)",
     "core.hint.next.3": "Mostrar la jugada (0 pts)",
@@ -809,6 +812,8 @@ Ludus.i18n.register({
     "core.session.default.daily": "Desafío del día",
   },
   en: {
+    "core.title.play": "Training",
+    "core.title.setup": "Guided setup",
     "core.hint.next.1": "Hint: the piece (-{pct}%)",
     "core.hint.next.2": "Hint: the square (-{pct}%)",
     "core.hint.next.3": "Show the move (0 pts)",
@@ -8097,7 +8102,7 @@ function registerLegacyScreens() {
   if (!router) return;
   router.register("setup", {
     el: setupPanelEl,
-    title: "wizard.title",
+    title: "core.title.setup",
     onShow() {
       document.body.classList.remove("landing-active");
     },
@@ -8107,7 +8112,7 @@ function registerLegacyScreens() {
   });
   router.register("game", {
     el: gameLayoutEl,
-    title: "play.title",
+    title: "core.title.play",
     onShow() {
       document.body.classList.add("playing-mode");
       updateRoundTimerUi();

@@ -441,7 +441,13 @@ a project dependency; the scripts explain how to run them) and are **not** part
 of `npm test`. `scripts/e2e/gate.js` is the release gate (landing -> home -> classics
 -> a scored classic round -> leave, desktop and phone, fresh profile, no console
 errors); `play-session.js` covers the game core in depth, `smoke.js` the boot and the
-service worker precache.
+service worker precache. `scripts/e2e/walkthrough.js` is the cross-screen journey of a first
+session (landing -> home -> classics: replay, a best move by drag and a blunder by click -> coach ->
+summary -> notebook review -> progress -> settings -> account: second profile and a duel between
+the two -> that profile's own progress -> museum) at 1280x800 and 390x844 in es and en, on a fresh
+profile each time; every stage asserts no sideways scroll, no repeated id, no raw i18n key or
+"undefined / NaN" on screen, one `main`, `document.title` that follows the screen, and takes a
+picture (`LUDUS_E2E_SHOTS`); with `LUDUS_AXE` every stage is also scanned by axe.
 
 ## 18. Addenda after the logic layer was built (authoritative where it differs from above)
 
@@ -686,6 +692,16 @@ tone, size})`, `stat({label, value, hint, icon, tone})`, `skeleton({kind: text|t
 `miniBoard(fen, {size, orientation, coords, highlight:[sq | {square, kind}], arrows:[{from,to,color}], theme, label})`
 (static SVG, 64 squares, cburnett pieces, `role="img"` with a "who moves + piece list" label), `bindSlider(input)`,
 `parseFen`, `reducedMotion()`.
+
+**Integration rules found by the walkthrough** (keep them when touching these files):
+
+* The stored `meta` of a classic (`players`, `event`) is English / ASCII and stays that way in records and notebook cards; the words of the
+  page come from `Ludus.Screens.classics.helpers.localizeMeta(meta, lang)`, which `Coach.positionModel` and the notebook (`originOf`,
+  the search) call at draw time (a missing classics screen shows the stored text). Never show `meta.event` / `meta.players` raw.
+* A toast never covers what a person needs: while a `.modal-backdrop` is open the toast stack drops behind it (`css/system.css`, an error
+  keeps its place), and on the play screen in stacked layouts it sits under the header, not over the exit button, score and clock
+  (`css/coach.css`).
+* A screen's root class must not be the name of a kit component (the progress screen is `.progress-root`: a bare `.progress` is the bar).
 
 ### `Ludus.shell` (`js/ui/shell.js`)
 
