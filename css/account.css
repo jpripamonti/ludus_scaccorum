@@ -303,3 +303,7 @@ html[data-motion="reduce"] .account-swatch-face .ui-icon { transition: none; }
 .account-link-synced .ui-icon { flex: none; margin-top: 3px; color: var(--color-perfect); }
 .account-profiles-private { display: flex; align-items: flex-start; gap: var(--space-2); }
 .account-profiles-private .ui-icon { flex: none; margin-top: 3px; }
+.account-synced { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); font-weight: 600; }
+.account-synced .ui-icon { flex: none; color: var(--color-info); }
+.account-link-remote { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; }
+.account-link-remote .ui-icon { flex: none; margin-top: 3px; color: var(--color-gold); }

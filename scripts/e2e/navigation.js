@@ -330,8 +330,10 @@ async function downloadsScenario(browser) {
         await page.locator("#wizard-next-btn").click();
       }
       await page.locator("#analyze-btn").click();
+      // The download asks for the person's consent once per provider and username.
       const consent = page.locator("#consent-overlay-accept");
-      if (await consent.isVisible().catch(() => false)) {
+      const asked = await consent.waitFor({ state: "visible", timeout: 2000 }).then(() => true, () => false);
+      if (asked) {
         await page.locator("#consent-overlay-username-input").fill(user);
         await consent.click();
       }
@@ -343,7 +345,7 @@ async function downloadsScenario(browser) {
     assert.match(await errorText(), /could not find TestUser on Lichess/i);
     assert.doesNotMatch(await errorText(), /Error|undefined|\[object|HTTP 404/);
     assert.strictEqual(await page.locator("#wizard-step-2").isVisible(), true, "the username field is on screen");
-    assert.ok((await page.locator("#wizard-source-actions button:visible").count()) >= 1, "with at least one remedy button");
+    assert.ok((await page.locator("#wizard-source-cta button:visible").count()) >= 1, "with at least one remedy button");
     await shot(page, "22-download-404");
 
     step("a rate limit says when the next try is and does not hammer the provider");
@@ -363,8 +365,8 @@ async function downloadsScenario(browser) {
     await page.evaluate(() => { try { window.localStorage.removeItem("ludus.remoteFetchCooldown.v1"); } catch (error) { /* ignore */ } });
     await startDownload("HangUser");
     await page.locator("#analysis-cancel-btn").waitFor({ state: "visible", timeout: 10000 });
-    await sleep(1500);
-    assert.match(await page.locator("#analysis-elapsed").textContent(), /\d/, "the elapsed time is on screen");
+    // The elapsed time appears once the wait stops being short (8 seconds).
+    await page.waitForFunction(() => /\d/.test(document.querySelector("#analysis-elapsed").textContent), null, { timeout: 15000 });
     await shot(page, "24-download-cancel");
     await page.locator("#analysis-cancel-btn").click();
     await page.waitForFunction(() => !STATE.setupWizard.busy && !STATE.ui.setupAnalyzing, null, { timeout: 5000 });

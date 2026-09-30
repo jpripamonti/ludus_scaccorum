@@ -733,6 +733,11 @@ deadline is scored as a timeout (`roundClockExpired`). The wizard's clock choice
 "Sin tiempo" chip `data-seconds="0"`); the global clock setting is only its starting value, and the first-ever session (no `ludus.firstRun.v1`, nothing
 played) is untimed and starts with a how-to-play note. `session:completed` is emitted when the LAST position is answered, not when the summary is opened.
 
+**Progress that was not saved.** The shell's storage banner is hidden while playing, so the summary says it itself: its context
+(`Ludus.game.resultContext()`, `kind: "session_summary"`) carries `unsaved: boolean` and `unsavedReason: "" | "blocked" | "quota"`, derived from
+`Profile.storageStatus()` (a write failed after the session started); `app.js` draws a `.co-unsaved` note at the top of `#session-summary-result`
+(`css/coach.css`) and adds the same words to the result live region.
+
 **Session resume.** While a session runs the tab keeps `sessionStorage["ludus.sessionProgress.v1"]` (the position list and the answered rounds, not the
 profile's data); a reload offers "continue with what is left" once (`offerSessionResume`), and `beforeunload` warns while a session has unanswered
 rounds. A session that was answered to the end leaves nothing behind.
@@ -1116,9 +1121,12 @@ URL, last sync, Sync now / Sign out / Sign out and revoke), syncing, error (`Aut
 a reload (Reconnect). Note the machine: an expired session is `status "signed_out"` + `error "reconnect-required"` + a remembered user. The install prompt is
 captured when `js/ui/account.js` loads (the event fires early and once), `preventDefault()`ed, and used once from the button; iOS gets the Share hint and an installed
 app the "already installed" line. QA pass: a first sign-in uploads nothing: when `Auth.state().linkRequired` the card asks which local profile goes to the Drive
-(radios over `Profile.list()`, the active one preselected; "Save this profile to my Drive" -> `Auth.linkProfile(id)`, or "Bring my Drive progress to this device" ->
-`Auth.importFromDrive()`), shows "You are syncing <name>'s profile" with "Stop syncing this profile" (`Auth.unlinkProfile`) afterwards, and hides "Sync now" until a
-profile is linked (an Auth without `linkRequired` never asks); the Google script is requested on `pointerdown` of the sign-in button, never on hover or focus; the
+(radios over `Profile.list()`, the active one preselected). It first looks at the Drive once (`Auth.remoteSummary()`, read-only) and says what is there;
+"Save this profile to my Drive" asks for a confirmation that names the profile and says plainly that its whole history (and, for own-game rounds, the players'
+usernames and game links) goes to the person's own Drive (and that what the Drive already holds is combined), then `Auth.linkProfile(id)`; "Bring my Drive progress
+to this device" (`Auth.importFromDrive()`) is offered only when the Drive holds a profile (always when the Auth cannot look). Afterwards the card shows "You are
+syncing <name>'s profile" with "Stop syncing this profile" (`Auth.unlinkProfile`), the profile card carries a "Synced with Google" mark, and "Sync now" stays hidden
+until a profile is linked (an Auth without `linkRequired` never asks); the Google script is requested on `pointerdown` of the sign-in button, never on hover or focus; the
 site owner's pointer of the "not configured" card shows only on localhost / 127.0.0.1 / `?debug`; profiles say they are not private; the export and Drive copy disclose
 that own-game rounds keep the players' usernames and game links; About names the elected licence of the pieces; colour swatches are named by colour. Registered i18n: `account.*`.
 
