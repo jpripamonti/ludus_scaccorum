@@ -386,7 +386,7 @@ async function deepLinkScenario(browser) {
   await s.page.waitForSelector(`.classics-detail-page[data-game="${GAME}"] .classics-board .square`, { timeout: 10000 });
   assert.strictEqual(await routerCurrent(s.page), "classics");
   assert.match(await visibleText(s.page, ".classics-detail-title"), /Opera Game/);
-  assert.match(await s.page.title(), /Classic games/);
+  assert.match(await s.page.title(), /Opera Game - Classic games - Ludus Scaccorum/, "the tab title names the game (QA A11Y-024)");
   step("hashchange to another game and to the plain screen");
   await s.page.evaluate(() => { location.hash = "#/classics/immortal-1851"; });
   await s.page.waitForSelector('.classics-detail-page[data-game="immortal-1851"]');
@@ -407,7 +407,7 @@ async function deepLinkScenario(browser) {
   await s.page.waitForSelector("#museum-panel-school:not([hidden]) .museum-concept");
   assert.strictEqual(await routerCurrent(s.page), "museum");
   assert.strictEqual(await s.page.locator("#museum-tab-school").getAttribute("aria-selected"), "true");
-  assert.match(await s.page.title(), /History/);
+  assert.match(await s.page.title(), /^Chess school - History - /, "and the section");
   checkProblems("museum deep link", s.problems);
   await s.context.close();
 }
@@ -493,7 +493,7 @@ async function historyScenario(browser) {
   assert.strictEqual(await page.locator('[role="tab"]').count(), 4);
   assert.strictEqual(await page.locator('[role="tab"][tabindex="0"]').count(), 1);
   assert.strictEqual(await page.locator('[role="tabpanel"]:not([hidden])').count(), 1);
-  assert.match(await page.title(), /^Historia/);
+  assert.match(await page.title(), /^Línea de tiempo - Historia - /, "the tab title names the section (QA A11Y-024)");
 
   step("timeline: 36 milestones in eras, each expandable to its curiosities and its source");
   assert.strictEqual(await page.locator(".museum-event").count(), 36);

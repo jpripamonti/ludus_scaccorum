@@ -126,11 +126,12 @@ Ludus.router.register(id, { el, title?, onShow?(params), onHide? })
 Ludus.router.show(id, params?)     // hides every other registered screen; emits "screen:changed"
 Ludus.router.current()             // -> id
 Ludus.router.back()                // previous screen (stack of 10)
+                                   // browser history, guards and sub-states: pushSub/popSub/canLeave/canEnter/transient, see section 19
 
 Ludus.util.clamp, escapeHtml, uid(), hashString(str)->hex, now(), 
 Ludus.util.h(tag, attrs, ...children)     // safe DOM builder (attrs: class, dataset, aria-*, on*)
 Ludus.util.formatDate(ts, lang), formatRelativeDays(ts, lang), formatDuration(ms)
-Ludus.util.loadScript(path) -> Promise   // appends ?v=<Ludus.version>, dedupes, rejects on error
+Ludus.util.loadScript(path, {timeoutMs?}) -> Promise   // appends ?v=<Ludus.version>, dedupes, rejects on error or after 20 s
 ```
 
 `app.js` keeps its own `t()`; when a key is not in `TRANSLATIONS` it falls back
@@ -257,7 +258,9 @@ accuracy / 10`. `tiers` model → fixed points by quality (10/7.5/5/2.5/0/0/0).
 `tolerancePct` win% is best), `masters` (band + the master's move counts if
 within 3%). `brilliant` = best (or within band) **and** a sacrifice (set by the
 caller through `options.isSacrifice`) ; `great` = best and `onlyMove`.
-Allowing mate / missing a forced mate is always `blunder` with reason set.
+Allowing a mate is always `blunder` (reason `allows_mate`); missing a forced mate sets reason `missed_mate`
+and costs a fixed extra effective loss on top of the win% given up (`docs/SCORING.md` section 6), so a move that still
+wins is an inaccuracy or dubious, not a blunder.
 Also exports `Scoring.qualityMeta(code) -> { order, colorToken, glyph }`,
 `Scoring.summarize(assessments) -> { count, points, maxPoints, avgAccuracy, byQuality }`.
 
@@ -699,6 +702,57 @@ at the same time and re-assessed; the move of the game is scored the same way. A
 With the fallback engine a precomputed reference is used through the difference the fallback measures (a move outside
 the lines is never scored above the weakest reference line: the 3-ply search cannot see deep tactics and would otherwise
 give a blunder "no loss"), and lines the fallback guessed are not kept in records.
+
+### The QA fix pass in the game core (F1): history, clock, guard rails, downloads, engine
+
+**Router and browser history (`js/ludus.js`).** `Ludus.router.show(id)` writes one history entry per screen, so Back and Forward (a phone's
+Back gesture) move between the screens of the app. `history.state = { ludus: { id, sub?, depth?, seq } }`; an entry without it (the page as it
+was opened) is adopted by the first screen. `register(id, opts)` accepts, besides `el/title/onShow/onHide`:
+`transient: true` (the game and the wizard replace their entry when left by a screen change, no dead entry stays behind),
+`canEnter(entry) -> boolean` (false: Back skips the entry, Forward bounces off it: a finished game), `canLeave({ to }) -> boolean | Promise<boolean>`
+(asked before a popstate leaves the screen; "no" puts the popped entry back, the confirmation is the same one "Volver al inicio" shows) and
+`onSub(sub)`. New methods: `pushSub(sub)`, `replaceSub(sub)`, `popSub()` (a screen's sub-states: a wizard step or a classics game) and `subDepth()`.
+Without `window.history` (Node, old webviews) nothing is written and the router is what it was. `app.js` uses it for `setup` (wizard steps,
+`canEnter: wizardOpenedInThisPage`) and `game` (`transient`, `canLeave: confirmRestartToSetup`, `canEnter: isSessionActive`).
+`Ludus.util.loadScript(path, { timeoutMs = 20000 })` rejects with "loadScript: timed out loading ..." and forgets the attempt, so a later call retries.
+
+**`Ludus.game` additions.** `hint()` is unchanged for callers (it asks the next level whatever the taps before it); the hint button and `H` are
+protected instead (a second press within `HINT_TAP_GAP_MS` = 450 ms is the same press, and the level that shows the move needs a deliberate second press).
+The session summary's API (`summaryApi`) gains `canPlaySamePositions` and `onPlaySamePositions`: "play again" draws fresh positions (UX-021); "the same
+positions" (`canPlaySamePositions`, only in a duel on fixed positions) is an explicit choice for the coach screen to render. `savedDownloads` also forgets the remembered usernames.
+
+**Settings added to the schema:** `board.confirmMove` (`off` default | `touch` | `always`: a "Confirm move" step between the destination and the score),
+`a11y.shortcuts` (boolean, default `true`: the single-letter keys H N E B M; the buttons carry `aria-keyshortcuts` only while they are on).
+`engine.movetimeMs` now stops at 3500, the longest search a round allows.
+
+**The round clock.** It paints only when the displayed second changes (one timeout aimed at the next digit change, `STATE.timer.intervalId` is that
+pending handle), is paused while the page is hidden (`pausedMs` is taken out of `timeSpentMs` and the deadline moves), and a move submitted after the
+deadline is scored as a timeout (`roundClockExpired`). The wizard's clock choice is local to the session being set up (`STATE.setupWizard.clockMode`,
+"Sin tiempo" chip `data-seconds="0"`); the global clock setting is only its starting value, and the first-ever session (no `ludus.firstRun.v1`, nothing
+played) is untimed and starts with a how-to-play note. `session:completed` is emitted when the LAST position is answered, not when the summary is opened.
+
+**Session resume.** While a session runs the tab keeps `sessionStorage["ludus.sessionProgress.v1"]` (the position list and the answered rounds, not the
+profile's data); a reload offers "continue with what is left" once (`offerSessionResume`), and `beforeunload` warns while a session has unanswered
+rounds. A session that was answered to the end leaves nothing behind.
+
+**Own games: downloads and mistake detection.** Failures are `RemoteFetchError { code }` (`notFound`, `userMissing`, `noGames`, `rateLimited` with `retryAfterMs`,
+`server`, `offline`, `network`, `timeout`, `malformed`, `tooLarge`, `consentUnavailable`, `cancelled`); the wizard maps every code to a sentence with its remedy buttons, and never shows a raw error.
+A 429 is never retried inside the request: the cooldown of the provider lives in `ludus.remoteFetchCooldown.v1` and the wizard counts it down and retries.
+The download is abortable (`#analysis-cancel-btn`, elapsed seconds in `#analysis-elapsed`). The consent is asked per `provider|username`, fails closed
+when its dialog cannot be shown, and the Chess.com archive URLs are validated against the provider's host and the username. The last username per provider
+is remembered (`ludus.lastUser.v1`, forgotten with the saved games). A mistake is a loss of WIN CHANCE (`Scoring.winPercent`), not of centipawns: candidates
+are screened with a cheap search (never cached, `noCache`), confirmed with the round's own MultiPV analysis (`verifyMistakeCandidate`), and the confirmed
+analysis becomes `position.reference` (`engine.origin: "runtime"`). `mistakes.sensitivity` keeps its centipawn labels; `lossPctForCp` converts. A position with
+a single legal move is never a training position. The game phase comes from `Insights.gamePhase` (one classifier for the whole app).
+
+**Engine.** `Engine.supported()` probes WebAssembly SIMD and Workers; an unsupported browser never downloads the file and is told it plays with the
+backup engine. The download is prefetched as a stream (`downloadEngineFiles`) with a stall limit (`ENGINE_DOWNLOAD_STALL_MS` = 12 s without a byte, never
+a wall-clock limit); a session that answers before the engine is up waits while bytes keep arriving. A worker that stays silent for `silenceMs` (3 s) after
+`go` fails the transport, the round falls back at once and the strong engine is retried (`reviveEngineIfNeeded`). The backup engine is alpha-beta with
+MVV-LVA ordering and yields to the page every `LOCAL_SLICE_MS` = 12 ms, so it gives the same answers with a tenth of the work and never blocks the page.
+
+**Copy.** `interpolate` in `app.js` understands a tiny plural form `{n?one|other}` (Spanish and English share it); the Spanish is voseo.
+Language detection: the first `es*` / `en*` entry of `navigator.languages` wins, anything else is English.
 
 ### Board contract (`js/ui/board.js` = `Ludus.Board`, `css/board.css`)
 

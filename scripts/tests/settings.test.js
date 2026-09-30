@@ -109,6 +109,15 @@ function make(options = {}) {
   same(schema.find((spec) => spec.path === "board.theme").options.map((option) => option.value), ["walnut", "classic", "ocean", "forest", "slate", "contrast"]);
   same(schema.find((spec) => spec.path === "a11y.textScale").options.map((option) => option.value), [1, 1.15, 1.3]);
   eq(schema.find((spec) => spec.path === "clock.seconds").showWhen.path, "clock.mode", "dependent controls declare showWhen");
+  // UX-018, A11Y-003, PERF-018: the guard rails against a slipping finger and the keyboard shortcuts are settings,
+  // and the analysis time stops where the game's own cap does.
+  const confirm = schema.find((spec) => spec.path === "board.confirmMove");
+  same(confirm.options.map((option) => option.value), ["off", "touch", "always"]);
+  eq(confirm.default, "off", "nothing changes for someone who never opens the setting");
+  const shortcuts = schema.find((spec) => spec.path === "a11y.shortcuts");
+  eq(shortcuts.type, "boolean");
+  eq(shortcuts.default, true, "the letter shortcuts stay on unless a person turns them off");
+  eq(schema.find((spec) => spec.path === "engine.movetimeMs").max, 3500, "the slider does not offer more than a search may use");
 }
 
 // ---------- i18n: every visible string in Spanish and English ----------
@@ -191,7 +200,7 @@ function make(options = {}) {
   s.set("engine.movetimeMs", 5);
   eq(s.get("engine.movetimeMs"), 300);
   s.set("engine.movetimeMs", 1e9);
-  eq(s.get("engine.movetimeMs"), 10000);
+  eq(s.get("engine.movetimeMs"), 3500, "the setting stops at the longest search a round really allows (PERF-018)");
   s.set("engine.multiPv", 9);
   eq(s.get("engine.multiPv"), 5);
   s.set("engine.multiPv", 0);
