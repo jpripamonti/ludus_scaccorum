@@ -309,7 +309,7 @@ async function replayScenario(browser) {
   assert.strictEqual(await counterText(page), "33 / 33");
   assert.strictEqual(await page.locator('[data-action="next"]').getAttribute("aria-disabled"), "true");
   assert.match(await page.locator(".classics-now").innerText(), /Fin de la partida/);
-  assert.match(await page.locator(".classics-now").innerText(), /Rd8#/);
+  assert.match(await page.locator(".classics-now").innerText(), /Td8#/, "Spanish page: the mating rook move in Spanish letters (QA CNT-006)");
   assert.ok(await page.locator('.classics-board [data-square="e8"].bd-check, .classics-board [data-square="b8"].bd-check').count() >= 0);
   await page.keyboard.press("Home");
   assert.strictEqual(await counterText(page), "0 / 33");
@@ -756,6 +756,61 @@ async function layoutScenario(browser) {
   }
 }
 
+// QA VIS-004 / VIS-010 / VIS-021 / VIS-023 / A11Y-006: on a 320 px phone, also with the text at 130 %, no screen scrolls sideways, the "Entrenar"
+// CTA never breaks inside its word, a long player name wraps (and has its full name as a tooltip) instead of ending in an ellipsis, the four
+// History tabs never collide, and the gallery's opening eyebrow keeps its ECO code on the line of its own card.
+async function reflowScenario(browser) {
+  const cases = [
+    { name: "320x568", width: 320, height: 568, scale: 1 },
+    { name: "320x568 at 130 %", width: 320, height: 568, scale: 1.3 },
+    { name: "390x844 at 130 %", width: 390, height: 844, scale: 1.3 },
+  ];
+  for (const lang of ["es", "en"]) {
+    for (const item of cases) {
+      const { context, page, problems } = await newSession(browser, { lang, viewport: { width: item.width, height: item.height }, deviceScaleFactor: 1 });
+      const label = `${item.name} ${lang}`;
+      if (item.scale !== 1) await page.evaluate((scale) => Ludus.Settings.set("a11y.textScale", scale), item.scale);
+      const noSideways = async (what) => {
+        await page.waitForTimeout(150);
+        const overflow = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
+        assert.ok(overflow.sw <= overflow.cw, `${label} ${what}: horizontal scroll ${overflow.sw} > ${overflow.cw}`);
+      };
+      await openClassics(page);
+      await noSideways("gallery");
+      const eyebrows = await page.evaluate(() => Array.from(document.querySelectorAll(".classics-card-opening")).map((p) => {
+        const eco = p.querySelector(".classics-eco");
+        const first = p.getBoundingClientRect();
+        return eco ? Math.round(eco.getBoundingClientRect().top - first.top) : 0;
+      }));
+      assert.ok(eyebrows.every((top) => top <= 4), `${label}: the ECO chip sits on the first line of every eyebrow (${eyebrows.join(",")})`);
+      await openGame(page, "opera-1858");
+      await noSideways("game page");
+      const cta = await page.evaluate(() => {
+        const button = document.querySelector(".classics-head-train .btn-label");
+        const range = document.createRange();
+        range.selectNodeContents(button);
+        return { lines: new Set(Array.from(range.getClientRects()).map((r) => Math.round(r.top))).size, width: button.getBoundingClientRect().width };
+      });
+      assert.strictEqual(cta.lines, 1, `${label}: the train CTA stays on one line`);
+      const names = await page.evaluate(() => Array.from(document.querySelectorAll(".classics-player-name")).map((el) => ({ text: el.textContent, title: el.getAttribute("title"), cut: el.scrollHeight > el.clientHeight + 1 })));
+      assert.ok(names.every((n) => n.title === n.text), `${label}: every player name carries its full name as a tooltip`);
+      assert.ok(names.every((n) => !n.cut), `${label}: a player name is never cut (three lines hold the longest one, also at 130 %)`);
+      for (const tab of MUSEUM_TABS) {
+        await openMuseum(page, tab);
+        await noSideways(`history ${tab}`);
+      }
+      const tabs = await page.evaluate(() => Array.from(document.querySelectorAll(".museum-tab")).map((tab) => { const r = tab.getBoundingClientRect(); const l = tab.querySelector(".museum-tab-label").getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, lLeft: l.left, lRight: l.right, lBottom: l.bottom }; }));
+      tabs.forEach((tab) => {
+        assert.ok(tab.lLeft >= tab.left - 1 && tab.lRight <= tab.right + 1, `${label}: a History tab label stays inside its tab`);
+        assert.ok(tab.lBottom <= tab.bottom - 4, `${label}: a History tab label does not touch the tab underline`);
+      });
+      checkProblems(label, problems);
+      await context.close();
+    }
+  }
+  step("320 px and 130 % text: no sideways scroll, the CTA and player names wrap cleanly, the History tabs fit (es + en)");
+}
+
 async function motionFocusScenario(browser) {
   step("reduced motion: the screen and the highlights do not animate; the board does not slide");
   let s = await newSession(browser, { lang: "en", reducedMotion: "reduce" });
@@ -869,6 +924,7 @@ const scenarios = [
   ["history tabs", historyScenario],
   ["reading room", readingRoomScenario],
   ["layout", layoutScenario],
+  ["reflow", reflowScenario],
   ["motion + focus", motionFocusScenario],
   ["axe", axeScenario],
 ];

@@ -594,8 +594,15 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
   assert.ok(!run(byId["cap-false-qxc8"]).result.tags.includes("missed_capture"), "Qxc8 is queen for two rooks");
   assert.ok(!run(byId["cap-false-qxd5"]).result.tags.includes("missed_capture"), "Qxd5 loses material along the line");
   ["fork-false-qa2", "fork-false-qa4"].forEach((id) => assert.ok(!run(byId[id]).result.tags.includes("fork_available"), `${id}: ${byId[id].note}`));
-  // CNT-009: a check that is not the point is not advised.
+  // CNT-009: a check that is not the point is not advised; one that is says "before you play X" after a capture.
   assert.ok(!run(byId["check-false-re7"]).result.tags.includes("missed_check"));
+  {
+    const { result } = run(byId["check-after-capture"]);
+    assert.strictEqual(message(result, "missed_check").key, "insight.missed_check.after");
+    assert.strictEqual(renderMessage(message(result, "missed_check"), "en"), "Before you play Nxd1, it is worth looking at every check: Ne2+ gives check.");
+    assert.strictEqual(renderMessage(message(result, "missed_check"), "es"), "Antes de jugar Cxd1, conviene mirar todos los jaques: Ce2+ da jaque.", "Spanish letters: C is the knight");
+    assert.ok(!/quiet|tranquil/.test(renderMessage(message(result, "missed_check"), "en")), "a capture is not a quiet move");
+  }
 
   // CNT-003: a move that loses ten points by force is not "no simple tactic": the engine's line says what it costs.
   {
@@ -683,7 +690,7 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
   assert.ok(/You used almost all of the clock/.test(renderMessage(message(busy, "time_trouble"), "en")), "CNT-036: the wording no longer claims the learner was short of time");
   assert.ok(/Usaste casi todo el tiempo/.test(renderMessage(message(busy, "time_trouble"), "es")));
 
-  // A missed check that matters names the move and, after a capture, does not say "quiet moves".
+  // A check that the other messages already explain (the back rank, the sacrifice) is not advised again.
   const mateLine = analyzeLine("5r1k/6pp/7N/8/8/8/Q7/K7 w - - 0 1", "a2a3", ["a2g8", "f8g8", "h6f7"]);
   assert.ok(!mateLine.tags.includes("missed_check"), "the back-rank / sacrifice messages already say it");
 }

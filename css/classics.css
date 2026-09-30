@@ -441,7 +441,7 @@
   container: classics-replay / inline-size;
 }
 .classics-player-slot { min-width: 0; }
-/* A long name ("el duque Carlos de Brunswick y el conde Isouard") wraps over two lines and the "you train this side" pill drops under it
+/* A long name ("el duque Carlos de Brunswick y el conde Isouard") wraps over up to three lines (two are enough at the normal text size) and the "you train this side" pill drops under it
    when the row is narrow; the full name is also the title attribute (QA VIS-010). */
 .classics-player { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-height: 28px; min-width: 0; font-size: var(--text-md); font-weight: 650; }
 .classics-player-name {
@@ -449,8 +449,8 @@
   min-width: 0;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   overflow: hidden;
   overflow-wrap: anywhere;
   line-height: 1.25;

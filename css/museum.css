@@ -22,7 +22,8 @@
 .museum-tab[aria-selected="true"] .ui-icon { color: var(--color-gold); }
 @media (max-width: 599px) {
   /* Four equal tabs, icon over label, so none of them hides behind a scroll. */
-  .museum-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; }
+  /* minmax(min-content, 1fr): a column is never narrower than its longest word ("Curiosidades"), it only shares out what is left. */
+  .museum-tabs { display: grid; grid-template-columns: repeat(4, minmax(min-content, 1fr)); overflow: visible; }
   /* `.museum-tabs.tabs > .museum-tab` (three classes) on purpose: the shared `.tabs [role="tab"]` rule keeps 16px of side padding at equal
      specificity, which left 57px for "Escuela de ajedrez" (three lines touching the underline, QA VIS-021). */
   .museum-tabs.tabs > .museum-tab {
@@ -38,7 +39,7 @@
 }
 /* Too narrow for four columns (a 320px phone with the text at 130%: "Curiosidades" ran into its neighbours): two rows of two.
    The query is in rem, so it follows the text size. */
-@container museum (max-width: 16rem) {
+@container museum (max-width: 18.5rem) {
   .museum-tabs.tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 

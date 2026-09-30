@@ -481,7 +481,8 @@ async function notebookScenario(browser) {
   await dialog.waitFor({ state: "detached" });
   await page.waitForFunction((id) => !document.querySelector(`.notebook-card[data-card="${id}"]`), victimId);
   assert.strictEqual(await cardOf(page, victimId), null, "removed from the profile");
-  assert.ok(await page.evaluate(() => document.activeElement && document.activeElement.id === "notebook-list-title"), "the focus went to the list heading");
+  // QA A11Y-020: the focus lands on the card now at that place in the list, in view, not on the heading that may be far above the viewport
+  assert.ok(await page.evaluate(() => { const el = document.activeElement; if (!el || !/^notebook-card-/.test(el.id || "")) return false; const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }), "the focus went to a remaining card, inside the viewport");
   await page.waitForSelector(".toast", { timeout: 3000 });
   assert.match(await page.locator(".toast").first().innerText(), /Card removed/);
   checkProblems("notebook", s.problems);

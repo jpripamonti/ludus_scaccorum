@@ -532,8 +532,8 @@ async function checkWizard(browser) {
     await boot(phone.page);
     await phone.page.evaluate(() => Ludus.game.openOwnGamesSetup({}));
     await phone.page.waitForTimeout(400);
-    const heading = await phone.page.evaluate(() => { const h2 = document.querySelector("#setup-panel .wizard-header h2"); const lh = parseFloat(getComputedStyle(h2).lineHeight); return { lines: Math.round(h2.getBoundingClientRect().height / lh), font: getComputedStyle(h2).fontFamily }; });
-    assert.strictEqual(heading.lines, 1, `${lang}: the heading fits one line at 390px (no orphan word)`);
+    const heading = await phone.page.evaluate(() => { const h2 = document.querySelector("#setup-panel .wizard-header h2"); const lh = parseFloat(getComputedStyle(h2).lineHeight); return { lines: Math.round(h2.getBoundingClientRect().height / lh), font: getComputedStyle(h2).fontFamily, h: h2.getBoundingClientRect().height, lh, text: h2.textContent, w: h2.getBoundingClientRect().width }; });
+    assert.strictEqual(heading.lines, 1, `${lang}: the heading fits one line at 390px (no orphan word) ${JSON.stringify(heading)}`);
     assert.ok(/Cormorant/i.test(heading.font), "in the display face of the other screens");
     await phone.context.close();
     const desk = await newPage(browser, { w: 1280, h: 800, lang });
@@ -548,24 +548,27 @@ async function checkWizard(browser) {
   step("the wizard has the heading, eyebrow and card of the design system");
 }
 
+// LUDUS_ONLY=wizard,tabs runs just those groups (boot, skip, rings, obscured, forced, dots, targets, reflow, tabs, storage, wizard, framing).
 async function main() {
+  const only = (process.env.LUDUS_ONLY || "").split(",").map((name) => name.trim()).filter(Boolean);
+  const wanted = (name) => !only.length || only.includes(name);
   const browser = await launchBrowser();
   try {
-    await checkBoot(browser);
-    await checkSkipLink(browser);
-    await checkRings(browser);
-    await checkObscured(browser);
-    await checkForcedColors(browser);
-    await checkLegalDots(browser);
-    await checkTargets(browser);
-    await checkReflow(browser);
-    await checkTabs(browser);
-    await checkStorageBanner(browser);
-    await checkWizard(browser);
+    if (wanted("boot")) await checkBoot(browser);
+    if (wanted("skip")) await checkSkipLink(browser);
+    if (wanted("rings")) await checkRings(browser);
+    if (wanted("obscured")) await checkObscured(browser);
+    if (wanted("forced")) await checkForcedColors(browser);
+    if (wanted("dots")) await checkLegalDots(browser);
+    if (wanted("targets")) await checkTargets(browser);
+    if (wanted("reflow")) await checkReflow(browser);
+    if (wanted("tabs")) await checkTabs(browser);
+    if (wanted("storage")) await checkStorageBanner(browser);
+    if (wanted("wizard")) await checkWizard(browser);
   } finally {
     await browser.close();
   }
-  await checkFraming();
+  if (wanted("framing")) await checkFraming();
   console.log("shell e2e: all checks passed");
 }
 

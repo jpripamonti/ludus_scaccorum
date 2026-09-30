@@ -1730,6 +1730,7 @@
       }
       const positions = row.positions ? tCount("account.profile.positions", row.positions) : t("account.profile.positions.none");
       return h("label", { class: "account-link-option" }, radio,
+        h("span", { class: "account-link-dot", "aria-hidden": "true" }),
         h("span", { class: "account-link-text" },
           h("span", { class: "account-link-name" }, row.name),
           h("span", { class: "account-link-meta" }, row.level && row.level.title ? t("account.link.option.meta", { positions, level: row.level.title }) : positions)));

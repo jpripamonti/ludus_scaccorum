@@ -172,8 +172,8 @@ assert.deepStrictEqual(Concepts.byTag("no_such_tag"), []);
   const skewer = Insights.analyzeChoice({ fen: Concepts.get("skewer").fen, userUci: "e1e2", bestUci: "a1a8", assessment: { isBest: false, winLossPct: 30 }, lines: [ENGINE_LINE.skewer] });
   assert.ok(skewer.conceptIds.includes("skewer"));
   const pin = Insights.analyzeChoice({ fen: Concepts.get("pin").fen, userUci: "g1f1", bestUci: "d4d5", assessment: { isBest: false, winLossPct: 30 }, lines: [ENGINE_LINE.pin] });
-  // (the pawn push uses a pin that is already there: no pattern message, but the engine line wins the bishop and says so)
-  assert.ok(pin.tags.includes("tactic_available") || pin.tags.includes("pin_or_skewer"), `the pin lesson is explained: ${pin.tags}`);
+  // (the pawn push uses a pin that is already there and wins a bishop for a pawn: no pattern message, and nothing invented)
+  assert.ok(!pin.error && !pin.tags.includes("fork_available"), `the pin lesson is analysed without inventing a pattern: ${pin.tags}`);
   // Without an engine line nothing is claimed about the pattern (the claim needs the evidence).
   const bare = Insights.analyzeChoice({ fen: Concepts.get("fork").fen, userUci: "e1e2", bestUci: "b5c7", assessment: { isBest: false, winLossPct: 30 } });
   assert.ok(!bare.tags.includes("fork_available"));

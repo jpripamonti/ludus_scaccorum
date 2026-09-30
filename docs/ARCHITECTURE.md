@@ -340,6 +340,7 @@ Persisted at `ludus.settings.v2` (migrates `ludus.setup.v1`). Paths:
 board.theme        "walnut"|"classic"|"ocean"|"forest"|"slate"|"contrast"
 board.coords       boolean          board.legalDots  boolean      board.lastMove boolean
 board.animation    "auto"|"on"|"off"        board.drag  boolean
+notation.style     "auto"|"english"|"spanish"   (piece letters of written moves, group "board"; `Ludus.chess.localizeSan`)
 sound.enabled      boolean (default true)   sound.volume 0..1 (0.5)     haptics boolean (true)
 clock.mode         "timed"|"untimed"        clock.seconds 5..360 (90)
 engine.strength    "fast"|"balanced"|"deep"|"custom"   engine.movetimeMs 300..10000
@@ -551,9 +552,10 @@ failed the strong engine would silently become the backup one. Recipe if it is e
 fetch finished, `new Worker(blobUrl + "#" + encodeURIComponent(absoluteWasmUrl))` (the hash must NOT end in `,worker`: that makes the loader a pthread helper), CSP
 `worker-src blob:`, and `scripts/e2e/sw.js` scenario 2 + `scripts/e2e/csp.js` as the regression check (does a blob worker get the page's service worker offline?).
 `scripts/e2e/csp.js` walks every screen, the dialogs and a classic round with the real engine under the shipped policy and fails on any `securitypolicyviolation`;
-run with `LUDUS_CSP_VARIANT=<name>` it shows which allowance is needed. Results (Chromium 1194, this tree): removing `'wasm-unsafe-eval'` breaks the strong
-engine start-up check (`Engine.supported()` validates a SIMD module in the page, which the policy otherwise blocks), so it stays; removing `data:` from `img-src`
-breaks `js/ui/shell.js` icons; `worker-src 'self'` is narrower than the `script-src` fallback (which would also allow Google's script as a worker), so it stays;
+run with `LUDUS_CSP_VARIANT=<name>` it shows which allowance is needed. Results (Chromium 1194, this tree): removing `'wasm-unsafe-eval'` breaks nothing (the engine runs in a
+worker the policy does not govern and the page only calls `WebAssembly.validate`); it stays because a browser that applied the document's policy to that worker
+would silently lose the strong engine and Firefox / Safari cannot be tried from here; removing `data:` from `img-src` blocks the inline icons of `js/ui/shell.js` and
+`app.js`; `worker-src 'self'` is narrower than the `script-src` fallback (which would also allow Google's script as a worker), so it stays;
 removing `'unsafe-inline'` from `style-src` produces exactly one violation, the static `style="margin-bottom: 0;"` of the wizard in `index.html` (all JavaScript styling goes
 through the CSSOM), so dropping it is one markup edit away: replace that attribute with a class, remove `'unsafe-inline'`, and `LUDUS_CSP_VARIANT=noUnsafeInlineStyle
 node scripts/e2e/csp.js` must pass. `https://*.googleusercontent.com` (profile photos) could not be narrowed without real Google accounts, and Firefox / Safari
@@ -675,6 +677,9 @@ this section lists the differences that matter to integrators. Per-module detail
 * `resultContext()` = `STATE.resultView.context`, what the coach panel draws: `{ kind, round, fen, positionId, source, best, master,
   lines (SAN + eval), answers[] (assessment, insights, hit, hintsUsed, ...), assessment, assessments, insights, fact, engine, ... }`.
 * `configureEngine({ createTransport?, minEvalVisibleMs?, retryBaseMs? })` and `isUsingFallbackEngine()`: for tests and e2e.
+* `savedDownloads` (Settings > Privacy, QA SEC-008): `keep()` -> boolean (default `true`: downloaded games and the remembered usernames are kept for up to 7
+  days), `setKeep(boolean)` (writes `ludus.noPersistDownloads.v1`), `clear()` -> `Promise` (deletes the saved games and the remembered usernames, like the
+  wizard's "Clear saved game data"). The settings screen shows its privacy section only when this object exists.
 
 **Events** (all on `Ludus.bus`): `session:started {session}`, `round:completed {round}` (a RoundRecord per answer, two in a duel,
 each with the profile of its player), `session:completed {session}` (a SessionRecord; in a duel the totals count both players
@@ -961,6 +966,12 @@ arrow keys / Home / End / Space from the document (arrows inside the list also m
 reading time of a note (`Reader.readingTimeMs`), pauses when the tab is hidden. "Train this game": count (5 / 10 / all), hints switch,
 shuffle -> `startSession({kind:"classic", title, positions, options:{hints}})`; the sentence "you play the master's side..." is on the card.
 The board squares are made non-focusable and the stage is `role=img` with a spoken description of the position.
+QA pass: a load that hangs says so after 6 s ("taking longer than usual") and after 25 s becomes the error state with a retry that re-awaits the same
+`Classics.load()` promise (an in-flight download is never abandoned); `document.title` names the game ("La Ópera - Partidas clásicas - Ludus Scaccorum");
+every SAN drawn (move list, status, board label) goes through `Ludus.chess.localizeSan` and blurbs / notes through `Ludus.Classics.localizeQuotedMoves`
+(`helpers.shownSan`, `showPly`; the replayed SAN stays English); names and events come from `Ludus.Classics.displayName / displayEvent` (the `names` /
+`events` tables of the data) with local fallback tables only while the data is not loaded (a test keeps them equal to the data); a source link is named by
+site and page (`helpers.sourceLinkLabel`), the source list is `lang="en"`; a player name wraps over up to 3 lines and carries its full name as `title`.
 
 **museum** (`titleKey "museum.title"`, nav label "History"): accessible tablist (roles, roving tab stop, Left / Right / Home / End, panels built
 on first use) with `timeline` (36 milestones grouped in 8 eras; each expands to the curiosities of its time and its source; era links; jump to
@@ -968,7 +979,9 @@ a year), `curiosities` (category pills with counts, accent-blind search, 24 at a
 `school` (`Concepts.list()`, a miniBoard with the best-move arrow and the move in SAN, "mistakes it helps to avoid" from `Concepts.tags` /
 `Insights.TAGS`, filter by tag) and `room` (`Reader.createCarousel`, created when the tab opens, destroyed when it closes or the screen hides;
 `onlyWhile` keeps it from rotating in the background). `show({ tab })` and the hash `#/museum/<tab>` open a tab. A missing module (Facts,
-Concepts, Insights, Reader, kit) turns that tab into a short notice.
+Concepts, Insights, Reader, kit) turns that tab into a short notice. `document.title` follows the tab ("Escuela de ajedrez - Historia - Ludus Scaccorum");
+below 18.5 rem of screen width (a 320px phone, or a larger text size: the query is in rem) the four tabs become two rows of two; example moves and moves
+quoted in facts follow the notation setting like the rest.
 
 ### Screens `Ludus.Screens.notebook` and `Ludus.Screens.progress` (`js/ui/notebook.js`, `js/ui/progress.js`; `css/notebook.css` `.notebook-`, `css/progress.css` `.progress-`)
 
@@ -989,6 +1002,10 @@ cleared), origin, theme, phase, how bad the mistake was (from the stored round o
 by next review / most recent / worst first, shows 12 at a time, and each card has a board seen from the side to move with the best-move arrow, the
 origin (your game names the opponent when the profile name is one of the players), your move against the best one, five box pips, the next review,
 the stored lines and the review history, review-this-one and a confirmed removal. `show({ tag, status, source, phase })` presets the filters.
+QA pass: after a confirmed removal the focus goes to the card now at that place in the list (the new last one when the last was removed, the list heading only when
+none is left) and is scrolled into view; the review / lines / remove buttons are named "<title> (card n)" (`notebook.card.named`) because two cards of one game share a
+title; SANs (your move, the best move, the engine lines, the lesson example) go through `Ludus.chess.localizeSan` (`helpers.shownSan`; `formatPv(fen, pv, chess, show)`
+takes the display mapper as an optional 4th argument); the size control wraps its label above it when they do not fit.
 
 **progress** (`titleKey "progress.title"`): level and XP bar, streak (with the "at risk" warning) and daily streak, the four numbers, a 12 week heatmap
 (a grid computed by calendar arithmetic on local Y-M-D, so DST changes and New Year cannot shift a day; a list of the active days as its alternative),
@@ -998,6 +1015,10 @@ origin (a mark at 70, small samples labelled), the quality of the moves as one s
 (only with `Profile.constants.MIN_TAG_SAMPLE` positions) linking to their lesson and to `router.show("notebook", { tag })`, the achievements catalogue
 with progress, and the recent sessions. What is missing is said with numbers (`helpers.dataGaps`); nothing is invented (no rarity, no placeholders).
 The profile switcher looks at another profile (`show({ profile })`) without changing the active one.
+QA pass: `.progress-root` and `.progress-card` use an explicit `minmax(0, 1fr)` track (an implicit `auto` column grew to the widest unbreakable content and pushed the
+whole page sideways at 320 px / 130 % text); the achievements filter reads "Todos / Logrados / Pendientes" and stacks as three full-width rows when its card is narrower
+than 18 rem (a container query in rem); from 900 px the activity card puts its three numbers in a panel beside the heatmap and the quality legend spreads over the height of
+the other two breakdown cards; the accuracy trend says that this accuracy is stricter than Lichess's (`progress.trend.scale`, docs/SCORING.md section 4).
 
 ### Screens `Ludus.Screens.settings` and `Ludus.Screens.account` (`js/ui/settings.js`, `js/ui/account.js`; `css/settings.css` `.settings-`, `css/account.css` `.account-`)
 
@@ -1017,7 +1038,12 @@ preset means, `helpers.waitEstimate`, the sentence of what counts as best with t
 20 cp, master, 50 / 150 / 400 cp, missed mate, best with a level 1 hint) with the lines cut to `engine.multiPv`; a case whose points changed flashes (not under
 reduced motion). Clock: presets 60 / 90 / 180 / 360 s plus a number field that commits only complete in-range numbers while typing and clamps on leaving.
 Sound: one test button per `Audio.names` (`aria-disabled` while sound is off, so the buttons stay focusable), the volume slider plays "move" on release, the
-vibration test only where `navigator.vibrate` exists. Registered i18n: `settings.title|eyebrow|heading|sub`, `settings.section.*`, `settings.ui.*` (the schema's
+vibration test only where `navigator.vibrate` exists. A section's **Reset** shows a persistent notice under the section heading (a live region that exists all the
+time, the very next Tab stop after the Reset button) with "Undo" and a close button instead of a five second toast; it closes when used, dismissed or when another
+setting of the section changes, and the focus goes back to Reset (QA A11Y-005). A **Privacy** section (id `privacy`, after Accessibility) exists only when
+`Ludus.game.savedDownloads` does: a switch "Remember my downloaded games" (off = delete what is kept now and keep nothing) and "Delete saved games now" (confirm).
+The clock note says it is the usual clock (the wizard's time is for its session only); the analysis-time note appears when the chosen time is above the 3.5 s a round
+ever uses; tiles put their check badge on the corner of the border so it never covers a label. Registered i18n: `settings.title|eyebrow|heading|sub`, `settings.section.*`, `settings.ui.*` (the schema's
 own `settings.<path>.label|hint|option.<v>` come from `js/settings.js`).
 
 **account** (`titleKey "account.title"`): profiles as cards (avatar, name, level badge, positions, active marker; create with a name + `Profile.constants.PALETTE`
@@ -1033,7 +1059,12 @@ It is drawn from `helpers.syncModel(Auth.state())` and repaints from `Auth.onCha
 URL, last sync, Sync now / Sign out / Sign out and revoke), syncing, error (`Auth.errorMessage(code)` in a `role="alert"`, Try again), expired or remembered after
 a reload (Reconnect). Note the machine: an expired session is `status "signed_out"` + `error "reconnect-required"` + a remembered user. The install prompt is
 captured when `js/ui/account.js` loads (the event fires early and once), `preventDefault()`ed, and used once from the button; iOS gets the Share hint and an installed
-app the "already installed" line. Registered i18n: `account.*`.
+app the "already installed" line. QA pass: a first sign-in uploads nothing: when `Auth.state().linkRequired` the card asks which local profile goes to the Drive
+(radios over `Profile.list()`, the active one preselected; "Save this profile to my Drive" -> `Auth.linkProfile(id)`, or "Bring my Drive progress to this device" ->
+`Auth.importFromDrive()`), shows "You are syncing <name>'s profile" with "Stop syncing this profile" (`Auth.unlinkProfile`) afterwards, and hides "Sync now" until a
+profile is linked (an Auth without `linkRequired` never asks); the Google script is requested on `pointerdown` of the sign-in button, never on hover or focus; the
+site owner's pointer of the "not configured" card shows only on localhost / 127.0.0.1 / `?debug`; profiles say they are not private; the export and Drive copy disclose
+that own-game rounds keep the players' usernames and game links; About names the elected licence of the pieces; colour swatches are named by colour. Registered i18n: `account.*`.
 
 ### Tests
 

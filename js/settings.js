@@ -225,7 +225,7 @@
     "board.animation": [["Animación de piezas", "Piece animation"], ["Automática respeta la configuración de tu sistema.", "Automatic follows your system setting."]],
     "board.drag": [["Arrastrar piezas", "Drag pieces"], ["Además de tocar origen y destino, podés arrastrar la pieza.", "Besides tapping origin and destination, you can drag the piece."]],
     "board.confirmMove": [["Confirmar la jugada", "Confirm the move"], ["Pide un “Confirmar” antes de puntuar la jugada, para que un dedo que se resbala no te cueste puntos. “Con el dedo” lo pide solo al tocar la pantalla.", "Asks for a “Confirm” before the move is scored, so a slipping finger does not cost you points. “With a finger” only asks when you touch the screen."]],
-    "notation.style": [["Letras de las piezas", "Piece letters"], ["Cómo se escriben las jugadas. Automático sigue el idioma: en español la R es el rey, la D la dama, la T la torre, la A el alfil y la C el caballo.", "How moves are written. Automatic follows the language: in Spanish notation R is the king, D the queen, T the rook, A the bishop and C the knight."]],
+    "notation.style": [["Letras de las piezas", "Piece letters"], ["Cómo se escriben las jugadas. Automático sigue el idioma. Inglesas: K Q R B N. Españolas: R rey, D dama, T torre, A alfil, C caballo.", "How moves are written. Automatic follows the language. English: K Q R B N. Spanish: R king, D queen, T rook, A bishop, C knight."]],
     "sound.enabled": [["Sonidos", "Sounds"], ["Efectos al mover, capturar y acertar.", "Effects for moves, captures and good answers."]],
     "sound.volume": [["Volumen", "Volume"], ["Qué tan fuertes suenan los efectos.", "How loud the effects are."]],
     "haptics": [["Vibración", "Vibration"], ["Vibración corta en celulares compatibles.", "A short vibration on supported phones."]],
@@ -253,7 +253,7 @@
     },
     "board.animation": { auto: ["Automática", "Automatic"], on: ["Activada", "On"], off: ["Desactivada", "Off"] },
     "board.confirmMove": { off: ["No", "No"], touch: ["Con el dedo", "With a finger"], always: ["Siempre", "Always"] },
-    "notation.style": { auto: ["Según el idioma", "Follow the language"], english: ["Inglesas (K Q R B N)", "English (K Q R B N)"], spanish: ["Españolas (R D T A C)", "Spanish (R D T A C)"] },
+    "notation.style": { auto: ["Según el idioma", "Follow the language"], english: ["Inglesas", "English"], spanish: ["Españolas", "Spanish"] },
     "clock.mode": { timed: ["Con tiempo", "Timed"], untimed: ["Sin tiempo", "Untimed"] },
     "engine.strength": {
       fast: ["Rápido", "Fast"], balanced: ["Equilibrado", "Balanced"], deep: ["Profundo", "Deep"], custom: ["Personalizado", "Custom"],
