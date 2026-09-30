@@ -636,6 +636,8 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
   assert.strictEqual(verdictAt(2.99).verdict, "close");
   assert.strictEqual(verdictAt(3).verdict, "worse");
   assert.strictEqual(verdictAt(2).messages[0].key, "insight.close");
+  assert.strictEqual(verdictAt(2.4).messages[0].key, "insight.close");
+  assert.deepStrictEqual(verdictAt(2.6).messages, [], "from 2.5 win% 'the gap is small' is no longer said (a second search put such moves clearly further behind)");
   assert.strictEqual(verdictAt(1).messages[0].key, "insight.solid");
 
   // Mate lengths are upper bounds and only claimed where reliable.

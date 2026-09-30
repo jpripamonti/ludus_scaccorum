@@ -70,6 +70,7 @@ runs in the browser (WASM in a Worker).
 
 ```
 index.html               shell + screen containers + script/link tags
+js/boot.js               <head> guard, runs before the first paint: returning visitor / framed / old browser flags on <html>
 config.js                window.LUDUS_CONFIG (googleClientId, feature flags)
 styles.css               tokens (:root) + base + legacy game screen styles
 css/*.css                one file per screen/module (prefix classes!)
@@ -492,15 +493,76 @@ each screen has `css/<screen>.css` with a class prefix unique to it.
 
 ## 16. Versioning, offline, deploy
 
-`scripts/generate-version.js` hashes **every file in `app.js`, `styles.css`,
-`config.js`, `js/**`, `css/**`** plus the precache list, stamps the hash into
-every local `<script>`/`<link>` `?v=` in `index.html`, into
-`<meta name="ludus-version">`, and into `sw.js` (`CACHE_NAME`, `CORE_ASSETS`).
-Lazily-loaded files are fetched with `?v=` (see `Ludus.util.loadScript`) and
-cached at runtime by the service worker. `deploy-pages.yml` copies
-`index.html app.js styles.css config.js sw.js manifest.json js css assets vendor`.
-`scripts/smoke-check.js` verifies all of it (files exist, hashes coherent,
-deploy copies every top-level directory that `index.html` references).
+**The version.** `scripts/generate-version.js` hashes everything the deployed app loads: `app.js`, `styles.css`, `config.js`, `manifest.json`, every
+file under `js/`, `css/`, `assets/` and `vendor/` (documentation in them, `*.md` / `*.txt` / `SHA256SUMS`, does not count), `index.html` with its own stamps
+blanked (so the CSP meta tag, the markup and the preload hints are part of the version) and `sw.js` with its generated constants blanked, plus the precache
+list. The 12-digit hash is stamped into every local `<script>` / `<link>` `?v=` and `<meta name="ludus-version">` of `index.html` and into `sw.js`
+(`CACHE_NAME`, `CORE_ASSETS`, `ENGINE_CACHE`, `ENGINE_FILES`). It is idempotent (running it twice changes nothing; stamps never feed back into the hash) and
+independent of modification times. Lazily loaded files (`js/data/*.js`) are fetched with `?v=` (see `Ludus.util.loadScript`). GitHub Pages ignores
+`?v=` (an old URL returns the new bytes), which is why the service worker, not the URL, is what keeps builds apart.
+
+**The service worker (`sw.js`).** Three policies, and requests that are not the app's are not intercepted at all (other origins, `LICENSE`, markdown files,
+`package.json`, Range requests):
+
+1. *Navigations* (`/`, `/index.html`, any query): the precached shell, immediately, whatever the network does. The shell and the scripts it names are the same
+   build by construction (one versioned cache), a dead or hanging network costs nothing (measured: the page commits in ~40 ms with a network that accepts
+   connections and never answers; it used to hang for 75 s and more), and nothing is ever mixed. Freshness comes from the worker update, not from the page
+   request: each navigation asks `registration.update()` (at most once per 15 min), a new build installs in the background and WAITS (there is no automatic
+   `skipWaiting`). The precache is all-or-nothing, fetched past the HTTP cache (`cache: "reload"`: Pages sends `max-age=600`), and the installed `index.html`
+   must carry this worker's own version or the install fails and is retried at the next check (a deploy half way).
+2. *The engine* (`vendor/*.js`, `*.wasm`, unversioned file names, 7.3 MB): its own cache `ENGINE_CACHE`, named after the SHA-256 of the engine files. A deploy
+   that does not touch `vendor/` keeps the same cache name, so the engine survives it and plays offline right after (measured: no request to the server at all);
+   an old worker's copy is migrated into it on activate when it is byte-for-byte the expected one. Only bytes whose SHA-256 is in `ENGINE_FILES` are stored or
+   served (one retry past the HTTP cache, then a network error: the page falls back to the built-in engine and the refusal is logged and reported).
+3. *Everything else that is ours*: the precache (`CORE_ASSETS`: code, styles, fonts, icons, the piece set and `js/data/classics.data.js`, so Classics works offline
+   from the first visit) cache-first, and on demand only files under `assets/` and `js/data/`: a complete same-origin 200, no query string but the build
+   `?v=`, never another build's, at most 40 extra entries (oldest out first), every `cache.put` rejection caught and reported, never an error page, an opaque or a
+   partial response. A lazily loaded `js/data/*` file of ANOTHER build (an old tab after an update) is refused instead of answered with the new bytes.
+
+Activate deletes only caches whose names start with `ludus-scaccorum-static-` / `ludus-scaccorum-engine-` and are not the current ones: on a GitHub Pages user
+site every project shares one origin and one Cache Storage (`docs/GOOGLE_SIGNIN.md`, "Shared origin"). `scripts/smoke-check.js` checks that rule and the
+absence of any other `skipWaiting()` on the worker's source.
+
+**The page side (`registerServiceWorker` in `app.js`).** A first install says "ready offline" once (`ludus.pwa.offline.v1`). A waiting build is offered as a
+persistent toast "a new version is ready - Reload" (never while `Ludus.game.isActive()`: it waits for `screen:changed` / `session:completed`), and only when the
+person agrees does the page send `{ type: "SKIP_WAITING" }` and reload on `controllerchange`. A tab that did not ask (another tab took the worker) is offered a plain
+reload and never reloaded by itself. A window that comes back after 30 minutes asks for an update. Failures the worker would swallow (install refused by the
+storage quota, `cache.put` rejections, a refused engine file) are logged: `console.warn` on the page, from the worker's `{ type: "ludus-sw", event, detail }`
+messages. With service workers absent or stubbed out (automation, locked-down browsers) nothing is registered and nothing is logged as an error.
+
+**Deploy.** `deploy-pages.yml` has two jobs. `build` (permissions: `contents: read`) regenerates the version, runs `npm test`, copies `index.html app.js styles.css
+config.js sw.js manifest.json LICENSE THIRD_PARTY_NOTICES.md js css assets vendor` into `_site` and uploads it; `deploy` (`pages: write`, `id-token: write`, the
+`github-pages` environment) only publishes that artifact and runs no project code. `npm start` is `scripts/dev/serve.js`: loopback only, the deploy list
+only (no `.git`, docs, scripts, data, dotfiles). `scripts/smoke-check.js` verifies: files exist, hash and stamps coherent (index.html, `CACHE_NAME`,
+`CORE_ASSETS` incl. `js/data`, `ENGINE_CACHE` / `ENGINE_FILES` against `vendor/`), no `vendor/` in the precache, a 4 MiB precache budget, the service worker's
+deletion / `skipWaiting` rules, the CSP allow-list, no `Permissions-Policy` meta, the deploy workflow copies everything the hash and the precache cover and does
+not grant the Pages token to the job that runs project code. `.github/workflows/e2e.yml` runs `scripts/e2e/sw.js` and `scripts/e2e/csp.js` in Chromium (it cannot
+be run from the development sandbox; it is meant as a separate, initially non-required check: `npm test` stays the required gate).
+
+**What a `<meta>` CSP can and cannot do (SEC-002, SEC-012, SEC-013).** The policy in `index.html` governs the document. It does NOT govern a same-origin worker
+script (`new Worker("vendor/stockfish-18-lite-single.js")` runs with no CSP of its own and can `fetch()` anywhere), and `Permissions-Policy`, `frame-ancestors` and
+`sandbox` are header-only (GitHub Pages cannot send headers), so the `Permissions-Policy` meta that used to be here was removed (the app uses none of those
+features) and clickjacking is handled by `js/boot.js`. The integrity of the engine therefore rests on `vendor/SHA256SUMS`, on the service worker's
+`ENGINE_FILES` check above and on the review of any change to `vendor/`. A blob-wrapper was evaluated (fetch the engine, start it from `blob:`; blob workers
+inherit the creator's CSP, and `worker-src blob:` without `'self'` would also close the same-origin-worker bypass): in Chromium 1194 with the real engine it works
+(same UCI output and analysis, 500 ms to first bestmove) and the inherited `connect-src 'self'` blocks a probing `fetch()`. NOT implemented: the transport factory of
+`js/engine.js` is synchronous (it would need a buffering facade), `worker-src blob:` cannot be tried in Firefox or Safari from here, and in a browser where it
+failed the strong engine would silently become the backup one. Recipe if it is ever wanted: a facade in `defaultCreateTransport` that queues `postMessage` until the
+fetch finished, `new Worker(blobUrl + "#" + encodeURIComponent(absoluteWasmUrl))` (the hash must NOT end in `,worker`: that makes the loader a pthread helper), CSP
+`worker-src blob:`, and `scripts/e2e/sw.js` scenario 2 + `scripts/e2e/csp.js` as the regression check (does a blob worker get the page's service worker offline?).
+`scripts/e2e/csp.js` walks every screen, the dialogs and a classic round with the real engine under the shipped policy and fails on any `securitypolicyviolation`;
+run with `LUDUS_CSP_VARIANT=<name>` it shows which allowance is needed. Results (Chromium 1194, this tree): removing `'wasm-unsafe-eval'` breaks the strong
+engine start-up check (`Engine.supported()` validates a SIMD module in the page, which the policy otherwise blocks), so it stays; removing `data:` from `img-src`
+breaks `js/ui/shell.js` icons; `worker-src 'self'` is narrower than the `script-src` fallback (which would also allow Google's script as a worker), so it stays;
+removing `'unsafe-inline'` from `style-src` produces exactly one violation, the static `style="margin-bottom: 0;"` of the wizard in `index.html` (all JavaScript styling goes
+through the CSSOM), so dropping it is one markup edit away: replace that attribute with a class, remove `'unsafe-inline'`, and `LUDUS_CSP_VARIANT=noUnsafeInlineStyle
+node scripts/e2e/csp.js` must pass. `https://*.googleusercontent.com` (profile photos) could not be narrowed without real Google accounts, and Firefox / Safari
+were not available.
+
+**Minification (PERF-012, not done).** Measured by the performance review: esbuild `--minify` takes JS from 1.76 MB to 1.02 MB raw (gzip 489 KB to 332 KB) and CSS
+from 339 KB to 255 KB (gzip 76 KB to 52 KB): about 181 KB of the 859 KB first load. Left out on purpose: it needs a build tool in CI (the project has no dependencies),
+the hash and the precache would have to be computed on the minified output (run the minifier into a temporary copy first, then `generate-version.js` there), the unit
+tests run the sources rather than what ships, and a minifier bug would only show in production. The recipe above is the safe way to do it later, in the `build` job only.
 
 ## 17. Testing
 
@@ -511,13 +573,27 @@ a project dependency; the scripts explain how to run them) and are **not** part
 of `npm test`. `scripts/e2e/gate.js` is the release gate (landing -> home -> classics
 -> a scored classic round -> leave, desktop and phone, fresh profile, no console
 errors); `play-session.js` covers the game core in depth, `smoke.js` the boot and the
-service worker precache. `scripts/e2e/walkthrough.js` is the cross-screen journey of a first
+service worker precache, `teach.js` what the coach teaches (piece letters in Spanish and
+English and the notation setting, a missed mate scored by the new rule, the quality words). `scripts/e2e/walkthrough.js` is the cross-screen journey of a first
 session (landing -> home -> classics: replay, a best move by drag and a blunder by click -> coach ->
 summary -> notebook review -> progress -> settings -> account: second profile and a duel between
 the two -> that profile's own progress -> museum) at 1280x800 and 390x844 in es and en, on a fresh
 profile each time; every stage asserts no sideways scroll, no repeated id, no raw i18n key or
 "undefined / NaN" on screen, one `main`, `document.title` that follows the screen, and takes a
 picture (`LUDUS_E2E_SHOTS`); with `LUDUS_AXE` every stage is also scanned by axe.
+`scripts/e2e/shell.js` checks what only a browser can: the boot guards (`js/boot.js`), the skip link, the keyboard ring of every Tab stop, focus not hidden
+under the tab bar, forced colours, the contrast of the legal-move dots in the six themes, 44px targets, reflow at 130% text and with the text-spacing
+override, the tab labels, the storage banner and the wizard; `scripts/tests/boot.test.js` is its node counterpart for `js/boot.js`.
+
+PWA, build and security tests (F6): `scripts/tests/sw.test.js` runs the real `sw.js` in a `node:vm` sandbox against a fake Cache Storage / network (precache all-or-nothing,
+shell with a dead or hanging network, engine verification and its cache surviving a deploy, runtime caching rules and bounds, quota failures, `SKIP_WAITING`);
+`scripts/tests/version.test.js` runs `generate-version.js` and `smoke-check.js` on a temporary copy of the deployable tree (what the hash covers and does not, idempotence,
+stamps never feeding back, every coherence failure of the QA findings reported); `scripts/tests/pwa.test.js` drives `registerServiceWorker` / `watchServiceWorker` of
+`app.js` (offline-ready once, update prompt, never over a session, stubbed or blocked service workers); `scripts/tests/dev-server.test.js` covers `npm start`
+(loopback only, deploy list only); `auth.test.js` and `profile.test.js` cover the explicit link, the account scope of sync, the storage status and the hint / pass /
+solved rules. Browser: `scripts/e2e/sw.js` (first visit, warm cache, offline, a dead network, a deploy, the engine cache, the update prompt, two tabs, a too-small
+quota, blocked service workers; builds its own deploy-shaped sites and serves them with `scripts/e2e/_pages-server.js`) and `scripts/e2e/csp.js` (no policy violation on
+any screen). Both are also run by `.github/workflows/e2e.yml`.
 
 ## 18. Addenda after the logic layer was built (authoritative where it differs from above)
 
@@ -825,6 +901,45 @@ clicks the header buttons). `home.mount(#screen-home)`, `show()` (also driven by
 `startDaily()`, `openDuelSetup()`, `title: "home.title"`, pure `helpers` for tests. The hub re-renders on `language:changed`,
 `profile:changed`, `notebook:changed`, `session:completed`; the daily position loads lazily with a skeleton, an error state with a
 retry, a done state; "Next fact" only touches the fact card.
+
+### Boot guards (`js/boot.js`), the storage warning and the rules of the QA fix pass (F4)
+
+* **`js/boot.js`** is the only script in `<head>` (first script of `index.html`, after the CSP meta, before every stylesheet; ES5, synchronous,
+  same-origin, no inline code, so the CSP is untouched). It sets attributes on `<html>` that the stylesheets react to before the first paint:
+  `data-returning` (localStorage `ludus.seen.v1`: `css/system.css` never paints the landing hero for this visitor and shows a quiet skeleton until the
+  router sets `body[data-screen]`; a first-time visitor's header is already the floating landing header, see `css/shell.css`, so nothing shifts when
+  the shell mounts; if no screen has been shown after 12 s a timer withdraws the flag so a failed load gives back the static landing instead of a permanent skeleton), `data-framed` (the page is inside another page's frame: everything but `#boot-notice` is hidden and the notice links to the app
+  without the hash route: `frame-ancestors` cannot be sent from a meta CSP and top navigation is blocked, so hiding is the defence that works,
+  sandboxed frames included; `bustFraming()` in `app.js` is now redundant but harmless) and `data-unsupported` (no `:has()` or container queries, which
+  are also the proxy for the JavaScript syntax the other files use: a browser older than Safari 16 / Chrome 105 / Firefox 121 gets a bilingual
+  "too old" notice instead of a blank page; WebAssembly is NOT probed here, the engine has a fallback and `app.js` reports SIMD). For first-time
+  visitors only it injects the hero preload (`imagesrcset` + `media`, the very candidates of `.ld-hero-bg` in `css/home.css`: keep the two lists in
+  step). `scripts/tests/_load.js` leaves it out of the modules it loads; `scripts/tests/boot.test.js` runs it in a bare context.
+* **Hero photograph**: `assets/landing/maestro-1280.webp` (phones at 1x), `maestro-2000.webp` (desktop at 1x, phones at 2x) and the original
+  `maestro.webp` (2816 px: 2x desktops, 3x phones); the JPEG stays the fallback. `sw.js` still precaches only `maestro.webp`.
+* **Storage warning**: `Ludus.shell` paints a persistent, dismissible banner (`#shell-banner`, a polite live region that exists from the start, hidden
+  on the landing and on the play screen) when `Profile.storageStatus().ok` is false, from `storage:failed` and from every shell repaint: "blocked"
+  (nothing is ever saved: private tab, site data blocked) or "quota" (full: with a way to Account to download a copy). A dismissed reason stays
+  dismissed until a different one appears; it disappears by itself when a later write works.
+* **Toasts (`Ludus.ui.toast`)**: an `action` toast lasts 12 s at least (an explicit shorter `duration` is raised), `persistent: true` keeps any toast until
+  dismissed, `focus: true` (for a toast that answers the person's own keystroke, like "Undo") moves the focus to the action and gives it back when the
+  toast goes; Escape closes a toast that has the focus. `Ludus.ui.modal({ describedBy })` takes `true` (the whole body), an id, an Element or a list; an
+  `alertdialog` is described by its body unless `describedBy: false`.
+* **Focus rings**: the global ring (`styles.css`) has specificity (0,3,0) (`:is()` takes its most specific argument), so a component's own
+  `.x:focus-visible { outline-offset: ... }` never applied. To move a ring (inside a clipping pill, say) redefine the variable instead:
+  `.x { --focus-ring-offset: -3px; }` (`.segmented > *`, `.ld-lang-btn`); a scroll container (`overflow` other than visible) clips the ring on BOTH
+  axes: give it padding and an equal negative margin (`.sh-nav`) or draw the ring inside. `scripts/e2e/shell.js` probes every Tab stop.
+* **Forced colours**: one block at the end of `css/system.css` gives selected / pressed / current states and the bars back in system colours
+  (`Highlight`, `HighlightText`, `CanvasText`), including the selectors of the screens' own classes; when you add a new selected state, add it there.
+* **Board**: legal-move dots and capture rings use `--board-dot-on-light` / `--board-dot-on-dark` (per theme, >= 3:1 against their own square, stronger
+  with high contrast); coordinates are drawn above the pieces with a halo and never under 10.5px; the four arrow kinds differ by width and dash as well as
+  by hue.
+* **Touch targets**: on `(pointer: coarse)` `.btn-sm` and button/link chips are 44px boxes; the language switch, brand, profile chip, toast buttons and
+  the wizard's controls are 44px everywhere. **Tab bar**: the labels are one size under `--text-xs` and the bar is a container (`tabs`, in rem): under 19rem
+  of content width (a 390px phone at 130% text) only the icons show, the words stay in the accessible name.
+* **Skip link**: `href` is `#landing-screen` on the landing (the landing is a sibling of `#app-main`) and `#app-main` on every routed screen
+  (`paintSkipTarget` in `js/ui/shell.js`). `#/daily` does not start a round when today's challenge is done (a message says so) and a first-time visitor who
+  follows it stays on the landing. The first-run Home (no rounds yet) is a greeting and one primary action, "Play today's position".
 
 ### Screens `Ludus.Screens.classics` and `Ludus.Screens.museum` (`js/ui/classics.js`, `js/ui/museum.js`; `css/classics.css` `.classics-`, `css/museum.css` `.museum-`)
 

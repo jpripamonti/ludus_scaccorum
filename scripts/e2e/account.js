@@ -629,6 +629,9 @@ async function googleErrorsFlow(browser) {
   await shot(page, "google-errors");
   google.fail = { status: 403, times: 50, reason: "forbidden" };
   await attempt("ok");
+  // signing in syncs nothing (QA SEC-005): Drive is first touched when the person chooses the profile to save
+  assert.strictEqual(await syncStatus(page), "signed_in");
+  await syncCard(page).locator("[data-action=\"link-save\"]").click();
   await waitStatus(page, "error");
   assert.match(await text(syncCard(page).locator(".field-error")), /denied access to Drive/);
   google.fail = null;
@@ -787,9 +790,13 @@ async function keyboardFlow(browser) {
 
 // ---------- scenario: layout ----------
 
-async function signInMock(page, google) {
+// Signing in uploads nothing (QA SEC-005): the person then picks the profile for the Drive. `beforeLink` (optional) runs on the choice screen.
+async function signInMock(page, google, beforeLink) {
   await page.locator("[data-action=\"signin\"]").click();
   await waitStatus(page, "signed_in");
+  await page.locator("[data-link=\"required\"]").waitFor();
+  if (beforeLink) await beforeLink();
+  await page.locator("[data-action=\"link-save\"]").click();
   await page.waitForFunction(() => { const el = document.querySelector("[data-last-sync]"); return Boolean(el) && el.getAttribute("data-last-sync") !== "0"; });
 }
 
@@ -842,7 +849,7 @@ async function layoutFlow(browser, axeMode) {
       await seedRounds(g, 0, 2);
       await settle(g, 500);
       await inspect(gctx, "google-signed-out", "#screen-account", { axe: axeMode });
-      await signInMock(g, google);
+      await signInMock(g, google, () => inspect(gctx, "google-link-choice", "#screen-account", { axe: axeMode, fullPage: true }));
       await inspect(gctx, "google-signed-in", "#screen-account", { axe: axeMode, fullPage: true });
       google.fail = { status: 500, times: 3 };
       await g.locator("[data-action=\"sync\"]").click();

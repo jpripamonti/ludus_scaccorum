@@ -226,7 +226,8 @@ async function runViewport(browser, viewport) {
     // (The engine may well be in the cache by now: the wizard starts loading it and the
     // service worker stores whatever is fetched. What matters is that it is not in the list.)
     assert.ok(!cacheReport.listed.some((p) => p.includes("stockfish") || p.includes("vendor/")), "the engine is not in the precache list");
-    assert.ok(!cacheReport.listed.some((p) => p.includes("js/data/")), "lazily loaded data is not in the precache list");
+    // The Classics library is precached (versioned) so it works offline from the first visit.
+    assert.ok(cacheReport.listed.some((p) => p.includes("js/data/classics.data.js?v=")), "lazily loaded data is in the precache list");
   }
 
   // Give any late request a moment to fail, then report everything at once.

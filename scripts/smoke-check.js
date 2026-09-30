@@ -337,6 +337,18 @@ function checkVersionCoherence() {
   if (JSON.stringify(listed) !== JSON.stringify(info.engineFiles)) {
     fail(`sw.js ENGINE_FILES does not list exactly the SHA-256 of the engine files in vendor/; ${rerun}`);
   }
+  // Budget: the precache is downloaded by every first visit, in the background. Raw bytes (about a
+  // quarter of that goes over the wire, gzipped); growing past this should be a decision, not an accident.
+  const PRECACHE_BUDGET_BYTES = 4 * 1024 * 1024;
+  let precacheBytes = 0;
+  for (const asset of info.canonicalAssets) {
+    const rel = asset === "./" ? "index.html" : asset.replace(/^\.\//, "");
+    const abs = path.join(root, rel);
+    if (fs.existsSync(abs)) precacheBytes += fs.statSync(abs).size;
+  }
+  if (precacheBytes > PRECACHE_BUDGET_BYTES) {
+    fail(`the service worker precache is ${(precacheBytes / 1048576).toFixed(2)} MiB raw, over the ${PRECACHE_BUDGET_BYTES / 1048576} MiB budget: precache less, or raise the budget in scripts/smoke-check.js on purpose`);
+  }
   // vendor/SHA256SUMS (checked above against the files) must cover what the service worker pins.
   for (const [file, digest] of Object.entries(info.engineFiles)) {
     if (!sums.some((line) => line.toLowerCase().startsWith(digest) && line.endsWith(file))) {

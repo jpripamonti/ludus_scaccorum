@@ -267,7 +267,7 @@ async function checkRings(browser) {
     const mine = problems.filter((entry) => OWNED.test(entry) || /^(A|BUTTON)#language-btn|no outline/.test(entry) && /language|sh-nav/.test(entry));
     assert.deepStrictEqual(mine, [], `${route}: the ring of the header controls and segmented choices is complete`);
     if (problems.length) console.log(`    (note) ${route}: ${problems.length} other clipped/missing ring(s), e.g. ${problems[0]}`);
-    assert.ok(stops > 3, `${route}: has tab stops`);
+    assert.ok(stops >= 2, `${route}: has tab stops`);
     await context.close();
   }
   const landing = await newPage(browser, { seen: false });

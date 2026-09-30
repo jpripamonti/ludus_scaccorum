@@ -145,6 +145,7 @@
   // only "close"; from 3 up we start explaining what went wrong.
   const EQUIVALENT_LOSS_PCT = 1.5;
   const CLOSE_LOSS_PCT = 3;
+  const CLOSE_MESSAGE_MAX_PCT = 2.5;
   // "Clearly better" (and the wording that goes with it) starts here.
   const BIG_LOSS_PCT = 8;
   // A claim about a mate length is only made when it is reliable: the engine
@@ -156,6 +157,10 @@
   // Material (pawn units) an engine line has to win for a sentence to say so.
   const WIN_CLAIM = 1.5;
   const LOSS_CLAIM = 2;
+  // What "the engine's line wins material" needs to say when nothing more specific
+  // explains the best move: a piece's worth, held for two plies (audit: lines that
+  // gain 2 only on the last ply were unconfirmed by a second search in 1 of 2 cases).
+  const TACTIC_CLAIM = 3;
   const SACRIFICE_MIN = 2;
   const SACRIFICE_MIN_SCORE = 100; // centipawns: a "sacrifice" that leaves the mover worse than this is just a bad position
   const TRACE_PLIES = 8;
@@ -223,8 +228,8 @@
       "insight.time_trouble.out": "Se acabó el tiempo antes de que movieras. Con el reloj en contra, mirá primero jaques, capturas y amenazas.",
       "insight.solid": "No es la primera opción del motor, pero {san} parece una alternativa sólida, casi igual de buena.",
       "insight.close": "{san} parece quedar cerca de {best}: la diferencia es chica, del orden del margen de error del motor.",
-      "insight.no_clear_reason": "El motor prefiere {best}, pero no aparece un motivo sencillo: puede ser posicional o una táctica más profunda.",
-      "insight.no_clear_reason.big": "{best} era claramente mejor, pero no aparece un motivo sencillo. Antes de mover, mirá las capturas, jaques y amenazas del rival.",
+      "insight.no_clear_reason": "El motor prefiere {best}. El motivo puede ser posicional o una táctica más larga.",
+      "insight.no_clear_reason.big": "{best} era claramente mejor. Antes de mover, mirá las capturas, jaques y amenazas del rival.",
 
       "insight.tag.hangs_piece": "Pieza colgada",
       "insight.tag.missed_capture": "Captura perdida",
@@ -305,8 +310,8 @@
       "insight.time_trouble.out": "Time ran out before you moved. Under the clock, scan checks, captures and threats first.",
       "insight.solid": "Not the engine's first choice, but {san} looks like a solid alternative, nearly as good.",
       "insight.close": "{san} looks close to {best}: the gap is small, about the size of the engine's margin of error.",
-      "insight.no_clear_reason": "The engine prefers {best}, but no simple reason shows up: it may be positional or a deeper tactic.",
-      "insight.no_clear_reason.big": "{best} was clearly better, but no simple reason shows up. Before moving, check your opponent's captures, checks and threats.",
+      "insight.no_clear_reason": "The engine prefers {best}. The reason may be positional or a longer tactic.",
+      "insight.no_clear_reason.big": "{best} was clearly better. Before moving, check your opponent's captures, checks and threats.",
 
       "insight.tag.hangs_piece": "Hanging piece",
       "insight.tag.missed_capture": "Missed capture",
@@ -1447,7 +1452,10 @@
     // that a one-capture exchange count cannot see). Needs the engine's line.
     if (!list.some((entry) => entry.tag === "hangs_piece") && user.pv) {
       const line = evidenceOf(user);
-      if (line.deep && !line.matedSelf && line.end <= -LOSS_CLAIM) {
+      // The loss has to be in sight within four plies and still there at the end:
+      // a dip that only shows on the last plies of the line is the search's horizon.
+      const firstLoss = line.deltas.findIndex((value) => value <= -LOSS_CLAIM);
+      if (line.deep && !line.matedSelf && line.end <= -LOSS_CLAIM && firstLoss >= 0 && firstLoss <= 3) {
         pushCandidate(list, "loses_material", "insight.loses_material", { san: user.san, n: Math.round(-line.end) });
       }
     }
@@ -1651,7 +1659,14 @@
     if (!best.mate && !list.some((entry) => EXPLAINING_TAGS.includes(entry.tag))) {
       const line = evidenceOf(best);
       const userLine = user && user.pv ? evidenceOf(user) : null;
-      if (!line.mate && line.deep && line.end >= LOSS_CLAIM && !(userLine && userLine.deep && userLine.end >= line.end - 1)) {
+      let run = 0;
+      let sustained = 0;
+      line.deltas.forEach((value) => {
+        run = value >= LOSS_CLAIM ? run + 1 : 0;
+        sustained = Math.max(sustained, run);
+      });
+      if (!line.mate && line.deep && line.end >= TACTIC_CLAIM && sustained >= 2
+        && !(userLine && userLine.deep && userLine.end >= line.end - 1)) {
         pushCandidate(list, "tactic_available", "insight.tactic_available", { best: best.san, n: Math.round(line.end) }, { concept: null });
       }
     }
@@ -1816,7 +1831,11 @@
         // Both moves mate (or win by force); the user's is just slower.
         pushCandidate(list, "solid", "insight.slower_mate", { best: best.san }, { late: true, concept: null });
       } else if (verdict === "close" && best) {
-        pushCandidate(list, "solid", "insight.close", { san: user.san, best: best.san }, { late: true, concept: null });
+        // "The gap is small" is only said up to 2.5 win% (beyond it a second search put
+        // the move clearly further behind one time in three): above that, nothing.
+        if (!(judged.lossPct >= CLOSE_MESSAGE_MAX_PCT)) {
+          pushCandidate(list, "solid", "insight.close", { san: user.san, best: best.san }, { late: true, concept: null });
+        }
       } else {
         pushCandidate(list, "solid", "insight.solid", { san: user.san }, { late: true, concept: null });
       }

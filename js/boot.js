@@ -115,7 +115,16 @@
   // ---- Returning visitors -------------------------------------------------
   var seen = storedValue("ludus.seen.v1");
   var returning = !!(seen && seen !== "0" && seen !== "false" && seen !== "null");
-  if (returning) flag("returning");
+  if (returning) {
+    flag("returning");
+    // If the app has not shown any screen after a long while (a script failed or the network is very slow) the page must not stay
+    // a skeleton for ever: give the static landing back. A late start still wins: the router sets body[data-screen] and hides it.
+    window.setTimeout(function () {
+      try {
+        if (!document.body || !document.body.hasAttribute("data-screen")) root.removeAttribute("data-returning");
+      } catch (error) { /* nothing to undo */ }
+    }, 12000);
+  }
 
   // A first-time visitor's largest paint is the landing photograph, which the stylesheet only discovers late (it is a
   // CSS background); start fetching it now. The candidates and media queries repeat css/home.css (.ld-hero-bg), so the

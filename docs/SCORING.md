@@ -435,8 +435,8 @@ choices that depend on these numbers live here so that one document explains the
 * **Verdict and noise.** `Insights` calls a move *equivalent* ("a solid alternative,
   nearly as good") only below **1.5 win%** lost (or when the assessment says it is
   inside the configured band), *close* from 1.5 to 3 ("the gap is small, about the
-  size of the engine's margin of error") and starts explaining what went wrong from
-  3. On the audit corpus 8 % of the claims below 1.5 % were more than 3.5 % worse in
+  size of the engine's margin of error", said only up to 2.5) and starts explaining
+  what went wrong from 3. On the audit corpus 8 % of the claims below 1.5 % were more than 3.5 % worse in
   a second search (15 % below 3 %). A forced mate that was missed or allowed is never
   equivalent or close, whatever the win% says, and a slower mate is told as such.
 * **Evidence.** A sentence that says a move wins or loses material is only written
@@ -466,11 +466,15 @@ choices that depend on these numbers live here so that one document explains the
   shorter mate later, never a longer one. Up to 8 for a mate the learner missed and up
   to 6 for one they allowed (the claims above that length were not reproducible); beyond
   that the sentence says "a forced mate" / "a decisive attack" without a number.
-* **When nothing is found.** The generic sentence says "no simple reason shows up: it
-  may be positional or a deeper tactic"; when the move lost 8 win% or more it
-  says the best move "was clearly better" and never offers "it may be positional" as a
-  comfort. At most three messages (two when a mate explains the answer), one tactical
-  explanation of the best move, no "solid" next to a mistake.
+* **When nothing is found.** The fallback sentence claims nothing about what is *not*
+  there ("the engine prefers X; the reason may be positional or a longer tactic"; when
+  the move lost 8 win% or more, "X was clearly better" and the advice to check the
+  opponent's captures, checks and threats): it used to say "no simple tactic explains
+  it", which was false for 32 % of the answers that got it. At most three messages (two
+  when a mate explains the answer), one tactical explanation of the best move, no "solid"
+  next to a mistake. Detection is deliberately conservative (a loss must show within four
+  plies and still be there at the end, a win must be a piece's worth held for two plies):
+  it leaves more answers unexplained and fewer explained wrongly.
 * **Notation.** Moves are stored and compared in English SAN (`Nf3`). What the person
   reads goes through `Ludus.chess.localizeSan(san, lang)`: Spanish letters
   (R rey, D dama, T torre, A alfil, C caballo, promotions `=D`; castling, pawn moves,

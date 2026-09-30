@@ -530,12 +530,52 @@ async function axeFlow(browser) {
   }
 }
 
+// ---------- scenario: reflow ----------
+
+// QA A11Y-006 / VIS-007 / VIS-011: on a 320 px phone, also with the text at 130 %, the page does not scroll sideways (the preview table used to
+// reach 357 px), no tile label breaks inside a word ("Desactivad / a") and the selected tile's check badge never covers its label.
+async function reflowFlow(browser) {
+  for (const lang of ["es", "en"]) {
+    for (const scale of [1, 1.3]) {
+      const ctx = await openSettings(browser, { name: "phone-320", w: 320, h: 568, touch: true }, { lang, tag: `reflow-${lang}-${scale}` });
+      const { page } = ctx;
+      if (scale !== 1) await page.evaluate((value) => Ludus.Settings.set("a11y.textScale", value), scale);
+      await settle(page, 400);
+      const label = `${lang} x${scale}`;
+      const wide = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+      assert.ok(wide.scrollWidth <= wide.clientWidth, `${label}: the settings page scrolls sideways (${wide.scrollWidth} > ${wide.clientWidth})`);
+      const bad = await page.evaluate(() => {
+        const out = [];
+        document.querySelectorAll(".settings-tile").forEach((tile) => {
+          const text = tile.querySelector(".settings-tile-label");
+          const check = tile.querySelector(".settings-tile-check");
+          if (!text || tile.getBoundingClientRect().width === 0) return;
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          const rects = Array.from(range.getClientRects());
+          const words = text.textContent.trim().split(/\s+/).length;
+          if (rects.length > words) out.push(`${text.textContent.trim()}: a word is broken over lines`);
+          if (check && getComputedStyle(check).opacity !== "0") {
+            const box = check.getBoundingClientRect();
+            if (rects.some((r) => r.left < box.right && r.right > box.left && r.top < box.bottom && r.bottom > box.top)) out.push(`${text.textContent.trim()}: the check covers the label`);
+          }
+        });
+        return out;
+      });
+      assert.deepStrictEqual(bad, [], `${label}: tile labels`);
+      await ctx.context.close();
+    }
+  }
+  step("320 px, text at 100 % and 130 %: no sideways scroll, no broken tile label, no badge over a label (es + en)");
+}
+
 const scenarios = [
   ["persist", persistFlow],
   ["applies", appliesFlow],
   ["preview", previewFlow],
   ["keyboard", keyboardFlow],
   ["reset", resetFlow],
+  ["reflow", reflowFlow],
   ["motion", motionFlow],
   ["layout", (browser) => layoutFlow(browser, Boolean(AXE_PATH))],
 ];

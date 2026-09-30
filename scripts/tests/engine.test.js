@@ -814,6 +814,61 @@ test("unit", "an engine that ignores stop: the caller is released early, the eng
   assert.strictEqual(result.aborted, false);
 });
 
+// COR-019: a worker that is gone without an error (a killed tab process, a wedged wasm) used to keep a round in "evaluating"
+// for movetime + 2 x the grace (12 s); with no line at all it is declared failed after silenceMs.
+test("unit", "a worker that says nothing at all after go is declared failed after the silence limit, not after the whole budget", async () => {
+  const ctx = makeEngine({ engine: { silenceMs: 3000 } });
+  const promise = ctx.engine.analyze({ fen: START_FEN, movetimeMs: 3500 });
+  const failure = rejection(promise);
+  await flush();
+  await flush();
+  assert.strictEqual(ctx.transport.count("go"), 1);
+  await ctx.clock.advance(2999);
+  assert.strictEqual(ctx.engine.state, "ready", "still inside the silence limit");
+  await ctx.clock.advance(2);
+  const error = await failure;
+  assert.ok(/timeout|failed/.test(String(error.message)), String(error.message));
+  assert.strictEqual(ctx.engine.state, "failed");
+  assert.strictEqual(ctx.transport.terminated, true, "the dead worker is dropped");
+  // ready() is the explicit retry: a fresh worker.
+  assert.strictEqual(await ctx.engine.ready(), true);
+  assert.strictEqual(ctx.transports.length, 2);
+});
+
+test("unit", "any line of the engine's answer is proof of life: a search that speaks is never declared silent", async () => {
+  const ctx = makeEngine({ engine: { silenceMs: 3000 } });
+  const promise = ctx.engine.analyze({ fen: START_FEN, movetimeMs: 6000 });
+  await flush();
+  await flush();
+  await ctx.clock.advance(1500);
+  ctx.transport.emit(info(3, 1, 3, "e2e4"));
+  await ctx.clock.advance(5000); // long after the silence limit, but the engine had spoken
+  assert.strictEqual(ctx.engine.state, "ready");
+  ctx.transport.emit("bestmove e2e4");
+  const result = await promise;
+  assert.strictEqual(result.bestMoveUci, "e2e4");
+});
+
+test("unit", "supported(): WebAssembly SIMD and Workers are what the engine needs", () => {
+  // Node has WebAssembly (with SIMD) but no Worker: the driver is not supported in it, which is the truth for the default transport.
+  assert.strictEqual(typeof Engine.supported, "function");
+  assert.strictEqual(Engine.supported(), false, "no Worker in Node");
+  const restore = { Worker: globalThis.Worker };
+  try {
+    globalThis.Worker = function Worker() {};
+    assert.strictEqual(Engine.supported(), true, "a Worker and SIMD: supported");
+    const validate = WebAssembly.validate;
+    WebAssembly.validate = () => false; // a browser without SIMD
+    assert.strictEqual(Engine.supported(), false);
+    WebAssembly.validate = () => { throw new Error("boom"); };
+    assert.strictEqual(Engine.supported(), false, "never throws");
+    WebAssembly.validate = validate;
+  } finally {
+    if (restore.Worker === undefined) delete globalThis.Worker;
+    else globalThis.Worker = restore.Worker;
+  }
+});
+
 test("unit", "a search that overruns its budget is stopped, then the engine is declared dead if it still says nothing", async () => {
   const ctx = makeEngine({ engine: { stopGraceMs: 4000, abortWaitMs: 300 } });
   const promise = ctx.engine.analyze({ fen: START_FEN, movetimeMs: 100 });

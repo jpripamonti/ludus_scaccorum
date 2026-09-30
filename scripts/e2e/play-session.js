@@ -9,7 +9,7 @@
 //
 // Environment (all optional):
 //   LUDUS_URL             page to test               (default http://127.0.0.1:5010/)
-//   LUDUS_E2E_ONLY        "classic" or "own" to run only one scenario
+//   LUDUS_E2E_ONLY        "classic", "first" or "own" to run only one scenario
 //   LUDUS_CHROMIUM        chrome binary if Playwright cannot launch its own
 //                         (falls back to /opt/pw-browsers/chromium-1194/chrome-linux/chrome)
 //   LUDUS_E2E_SHOTS       directory for screenshots (none are saved when unset)
@@ -76,13 +76,26 @@ async function shot(page, name) {
 
 // A fresh context per run, service workers blocked (the service worker is
 // cache-first and would serve stale files), CSP enforced.
-async function newSession(browser) {
+//
+// The very first session of a profile has no clock and a how-to-play note (UX-027). The scenarios
+// below are about the normal session, so the flag that says "the first session was played" is
+// seeded before the page loads; the "first run" scenario leaves it out on purpose.
+async function newSession(browser, options = {}) {
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
     locale: "en-US",
     serviceWorkers: "block",
     bypassCSP: false,
   });
+  if (!options.firstRun) {
+    await context.addInitScript(() => {
+      try {
+        if (window.localStorage.getItem("ludus.firstRun.v1") === null) window.localStorage.setItem("ludus.firstRun.v1", "1");
+      } catch (error) {
+        // Storage blocked: the scenario will say so.
+      }
+    });
+  }
   const page = await context.newPage();
   const problems = [];
   page.on("console", (message) => {
@@ -180,7 +193,8 @@ async function classicScenario(browser) {
     await page.locator("#hint-btn").click();
     assert.strictEqual(await page.locator("#board .square.hint-from").count(), 1, "the piece to move is highlighted");
     assert.strictEqual(await page.locator("#board .square.hint-from").getAttribute("data-square"), best1.slice(0, 2));
-    assert.ok((await page.locator("#solo-clock-announce").textContent()).includes(best1.slice(0, 2)), "and announced in words");
+    // The live region is emptied and refilled a moment later so that a repeated text is read again.
+    await page.waitForFunction((from) => document.querySelector("#hint-announce").textContent.includes(from), best1.slice(0, 2), { timeout: 2000 });
     assert.match(await hintLabel(), /35%/, "the button now says what the next level costs");
     await shot(page, "03-hint");
     await playUci(page, best1);
@@ -232,7 +246,9 @@ async function classicScenario(browser) {
     assert.ok(notes && notes.trim().length > 0, "the result explains itself");
     assert.ok((await page.locator("#round-result .co-hero-verdict").textContent()).trim().length > 10, "with a verdict in words");
 
-    step("the session ends with a summary and one session record");
+    step("the session ends with a summary and one session record, written at the last answer");
+    assert.strictEqual((await events(page)).completed.length, 1, "the session is recorded when the last position is answered, not when the summary is opened");
+    assert.match(await page.locator("#next-btn").textContent(), /Finish|See the summary|summary/i);
     await clickNext(page);
     await page.waitForFunction(() => !document.querySelector("#session-summary-result").classList.contains("hidden"));
     const summary = await page.locator("#session-summary-result .co-sum-stats").textContent();
@@ -275,9 +291,16 @@ async function classicScenario(browser) {
 
     step("the last hint shows the move with an arrow and ends the round for zero points");
     await page.evaluate(() => Ludus.game.startSession({ kind: "classic", title: "Reveal", positions: window.__positions.slice(1, 2), options: { clock: { mode: "untimed" } } }));
-    for (let level = 1; level <= 2; level += 1) await page.locator("#hint-btn").click();
+    for (let level = 1; level <= 2; level += 1) {
+      await page.locator("#hint-btn").click();
+      await page.waitForTimeout(500); // taps closer than this are read as a double tap and ignored
+    }
     assert.strictEqual(await page.locator("#board .square.hint-to").count(), 1, "level 2 also marks the destination");
     assert.match(await page.locator("#hint-btn-label").textContent(), /0 pts/, "the button warns that the last level gives the move away");
+    await page.locator("#hint-btn").click();
+    assert.strictEqual(await evalState(page, "STATE.hintsUsed"), 2, "the first tap on the last level only asks");
+    assert.match(await page.locator("#hint-btn-label").textContent(), /[Tt]ap again/, "and says so");
+    await page.waitForTimeout(500);
     await page.locator("#hint-btn").click();
     await page.waitForFunction(() => document.querySelectorAll("#board-arrows line").length >= 1, null, { timeout: 5000 });
     await waitForResult(page);
@@ -324,6 +347,46 @@ async function classicScenario(browser) {
 
     step("no console errors, page errors or failed requests");
     checkProblems("classic", problems);
+  } finally {
+    await context.close();
+  }
+}
+
+// ---------- scenario: first run ----------
+
+// UX-027: the very first session of a profile has no clock and says how to play; it ends with the
+// first answered round, and the next session is timed again.
+async function firstRunScenario(browser) {
+  console.log("scenario: first run");
+  const { context, page, problems } = await newSession(browser, { firstRun: true });
+  try {
+    await boot(page);
+    await collectEvents(page);
+    const positions = await page.evaluate(async () => {
+      await Ludus.Classics.load();
+      const game = Ludus.Classics.list()[0];
+      window.__positions = Ludus.Classics.positions(game.id, { count: 2 });
+      return JSON.parse(JSON.stringify(window.__positions));
+    });
+
+    step("the first session has no clock and a how-to-play note at the top of the panel");
+    await page.evaluate(() => Ludus.game.startSession({ kind: "classic", title: "First", positions: window.__positions }));
+    assert.strictEqual((await page.locator("#solo-clock-value").textContent()).trim(), "\u221E");
+    assert.strictEqual(await page.locator("#coach-thinking .co-first-run").count(), 1, "the note is there");
+    assert.match(await page.locator("#coach-thinking .co-first-run").textContent(), /Tap a piece/);
+    await shot(page, "08-first-run");
+    await playUci(page, positions[0].reference.lines[0].uci);
+    await waitForResult(page);
+    assert.strictEqual(await evalState(page, 'Ludus.storage.get("ludus.firstRun.v1", 0)'), 1, "the first answered round ends the first run");
+    await page.evaluate(() => Ludus.game.abort());
+
+    step("the next session is timed again and has no note");
+    await page.evaluate(() => Ludus.game.startSession({ kind: "classic", title: "Second", positions: window.__positions.slice(0, 1) }));
+    assert.match(await page.locator("#solo-clock-value").textContent(), /^\d\d:\d\d$/);
+    assert.strictEqual(await page.locator("#coach-thinking .co-first-run").count(), 0);
+    await page.evaluate(() => Ludus.game.abort());
+
+    checkProblems("first run", problems);
   } finally {
     await context.close();
   }
@@ -454,6 +517,7 @@ async function ownGamesScenario(browser) {
   const browser = await launchBrowser();
   try {
     if (!ONLY || ONLY === "classic") await classicScenario(browser);
+    if (!ONLY || ONLY === "first") await firstRunScenario(browser);
     if (!ONLY || ONLY === "own") await ownGamesScenario(browser);
     console.log("play-session passed");
   } catch (error) {

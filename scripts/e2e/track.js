@@ -882,6 +882,46 @@ async function layoutScenario(browser) {
   }
 }
 
+// QA A11Y-006 / VIS-002: nothing scrolls sideways on the smallest phone (320 px) or with the text at 130 % on a phone, in either language:
+// the achievements filter ("Desbloqueados") and the notebook's "5 / 10 / 20" control used to push the page wider than the screen.
+async function reflowScenario(browser) {
+  const cases = [
+    { name: "320x568", width: 320, height: 568, scale: 1 },
+    { name: "320x568 at 130 %", width: 320, height: 568, scale: 1.3 },
+    { name: "390x844 at 130 %", width: 390, height: 844, scale: 1.3 },
+  ];
+  for (const lang of ["es", "en"]) {
+    for (const item of cases) {
+      const { context, page, problems } = await newSession(browser, { lang, seed: { extraProfiles: true }, viewport: { width: item.width, height: item.height } });
+      const label = `${item.name} ${lang}`;
+      if (item.scale !== 1) await page.evaluate((scale) => Ludus.Settings.set("a11y.textScale", scale), item.scale);
+      for (const [name, open, selector] of [["notebook", openNotebook, "#screen-notebook"], ["progress", openProgress, "#screen-progress"]]) {
+        await open(page);
+        await page.waitForTimeout(300);
+        const wide = await page.evaluate(() => {
+          const de = document.documentElement;
+          return { scrollWidth: de.scrollWidth, clientWidth: de.clientWidth };
+        });
+        assert.ok(wide.scrollWidth <= wide.clientWidth, `${label} ${name}: the page scrolls sideways (${wide.scrollWidth} > ${wide.clientWidth})`);
+        // the sub-controls that used to be clipped sit inside their own card
+        const clipped = await page.evaluate((scope) => {
+          const out = [];
+          document.querySelectorAll(`${scope} .segmented`).forEach((seg) => {
+            // the notebook's status filter is a scroller on purpose (overflow-x: auto, snap): only a control that clips is a finding
+            if (/(auto|scroll)/.test(getComputedStyle(seg).overflowX)) return;
+            if (seg.scrollWidth > seg.clientWidth + 1 && seg.getBoundingClientRect().width > 0) out.push(seg.className);
+          });
+          return out;
+        }, selector);
+        assert.deepStrictEqual(clipped, [], `${label} ${name}: a segmented control is cut off`);
+      }
+      checkProblems(label, problems);
+      await context.close();
+    }
+  }
+  step("320 px and 130 % text: no sideways scroll, no clipped segmented control (notebook, progress; es + en)");
+}
+
 // The system rule for reduced motion shortens every duration to a hundred thousandth of a second.
 const isStill = (value) => String(value).split(",").every((part) => parseFloat(part) <= 0.001);
 
@@ -1014,6 +1054,7 @@ const scenarios = [
   ["progress", progressScenario],
   ["progress states", progressStatesScenario],
   ["layout", layoutScenario],
+  ["reflow", reflowScenario],
   ["motion + focus", motionFocusScenario],
   ["axe", axeScenario],
 ];

@@ -553,7 +553,7 @@ async function journeyFlow(browser, vp, lang) {
     await page.waitForSelector(".modal", { state: "detached" });
     const profiles = await evalIn(page, () => Ludus.Profile.list().map((p) => ({ id: p.id, name: p.name, active: p.active })));
     assert.strictEqual(profiles.length, 2);
-    assert.deepStrictEqual(profiles.map((p) => p.name).sort(), ["Bruno", es ? "Jugador" : "Player"].sort());
+    assert.deepStrictEqual(profiles.map((p) => p.name).sort(), ["Bruno", es ? "Participante" : "Player"].sort());
     const [first, second] = [profiles.find((p) => p.name !== "Bruno"), profiles.find((p) => p.name === "Bruno")];
     await stage(journey, "account-two-profiles", { screen: "account", full: journey.vp.mobile });
     await evalIn(page, (id) => Ludus.Profile.setActive(id), first.id);

@@ -25,6 +25,7 @@ function makeElement(tag) {
     setAttribute(name, value) { this.attributes[name] = String(value); },
     getAttribute(name) { return name in this.attributes ? this.attributes[name] : null; },
     hasAttribute(name) { return name in this.attributes; },
+    removeAttribute(name) { delete this.attributes[name]; },
     appendChild(child) { this.children.push(child); child.parent = this; return child; },
     insertBefore(child) { this.children.unshift(child); child.parent = this; return child; },
   };
@@ -59,7 +60,9 @@ function run(options = {}) {
     },
   };
   const self = {};
+  const timers = [];
   const win = {
+    setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; },
     document,
     navigator: { languages: options.languages || ["en-US"], language: (options.languages || ["en-US"])[0] },
     self,
@@ -78,7 +81,7 @@ function run(options = {}) {
   win.window = win;
   const context = vm.createContext(win);
   vm.runInContext(source, context, { filename: "js/boot.js" });
-  return { root, head, body, document, win, listeners, textOf };
+  return { root, head, body, document, win, listeners, textOf, timers };
 }
 
 // ---------- a first visit ----------
@@ -110,6 +113,19 @@ function run(options = {}) {
   // Blocked storage (private mode, sandboxed frame) must not throw: the page simply behaves as a first visit.
   const blocked = run({ storageThrows: true });
   assert.ok(!blocked.root.hasAttribute("data-returning"));
+}
+
+// A returning visitor must not stare at a skeleton for ever when the app never starts.
+{
+  const late = run({ stored: { "ludus.seen.v1": "1" } });
+  assert.strictEqual(late.timers.length, 1, "one safety timer");
+  assert.ok(late.timers[0].ms >= 8000, "long enough for a slow connection");
+  late.timers[0].fn(); // no body[data-screen]: the app never showed a screen
+  assert.ok(!late.root.hasAttribute("data-returning"), "the flag is withdrawn: the static landing comes back");
+  const started = run({ stored: { "ludus.seen.v1": "1" } });
+  started.body.attributes["data-screen"] = "home";
+  started.timers[0].fn();
+  assert.ok(started.root.hasAttribute("data-returning"), "an app that started is left alone");
 }
 
 // ---------- framing (clickjacking) ----------

@@ -1,0 +1,61 @@
+name: Browser checks
+
+# Real-browser checks that `npm test` (plain Node, fake DOM) cannot do: the service
+# worker against a deploy-shaped copy of the site (first visit, warm cache, offline, a
+# dead network, a new deploy, the engine cache surviving it) and the Content-Security-
+# Policy across every screen. Each script builds and serves what it needs itself
+# (scripts/e2e/sw.js, scripts/e2e/csp.js), so the job needs only Node and Chromium.
+#
+# `npm test` stays the required gate (ci.yml and the deploy build job). This workflow is
+# meant to be a separate, initially non-required check: Playwright and Chromium are
+# installed on the runner (they are deliberately not project dependencies), so a browser
+# download hiccup must not block a merge. Make it required in the repository settings
+# once it has been green for a while.
+
+on:
+  pull_request:
+    paths:
+      - "sw.js"
+      - "index.html"
+      - "app.js"
+      - "js/**"
+      - "css/**"
+      - "assets/**"
+      - "vendor/**"
+      - "manifest.json"
+      - "scripts/generate-version.js"
+      - "scripts/e2e/sw.js"
+      - "scripts/e2e/csp.js"
+      - "scripts/e2e/_pages-server.js"
+      - "scripts/dev/serve.js"
+      - ".github/workflows/e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      # The version matches the Chromium the scripts were written against; nothing is
+      # added to package.json (the app has no dependencies).
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Service worker lifecycle (offline, dead network, deploys, engine cache)
+        run: node scripts/e2e/sw.js
+
+      - name: Content-Security-Policy across every screen
+        run: node scripts/e2e/csp.js
