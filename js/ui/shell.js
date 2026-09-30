@@ -228,6 +228,30 @@
     return router.show(id) !== false;
   }
 
+  // Every way out of the play screen (nav links, the tab bar, the brand, the "More" sheet
+  // and the hash router) ends here: while a session is running, leaving asks the same
+  // confirmation as its exit button (Ludus.game.leave), and only a "yes" goes on. Without
+  // a session it is just the navigation. Resolves to whether `next` ran.
+  function leaveGameThen(next) {
+    if (!guardGame()) {
+      next();
+      return Promise.resolve(true);
+    }
+    const game = L().game;
+    if (!game || typeof game.leave !== "function") return Promise.resolve(false);
+    let asked;
+    try {
+      asked = Promise.resolve(game.leave());
+    } catch (error) {
+      return Promise.resolve(false);
+    }
+    return asked.then((left) => {
+      if (left) next();
+      else mirrorHash(state.screen);
+      return Boolean(left);
+    }, () => false);
+  }
+
   function isModifiedClick(event) {
     return Boolean(event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || (typeof event.button === "number" && event.button > 0)));
   }
@@ -236,9 +260,8 @@
     return (event) => {
       if (isModifiedClick(event)) return;
       if (event && typeof event.preventDefault === "function") event.preventDefault();
-      if (guardGame()) return;
       closePopover(false);
-      go(id);
+      leaveGameThen(() => go(id));
     };
   }
 
@@ -294,7 +317,7 @@
       class: "sh-more-item",
       onclick: () => {
         if (handle) handle.close("navigate");
-        go(item.id);
+        leaveGameThen(() => go(item.id));
       },
     }, h("span", { class: "sh-more-icon", "aria-hidden": "true" }, icon(item.icon, { size: 22 })),
     h("span", { class: "sh-more-label" }, t(item.key)),
@@ -677,7 +700,10 @@
   function applyHash(initial, hash) {
     const route = parseHash(hash !== undefined ? hash : root.location && root.location.hash);
     if (!route) return;
-    if (guardGame()) return;
+    if (guardGame()) {
+      leaveGameThen(() => applyHash(false, hash));
+      return;
+    }
     const router = L().router;
     if (route.id === "daily") {
       if (router && router.current() !== "home") go("home");

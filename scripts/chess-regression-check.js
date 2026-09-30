@@ -13,8 +13,8 @@ const { context } = loaded;
 const { document } = loaded.dom;
 
 const appSource = fs.readFileSync(path.join(root, "app.js"), "utf8");
-const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource, findNextMistake, restoreBoardToRoundStart, parseTags, resolveGameStartFen, tokenizeSanMoves, onSquareClick, choosePromotion } = loaded.run(
-  "({ Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, sessionSummaryScoreText, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource, findNextMistake, restoreBoardToRoundStart, parseTags, resolveGameStartFen, tokenizeSanMoves, onSquareClick, choosePromotion })",
+const { Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, duelMatchScoreText, summaryFallbackText, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource, findNextMistake, restoreBoardToRoundStart, parseTags, resolveGameStartFen, tokenizeSanMoves, onSquareClick, choosePromotion } = loaded.run(
+  "({ Chess, STATE, uciToMove, moveToSan, sanToMove, localFallbackDepth, duelMatchScoreText, summaryFallbackText, encodeMateScore, decodeEvaluation, remoteFetchThrottleBlock, recordRemoteFetch, writeRemoteFetchLog, resolveTargetPlayerName, hasAnyPgnSource, installRemotePgnSource, findNextMistake, restoreBoardToRoundStart, parseTags, resolveGameStartFen, tokenizeSanMoves, onSquareClick, choosePromotion })",
 );
 
 function play(game, uci) {
@@ -41,14 +41,11 @@ assert.strictEqual(localFallbackDepth(18), 3);
 assert.strictEqual(localFallbackDepth(0), 3);
 assert.strictEqual(localFallbackDepth(2), 2);
 
-STATE.gameFormat = "solo";
-STATE.score = 2.5;
-assert.strictEqual(sessionSummaryScoreText(), "2.5 pts");
-
 STATE.gameFormat = "duel";
 STATE.duel.players = ["Alice", "Bob"];
 STATE.duel.scores = [1, 0.5];
-assert.strictEqual(sessionSummaryScoreText(), "Alice 1 - 0.5 Bob");
+assert.strictEqual(duelMatchScoreText(), "Alice 1 - 0.5 Bob");
+STATE.gameFormat = "solo";
 
 assert(!appSource.includes("player2.userSan"), "duel result re-render should use player2.san");
 
@@ -307,20 +304,27 @@ assert.strictEqual(ordinaryStart.fen, Chess.START_FEN, "a game without SetUp/FEN
 // The old -1..1.5 scale (cpQualityCode / pointsFromQualityCode) is gone: a round is
 // scored by Ludus.Scoring.assess() from the engine's lines, 0 to 10 points. Its
 // maths are tested in scripts/tests/scoring.test.js and the round flow in
-// scripts/tests/core.test.js. What is left here is the score text of the session.
-STATE.gameFormat = "solo";
-STATE.score = 72.4;
-STATE.sessionPlayed = 10;
-assert.strictEqual(sessionSummaryScoreText(), "72.4 / 100 pts", "a solo total is shown against the points that were possible");
+// scripts/tests/core.test.js. What is left here is the score text of a session: the
+// header's match line of a duel and the plain text of the closing summary (what the live
+// region reads, and what the panel shows when Ludus.Coach is not there).
 STATE.gameFormat = "duel";
 STATE.duel.players = ["Alice", "Bob"];
 STATE.duel.scores = [12.5, 9];
 STATE.sessionPlayed = 3;
-assert.strictEqual(sessionSummaryScoreText(), "Alice 12.5 - 9 Bob (max. 30 pts)", "a duel score names the maximum too");
+assert.strictEqual(duelMatchScoreText(), "Alice 12.5 - 9 Bob (max. 30 pts)", "a duel score names the maximum too");
 STATE.gameFormat = "solo";
-STATE.score = 0;
 STATE.sessionPlayed = 0;
 STATE.duel.scores = [0, 0];
+assert.ok(
+  summaryFallbackText({ mode: "solo", points: 72.4, maxPoints: 100 }, {}).includes("72.4 / 100 pts"),
+  "a solo total is shown against the points that were possible",
+);
+assert.ok(
+  summaryFallbackText({ mode: "duel", duel: { names: ["Alice", "Bob"], scores: [12.5, 9] } }, {}).includes("Alice 12.5 - 9 Bob"),
+  "a duel summary names both players",
+);
+assert.ok(summaryFallbackText({ mode: "duel", duel: { names: ["Alice", "Bob"], scores: [12.5, 9] } }, {}).includes("Winner: Alice"));
+assert.strictEqual(summaryFallbackText(null, {}), "", "no record, no text");
 
 // ---------- Mate scores survive the round trip, including long mates ----------
 

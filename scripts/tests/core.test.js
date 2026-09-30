@@ -420,7 +420,7 @@ test("a solo session: perfect, mediocre, blunder, skip and timeout, with the doc
   assert.strictEqual(state(t, "STATE.targetPositions"), 5, "the session length is the list");
   assert.strictEqual(state(t, "STATE.analysisContext"), null, "so the session ends after the last one");
   assert.strictEqual(state(t, 'document.getElementById("session-title").textContent'), "Test games");
-  assert.strictEqual(state(t, 'document.getElementById("round-status").textContent'), "Position 1/5");
+  assert.strictEqual(state(t, 'document.getElementById("round-status").textContent'), "Position 1 of 5");
 
   // 1. The engine's best move: 10 points, perfect.
   await playAndWait(t, "e2", "e4");
@@ -450,7 +450,8 @@ test("a solo session: perfect, mediocre, blunder, skip and timeout, with the doc
   assert.strictEqual(context.points, 10);
   assert.strictEqual(state(t, 'document.getElementById("result-overlay-points").textContent'), "You earned 10 / 10");
   assert.strictEqual(state(t, "STATE.score"), 10);
-  assert.strictEqual(state(t, "soloScoreText()"), "10 / 10 pts");
+  assert.strictEqual(state(t, 'document.getElementById("play-score-value").textContent'), "10", "the header shows the points earned");
+  assert.strictEqual(state(t, 'document.getElementById("play-score-max").textContent'), "/ 10", "and what was on offer so far");
   assert.ok(events.sounds.includes("move") && events.sounds.includes("correct"), `sounds: ${events.sounds}`);
 
   // The context carries what a coach panel needs.
@@ -546,12 +547,14 @@ test("a solo session: perfect, mediocre, blunder, skip and timeout, with the doc
   assert.strictEqual(record.profileId, Ludus.Profile.active().id);
   assert.strictEqual(Ludus.game.isActive(), false, "a finished session is no longer in progress");
   assert.strictEqual(state(t, 'document.getElementById("round-status").textContent'), "Session finished!");
-  assert.ok(/pts$/.test(state(t, "sessionSummaryScoreText()")) && state(t, "sessionSummaryScoreText()").includes("/ 50"));
+  const summaryText = state(t, 'document.getElementById("result-overlay-points").textContent');
+  assert.ok(summaryText.includes("/ 50") && /pts/.test(summaryText), `the live region reads the final score: ${summaryText}`);
+  assert.strictEqual(state(t, 'document.getElementById("summary-actions").classList.contains("hidden")'), false, "the summary brings its own actions");
   // Going back to the start does not record it a second time.
   env.run("restartToSetup()");
   assert.strictEqual(events.completed.length, 1);
   assert.strictEqual(Ludus.router.current(), "home");
-  assert.strictEqual(state(t, 'document.getElementById("next-btn").classList.contains("hidden")'), false, "the next button is back for the next session");
+  assert.strictEqual(state(t, 'document.getElementById("summary-actions").classList.contains("hidden")'), true, "the summary actions are put away when the session is left");
 
   // Profile recorded it all through the bus.
   assert.strictEqual(Ludus.Profile.rounds().length, 5);
@@ -657,7 +660,7 @@ test("mates: missing a forced mate is a blunder with its reason; playing the mat
   assert.ok(missed.points <= 1, `missed mate is capped at 1 point (got ${missed.points})`);
   const context = state(t, "STATE.resultView.context");
   assert.strictEqual(context.assessment.reason, "missed_mate");
-  assert.ok(state(t, 'document.getElementById("round-result").innerHTML').includes("forced mate"), "the reason is explained");
+  assert.ok(state(t, 'document.getElementById("round-result").textContent').includes("forced mate"), "the reason is explained");
   await t.env.context.nextPosition();
   click(t, "f7", "g7");
   await waitForResult(t);
@@ -679,8 +682,10 @@ test("hints: three levels, their cost, and the last one reveals the move for zer
     positions: [position(t, 0), position(t, 1), position(t, 2)],
   });
   const hintBtn = dom.document.getElementById("hint-btn");
+  // The words of the button live in its label (the icon and the cost chip are decoration).
+  const hintText = () => dom.document.getElementById("hint-btn-label").textContent;
   assert.strictEqual(hintBtn.disabled, false, "a position with a known best move offers a hint");
-  assert.ok(hintBtn.textContent.includes("15%"), `the button says what level 1 costs: ${hintBtn.textContent}`);
+  assert.ok(hintText().includes("15%"), `the button says what level 1 costs: ${hintText()}`);
 
   // A position whose best move is not known before the answer offers none.
   const blind = { fen: t.fens[0], source: "own", meta: {} };
@@ -693,10 +698,10 @@ test("hints: three levels, their cost, and the last one reveals the move for zer
   assert.deepStrictEqual(plain(level1), { level: 1, from: "e2" });
   assert.strictEqual(state(t, "STATE.hintsUsed"), 1);
   assert.strictEqual(dom.document.getElementById("solo-clock-announce").textContent.includes("e2"), true, "announced once, in words");
-  assert.ok(hintBtn.textContent.includes("35%"), `next: level 2 (${hintBtn.textContent})`);
+  assert.ok(hintText().includes("35%"), `next: level 2 (${hintText()})`);
   const level2 = Ludus.game.hint();
   assert.deepStrictEqual(plain(level2), { level: 2, from: "e2", to: "e4" });
-  assert.ok(hintBtn.textContent.includes("0 pts"), `next: the reveal (${hintBtn.textContent})`);
+  assert.ok(hintText().includes("0 pts"), `next: the reveal (${hintText()})`);
 
   click(t, "e2", "e4");
   await waitForResult(t);
@@ -836,8 +841,8 @@ test("duel: two players are scored against the same reference in one pass, one r
   assert.strictEqual(state(t, "STATE.duel.hits[0]"), 1);
   assert.strictEqual(state(t, "STATE.duel.hits[1]"), 0);
   assert.ok(state(t, 'document.getElementById("result-overlay-points").textContent').startsWith("R1: Ana 10 · Beto "));
-  assert.ok(state(t, 'document.getElementById("round-result").innerHTML').includes("Advantage for Ana") || state(t, 'document.getElementById("round-result").innerHTML').toLowerCase().includes("ana"), "the comparison names the winner");
-  assert.strictEqual(state(t, "sessionSummaryScoreText()"), `Ana 10 - ${second.points} Beto (max. 10 pts)`);
+  assert.ok(state(t, 'document.getElementById("result-overlay-points").textContent').includes("edge for Ana"), "the comparison names the winner");
+  assert.strictEqual(state(t, "duelMatchScoreText()"), `Ana 10 - ${second.points} Beto (max. 10 pts)`, "the header keeps the match score");
 
   // The guest's round is not filed under anybody's profile.
   assert.strictEqual(Ludus.Profile.rounds().length, 1);
@@ -862,7 +867,7 @@ test("duel: two players are scored against the same reference in one pass, one r
   assert.strictEqual(record.maxPoints, 40, "both players count");
   assert.strictEqual(record.roundIds.length, 4);
   assert.ok(state(t, 'document.getElementById("session-summary-result").classList.contains("hidden")') === false);
-  assert.ok(state(t, ".summary-details-text" && 'summaryDetailsTextEl.textContent').includes("Winner: Ana"), "the winner logic works on the 0..10 scale");
+  assert.ok(state(t, 'document.getElementById("result-overlay-points").textContent').includes("Winner: Ana"), "the winner logic works on the 0..10 scale");
   assert.strictEqual(Ludus.Profile.sessions().length, 1, "recorded for the linked profile");
   assert.strictEqual(Ludus.Profile.sessions()[0].duel.me, 0);
   assertClean(t);
@@ -964,6 +969,8 @@ test("a level up is celebrated once, when a round makes the level go up", async 
     if (Ludus.Profile.stats().level.level > 1) break;
   }
   assert.ok(Ludus.Profile.stats().level.level >= 2, "four perfect rounds reach level 2 (300 xp)");
+  // The celebration is one toast per tick (a level up and its achievements are merged).
+  await delay(5);
   const levelToasts = events.toasts.filter((toast) => /Level up!/.test(toast.message));
   assert.strictEqual(levelToasts.length, 1, "one toast for the level up");
   assert.ok(levelToasts[0].message.length > "Level up! ".length, "with the new title");
@@ -976,17 +983,30 @@ test("achievements and level-ups are celebrated with a toast and a sound, guarde
   const t = makeEnv();
   const { Ludus, events } = t;
   Ludus.bus.emit("achievement:unlocked", { achievement: { id: "x", name: "First steps" }, profileId: "p" });
+  // Celebrations are merged into one toast per tick, so a level up and its achievements
+  // do not pile up: the toast is there right after the tick.
+  await delay(5);
   assert.strictEqual(events.toasts.length, 1);
   assert.ok(events.toasts[0].message.includes("First steps"));
   assert.ok(events.sounds.includes("levelup"));
+
+  // Several at once are one toast, not three.
+  Ludus.bus.emit("achievement:unlocked", { achievement: { id: "a", name: "One" } });
+  Ludus.bus.emit("achievement:unlocked", { achievement: { id: "b", name: "Two" } });
+  Ludus.bus.emit("achievement:unlocked", { achievement: { id: "c", name: "Three" } });
+  await delay(5);
+  assert.strictEqual(events.toasts.length, 2, "three achievements in the same tick make one toast");
+  assert.ok(events.toasts[1].message.includes("3"), "that says how many");
 
   // Whatever the UI modules do, a missing or throwing toast never breaks the bus.
   Ludus.ui.toast = () => {
     throw new Error("ui broke");
   };
   Ludus.bus.emit("achievement:unlocked", { achievement: { id: "y", name: "Again" } });
+  await delay(5);
   delete Ludus.ui.toast;
   Ludus.bus.emit("achievement:unlocked", { achievement: { id: "z", name: "No toast" } });
+  await delay(5);
   Ludus.Audio.play = () => {
     throw new Error("audio broke");
   };
@@ -994,6 +1014,74 @@ test("achievements and level-ups are celebrated with a toast and a sound, guarde
   click(t, "e2", "e4");
   await waitForResult(t);
   assert.strictEqual(events.rounds.length, 1, "a broken sound module does not break the round");
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+test("the summary reopens one of its positions, shows that round and comes back to the summary", async () => {
+  const t = makeEnv();
+  const { Ludus, env } = t;
+  await Ludus.game.startSession({ kind: "classic", title: "Two", positions: [position(t, 0), position(t, 1)] });
+  await playAndWait(t, "e2", "e4");
+  await env.context.nextPosition();
+  await playAndWait(t, "e7", "e5");
+  await env.context.nextPosition();
+  const hidden = (id) => state(t, `document.getElementById("${id}").classList.contains("hidden")`);
+  assert.strictEqual(state(t, "STATE.resultView.context.kind"), "session_summary");
+  assert.strictEqual(hidden("session-summary-result"), false, "the summary is what the panel shows");
+  assert.strictEqual(hidden("result-overlay-inner"), true);
+  assert.strictEqual(state(t, "STATE.session.rounds.length"), 2, "the answers are kept for the summary");
+
+  env.run("openSummaryRound(0)");
+  assert.strictEqual(state(t, "STATE.resultView.context.kind"), "round_solo");
+  assert.strictEqual(state(t, "STATE.resultView.review.index"), 0);
+  assert.strictEqual(hidden("session-summary-result"), true, "the panel shows the round now, not the summary");
+  assert.strictEqual(hidden("result-overlay-inner"), false);
+  assert.strictEqual(state(t, 'document.getElementById("round-status").textContent'), "Position 1 of 2", "the header is on that position");
+  assert.strictEqual(state(t, "document.getElementById('game-layout').dataset.phase"), "result");
+  assert.strictEqual(state(t, 'document.getElementById("next-btn-label").textContent'), "Back to the summary");
+
+  // "Next" from a reopened round is the way back; the session is not started again.
+  await env.context.nextPosition();
+  assert.strictEqual(state(t, "STATE.resultView.context.kind"), "session_summary");
+  assert.strictEqual(state(t, "STATE.resultView.review"), null);
+  assert.strictEqual(hidden("session-summary-result"), false);
+  assert.strictEqual(hidden("result-overlay-inner"), true);
+  assert.strictEqual(t.events.completed.length, 1, "reopening a round never records the session again");
+  assert.strictEqual(t.events.started.length, 1);
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+test("celebrations: a newer toast replaces the older one, and the summary of a solo session lists them instead", async () => {
+  const t = makeEnv();
+  const { Ludus, env, events } = t;
+  let dismissed = 0;
+  Ludus.ui.toast = (message, opts) => {
+    events.toasts.push({ message, opts });
+    return { dismiss() { dismissed += 1; } };
+  };
+  Ludus.bus.emit("achievement:unlocked", { achievement: { id: "a", name: "One" } });
+  await delay(5);
+  Ludus.bus.emit("achievement:unlocked", { achievement: { id: "b", name: "Two" } });
+  await delay(5);
+  assert.strictEqual(events.toasts.length, 2);
+  assert.strictEqual(dismissed, 1, "the first toast made room for the second: one celebration on screen at a time");
+
+  // In a solo session that is over, the summary lists what the session unlocked: a toast over
+  // it would only hide its headline, and the one still up is taken down.
+  await Ludus.game.startSession({ kind: "classic", title: "One", positions: [position(t, 0)] });
+  await playAndWait(t, "e2", "e4");
+  await delay(5);
+  const shownBefore = events.toasts.length;
+  const dismissedBefore = dismissed;
+  await env.context.nextPosition();
+  assert.strictEqual(state(t, "STATE.resultView.context.kind"), "session_summary");
+  assert.ok(dismissed > dismissedBefore, "the toast that was up is taken down when the summary opens");
+  Ludus.bus.emit("achievement:unlocked", { achievement: { id: "c", name: "Three" } });
+  await delay(5);
+  assert.strictEqual(events.toasts.length, shownBefore, "no toast over the summary");
+  assert.ok(events.sounds.includes("levelup"), "but the sound still plays");
   await Ludus.game.abort();
   assertClean(t);
 });
@@ -1060,7 +1148,7 @@ test("without the strong engine everything still works on the local fallback", a
   assert.strictEqual(context.engine.source, "local");
   const round = events.rounds[0];
   assert.ok(round.points >= 0 && round.points <= 10 && Number.isFinite(round.accuracy));
-  assert.ok(state(t, 'document.getElementById("round-result").innerHTML').includes("backup"), "the result says a backup engine did the scoring");
+  assert.ok(state(t, 'document.getElementById("round-result").textContent').includes("backup"), "the result says a backup engine did the scoring");
   assert.deepStrictEqual(plain(round.lines), [], "a guess by the shallow search is not kept as the position's lines");
   assert.strictEqual(round.bestUci, null);
 

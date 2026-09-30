@@ -75,29 +75,7 @@ const wizardWideScreenQuery = typeof window.matchMedia === "function"
   ? window.matchMedia("(min-width: 921px)")
   : null;
 
-// Bajo este ancho el tablero, las tarjetas de jugador y el resultado se apilan
-// en una sola columna.
-const oneColumnGameQuery = typeof window.matchMedia === "function"
-  ? window.matchMedia("(max-width: 1080px)")
-  : null;
-
 const gameLayoutEl = document.getElementById("game-layout");
-const leftPlayerPanelEl = document.getElementById("left-player-panel");
-const rightPlayerPanelEl = document.getElementById("right-player-panel");
-const playerAKickerEl = document.getElementById("player-a-kicker");
-const playerBKickerEl = document.getElementById("player-b-kicker");
-const playerANameEl = document.getElementById("player-a-name");
-const playerBNameEl = document.getElementById("player-b-name");
-const playerAAvatarEl = document.getElementById("player-a-avatar");
-const playerBAvatarEl = document.getElementById("player-b-avatar");
-const playerAScoreLabelEl = document.getElementById("player-a-score-label");
-const playerBScoreLabelEl = document.getElementById("player-b-score-label");
-const playerAScoreValueEl = document.getElementById("player-a-score-value");
-const playerBScoreValueEl = document.getElementById("player-b-score-value");
-const boardActionsSlotEl = document.getElementById("board-actions-slot");
-const playerAActionsSlotEl = document.getElementById("player-a-actions-slot");
-const playerBActionsSlotEl = document.getElementById("player-b-actions-slot");
-const sharedActionsEl = document.getElementById("shared-actions");
 const handoffOverlayEl = document.getElementById("handoff-overlay");
 const handoffOverlayTitleEl = document.getElementById("handoff-overlay-title");
 const handoffOverlaySubtitleEl = document.getElementById("handoff-overlay-subtitle");
@@ -111,18 +89,45 @@ const positionSearchProgressAnnounceEl = document.getElementById("position-searc
 const positionSearchFactsEl = document.getElementById("position-search-facts");
 const analysisFactsEl = document.getElementById("analysis-facts");
 const hintBtn = document.getElementById("hint-btn");
+const hintBtnLabelEl = document.getElementById("hint-btn-label");
+// The play header, the turn strip and the coach panel (index.html, css/coach.css).
+const sessionDotsEl = document.getElementById("session-dots");
+const playScoreEl = document.getElementById("play-score");
+const playScoreValueEl = document.getElementById("play-score-value");
+const playScoreMaxEl = document.getElementById("play-score-max");
+const duelScoreEl = document.getElementById("duel-score");
+const duelSideEls = [document.getElementById("duel-a"), document.getElementById("duel-b")];
+const duelAvatarEls = [document.getElementById("duel-a-avatar"), document.getElementById("duel-b-avatar")];
+const duelNameEls = [document.getElementById("duel-a-name"), document.getElementById("duel-b-name")];
+const duelPointsEls = [document.getElementById("duel-a-score"), document.getElementById("duel-b-score")];
+const soundBtn = document.getElementById("sound-btn");
+const roundTurnKingEl = document.getElementById("round-turn-king");
+const playAnnounceEl = document.getElementById("play-announce");
+const coachPanelEl = document.getElementById("coach-panel");
+const coachScrollEl = document.getElementById("coach-scroll");
+const coachExpandBtn = document.getElementById("coach-expand");
+const coachExpandLabelEl = document.getElementById("coach-expand-label");
+const coachThinkingEl = document.getElementById("coach-thinking");
+const resultLiveEl = document.getElementById("result-overlay-live");
+const summaryActionsEl = document.getElementById("summary-actions");
+const legendEl = document.getElementById("co-legend");
+const nextBtnLabelEl = document.getElementById("next-btn-label");
+const revealBestLabelEl = document.getElementById("reveal-best-label");
+const revealGameLabelEl = document.getElementById("reveal-game-label");
+const resultAnalysisLabelEl = document.getElementById("result-analysis-label");
+const handoffOverlayAvatarEl = document.getElementById("handoff-overlay-avatar");
+const handoffOverlayEyebrowEl = document.getElementById("handoff-overlay-eyebrow");
 const sessionTitleEl = document.getElementById("session-title");
 const positionSearchCancelBtnEl = document.getElementById("position-search-cancel-btn");
 const promotionPickerEl = document.getElementById("promotion-picker");
 const promotionChoiceEls = ["q", "r", "b", "n"].map((code) => document.getElementById(`promotion-choice-${code}`));
 const soloClockRailEl = document.getElementById("solo-clock-rail");
 const soloClockValueEl = document.getElementById("solo-clock-value");
-const soloClockBarEl = document.getElementById("solo-clock-bar");
+const soloClockArcEl = document.getElementById("solo-clock-arc");
 const soloClockAnnounceEl = document.getElementById("solo-clock-announce");
 const resultOverlayEl = document.getElementById("result-overlay");
 const resultOverlayInnerEl = document.getElementById("result-overlay-inner");
 const resultOverlayTitleEl = document.getElementById("result-overlay-title");
-const resultOverlayHeaderEl = document.querySelector(".result-overlay-header");
 const resultOverlayPointsEl = document.getElementById("result-overlay-points");
 const consentOverlayEl = document.getElementById("consent-overlay");
 const consentOverlayTitleEl = document.getElementById("consent-overlay-title");
@@ -139,19 +144,10 @@ const resultAnalysisResetBtn = document.getElementById("result-analysis-reset-bt
 const boardArrowsEl = document.getElementById("board-arrows");
 const roundStatusEl = document.getElementById("round-status");
 const roundTurnEl = document.getElementById("round-turn");
-const sessionProgressEl = document.getElementById("session-progress");
-const soloProgressLineEl = document.getElementById("solo-progress-line");
 const roundResultEl = document.getElementById("round-result");
-const roundResultPanelEl = document.getElementById("round-result-panel");
-const scorePanelEl = document.getElementById("score-panel");
-const competitiveStatusEl = document.getElementById("competitive-status");
-const scoreLabelEl = document.getElementById("score-label");
-const scoreEl = document.getElementById("score");
-const historyEl = document.getElementById("history");
 const nextBtn = document.getElementById("next-btn");
 const skipBtn = document.getElementById("skip-btn");
 const restartBtn = document.getElementById("restart-btn");
-const gameDetailsMiniEl = document.getElementById("game-details-mini");
 const sessionSummaryResultEl = document.getElementById("session-summary-result");
 const summaryScoreDisplayEl = document.querySelector(".summary-score-display");
 const summaryDetailsTextEl = document.querySelector(".summary-details-text");
@@ -237,16 +233,44 @@ const TRANSLATIONS = {
     "buttons.startSession": "Comenzar sesión",
     "buttons.retryUser": "Probar otro usuario",
     "buttons.switchPlatform": "Cambiar plataforma",
-    "buttons.revealBest": "Ver la mejor",
-    "buttons.revealGame": "Ver la partida",
-    "buttons.revealPlayedBy": "Ver la que jugó {name}",
+    "buttons.revealBest": "Mejor jugada",
+    "buttons.revealGame": "Jugada de la partida",
+    "buttons.revealPlayedBy": "Jugó {name}",
+    "buttons.revealYourGame": "Tu partida",
     "buttons.exploreBoard": "Explorar tablero",
-    "buttons.analysisActive": "Exploración activa",
-    "buttons.resetAnalysis": "Reiniciar análisis",
+    "buttons.resetAnalysis": "Volver a la posición",
     "buttons.nextPosition": "Siguiente posición",
     "buttons.backToMenu": "Volver al inicio",
-    "buttons.skipMove": "Omitir jugada (0 pts)",
-    "buttons.restartMenu": "Volver al inicio",
+    "buttons.skipMove": "Omitir (0 pts)",
+    "play.title": "Entrenamiento",
+    "play.exit": "Salir",
+    "play.exit.aria": "Salir de la sesión",
+    "play.dots.aria": "Progreso de la sesión",
+    "play.score.label": "Puntos",
+    "play.score.aria": "Puntaje de la sesión",
+    "play.duel.aria": "Marcador del duelo",
+    "play.sound.aria": "Sonido",
+    "play.sound.on": "Sonido activado",
+    "play.sound.off": "Sonido desactivado",
+    "play.board.region": "Tablero y acciones",
+    "play.panel.aria": "Entrenador",
+    "play.scroll.aria": "Notas del entrenador",
+    "play.dock.round": "Acciones de la ronda",
+    "play.skip.aria": "Omitir esta posición y sumar 0 puntos",
+    "play.position": "Posición {current} de {total}",
+    "play.finish": "Ver el resumen",
+    "play.summary.back": "Volver al resumen",
+    "play.turn.duel": "{player} juega con las {side}",
+    "play.side.white": "blancas",
+    "play.side.black": "negras",
+    "play.handoff.eyebrow": "{name} ya jugó",
+    "play.handoff.cta": "Tocar para empezar",
+    "play.expand": "Ver todo el análisis",
+    "play.collapse": "Volver al tablero",
+    "play.key.next": "Siguiente",
+    "play.key.explore": "Explorar",
+    "play.key.best": "Mejor",
+    "play.key.master": "Maestro",
     "buttons.cancelSearch": "Cancelar búsqueda",
     "confirm.restartTitle": "¿Volver al inicio?",
     "confirm.restartToSetup": "Si volvés al inicio se borran las posiciones de esta sesión y el puntaje acumulado. ¿Volver igual?",
@@ -304,24 +328,16 @@ const TRANSLATIONS = {
     "compat.gameFormat.duel": "Modo duelo (2 jugadores)",
     "players.default1": "Jugador 1",
     "players.default2": "Jugador 2",
-    "players.soloSession": "Tu sesión",
-    "players.kicker1": "Jugador 1",
-    "players.kicker2": "Jugador 2",
     "players.targetLabel": "Usuario objetivo del análisis",
     "players.targetHint": "Usaremos este usuario para seleccionar posiciones.",
     "players.enterUserContinue": "Ingresá el usuario para continuar.",
     "players.notDetected": "No detectado",
     "players.genericUser": "usuario",
-    "labels.scoreTitle": "Puntaje",
     "labels.clockTitle": "Reloj",
     "labels.clockMilestone": "Quedan {seconds} segundos.",
     "labels.clockTimeUp": "Se acabó el tiempo.",
-    "labels.positionsEvaluatedTitle": "Posiciones evaluadas",
     "result.title": "Resultado",
-    "result.pending": "Todavía no hay jugada evaluada.",
     "result.boardToolsLabel": "Herramientas del tablero",
-    "score.totalPoints": "Puntos totales",
-    "score.duelScore": "Marcador duelo",
     "scoring.system.simple.label": "Precisión (0 a 10)",
     "scoring.system.simple.description": "Cuanto más cerca esté tu jugada de la mejor del motor, más puntos: hasta 10 por posición.",
     "quality.no_move": "Sin jugada",
@@ -382,27 +398,6 @@ const TRANSLATIONS = {
     "time.daily": "Diario",
     "time.blitz": "Blitz",
     "time.bullet": "Bullet",
-    "evaluation.mateIn": "Mate en {ply}",
-    "evaluation.getsMatedIn": "Recibe mate en {ply}",
-    "evaluation.deltaUnavailable": "No disponible",
-    "evaluation.deltaEqual": "Igual",
-    "evaluation.deltaMateBetter": "Mejor (mate/casi mate)",
-    "evaluation.deltaMateWorse": "Peor (mate/casi mate)",
-    "evaluation.deltaBetter": "+{delta} cp (mejor)",
-    "evaluation.deltaWorse": "{delta} cp (peor)",
-    "evaluation.moduleBest": "Mejor del módulo",
-    "evaluation.gameLine": "Partida",
-    "evaluation.yourMove": "Tu jugada",
-    "evaluation.historyPosition": "Posición {round}",
-    "evaluation.historyModule": "Módulo",
-    "evaluation.historyGame": "Partida",
-    "evaluation.historyYourMove": "Tu jugada",
-    "evaluation.historyEmpty": "Sin posiciones jugadas.",
-    "evaluation.classification": "Clasificación",
-    "evaluation.delta": "Delta",
-    "evaluation.points": "Puntos",
-    "evaluation.timeoutZeroPoints": "Tiempo agotado: 0 puntos.",
-    "evaluation.noMoveZeroPoints": "No hubo jugada: 0 puntos.",
     "evaluation.timeoutZeroPts": "Tiempo agotado: 0 pts.",
     "evaluation.noMoveMadeZeroPts": "No hiciste jugada: 0 pts.",
     "evaluation.bestPrefix": "Mejor: {san}",
@@ -411,19 +406,11 @@ const TRANSLATIONS = {
     "game.positionFound": "Posición encontrada",
     "game.handoff.genericTitle": "Cambio de turno",
     "game.handoff.genericSubtitle": "Toca para revelar",
-    "game.handoff.title": "Turno de {player}",
-    "game.handoff.subtitle": "Toca para revelar",
-    "game.infoCitizen": "{players} | {event} {year} | Movida {move}",
-    "game.infoEngineer": "{players} | {event} {year} | ECO {eco} | Resultado {result} | Movida {move}",
+    "game.handoff.title": "Pasale el dispositivo a {player}",
+    "game.handoff.subtitle": "Tocá para ver la posición. La jugada de {other} queda oculta.",
     "game.positionMeta": "{players} · Resultado {result} · Jugada {move} · Año {year}",
-    "game.progressSolo": "Posiciones evaluadas: {played} / {target} · Restan: {remaining}",
-    "game.progressDuel": "Ronda {round}/{target} · Restan: {remaining} · Aciertos: {p1} {p1Hits} - {p2Hits} {p2}",
-    "game.roundSolo": "Posición {current}/{target}",
-    "game.roundReview": "Revisión · {label}",
     "game.turnWhite": "Juegan las blancas",
     "game.turnBlack": "Juegan las negras",
-    "game.turnPlayer": "Juega {player} ({turn}/2)",
-    "game.duelCompetitive": "Duelo local · {seconds}s por turno · {system}",
     "game.duelHint": "Competitivo local: ambos jugadores reciben exactamente las mismas posiciones y tiempo.",
     "game.soloHint": "Entrenamiento individual con puntaje total acumulado.",
     "game.studyMode": "Modo estudio",
@@ -433,7 +420,6 @@ const TRANSLATIONS = {
     "game.summaryUser": "Usuario",
     "game.summaryPositions": "Posiciones",
     "game.summaryRoundTime": "Tiempo de ronda",
-    "game.result.yourMove": "Resultado de tu jugada",
     "game.result.positionSolved": "¡Posición resuelta!",
     "game.comparison.tie": "Comparativa: empate.",
     "game.comparison.advantage": "Comparativa: ventaja para {player}.",
@@ -446,9 +432,6 @@ const TRANSLATIONS = {
     "game.searchCancelled": "Búsqueda cancelada. Podés volver a buscar la próxima posición cuando quieras.",
     "game.sessionHintCitizen": "Objetivo de sesión: {target} posiciones. Detectadas: {detected}.",
     "game.sessionHintEngineer": "Objetivo de sesión: {target} posiciones. Sistema: {system}. Detectadas por ahora: {detected}. Analizadas: {analyzed}/{total}.",
-    "overlay.timeoutEvaluating": "Tiempo agotado. Evaluando posición...",
-    "overlay.closingWithoutMove": "Cerrando posición sin jugada...",
-    "overlay.evaluatingMove": "Evaluando jugada...",
     "overlay.evaluatingBoth": "Evaluando jugadas de ambos jugadores...",
     "overlay.evaluatingYours": "Evaluando tu jugada...",
     "overlay.difficultyBudget": "Dificultad {label} · {budget}",
@@ -525,16 +508,44 @@ const TRANSLATIONS = {
     "buttons.startSession": "Start session",
     "buttons.retryUser": "Try another user",
     "buttons.switchPlatform": "Switch platform",
-    "buttons.revealBest": "Show best move",
-    "buttons.revealGame": "Show game move",
-    "buttons.revealPlayedBy": "Show what {name} played",
+    "buttons.revealBest": "Best move",
+    "buttons.revealGame": "Move of the game",
+    "buttons.revealPlayedBy": "{name} played",
+    "buttons.revealYourGame": "Your game",
     "buttons.exploreBoard": "Explore board",
-    "buttons.analysisActive": "Exploration active",
-    "buttons.resetAnalysis": "Reset analysis",
+    "buttons.resetAnalysis": "Back to the position",
     "buttons.nextPosition": "Next position",
     "buttons.backToMenu": "Back to start",
-    "buttons.skipMove": "Skip move (0 pts)",
-    "buttons.restartMenu": "Back to start",
+    "buttons.skipMove": "Skip (0 pts)",
+    "play.title": "Training",
+    "play.exit": "Exit",
+    "play.exit.aria": "Leave the session",
+    "play.dots.aria": "Session progress",
+    "play.score.label": "Points",
+    "play.score.aria": "Session score",
+    "play.duel.aria": "Duel score",
+    "play.sound.aria": "Sound",
+    "play.sound.on": "Sound on",
+    "play.sound.off": "Sound off",
+    "play.board.region": "Board and actions",
+    "play.panel.aria": "Coach",
+    "play.scroll.aria": "Coach notes",
+    "play.dock.round": "Round actions",
+    "play.skip.aria": "Skip this position for 0 points",
+    "play.position": "Position {current} of {total}",
+    "play.finish": "See the summary",
+    "play.summary.back": "Back to the summary",
+    "play.turn.duel": "{player} plays {side}",
+    "play.side.white": "White",
+    "play.side.black": "Black",
+    "play.handoff.eyebrow": "{name} has played",
+    "play.handoff.cta": "Tap to start",
+    "play.expand": "Show the full analysis",
+    "play.collapse": "Back to the board",
+    "play.key.next": "Next",
+    "play.key.explore": "Explore",
+    "play.key.best": "Best",
+    "play.key.master": "Master",
     "buttons.cancelSearch": "Cancel search",
     "confirm.restartTitle": "Go back to the start?",
     "confirm.restartToSetup": "Going back to the start clears this session's positions and your running score. Go back anyway?",
@@ -592,24 +603,16 @@ const TRANSLATIONS = {
     "compat.gameFormat.duel": "Duel mode (2 players)",
     "players.default1": "Player 1",
     "players.default2": "Player 2",
-    "players.soloSession": "Your session",
-    "players.kicker1": "Player 1",
-    "players.kicker2": "Player 2",
     "players.targetLabel": "Target user for analysis",
     "players.targetHint": "We will use this user to choose positions.",
     "players.enterUserContinue": "Enter the user to continue.",
     "players.notDetected": "Not detected",
     "players.genericUser": "user",
-    "labels.scoreTitle": "Score",
     "labels.clockTitle": "Clock",
     "labels.clockMilestone": "{seconds} seconds remaining.",
     "labels.clockTimeUp": "Time's up.",
-    "labels.positionsEvaluatedTitle": "Evaluated positions",
     "result.title": "Result",
-    "result.pending": "There is no evaluated move yet.",
     "result.boardToolsLabel": "Board tools",
-    "score.totalPoints": "Total points",
-    "score.duelScore": "Duel score",
     "scoring.system.simple.label": "Precision (0 to 10)",
     "scoring.system.simple.description": "The closer your move is to the engine's best, the more points: up to 10 per position.",
     "quality.no_move": "No move",
@@ -670,27 +673,6 @@ const TRANSLATIONS = {
     "time.daily": "Daily",
     "time.blitz": "Blitz",
     "time.bullet": "Bullet",
-    "evaluation.mateIn": "Mate in {ply}",
-    "evaluation.getsMatedIn": "Gets mated in {ply}",
-    "evaluation.deltaUnavailable": "Not available",
-    "evaluation.deltaEqual": "Equal",
-    "evaluation.deltaMateBetter": "Better (mate / near mate)",
-    "evaluation.deltaMateWorse": "Worse (mate / near mate)",
-    "evaluation.deltaBetter": "+{delta} cp (better)",
-    "evaluation.deltaWorse": "{delta} cp (worse)",
-    "evaluation.moduleBest": "Engine best",
-    "evaluation.gameLine": "Game",
-    "evaluation.yourMove": "Your move",
-    "evaluation.historyPosition": "Position {round}",
-    "evaluation.historyModule": "Engine",
-    "evaluation.historyGame": "Game",
-    "evaluation.historyYourMove": "Your move",
-    "evaluation.historyEmpty": "No played positions.",
-    "evaluation.classification": "Classification",
-    "evaluation.delta": "Delta",
-    "evaluation.points": "Points",
-    "evaluation.timeoutZeroPoints": "Time ran out: 0 points.",
-    "evaluation.noMoveZeroPoints": "No move played: 0 points.",
     "evaluation.timeoutZeroPts": "Time ran out: 0 pts.",
     "evaluation.noMoveMadeZeroPts": "You did not play a move: 0 pts.",
     "evaluation.bestPrefix": "Best: {san}",
@@ -699,19 +681,11 @@ const TRANSLATIONS = {
     "game.positionFound": "Position found",
     "game.handoff.genericTitle": "Turn change",
     "game.handoff.genericSubtitle": "Tap to reveal",
-    "game.handoff.title": "{player}'s turn",
-    "game.handoff.subtitle": "Tap to reveal",
-    "game.infoCitizen": "{players} | {event} {year} | Move {move}",
-    "game.infoEngineer": "{players} | {event} {year} | ECO {eco} | Result {result} | Move {move}",
+    "game.handoff.title": "Pass the device to {player}",
+    "game.handoff.subtitle": "Tap to see the position. {other}'s move stays hidden.",
     "game.positionMeta": "{players} · Result {result} · Move {move} · Year {year}",
-    "game.progressSolo": "Evaluated positions: {played} / {target} · Remaining: {remaining}",
-    "game.progressDuel": "Round {round}/{target} · Remaining: {remaining} · Hits: {p1} {p1Hits} - {p2Hits} {p2}",
-    "game.roundSolo": "Position {current}/{target}",
-    "game.roundReview": "Review · {label}",
     "game.turnWhite": "White to move",
     "game.turnBlack": "Black to move",
-    "game.turnPlayer": "{player} to move ({turn}/2)",
-    "game.duelCompetitive": "Local duel · {seconds}s per turn · {system}",
     "game.duelHint": "Competitive local mode: both players get exactly the same positions and time.",
     "game.soloHint": "Individual training with total accumulated score.",
     "game.studyMode": "Study mode",
@@ -721,7 +695,6 @@ const TRANSLATIONS = {
     "game.summaryUser": "User",
     "game.summaryPositions": "Positions",
     "game.summaryRoundTime": "Round time",
-    "game.result.yourMove": "Your move result",
     "game.result.positionSolved": "Position solved!",
     "game.comparison.tie": "Comparison: tie.",
     "game.comparison.advantage": "Comparison: edge for {player}.",
@@ -734,9 +707,6 @@ const TRANSLATIONS = {
     "game.searchCancelled": "Search cancelled. You can look for the next position whenever you want.",
     "game.sessionHintCitizen": "Session target: {target} positions. Found: {detected}.",
     "game.sessionHintEngineer": "Session target: {target} positions. System: {system}. Found so far: {detected}. Analyzed: {analyzed}/{total}.",
-    "overlay.timeoutEvaluating": "Time ran out. Evaluating position...",
-    "overlay.closingWithoutMove": "Closing position without a move...",
-    "overlay.evaluatingMove": "Evaluating move...",
     "overlay.evaluatingBoth": "Evaluating both players' moves...",
     "overlay.evaluatingYours": "Evaluating your move...",
     "overlay.difficultyBudget": "Difficulty {label} · {budget}",
@@ -829,6 +799,8 @@ Ludus.i18n.register({
     "core.clock.summary": "sin límite",
     "core.toast.achievement": "Logro desbloqueado: {name}",
     "core.toast.levelUp": "¡Subiste de nivel! {title}",
+    "core.toast.achievements": "Logros desbloqueados: {names}",
+    "core.toast.achievementsMany": "{n} logros desbloqueados",
     "core.session.own": "Tus partidas: {user}",
     "core.wizard.heading.2": "Armemos tu sesión en 2 pasos",
     "core.session.default.own": "Tus partidas",
@@ -856,6 +828,8 @@ Ludus.i18n.register({
     "core.clock.summary": "no limit",
     "core.toast.achievement": "Achievement unlocked: {name}",
     "core.toast.levelUp": "Level up! {title}",
+    "core.toast.achievements": "Achievements unlocked: {names}",
+    "core.toast.achievementsMany": "{n} achievements unlocked",
     "core.session.own": "Your games: {user}",
     "core.wizard.heading.2": "Let's build your session in 2 steps",
     "core.session.default.own": "Your games",
@@ -950,13 +924,15 @@ function playSound(name, options) {
   }
 }
 
+// Returns the toast's handle (something to dismiss it with), or null when none was shown.
 function showToast(message, options = {}) {
   const ui = ludusModule("ui");
   try {
-    if (ui && typeof ui.toast === "function" && message) ui.toast(message, options);
+    if (ui && typeof ui.toast === "function" && message) return ui.toast(message, options) || null;
   } catch (error) {
     // A toast is a courtesy, never a failure.
   }
+  return null;
 }
 
 
@@ -1097,8 +1073,6 @@ const STATE = {
   boardPerspective: "w",
   keyboardFocusSquare: null,
   revealed: { best: null, game: null, user: null, userAlt: null },
-  historyEntries: [],
-  historySelectedIdx: -1,
   analysisContext: null,
   analysisInProgress: false,
   roundSubmitted: false,
@@ -1145,6 +1119,10 @@ const STATE = {
   timer: { intervalId: null, deadlineMs: 0, durationMs: 0, lastAnnouncedSeconds: null },
   ui: {
     phase: "playing",
+    // What the layout shows (data-phase of #game-layout): thinking | evaluating | handoff | result | summary.
+    gamePhase: "thinking",
+    lastShownScore: 0,
+    summaryModel: null,
     blockBoardInput: false,
     setupAnalyzing: false,
     positionSearchState: null,
@@ -1158,6 +1136,11 @@ const STATE = {
     snapshotFen: "",
     snapshotRevealed: { best: null, game: null, user: null, userAlt: null },
     context: null,
+    // The engine line being stepped ({ line, ply }), the round reopened from the summary
+    // ({ index, summary }) and which of the two moves the dock has drawn on the board.
+    pv: null,
+    review: null,
+    shown: { best: false, game: false },
   },
   duel: {
     players: [...DUEL_DEFAULT_PLAYERS],
@@ -1554,6 +1537,7 @@ function gameMoveAuthorName() {
 }
 
 function revealGameButtonLabel() {
+  if (STATE.session && STATE.session.kind === "own") return t("buttons.revealYourGame");
   return t("buttons.revealPlayedBy", { name: gameMoveAuthorName() });
 }
 
@@ -1573,18 +1557,24 @@ function initialsFromName(value, fallback = "J") {
 function setUiPhase(phase, blockBoardInput = false) {
   STATE.ui.phase = String(phase || "playing");
   STATE.ui.blockBoardInput = Boolean(blockBoardInput);
+  syncGamePhase();
 }
 
-function showHandoffOverlay(title, subtitle) {
+function showHandoffOverlay(title, subtitle, extra = {}) {
   if (!handoffOverlayEl) return;
   STATE.ui.handoffState = {
     title: title || t("game.handoff.genericTitle"),
     subtitle: subtitle || t("game.handoff.genericSubtitle"),
+    avatar: extra.avatar || "",
+    eyebrow: extra.eyebrow || "",
   };
   STATE.ui.handoffReturnFocusEl = document.activeElement || null;
   if (handoffOverlayTitleEl) handoffOverlayTitleEl.textContent = STATE.ui.handoffState.title;
   if (handoffOverlaySubtitleEl) handoffOverlaySubtitleEl.textContent = STATE.ui.handoffState.subtitle;
+  if (handoffOverlayAvatarEl) handoffOverlayAvatarEl.textContent = STATE.ui.handoffState.avatar;
+  if (handoffOverlayEyebrowEl) handoffOverlayEyebrowEl.textContent = STATE.ui.handoffState.eyebrow;
   handoffOverlayEl.classList.remove("hidden");
+  syncGamePhase();
   requestAnimationFrame(() => {
     handoffOverlayEl.focus();
   });
@@ -1594,6 +1584,7 @@ function hideHandoffOverlay() {
   if (!handoffOverlayEl) return;
   STATE.ui.handoffState = null;
   handoffOverlayEl.classList.add("hidden");
+  syncGamePhase();
   const returnFocusEl = STATE.ui.handoffReturnFocusEl;
   STATE.ui.handoffReturnFocusEl = null;
   if (returnFocusEl && document.contains(returnFocusEl) && typeof returnFocusEl.focus === "function") {
@@ -1796,7 +1787,9 @@ function applyResultSnapshotToBoard() {
   STATE.legalMoves = [];
   STATE.userMove = null;
   STATE.revealed = snapshotRevealedState(STATE.resultView.snapshotRevealed);
+  STATE.resultView.shown = { best: false, game: false };
   renderBoard();
+  syncRevealButtons();
 }
 
 function captureResultSnapshot(fen) {
@@ -1804,15 +1797,19 @@ function captureResultSnapshot(fen) {
   STATE.resultView.snapshotRevealed = snapshotRevealedState(STATE.revealed);
 }
 
+// The dock under the board switches between the round's actions (hint, skip) and,
+// once the answer is in, the tools that act on the board. This keeps both in step
+// with the result and with the exploration mode.
 function updateResultAnalysisControls() {
   const visible = Boolean(STATE.resultView.visible);
   const analysisMode = Boolean(STATE.resultView.analysisMode);
   if (resultOverlayEl) resultOverlayEl.classList.toggle("analysis-mode", analysisMode);
   if (resultAnalysisBtn) {
     resultAnalysisBtn.disabled = !visible || analysisMode;
-    resultAnalysisBtn.textContent = analysisMode ? t("buttons.analysisActive") : t("buttons.exploreBoard");
+    resultAnalysisBtn.classList.toggle("hidden", analysisMode);
     resultAnalysisBtn.setAttribute("aria-pressed", analysisMode ? "true" : "false");
   }
+  if (resultAnalysisLabelEl) resultAnalysisLabelEl.textContent = t("buttons.exploreBoard");
   if (resultAnalysisResetBtn) {
     resultAnalysisResetBtn.disabled = !visible || !analysisMode;
     resultAnalysisResetBtn.classList.toggle("hidden", !analysisMode);
@@ -1831,98 +1828,271 @@ function enterResultAnalysisMode() {
   updateResultAnalysisControls();
 }
 
+// Back to the position of the result. The stepper of the engine lines is redrawn
+// collapsed, and the panel keeps its scroll.
 function resetResultAnalysisBoard() {
   if (!STATE.resultView.visible || !STATE.resultView.snapshotFen) return;
   if (STATE.resultView.analysisMode) setUiPhase("result_analysis", false);
+  STATE.resultView.pv = null;
   applyResultSnapshotToBoard();
   updateResultAnalysisControls();
+  renderResultViewContext();
 }
 
-// The ten quality codes of Ludus.Scoring map onto the eight the legacy CSS knows
-// (brilliant and great look like perfect there).
-function compatQualityCode(code) {
-  const scoring = ludusModule("Scoring");
-  try {
-    if (scoring && typeof scoring.compatQuality === "function") return scoring.compatQuality(code);
-  } catch (error) {
-    // fall through
+// Coach panel -> board: shows the position after `ply` moves of an engine line (0 =
+// the position of the round). Stepping is exploration: the board then also takes the
+// person's own moves from that point on (the same mode as "Explore board").
+function stepEngineLine(lineIndex, ply) {
+  const context = STATE.resultView.context;
+  const line = context && Array.isArray(context.lines) ? context.lines[lineIndex] : null;
+  const fen = STATE.resultView.snapshotFen;
+  if (!line || !fen || !Array.isArray(line.pvUci)) return;
+  const plies = clamp(Math.round(Number(ply) || 0), 0, line.pvUci.length);
+  const board = new Chess(fen);
+  let last = null;
+  for (let i = 0; i < plies; i += 1) {
+    const move = uciToMove(line.pvUci[i], board);
+    if (!move) break;
+    board.makeMove(move);
+    last = move;
   }
-  return code || "no_move";
-}
-
-function qualityToVerdictClass(rawQualityCode) {
-  if (!rawQualityCode) return "";
-  const qualityCode = compatQualityCode(rawQualityCode);
-  if (qualityCode === "perfect" || qualityCode === "very_good") return "verdict-perfect";
-  if (qualityCode === "good") return "verdict-good";
-  if (qualityCode === "interesting" || qualityCode === "dubious") return "verdict-dubious";
-  if (qualityCode === "bad" || qualityCode === "blunder") return "verdict-blunder";
-  return "";
-}
-
-function showResultOverlay(title, pointsText, qualityCode) {
-  if (!resultOverlayEl) return;
-  if (resultOverlayTitleEl) resultOverlayTitleEl.textContent = title || t("result.title");
-  if (resultOverlayPointsEl) resultOverlayPointsEl.textContent = pointsText || "";
-  if (resultOverlayHeaderEl) {
-    resultOverlayHeaderEl.className = "result-overlay-header";
-    const vc = qualityToVerdictClass(qualityCode);
-    if (vc) resultOverlayHeaderEl.classList.add(vc);
-  }
-  STATE.resultView.analysisMode = false;
-  revealResultOverlay();
+  STATE.resultView.pv = { line: lineIndex, ply: plies };
+  STATE.resultView.analysisMode = true;
+  setUiPhase("result_analysis", false);
+  STATE.board = board;
+  STATE.selection = null;
+  STATE.legalMoves = [];
+  STATE.userMove = null;
+  STATE.revealed = plies > 0 && last
+    ? { best: snapshotMove(last), game: null, user: null, userAlt: null }
+    : snapshotRevealedState(STATE.resultView.snapshotRevealed);
+  renderBoard();
   updateResultAnalysisControls();
+}
+
+// ---------- The play screen: phase, header, coach panel ----------
+// #game-layout carries three attributes that css/coach.css reads: data-view (play |
+// summary), data-phase (thinking | evaluating | handoff | result | summary) and data-mode
+// (solo | duel). They are derived from the state in one place, so the layout cannot end
+// up in a phase that no function asked for.
+
+function currentGamePhase() {
+  const context = STATE.resultView.context;
+  if (STATE.resultView.visible) return context && context.kind === "session_summary" ? "summary" : "result";
+  if (STATE.ui.handoffState) return "handoff";
+  if (STATE.isResolvingRound) return "evaluating";
+  return "thinking";
+}
+
+function syncGamePhase() {
+  const phase = currentGamePhase();
+  STATE.ui.gamePhase = phase;
+  if (!gameLayoutEl || !gameLayoutEl.dataset) return;
+  gameLayoutEl.dataset.phase = phase;
+  gameLayoutEl.dataset.view = phase === "summary" ? "summary" : "play";
+  gameLayoutEl.dataset.mode = isDuelMode() ? "duel" : "solo";
+  // The sheet only stays open over the board while a result is being read.
+  if (phase !== "result" && gameLayoutEl.dataset.expanded) setCoachExpanded(false);
+}
+
+// Phones: the coach panel is a sheet under the board; its handle opens it over the board
+// (to read the whole analysis) and closes it again.
+function setCoachExpanded(expanded) {
+  if (!gameLayoutEl || !gameLayoutEl.dataset) return;
+  if (expanded) gameLayoutEl.dataset.expanded = "true";
+  else delete gameLayoutEl.dataset.expanded;
+  if (coachExpandBtn) coachExpandBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
+  if (coachExpandLabelEl) coachExpandLabelEl.textContent = t(expanded ? "play.collapse" : "play.expand");
+  // The board comes back at its size: the arrows are drawn again on it.
   renderBoardArrows();
+}
+
+// Tells a screen reader something without moving the focus (a polite live region).
+function announcePlay(text) {
+  if (!playAnnounceEl || !text) return;
+  playAnnounceEl.textContent = "";
+  // A change of text is what is read; clearing first makes a repeated sentence count.
+  setTimeout(() => {
+    playAnnounceEl.textContent = text;
+  }, 30);
+}
+
+// The result of a round on screen: the live region (read out loud), then the panel.
+function setResultLive(title, points) {
+  if (resultOverlayTitleEl) resultOverlayTitleEl.textContent = title || t("result.title");
+  if (resultOverlayPointsEl) resultOverlayPointsEl.textContent = points || "";
+}
+
+// "You earned 7.4 / 10", or why there is nothing to earn.
+function roundSummaryText(answer) {
+  if (!answer.uci) {
+    if (answer.hintsUsed >= 3) return t("core.hint.resultRevealed");
+    return answer.noMoveReason === "timeout" ? t("evaluation.timeoutZeroPts") : t("evaluation.noMoveMadeZeroPts");
+  }
+  return t("core.result.earned", { points: formatPoints(answer.assessment.points), max: answer.assessment.maxPoints });
+}
+
+// What the coach panel says when Ludus.Coach is not there (a module that failed to
+// load must not leave the person without a result): the verdict and the notes, as text.
+function renderResultFallback(context) {
+  const answer = context.answers[context.answers.length - 1];
+  const scoring = ludusModule("Scoring");
+  const insightsApi = ludusModule("Insights");
+  const notes = [];
+  const assessment = answer.assessment;
+  if (answer.uci && scoring) notes.push(scoring.reasonLabel(assessment.reason, STATE.language));
+  if (answer.hintsUsed >= 1 && answer.hintsUsed < 3 && assessment.hintPenalty > 0) {
+    notes.push(t("scoring.note.hint_penalty", { percent: Math.round((assessment.hintCost || 0) * 100) }));
+  }
+  if (answer.provisional) notes.push(t("core.result.provisional"));
+  try {
+    const messages = answer.insights && Array.isArray(answer.insights.messages) ? answer.insights.messages : [];
+    if (insightsApi && messages.length) insightsApi.renderMessages(messages.slice(0, 3), STATE.language).forEach((text) => notes.push(text));
+  } catch (error) {
+    // Insights are decoration.
+  }
+  if (context.engine && context.engine.source === "local") notes.push(t("analysis.status.localEngineNotice"));
+  if (roundResultEl) roundResultEl.textContent = notes.filter(Boolean).join(" ");
+  if (resultLiveEl) resultLiveEl.classList.remove("sr-only");
+}
+
+// The dock's two "show on the board" buttons for the result on screen: the move of the game
+// is only offered when the position has one (a review card has none).
+function prepareRevealButtons(hasGameMove) {
+  if (revealBestBtn) revealBestBtn.classList.remove("hidden");
+  if (revealGameBtn) revealGameBtn.classList.toggle("hidden", !hasGameMove);
+  syncRevealButtons();
+}
+
+function renderSoloResultPanels(context) {
+  const answer = context.answers[0];
+  const coach = ludusModule("Coach");
+  setResultLive(qualityLabel(answer.uci ? answer.assessment.qualityCode : "no_move"), roundSummaryText(answer));
+  if (roundResultEl) roundResultEl.textContent = "";
+  let drawn = false;
+  if (coach && typeof coach.renderRound === "function" && roundResultEl) {
+    try {
+      coach.renderRound(roundResultEl, context, coachApi());
+      drawn = true;
+    } catch (error) {
+      console.error("[Ludus] the coach panel failed to draw the result", error);
+    }
+  }
+  if (resultLiveEl) resultLiveEl.classList.toggle("sr-only", drawn);
+  if (!drawn) renderResultFallback(context);
+  prepareRevealButtons(Boolean(context.master));
+}
+
+function renderDuelResultPanels(context) {
+  const [first, second] = context.answers;
+  const coach = ludusModule("Coach");
+  const points = (answer) => answer.assessment.points;
+  let winnerText = t("game.comparison.tie");
+  if (points(first) > points(second)) winnerText = t("game.comparison.advantage", { player: first.name });
+  if (points(second) > points(first)) winnerText = t("game.comparison.advantage", { player: second.name });
+  setResultLive(t("game.result.positionSolved"), `R${context.round}: ${first.name} ${formatPoints(points(first))} · ${second.name} ${formatPoints(points(second))}. ${winnerText}`);
+  if (roundResultEl) roundResultEl.textContent = "";
+  let drawn = false;
+  if (coach && typeof coach.renderDuel === "function" && roundResultEl) {
+    try {
+      coach.renderDuel(roundResultEl, context, coachApi());
+      drawn = true;
+    } catch (error) {
+      console.error("[Ludus] the coach panel failed to draw the duel result", error);
+    }
+  }
+  if (resultLiveEl) resultLiveEl.classList.toggle("sr-only", drawn);
+  if (!drawn) renderResultFallback(context);
+  prepareRevealButtons(Boolean(context.master));
+}
+
+// What the coach needs from the game besides the context: the language, the stepper
+// state, and the way back to the board and to the sessions.
+function coachApi() {
+  let compact = false;
+  let short = false;
+  try {
+    compact = typeof window.matchMedia === "function" && window.matchMedia("(max-width: 719px) and (orientation: portrait)").matches;
+    short = compact && window.matchMedia("(max-height: 760px)").matches;
+  } catch (error) {
+    compact = false;
+    short = false;
+  }
+  return {
+    // Under a board the size of a phone the gauge is smaller so the verdict fits the sheet.
+    gaugeSize: compact ? (short ? 72 : 84) : 116,
+    lang: STATE.language,
+    pv: STATE.resultView.pv || null,
+    onStep: stepEngineLine,
+    onOpenRound: openSummaryRound,
+    matchText: isDuelMode() ? duelMatchScoreText() : "",
+  };
+}
+
+// The result on screen is drawn from STATE.resultView.context alone, so it can be
+// drawn again (a language change) without recomputing anything.
+function renderResultViewContext() {
+  const context = STATE.resultView.context;
+  if (!context) return;
+  const scrollTop = coachScrollEl ? coachScrollEl.scrollTop : 0;
+  // The panel holds one of two things: the analysis of a round, or the closing summary (which
+  // also comes back after one of its positions was reopened).
+  const summary = context.kind === "session_summary";
+  if (resultOverlayInnerEl) resultOverlayInnerEl.classList.toggle("hidden", summary);
+  if (sessionSummaryResultEl) sessionSummaryResultEl.classList.toggle("hidden", !summary);
+  if (context.kind === "round_solo") renderSoloResultPanels(context);
+  else if (context.kind === "round_duel") renderDuelResultPanels(context);
+  else if (context.kind === "session_summary") renderSessionSummaryPanel(context);
+  if (coachScrollEl && scrollTop) coachScrollEl.scrollTop = scrollTop;
+  updateNextButton();
 }
 
 // Shows the result panel and takes the reader to it. Every path that opens the
 // result goes through here, so none of them can forget that last step.
 function revealResultOverlay() {
   STATE.resultView.visible = true;
-  document.body.classList.add("result-visible");
   if (resultOverlayEl) resultOverlayEl.classList.remove("hidden");
+  // The skeleton of the evaluating state (or the card of the position) is done with: leaving
+  // it behind would keep an aria-busy region in the tree and a second .co-hero in the panel.
+  if (coachThinkingEl) coachThinkingEl.textContent = "";
+  syncGamePhase();
+  // The clock stops with the result (and goes away with the summary).
+  updateRoundTimerUi();
   bringResultIntoView();
+}
+
+function showResultOverlay() {
+  STATE.resultView.analysisMode = false;
+  STATE.resultView.pv = null;
+  STATE.resultView.shown = { best: false, game: false };
+  syncRevealButtons();
+  revealResultOverlay();
+  updateResultAnalysisControls();
+  renderBoardArrows();
 }
 
 // Which part of the result takes the focus: the verdict of the round, or the
 // closing summary once the session is over.
 function resultFocusTarget() {
-  const innerVisible = resultOverlayInnerEl && !resultOverlayInnerEl.classList.contains("hidden");
-  if (innerVisible && resultOverlayTitleEl) return resultOverlayTitleEl;
-  if (sessionSummaryResultEl && !sessionSummaryResultEl.classList.contains("hidden")) return sessionSummaryResultEl;
-  return resultOverlayTitleEl || resultOverlayEl;
+  const inner = roundResultEl && typeof roundResultEl.querySelector === "function" ? roundResultEl.querySelector("[data-focus]") : null;
+  const summary = sessionSummaryResultEl && typeof sessionSummaryResultEl.querySelector === "function" ? sessionSummaryResultEl.querySelector("[data-focus]") : null;
+  const summaryShown = sessionSummaryResultEl && !sessionSummaryResultEl.classList.contains("hidden");
+  return (summaryShown ? summary : inner) || resultOverlayTitleEl || resultOverlayEl;
 }
 
-// In one column the result sits under a board that fills a phone screen, so the
-// verdict, the points and the way to continue all land below the fold and the
-// round looks like it went nowhere. Bring the panel into view and move the
-// focus onto it: the board has just stopped accepting moves, so a focus ring
-// left parked there strands anyone using a keyboard or a screen reader.
+// The panel is a scroll region of its own (the page never scrolls on this screen), so
+// "bring it into view" means: start it at the top and move the focus onto the verdict.
+// The board has just stopped accepting moves, so a focus ring left parked there would
+// strand anyone using a keyboard or a screen reader.
 function bringResultIntoView() {
-  if (!resultOverlayEl) return;
   const reveal = () => {
     if (!STATE.resultView.visible) return;
-    const panel = resultOverlayEl.querySelector(".result-overlay-panel") || resultOverlayEl;
+    if (coachScrollEl) coachScrollEl.scrollTop = 0;
     const target = resultFocusTarget();
     if (target && typeof target.focus === "function") target.focus({ preventScroll: true });
-    if (typeof panel.getBoundingClientRect !== "function" || typeof panel.scrollIntoView !== "function") return;
-    const rect = panel.getBoundingClientRect();
-    const viewportHeight = window.innerHeight || 0;
-    if (!viewportHeight) return;
-    if (rect.top >= 0 && rect.bottom <= viewportHeight) return;
-    // Prefer resting the panel against the bottom edge: that keeps the board and
-    // its buttons on screen above it. Only a panel taller than the screen gets
-    // pinned to the top instead.
-    const block = rect.height <= viewportHeight - 24 ? "end" : "start";
-    // Jumps rather than glides: an animated scroll is silently ignored in some
-    // browsers and by anyone who asked for less motion, and a fix that only
-    // sometimes happens is the same problem over again.
-    panel.scrollIntoView({ block, behavior: "auto" });
   };
-  // Deferred rather than run inline so it measures the panel after the browser
-  // has laid it out. A timer and not an animation frame: animation frames do not
-  // run in a hidden tab, and coming back to the tab would find the result parked
-  // off screen.
+  // Deferred rather than run inline so it works on what the browser has laid out. A
+  // timer and not an animation frame: animation frames do not run in a hidden tab.
   setTimeout(reveal, 0);
 }
 
@@ -1933,10 +2103,15 @@ function hideResultOverlay() {
   STATE.resultView.snapshotFen = "";
   STATE.resultView.snapshotRevealed = { best: null, game: null, user: null, userAlt: null };
   STATE.resultView.context = null;
-  document.body.classList.remove("result-visible");
+  STATE.resultView.pv = null;
+  STATE.resultView.review = null;
+  STATE.resultView.shown = { best: false, game: false };
+  syncRevealButtons();
   resultOverlayEl.classList.add("hidden");
+  if (roundResultEl) roundResultEl.textContent = "";
   updateResultAnalysisControls();
   renderBoardArrows();
+  syncGamePhase();
 }
 
 // Remembers what the result view is showing before a search for the next
@@ -1967,182 +2142,19 @@ function restoreResultView(snapshot) {
     STATE.duel.handoffReady = snapshot.duel.handoffReady;
   }
   STATE.resultView.analysisMode = false;
-  revealResultOverlay();
   setUiPhase("result", true);
-  if (roundStatusEl) roundStatusEl.textContent = t("game.searchCancelled");
+  renderResultViewContext();
+  revealResultOverlay();
+  announcePlay(t("game.searchCancelled"));
   if (nextBtn) nextBtn.disabled = false;
   if (skipBtn) skipBtn.disabled = true;
   updateResultAnalysisControls();
+  renderPlayHeader();
   renderBoardArrows();
-}
-
-// The result on screen is drawn from STATE.resultView.context alone, so it can
-// be drawn again (a language change) without recomputing anything.
-function legacyScored(assessment) {
-  return { ...assessment, diff: Number.isFinite(assessment.cpLoss) ? assessment.cpLoss : null };
-}
-
-// "You earned 7.4 / 10", or why there is nothing to earn.
-function roundSummaryText(answer) {
-  if (!answer.uci) {
-    if (answer.hintsUsed >= 3) return t("core.hint.resultRevealed");
-    return answer.noMoveReason === "timeout" ? t("evaluation.timeoutZeroPts") : t("evaluation.noMoveMadeZeroPts");
-  }
-  return t("core.result.earned", { points: formatPoints(answer.assessment.points), max: answer.assessment.maxPoints });
-}
-
-// The explanations that go under the verdict: why the move lost points (mate
-// missed or allowed), what a hint cost, whether the score is provisional, and the
-// short hedged sentences of Ludus.Insights. The later coach panel replaces this.
-function appendResultNotes(context, answer) {
-  if (!roundResultEl) return;
-  const scoring = ludusModule("Scoring");
-  const insightsApi = ludusModule("Insights");
-  const notes = [];
-  const assessment = answer.assessment;
-  if (answer.uci && scoring) notes.push(scoring.reasonLabel(assessment.reason, STATE.language));
-  if (answer.hintsUsed >= 1 && answer.hintsUsed < 3 && assessment.hintPenalty > 0) {
-    notes.push(t("scoring.note.hint_penalty", { percent: Math.round((assessment.hintCost || 0) * 100) }));
-  }
-  if (answer.provisional) notes.push(t("core.result.provisional"));
-  try {
-    const messages = answer.insights && Array.isArray(answer.insights.messages) ? answer.insights.messages : [];
-    if (insightsApi && messages.length) {
-      insightsApi.renderMessages(messages.slice(0, 3), STATE.language).forEach((text) => notes.push(text));
-    }
-  } catch (error) {
-    // Insights are decoration.
-  }
-  if (context.engine && context.engine.source === "local") notes.push(t("analysis.status.localEngineNotice"));
-  notes.filter(Boolean).forEach((text) => {
-    roundResultEl.insertAdjacentHTML("beforeend", `<p class="result-summary-line">${escapeHtml(text)}</p>`);
-  });
-}
-
-function renderSoloResultPanels(context) {
-  const answer = context.answers[0];
-  renderRoundFeedbackTable(
-    context.best.san,
-    formatScoreText(context.best.score),
-    context.master ? context.master.san : "-",
-    context.master ? formatScoreText(context.master.score) : t("common.notAvailable"),
-    answer.san,
-    formatScoreText(answer.userScore),
-    context.best.score,
-    context.master ? context.master.score : NaN,
-    answer.userScore,
-    legacyScored(answer.assessment),
-    answer.noMoveReason,
-    { mode: "solo", noMove: !answer.uci, hasGameMove: Boolean(context.master) },
-  );
-  appendResultNotes(context, answer);
-  showResultOverlay(t("game.result.yourMove"), roundSummaryText(answer), answer.assessment.qualityCode);
-}
-
-function renderDuelResultPanels(context) {
-  const [first, second] = context.answers;
-  const view = (answer) => ({
-    name: answer.name,
-    san: answer.san,
-    qualityCode: answer.assessment.qualityCode,
-    points: answer.assessment.points,
-    diff: Number.isFinite(answer.assessment.cpLoss) ? answer.assessment.cpLoss : null,
-    hit: answer.hit,
-  });
-  const p1 = view(first);
-  const p2 = view(second);
-  renderRoundFeedbackTable(
-    context.best.san,
-    formatScoreText(context.best.score),
-    context.master ? context.master.san : "-",
-    context.master ? formatScoreText(context.master.score) : t("common.notAvailable"),
-    second.san,
-    formatScoreText(second.userScore),
-    context.best.score,
-    context.master ? context.master.score : NaN,
-    second.userScore,
-    legacyScored(second.assessment),
-    second.noMoveReason,
-    { mode: "duel", noMove: !second.uci, hasGameMove: Boolean(context.master), duel: { player1: p1, player2: p2 } },
-  );
-  showResultOverlay(
-    t("game.result.positionSolved"),
-    `R${context.round}: ${p1.name} ${formatPoints(p1.points)} · ${p2.name} ${formatPoints(p2.points)}`,
-    p1.points >= p2.points ? p1.qualityCode : p2.qualityCode,
-  );
-  let winnerText = t("game.comparison.tie");
-  if (p1.points > p2.points) winnerText = t("game.comparison.advantage", { player: p1.name });
-  if (p2.points > p1.points) winnerText = t("game.comparison.advantage", { player: p2.name });
-  roundResultEl.insertAdjacentHTML("afterbegin", `<p class="result-summary-line">${escapeHtml(winnerText)}</p>`);
-  if (context.engine && context.engine.source === "local") {
-    roundResultEl.insertAdjacentHTML("beforeend", `<p class="result-summary-line">${escapeHtml(t("analysis.status.localEngineNotice"))}</p>`);
-  }
-}
-
-function renderResultViewContext() {
-  const context = STATE.resultView.context;
-  if (!context) return;
-  if (context.kind === "round_solo") {
-    renderSoloResultPanels(context);
-    return;
-  }
-
-  if (context.kind === "round_duel") {
-    renderDuelResultPanels(context);
-    return;
-  }
-
-  if (context.kind === "session_summary") {
-    if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
-    if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = sessionSummaryScoreText();
-    const noMoreText = context.noMorePositions ? ` ${t("game.noMorePositions")}` : "";
-    if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = finalSessionSummaryText() + noMoreText;
-    if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
-    if (resultOverlayEl) resultOverlayEl.classList.remove("hidden");
-    if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden");
-  }
-}
-
-function setPanelActiveState(activeIndex) {
-  const active = Number.isInteger(activeIndex) ? activeIndex : 0;
-  if (leftPlayerPanelEl) {
-    leftPlayerPanelEl.classList.toggle("is-active", active === 0);
-    leftPlayerPanelEl.classList.toggle("is-inactive", active !== 0);
-  }
-  if (rightPlayerPanelEl) {
-    rightPlayerPanelEl.classList.toggle("is-active", active === 1);
-    rightPlayerPanelEl.classList.toggle("is-inactive", active !== 1);
-  }
-}
-
-function mountSharedActionsToActivePanel() {
-  if (!sharedActionsEl) return;
-  // In one column the player cards sit below a board that fills a phone screen,
-  // so leaving a timed round would mean scrolling away from it first. Keep
-  // these actions with the board instead.
-  if (oneColumnGameQuery && oneColumnGameQuery.matches && boardActionsSlotEl) {
-    boardActionsSlotEl.appendChild(sharedActionsEl);
-    return;
-  }
-  if (!isDuelMode()) {
-    if (playerAActionsSlotEl) playerAActionsSlotEl.appendChild(sharedActionsEl);
-    return;
-  }
-  const activeIdx = currentUiPlayerIndex();
-  const host = activeIdx === 0 ? playerAActionsSlotEl : playerBActionsSlotEl;
-  if (host) host.appendChild(sharedActionsEl);
 }
 
 function soloSessionTarget() {
   return Math.max(1, STATE.targetPositions || STATE.positions.length || 1);
-}
-
-// Points are out of ten per position, so the total is shown against what was
-// possible so far: "72.4 / 100 pts" after ten positions.
-function soloScoreText() {
-  const played = Math.max(0, STATE.sessionPlayed);
-  if (played <= 0) return `${formatPoints(STATE.score || 0)} pts`;
-  return t("core.score.of", { points: formatPoints(STATE.score || 0), max: played * POINTS_PER_POSITION });
 }
 
 function duelMatchScoreText() {
@@ -2151,78 +2163,152 @@ function duelMatchScoreText() {
   return played > 0 ? `${line} ${t("core.score.duelMax", { max: played * POINTS_PER_POSITION })}` : line;
 }
 
-function sessionSummaryScoreText() {
-  return isDuelMode() ? duelMatchScoreText() : soloScoreText();
-}
-
-// Barra de progreso de la sesión: una sola barra proporcional con su texto al
-// lado, anunciada como progressbar. Antes eran N guiones con estilos en línea,
-// que con 200 posiciones llenaban más de una docena de renglones.
-function renderSessionProgressBar(played, total) {
-  const safeTotal = Math.max(0, Math.round(Number(total) || 0));
-  const safePlayed = clamp(Math.round(Number(played) || 0), 0, safeTotal);
-  const pct = safeTotal > 0 ? Math.round((safePlayed / safeTotal) * 100) : 0;
-  const label = escapeHtml(t("labels.positionsEvaluatedTitle"));
-  return `<span class="solo-progress-text">${escapeHtml(soloProgressText(safePlayed, safeTotal))}</span>`
-    + `<span class="solo-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="${safeTotal}"`
-    + ` aria-valuenow="${safePlayed}" aria-label="${label}">`
-    + `<span class="solo-progress-fill" style="width:${pct}%"></span></span>`;
-}
-
-function soloProgressText(played = Math.max(0, STATE.sessionPlayed), total = soloSessionTarget()) {
-  return `${t("labels.positionsEvaluatedTitle")}: ${played} / ${total}`;
-}
-
-// Centro de la barra de ronda: en duelo, el jugador al que le toca; en modo
-// individual, el color que mueve en la posición que se está viendo.
+// Which side moves, in words, and the king that says it: the white king when White is to
+// move. In a duel it also says whose turn it is.
 function updateRoundTurn(playerIndex = currentUiPlayerIndex()) {
-  if (!roundTurnEl) return;
-  if (isDuelMode()) {
-    roundTurnEl.textContent = t("game.turnPlayer", {
-      player: duelPlayerName(playerIndex === 1 ? 1 : 0),
-      turn: playerIndex === 1 ? 2 : 1,
-    });
-    return;
-  }
   const turn = STATE.board ? STATE.board.turn : "";
+  if (roundTurnKingEl && (turn === "w" || turn === "b")) roundTurnKingEl.setAttribute("src", PIECE_IMAGES[turn === "b" ? "k" : "K"]);
+  if (!roundTurnEl) return;
   if (turn !== "w" && turn !== "b") {
     roundTurnEl.textContent = "";
     return;
   }
-  roundTurnEl.textContent = turn === "b" ? t("game.turnBlack") : t("game.turnWhite");
-}
-
-function updatePlayerPanels() {
-  const activeIdx = currentUiPlayerIndex();
-  updateRoundTurn(activeIdx);
-  if (soloProgressLineEl) {
-    soloProgressLineEl.innerHTML = renderSessionProgressBar(Math.max(0, STATE.sessionPlayed), soloSessionTarget());
-  }
   if (isDuelMode()) {
-    const p1 = duelPlayerName(0);
-    const p2 = duelPlayerName(1);
-    if (playerAKickerEl) playerAKickerEl.textContent = t("players.kicker1");
-    if (playerBKickerEl) playerBKickerEl.textContent = t("players.kicker2");
-    if (playerANameEl) playerANameEl.textContent = p1;
-    if (playerBNameEl) playerBNameEl.textContent = p2;
-    if (playerAAvatarEl) playerAAvatarEl.textContent = initialsFromName(p1, "J1");
-    if (playerBAvatarEl) playerBAvatarEl.textContent = initialsFromName(p2, "J2");
-    // if (playerAScoreLabelEl) playerAScoreLabelEl.textContent = "Puntaje";
-    // if (playerBScoreLabelEl) playerBScoreLabelEl.textContent = "Puntaje";
-    if (playerAScoreValueEl) playerAScoreValueEl.textContent = formatPoints(STATE.duel.scores[0] || 0);
-    if (playerBScoreValueEl) playerBScoreValueEl.textContent = formatPoints(STATE.duel.scores[1] || 0);
-    setPanelActiveState(activeIdx);
-    mountSharedActionsToActivePanel();
+    roundTurnEl.textContent = t("play.turn.duel", {
+      player: duelPlayerName(playerIndex === 1 ? 1 : 0),
+      side: t(turn === "b" ? "play.side.black" : "play.side.white"),
+    });
     return;
   }
+  roundTurnEl.textContent = t(turn === "b" ? "game.turnBlack" : "game.turnWhite");
+}
 
-  if (playerANameEl) playerANameEl.textContent = t("players.soloSession");
-  if (playerAKickerEl) playerAKickerEl.textContent = t("game.studyMode");
-  if (playerAAvatarEl) playerAAvatarEl.textContent = initialsFromName(t("players.soloSession"), "S");
-  if (playerAScoreValueEl) playerAScoreValueEl.textContent = soloScoreText();
-  if (playerBScoreValueEl) playerBScoreValueEl.textContent = `${Math.max(0, STATE.sessionPlayed)} / ${soloSessionTarget()}`;
-  setPanelActiveState(0);
-  mountSharedActionsToActivePanel();
+// The dots of the header: one per position, coloured by how the answer went. Built from
+// the answers of this session (STATE.session.rounds), never from the page.
+function dotRounds() {
+  const rounds = STATE.session && Array.isArray(STATE.session.rounds) ? STATE.session.rounds : [];
+  return rounds.map((round) => roundView(round));
+}
+
+// The position the header talks about: the one on the board, which is the reopened one while
+// the summary shows an earlier position again.
+function displayedIndex() {
+  const review = STATE.resultView.review;
+  return review && Number.isInteger(review.index) ? review.index : STATE.index;
+}
+
+function renderPlayHeader() {
+  const duel = isDuelMode();
+  const total = soloSessionTarget();
+  const played = Math.max(0, STATE.sessionPlayed);
+  const phase = currentGamePhase();
+  if (gameLayoutEl && gameLayoutEl.dataset) gameLayoutEl.dataset.mode = duel ? "duel" : "solo";
+  if (roundStatusEl) {
+    roundStatusEl.textContent = phase === "summary"
+      ? t("game.sessionDone")
+      : t("play.position", { current: Math.min(displayedIndex() + 1, total), total });
+  }
+  if (playScoreEl) playScoreEl.classList.toggle("hidden", duel);
+  if (duelScoreEl) duelScoreEl.classList.toggle("hidden", !duel);
+  if (duel) {
+    const active = phase === "summary" ? -1 : currentUiPlayerIndex();
+    [0, 1].forEach((index) => {
+      const name = duelPlayerName(index);
+      if (duelNameEls[index]) duelNameEls[index].textContent = name;
+      if (duelAvatarEls[index]) duelAvatarEls[index].textContent = initialsFromName(name, index === 0 ? "J1" : "J2");
+      if (duelPointsEls[index]) duelPointsEls[index].textContent = formatPoints(STATE.duel.scores[index] || 0);
+      if (duelSideEls[index]) {
+        duelSideEls[index].classList.toggle("is-active", index === active);
+        if (index === active) duelSideEls[index].setAttribute("aria-current", "true");
+        else duelSideEls[index].removeAttribute("aria-current");
+      }
+    });
+  } else {
+    if (playScoreValueEl) playScoreValueEl.textContent = formatPoints(STATE.score || 0);
+    if (playScoreMaxEl) playScoreMaxEl.textContent = played > 0 ? `/ ${formatPoints(played * POINTS_PER_POSITION)}` : "";
+    if (playScoreEl && (STATE.score || 0) > (STATE.ui.lastShownScore || 0)) {
+      // A small bump when the points grow (css/coach.css; no motion under reduced motion).
+      playScoreEl.classList.remove("is-bump");
+      void (playScoreEl.offsetWidth);
+      playScoreEl.classList.add("is-bump");
+    }
+    STATE.ui.lastShownScore = STATE.score || 0;
+  }
+  const coach = ludusModule("Coach");
+  if (coach && sessionDotsEl && typeof coach.dotsModel === "function") {
+    try {
+      coach.renderDots(sessionDotsEl, coach.dotsModel({
+        total,
+        current: phase === "thinking" || phase === "evaluating" || phase === "handoff" ? STATE.index : -1,
+        rounds: dotRounds(),
+        lang: STATE.language,
+      }));
+    } catch (error) {
+      console.error("[Ludus] the progress dots failed to draw", error);
+    }
+  }
+  updateRoundTurn();
+  syncGamePhase();
+}
+
+// The position card of the panel while the person thinks. `playerIndex` says whose turn it
+// is in a duel (the handoff shows the second player's card before the first move of theirs).
+function renderThinkingPanel(playerIndex = currentUiPlayerIndex()) {
+  const coach = ludusModule("Coach");
+  if (!coachThinkingEl) return;
+  const position = STATE.positions[STATE.index];
+  if (!coach || typeof coach.renderThinking !== "function" || !position) {
+    coachThinkingEl.textContent = "";
+    return;
+  }
+  try {
+    const model = coach.positionModel({ position, session: STATE.session ? { kind: STATE.session.kind } : null, lang: STATE.language });
+    if (STATE.session && STATE.session.kind !== "own" && !model.moverName) model.moverName = positionMoverName(position);
+    if (STATE.session && STATE.session.kind === "own") model.moverName = "";
+    coach.renderThinking(coachThinkingEl, model, {
+      duel: isDuelMode() ? { name: duelPlayerName(playerIndex), initials: initialsFromName(duelPlayerName(playerIndex), "J") } : null,
+      hintCosts: STATE.hintsEnabled ? [hintCostPercent(1), hintCostPercent(2)] : null,
+      backupEngine: isUsingFallbackEngine(),
+    });
+  } catch (error) {
+    console.error("[Ludus] the position card failed to draw", error);
+    coachThinkingEl.textContent = "";
+  }
+}
+
+// The next button says what comes after this result, and the legend says what the
+// keys do (desktop only, css/coach.css).
+function updateNextButton() {
+  if (nextBtnLabelEl) {
+    const last = STATE.index >= Math.max(1, STATE.targetPositions) - 1;
+    const reviewing = Boolean(STATE.resultView.review);
+    nextBtnLabelEl.textContent = reviewing ? t("play.summary.back") : last ? t("play.finish") : t("buttons.nextPosition");
+  }
+  renderKeyLegend();
+}
+
+function renderKeyLegend() {
+  if (!legendEl) return;
+  const util = ludusModule("util");
+  if (!util || typeof util.h !== "function") return;
+  legendEl.textContent = "";
+  const entry = (key, label) => util.h("span", { class: "co-legend-entry" }, util.h("kbd", { class: "kbd" }, key), label);
+  const reviewing = Boolean(STATE.resultView.review);
+  legendEl.appendChild(entry("N", t("play.key.next")));
+  if (!reviewing || STATE.resultView.snapshotFen) {
+    legendEl.appendChild(entry("E", t("play.key.explore")));
+    legendEl.appendChild(entry("B", t("play.key.best")));
+    if (STATE.resultView.context && STATE.resultView.context.master) legendEl.appendChild(entry("M", t("play.key.master")));
+  }
+}
+
+// The sound switch of the header mirrors Settings (sound.enabled), which the settings
+// screen can also change.
+function syncSoundButton() {
+  if (!soundBtn) return;
+  const on = Boolean(settingsGet("sound.enabled", true));
+  soundBtn.setAttribute("aria-pressed", on ? "true" : "false");
+  soundBtn.setAttribute("title", t(on ? "play.sound.on" : "play.sound.off"));
 }
 
 function formatClock(remainingMs) {
@@ -2231,42 +2317,6 @@ function formatClock(remainingMs) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
-function setThinkingMode(active) {
-  document.body.classList.toggle("thinking-mode", Boolean(active));
-}
-
-function setScoringInfoVisible(visible) {
-  const show = Boolean(visible);
-  if (scorePanelEl) scorePanelEl.classList.toggle("hidden", true);
-  if (competitiveStatusEl) competitiveStatusEl.classList.toggle("hidden", !(show && isDuelMode()));
-}
-
-function updateScoreDisplay() {
-  if (!scoreEl) return;
-  if (isDuelMode()) {
-    if (scoreLabelEl) scoreLabelEl.textContent = t("score.duelScore");
-    const p1 = duelPlayerName(0);
-    const p2 = duelPlayerName(1);
-    scoreEl.textContent = `${p1}: ${formatPoints(STATE.duel.scores[0])} | ${p2}: ${formatPoints(STATE.duel.scores[1])}`;
-    updatePlayerPanels();
-    return;
-  }
-  if (scoreLabelEl) scoreLabelEl.textContent = t("score.totalPoints");
-  scoreEl.textContent = formatPoints(STATE.score);
-  updatePlayerPanels();
-}
-
-function updateCompetitiveStatus() {
-  if (!competitiveStatusEl) return;
-  const seconds = normalizeTurnTimeSeconds(STATE.turnTimeSeconds);
-  const system = scoringSystemLabel(STATE.scoringSystem);
-  if (!isDuelMode()) {
-    competitiveStatusEl.textContent = "";
-    return;
-  }
-  competitiveStatusEl.textContent = t("game.duelCompetitive", { seconds, system });
 }
 
 function resetDuelState() {
@@ -2287,8 +2337,6 @@ function applyGameFormat(format) {
       ? t("game.duelHint")
       : t("game.soloHint");
   }
-  document.body.classList.toggle("duel-mode", safe === "duel");
-  document.body.classList.toggle("solo-mode", safe !== "duel");
   if (safe !== "duel") {
     resetDuelState();
   }
@@ -2296,10 +2344,7 @@ function applyGameFormat(format) {
   hidePositionSearchOverlay();
   hideResultOverlay();
   setUiPhase("playing", false);
-  updateScoreDisplay();
-  updateCompetitiveStatus();
-  renderSessionProgress();
-  updatePlayerPanels();
+  renderPlayHeader();
 }
 
 function updateWizardTimerChipSelection(seconds = STATE.setupWizard.turnTimeSeconds) {
@@ -2332,7 +2377,7 @@ function readDuelPlayersFromInputs() {
   ];
   if (duelPlayerAEl) duelPlayerAEl.value = STATE.duel.players[0];
   if (duelPlayerBEl) duelPlayerBEl.value = STATE.duel.players[1];
-  updatePlayerPanels();
+  renderPlayHeader();
 }
 
 function stopRoundTimer() {
@@ -2363,14 +2408,22 @@ function isUntimedSession() {
   return STATE.clockMode === "untimed";
 }
 
-// Un solo reloj para los dos modos: el de la barra de ronda. En duelo muestra
-// el tiempo del jugador que está al turno, porque sólo uno juega a la vez.
-function updateRoundTimerUi(remainingMs = STATE.timer.deadlineMs - Date.now()) {
-  if (!soloClockRailEl || !soloClockValueEl || !soloClockBarEl) return;
+// One clock for both modes: the one in the play header. In a duel it shows the time of
+// the player whose turn it is, because only one plays at a time. It keeps its place once
+// the answer is in (dimmed, at the time it stopped) so the header does not move.
+const CLOCK_RING_LENGTH = 94.25;
 
-  const showClock = document.body.classList.contains("playing-mode") && !STATE.resultView.visible;
+function updateRoundTimerUi(remainingMs = STATE.timer.deadlineMs - Date.now()) {
+  if (!soloClockRailEl || !soloClockValueEl) return;
+
+  const context = STATE.resultView.context;
+  const inSummary = Boolean(STATE.resultView.visible && context && context.kind === "session_summary");
+  const showClock = document.body.classList.contains("playing-mode") && !inSummary;
   soloClockRailEl.classList.toggle("hidden", !showClock);
   if (!showClock) return;
+  const stopped = Boolean(STATE.resultView.visible);
+  soloClockRailEl.classList.toggle("is-stopped", stopped);
+  if (stopped) return;
 
   const untimed = isUntimedSession();
   soloClockRailEl.classList.toggle("is-untimed", untimed);
@@ -2378,7 +2431,7 @@ function updateRoundTimerUi(remainingMs = STATE.timer.deadlineMs - Date.now()) {
   if (untimed) {
     soloClockValueEl.textContent = "\u221E";
     soloClockValueEl.setAttribute("title", t("core.clock.untimedAria"));
-    soloClockBarEl.style.setProperty("--clock-ratio", "100%");
+    if (soloClockArcEl) soloClockArcEl.setAttribute("stroke-dashoffset", "0");
     soloClockRailEl.classList.remove("urgency-mid", "urgency-high");
     return;
   }
@@ -2389,7 +2442,7 @@ function updateRoundTimerUi(remainingMs = STATE.timer.deadlineMs - Date.now()) {
   const ratio = clamp(safeRemaining / duration, 0, 1);
 
   soloClockValueEl.textContent = formatClock(safeRemaining);
-  soloClockBarEl.style.setProperty("--clock-ratio", `${Math.round(ratio * 100)}%`);
+  if (soloClockArcEl) soloClockArcEl.setAttribute("stroke-dashoffset", String(Math.round(CLOCK_RING_LENGTH * (1 - ratio) * 100) / 100));
   announceClockMilestone(Math.ceil(safeRemaining / 1000));
   soloClockRailEl.classList.remove("urgency-mid", "urgency-high");
   if (ratio <= 0.2) {
@@ -3839,20 +3892,22 @@ function pvToSan(fen, pv, maxPlies = 6) {
   return out;
 }
 
-// The lines for the result panel: SAN-converted, with their evaluation.
+// The lines for the result panel: SAN-converted, with their evaluation, and the same
+// moves in UCI so that the coach can step through a line on the board.
 function buildLinesView(fen, lines, marks = {}) {
   const userUcis = Array.isArray(marks.userUcis) ? marks.userUcis : [];
   return (lines || []).slice(0, 5).map((line, index) => {
     const uci = lineFirstUci(line);
-    const score = lineMoverScore(line);
-    const sanList = pvToSan(fen, Array.isArray(line.pv) && line.pv.length ? line.pv : [uci], 8);
+    const pv = Array.isArray(line.pv) && line.pv.length ? line.pv : [uci];
+    const sanList = pvToSan(fen, pv, 8);
     return {
       rank: index + 1,
       uci,
       san: sanList[0] || line.san || uci,
-      score,
-      evalText: formatScoreText(score),
+      score: lineMoverScore(line),
+      evalText: formatScoreText(lineMoverScore(line)),
       pvSan: sanList,
+      pvUci: pv.slice(0, sanList.length),
       isBest: index === 0,
       isUser: userUcis.includes(uci),
       isMaster: Boolean(marks.masterUci) && uci === marks.masterUci,
@@ -4087,16 +4142,6 @@ async function evaluateRoundAnswers(base, position, answers, plan, hooks = {}) {
   };
 }
 
-
-function formatDelta(referenceScore, comparedScore) {
-  if (!Number.isFinite(referenceScore) || !Number.isFinite(comparedScore)) return t("evaluation.deltaUnavailable");
-  const delta = Math.round(comparedScore - referenceScore);
-  if (delta === 0) return t("evaluation.deltaEqual");
-  if (Math.abs(delta) >= 90000) return delta > 0 ? t("evaluation.deltaMateBetter") : t("evaluation.deltaMateWorse");
-  return delta > 0
-    ? t("evaluation.deltaBetter", { delta })
-    : t("evaluation.deltaWorse", { delta });
-}
 
 // ---------- Local fallback evaluator ----------
 
@@ -4839,299 +4884,211 @@ function boardSquareAriaLabel(squareName, piece, stateParts = []) {
   });
 }
 
-function setBoardKeyboardFocusSquare(squareName, options = {}) {
-  if (!boardEl || !squareName) return;
-  const target = boardEl.querySelector(`[data-square="${squareName}"]`);
-  if (!target) return;
-  boardEl.querySelectorAll(".square").forEach((square) => {
-    square.tabIndex = square === target ? 0 : -1;
-  });
-  STATE.keyboardFocusSquare = squareName;
-  if (options.focus) target.focus();
-}
+// The board itself (the 64 squares, the pieces, highlights, arrows, pointer and keyboard input, drag and
+// drop, the slide animation) lives in js/ui/board.js (Ludus.Board). What follows only tells it what is on the
+// board and what a square means, and turns its input into the moves the game core already knows how to play.
+let boardView = null;
+let boardViewFailed = false;
+// The last move MADE on the board (in analysis, or the answer being scored). It belongs to one Chess object:
+// as soon as STATE.board is replaced by another position the highlight is gone by itself.
+let lastBoardMove = null;
 
-function visibleBoardStartSquare() {
-  const firstSquare = boardEl ? boardEl.querySelector(".square") : null;
-  return firstSquare?.dataset?.square || null;
-}
-
-function nextKeyboardSquare(squareName, key) {
-  if (!squareName || !/^([a-h])([1-8])$/.test(squareName)) return null;
-  const fileIndex = files.indexOf(squareName[0]);
-  const rank = Number(squareName[1]);
-  const perspectiveMultiplier = STATE.boardPerspective === "b" ? -1 : 1;
-  let nextFileIndex = fileIndex;
-  let nextRank = rank;
-
-  if (key === "ArrowRight") nextFileIndex += perspectiveMultiplier;
-  if (key === "ArrowLeft") nextFileIndex -= perspectiveMultiplier;
-  if (key === "ArrowUp") nextRank += perspectiveMultiplier;
-  if (key === "ArrowDown") nextRank -= perspectiveMultiplier;
-
-  if (nextFileIndex < 0 || nextFileIndex > 7 || nextRank < 1 || nextRank > 8) return null;
-  return `${files[nextFileIndex]}${nextRank}`;
-}
-
-function onSquareKeyDown(event, squareName) {
-  if (event.key === "Enter" || event.key === " ") {
-    event.preventDefault();
-    onSquareClick(squareName);
-    return;
+function ensureBoardView() {
+  if (boardView) return boardView;
+  const Board = ludusModule("Board");
+  if (boardViewFailed || !boardEl || !Board || typeof Board.create !== "function") return null;
+  try {
+    boardView = Board.create({
+      el: boardEl,
+      arrowsEl: boardArrowsEl,
+      wrapEl: boardEl.parentNode || null,
+      orientation: STATE.boardPerspective,
+      onSquare: (square) => onSquareClick(square),
+      onMove: (from, to) => dropPieceOnBoard(from, to),
+      onCancel: () => cancelBoardSelection(),
+      onFocusSquare: (square) => {
+        STATE.keyboardFocusSquare = square;
+      },
+      describe: describeBoardSquare,
+    });
+  } catch (error) {
+    boardViewFailed = true;
+    console.error("[Ludus] the board failed to start", error);
   }
-  if (!["ArrowUp", "ArrowRight", "ArrowDown", "ArrowLeft"].includes(event.key)) return;
-  const nextSquare = nextKeyboardSquare(squareName, event.key);
-  if (!nextSquare) return;
-  event.preventDefault();
-  setBoardKeyboardFocusSquare(nextSquare, { focus: true });
+  return boardView;
 }
 
 function buildBoard() {
-  if (!boardEl) return;
-  boardEl.innerHTML = "";
-  boardEl.setAttribute("role", "grid");
-  boardEl.setAttribute("aria-label", t("board.ariaLabel"));
-  const ranks = STATE.boardPerspective === "b" ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
-  const orderedFiles = STATE.boardPerspective === "b" ? [...files].reverse() : files;
-  const leftEdgeFile = STATE.boardPerspective === "b" ? "h" : "a";
-  const bottomEdgeRank = STATE.boardPerspective === "b" ? 8 : 1;
-
-  ranks.forEach((rank, rowIndex) => {
-    const row = document.createElement("div");
-    row.className = "board-row";
-    row.setAttribute("role", "row");
-    row.setAttribute("aria-rowindex", String(rowIndex + 1));
-
-    orderedFiles.forEach((fileLetter, colIndex) => {
-      const fileNum = files.indexOf(fileLetter) + 1;
-      const square = document.createElement("div");
-      square.className = `square ${(rank + fileNum) % 2 === 0 ? "light" : "dark"}`;
-      square.dataset.square = `${fileLetter}${rank}`;
-      square.setAttribute("role", "gridcell");
-      square.setAttribute("aria-rowindex", String(rowIndex + 1));
-      square.setAttribute("aria-colindex", String(colIndex + 1));
-      square.tabIndex = -1;
-      square.addEventListener("click", () => onSquareClick(square.dataset.square));
-      square.addEventListener("focus", () => {
-        STATE.keyboardFocusSquare = square.dataset.square;
-      });
-      square.addEventListener("keydown", (event) => onSquareKeyDown(event, square.dataset.square));
-
-      if (fileLetter === leftEdgeFile) {
-        const rankCoord = document.createElement("span");
-        rankCoord.className = "coord coord-rank";
-        rankCoord.textContent = String(rank);
-        square.appendChild(rankCoord);
-      }
-      if (rank === bottomEdgeRank) {
-        const fileCoord = document.createElement("span");
-        fileCoord.className = "coord coord-file";
-        fileCoord.textContent = fileLetter;
-        square.appendChild(fileCoord);
-      }
-
-      row.appendChild(square);
-    });
-
-    boardEl.appendChild(row);
-  });
+  const view = ensureBoardView();
+  if (view) view.build(STATE.boardPerspective);
 }
 
-function squareCenterOnBoard(squareName) {
-  if (!boardArrowsEl || !squareName) return null;
-  const squareEl = boardEl.querySelector(`[data-square="${squareName}"]`);
-  if (!squareEl) return null;
-  const hostRect = boardArrowsEl.getBoundingClientRect();
-  const rect = squareEl.getBoundingClientRect();
+// What a screen reader says for a square: the piece, then everything that is true of the square. Colour is never
+// the only carrier: every highlight has words here.
+function describeBoardSquare(info) {
+  if (!STATE.board) return info.square;
+  const parts = [];
+  if (info.selected) parts.push(t("board.selected"));
+  if (info.capture) parts.push(t("board.captureTarget"));
+  else if (info.legal) parts.push(t("board.legalTarget"));
+  if (info.check) parts.push(t("bd.state.check"));
+  if (info.last) parts.push(t("bd.state.last"));
+  if (info.hintFrom) parts.push(t("core.hint.square.from"));
+  if (info.hintTo) parts.push(t("core.hint.square.to"));
+  ["best", "user", "userAlt", "game"].forEach((kind) => {
+    const mark = info.marks && info.marks[kind];
+    if (mark && mark.from) parts.push(t(`bd.state.${kind}.from`));
+    if (mark && mark.to) parts.push(t(`bd.state.${kind}.to`));
+  });
+  if (info.disabled) parts.push(t("board.disabled"));
+  return boardSquareAriaLabel(info.square, info.piece, parts);
+}
+
+function boardSquareName(index) {
+  return Number.isFinite(index) ? Chess.indexToSquare(index) : null;
+}
+
+function boardMoveSquares(move) {
+  if (!move || !Number.isFinite(move.from) || !Number.isFinite(move.to)) return null;
+  return { from: Chess.indexToSquare(move.from), to: Chess.indexToSquare(move.to) };
+}
+
+function noteBoardMove(move) {
+  lastBoardMove = move && STATE.board ? { board: STATE.board, from: move.from, to: move.to } : null;
+}
+
+function currentLastMove() {
+  return lastBoardMove && lastBoardMove.board === STATE.board ? lastBoardMove : null;
+}
+
+// In analysis the arrows and marks describe the ORIGINAL position; once the person has moved a piece they would
+// point at the wrong squares, so they step aside until the board is reset.
+function boardDivergedFromResult() {
+  return Boolean(STATE.resultView && STATE.resultView.analysisMode && currentLastMove());
+}
+
+function kingSquareInCheck(board) {
+  try {
+    if (!board || !board.inCheck(board.turn)) return null;
+    const index = board.board.indexOf(board.turn === "b" ? "k" : "K");
+    return index >= 0 ? Chess.indexToSquare(index) : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+// The arrows of the result (best, game, yours, the other player's) and the hint's own. The hint's arrow appears
+// with its second level; level three shows the best move like the result does.
+function boardArrowList() {
+  const list = [];
+  if (!STATE.board || boardDivergedFromResult()) return list;
+  const add = (kind, move) => {
+    const squares = boardMoveSquares(move);
+    if (squares) list.push({ kind, from: squares.from, to: squares.to });
+  };
+  const resultShown = Boolean(STATE.resultView && STATE.resultView.visible);
+  if (resultShown || hintRevealsMove()) {
+    const revealed = STATE.revealed || {};
+    add("best", revealed.best);
+    add("game", revealed.game);
+    add("user", revealed.user);
+    add("userAlt", revealed.userAlt);
+  }
+  const hint = visibleHintMove();
+  if (hint && hint.showTo && !hintRevealsMove()) add("hint", hint);
+  return list;
+}
+
+function boardModel() {
+  const board = STATE.board;
+  const revealed = STATE.revealed || {};
+  const diverged = boardDivergedFromResult();
+  const last = currentLastMove();
+  const lastSquares = last ? boardMoveSquares(last) : null;
+  const marks = {};
+  if (!diverged) {
+    ["best", "game", "user", "userAlt"].forEach((kind) => {
+      const squares = boardMoveSquares(revealed[kind]);
+      // The move just made is already washed as the last move: no second highlight on the same two squares.
+      if (squares && !(kind === "user" && lastSquares && lastSquares.from === squares.from && lastSquares.to === squares.to)) marks[kind] = squares;
+    });
+  }
+  const hint = visibleHintMove();
   return {
-    x: rect.left - hostRect.left + (rect.width / 2),
-    y: rect.top - hostRect.top + (rect.height / 2),
-    size: Math.min(rect.width, rect.height),
+    pieces: board ? board.board : null,
+    turn: board ? board.turn : "w",
+    interactive: boardInputAcceptsMoves(),
+    selected: STATE.selection,
+    targets: (STATE.legalMoves || []).map((move) => ({ square: boardSquareName(move.to), capture: Boolean(move.capture || move.enPassant) })),
+    lastMove: lastSquares,
+    check: kingSquareInCheck(board),
+    hint: hint ? { from: boardSquareName(hint.from), to: hint.showTo ? boardSquareName(hint.to) : null } : null,
+    marks,
+    arrows: boardArrowList(),
+    focus: STATE.keyboardFocusSquare || STATE.selection || null,
+    label: t("board.ariaLabel"),
+    lang: STATE.language,
   };
 }
 
 function renderBoardArrows() {
-  if (!boardArrowsEl) return;
-  boardArrowsEl.innerHTML = "";
-
-  // Arrows belong to the result, except the one that gives the move away when
-  // the hint is taken to its last level.
-  if (!STATE.resultView || (!STATE.resultView.visible && !hintRevealsMove())) return;
-
-  const width = boardArrowsEl.clientWidth || boardEl.clientWidth;
-  const height = boardArrowsEl.clientHeight || boardEl.clientHeight;
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
-  boardArrowsEl.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  boardArrowsEl.setAttribute("preserveAspectRatio", "none");
-
-  const ns = "http://www.w3.org/2000/svg";
-  const defs = document.createElementNS(ns, "defs");
-
-  const arrowStyles = {
-    best: { id: "arrow-head-best", color: "rgba(31, 143, 95, 0.75)" },
-    game: { id: "arrow-head-game", color: "rgba(0, 188, 212, 0.65)" },
-    user: { id: "arrow-head-user", color: "rgba(25, 118, 210, 0.55)" },
-    userAlt: { id: "arrow-head-userAlt", color: "rgba(0, 188, 212, 0.55)" },
-  };
-
-  Object.values(arrowStyles).forEach(style => {
-    const marker = document.createElementNS(ns, "marker");
-    marker.setAttribute("id", style.id);
-    marker.setAttribute("markerWidth", "11");
-    marker.setAttribute("markerHeight", "9");
-    marker.setAttribute("refX", "8");
-    marker.setAttribute("refY", "4.5");
-    marker.setAttribute("orient", "auto");
-    marker.setAttribute("markerUnits", "strokeWidth");
-
-    const arrowHead = document.createElementNS(ns, "path");
-    arrowHead.setAttribute("d", "M0,0 L9,4.5 L0,9 z");
-    arrowHead.setAttribute("fill", style.color);
-    marker.appendChild(arrowHead);
-    defs.appendChild(marker);
-  });
-  boardArrowsEl.appendChild(defs);
-
-  if (!STATE.revealed) return;
-
-  Object.entries(STATE.revealed).forEach(([key, move]) => {
-    if (!move || !Number.isFinite(move.from) || !Number.isFinite(move.to)) return;
-
-    const fromSquare = Chess.indexToSquare(move.from);
-    const toSquare = Chess.indexToSquare(move.to);
-    const from = squareCenterOnBoard(fromSquare);
-    const to = squareCenterOnBoard(toSquare);
-    if (!from || !to) return;
-
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const distance = Math.hypot(dx, dy);
-    if (!Number.isFinite(distance) || distance < 2) return;
-
-    const ux = dx / distance;
-    const uy = dy / distance;
-    const startTrim = Math.max(8, from.size * 0.15);
-    const endTrim = Math.max(12, to.size * 0.28);
-    const x1 = from.x + ux * startTrim;
-    const y1 = from.y + uy * startTrim;
-    const x2 = to.x - ux * endTrim;
-    const y2 = to.y - uy * endTrim;
-
-    const line = document.createElementNS(ns, "line");
-    line.classList.add("board-arrow-line");
-    line.style.stroke = arrowStyles[key] ? arrowStyles[key].color : "rgba(100, 100, 100, 0.5)";
-    line.setAttribute("x1", String(x1));
-    line.setAttribute("y1", String(y1));
-    line.setAttribute("x2", String(x2));
-    line.setAttribute("y2", String(y2));
-    line.setAttribute("marker-end", `url(#${arrowStyles[key] ? arrowStyles[key].id : ""})`);
-
-    boardArrowsEl.appendChild(line);
-  });
+  const view = ensureBoardView();
+  if (view && typeof view.setArrows === "function") view.setArrows(boardArrowList());
 }
 
 function renderBoard() {
   if (!boardEl) return;
-  boardEl.setAttribute("aria-label", t("board.ariaLabel"));
-  const acceptsInput = boardInputAcceptsMoves();
-  boardEl.querySelectorAll(".square").forEach((square) => {
-    square.classList.remove(
-      "selected", "legal", "capture",
-      "best-from", "best-to", "game-from", "game-to", "user-from", "user-to", "user-alt-from", "user-alt-to",
-      "hint-from", "hint-to",
-    );
-    const existingPiece = square.querySelector(".piece-img");
-    if (existingPiece) existingPiece.remove();
-
-    if (!STATE.board) return;
-    const index = Chess.squareToIndex(square.dataset.square);
-    const piece = STATE.board.pieceAt(index);
-    if (piece) {
-      const image = document.createElement("img");
-      image.className = "piece-img";
-      image.src = PIECE_IMAGES[piece];
-      image.alt = "";
-      image.setAttribute("aria-hidden", "true");
-      image.draggable = false;
-      square.appendChild(image);
-    }
-  });
-
-  if (STATE.selection) {
-    const selected = boardEl.querySelector(`[data-square="${STATE.selection}"]`);
-    if (selected) selected.classList.add("selected");
-  }
-
-  STATE.legalMoves.forEach((move) => {
-    const target = boardEl.querySelector(`[data-square="${Chess.indexToSquare(move.to)}"]`);
-    if (!target) return;
-    target.classList.add(move.capture ? "capture" : "legal");
-  });
-
-  const paint = (move, fromClass, toClass) => {
-    if (!move) return;
-    const from = boardEl.querySelector(`[data-square="${Chess.indexToSquare(move.from)}"]`);
-    const to = boardEl.querySelector(`[data-square="${Chess.indexToSquare(move.to)}"]`);
-    if (from) from.classList.add(fromClass);
-    if (to) to.classList.add(toClass);
-  };
-
-  paint(STATE.revealed.best, "best-from", "best-to");
-  paint(STATE.revealed.game, "game-from", "game-to");
-  // A hint reuses the "best" highlight (the same green ring) plus its own class:
-  // level 1 marks the piece to move, level 2 also its destination.
-  const hintMove = visibleHintMove();
-  if (hintMove) {
-    const hintFrom = boardEl.querySelector(`[data-square="${Chess.indexToSquare(hintMove.from)}"]`);
-    if (hintFrom) hintFrom.classList.add("hint-from", "best-from");
-    if (hintMove.showTo) {
-      const hintTo = boardEl.querySelector(`[data-square="${Chess.indexToSquare(hintMove.to)}"]`);
-      if (hintTo) hintTo.classList.add("hint-to", "best-to");
-    }
-  }
-  paint(STATE.revealed.user, "user-from", "user-to");
-  paint(STATE.revealed.userAlt, "user-alt-from", "user-alt-to");
-
-  const startSquare = visibleBoardStartSquare();
-  const focusSquare = STATE.keyboardFocusSquare && boardEl.querySelector(`[data-square="${STATE.keyboardFocusSquare}"]`)
-    ? STATE.keyboardFocusSquare
-    : (STATE.selection || startSquare);
-
-  boardEl.querySelectorAll(".square").forEach((square) => {
-    const squareName = square.dataset.square;
-    const piece = STATE.board ? STATE.board.pieceAt(Chess.squareToIndex(squareName)) : null;
-    const stateParts = [];
-    if (square.classList.contains("selected")) stateParts.push(t("board.selected"));
-    if (square.classList.contains("capture")) stateParts.push(t("board.captureTarget"));
-    else if (square.classList.contains("legal")) stateParts.push(t("board.legalTarget"));
-    // Not by colour alone: a hinted square says so to a screen reader too.
-    if (square.classList.contains("hint-from")) stateParts.push(t("core.hint.square.from"));
-    if (square.classList.contains("hint-to")) stateParts.push(t("core.hint.square.to"));
-    if (!acceptsInput) stateParts.push(t("board.disabled"));
-
-    square.setAttribute("aria-label", STATE.board ? boardSquareAriaLabel(squareName, piece, stateParts) : squareName);
-    square.setAttribute("aria-selected", square.classList.contains("selected") ? "true" : "false");
-    square.setAttribute("aria-disabled", acceptsInput ? "false" : "true");
-    square.tabIndex = STATE.board && squareName === focusSquare ? 0 : -1;
-  });
-  if (focusSquare) STATE.keyboardFocusSquare = focusSquare;
-  renderBoardArrows();
+  const view = ensureBoardView();
+  if (view) view.render(boardModel());
 }
 
-function renderGameInfo(position) {
-  const m = position.meta;
-  const event = m.event || t("common.gameFallback");
-  const year = m.year || "?";
-  const eco = m.eco || "-";
-  const result = m.result || "-";
-  const move = m.moveNumber ? String(m.moveNumber) : "-";
-  const players = m.players || "-";
-  if (gameDetailsMiniEl) {
-    if (STATE.userMode === "citizen") {
-      gameDetailsMiniEl.textContent = t("game.infoCitizen", { players, event, year, move });
-    } else {
-      gameDetailsMiniEl.textContent = t("game.infoEngineer", { players, event, year, eco, result, move });
+// A piece dragged and dropped on a legal square: the same two clicks a person could have made, in one gesture.
+function dropPieceOnBoard(from, to) {
+  if (STATE.selection !== from) {
+    onSquareClick(from);
+    if (STATE.selection !== from) return;
+  }
+  onSquareClick(to);
+}
+
+// Escape (or dropping a piece outside the board): put the piece back, nothing is played.
+function cancelBoardSelection() {
+  STATE.selection = null;
+  STATE.legalMoves = [];
+  renderBoard();
+}
+
+// The sound and the vibration of a move the person made, both guarded and both governed by the settings.
+function moveFeedback(move, forcedKind) {
+  let kind = forcedKind || "move";
+  if (!forcedKind) {
+    try {
+      const Board = ludusModule("Board");
+      const givesCheck = Boolean(STATE.board && STATE.board.inCheck(STATE.board.turn));
+      if (Board && typeof Board.feedbackKind === "function") kind = Board.feedbackKind(move, givesCheck);
+      else if (givesCheck) kind = "check";
+      else if (move && (move.capture || move.enPassant)) kind = "capture";
+    } catch (error) {
+      kind = "move";
     }
   }
+  playSound(kind);
+  const audio = ludusModule("Audio");
+  try {
+    if (audio && typeof audio.haptic === "function") audio.haptic(kind);
+  } catch (error) {
+    // The vibration is decoration.
+  }
+}
+
+// A move made on the analysis board (no scoring): it is played, remembered as the last move and felt like any other.
+function playAnalysisMove(move) {
+  STATE.board.makeMove(move);
+  noteBoardMove(move);
+  STATE.selection = null;
+  STATE.legalMoves = [];
+  renderBoard();
+  moveFeedback(move);
 }
 
 function snapshotMove(move) {
@@ -5139,127 +5096,6 @@ function snapshotMove(move) {
   const copy = { from: move.from, to: move.to };
   if (move.promotion) copy.promotion = move.promotion;
   return copy;
-}
-
-function historyEntryLabel(entry) {
-  const round = Number.isFinite(entry?.round) ? entry.round : "-";
-  return t("evaluation.historyPosition", { round });
-}
-
-function renderHistoryPreview(entry) {
-  if (!roundResultEl || !entry) return;
-  const moduleLine = `<p><strong>${escapeHtml(t("evaluation.historyModule"))}:</strong> ${escapeHtml(entry.bestSan || "-")}</p>`;
-  const gameLine = `<p><strong>${escapeHtml(t("evaluation.historyGame"))}:</strong> ${escapeHtml(entry.gameSan || "-")}</p>`;
-  let userLines = "";
-  if (entry.mode === "duel") {
-    userLines = `
-      <p><strong>${escapeHtml(entry.player1Name || duelPlayerName(0))}:</strong> ${escapeHtml(entry.player1San || qualityLabel("no_move"))}</p>
-      <p><strong>${escapeHtml(entry.player2Name || duelPlayerName(1))}:</strong> ${escapeHtml(entry.player2San || qualityLabel("no_move"))}</p>
-    `;
-  } else {
-    userLines = `<p><strong>${escapeHtml(t("evaluation.historyYourMove"))}:</strong> ${escapeHtml(entry.userSan || qualityLabel("no_move"))}</p>`;
-  }
-  roundResultEl.innerHTML = `
-    <div class="history-preview">
-      <p class="history-preview-title"><strong>${escapeHtml(historyEntryLabel(entry))}</strong></p>
-      ${moduleLine}
-      ${gameLine}
-      ${userLines}
-    </div>
-  `;
-}
-
-function openHistoryEntry(index) {
-  if (!Array.isArray(STATE.historyEntries) || STATE.historyEntries.length === 0) return;
-  const idx = Number(index);
-  if (!Number.isInteger(idx) || idx < 0 || idx >= STATE.historyEntries.length) return;
-  const entry = STATE.historyEntries[idx];
-  STATE.historySelectedIdx = idx;
-  renderHistoryList();
-
-  if (!entry || !entry.fen) return;
-  STATE.board = new Chess(entry.fen);
-  setBoardPerspective(STATE.board.turn);
-  if (entry.meta) {
-    renderGameInfo({ meta: entry.meta });
-  }
-  if (roundStatusEl) {
-    roundStatusEl.textContent = t("game.roundReview", { label: historyEntryLabel(entry) });
-  }
-  STATE.selection = null;
-  STATE.legalMoves = [];
-  STATE.userMove = null;
-  if (entry.mode === "duel") {
-    const primaryUserMove = entry.player2Move || entry.player1Move || null;
-    const secondaryUserMove = entry.player2Move && entry.player1Move ? entry.player1Move : null;
-    STATE.revealed = {
-      best: entry.bestMove || null,
-      game: entry.gameMove || null,
-      user: primaryUserMove,
-      userAlt: secondaryUserMove,
-    };
-  } else {
-    STATE.revealed = {
-      best: entry.bestMove || null,
-      game: entry.gameMove || null,
-      user: entry.userMove || null,
-      userAlt: null,
-    };
-  }
-  renderBoard();
-  if (roundResultPanelEl) roundResultPanelEl.classList.remove("hidden");
-  renderHistoryPreview(entry);
-}
-
-function renderHistoryList() {
-  if (!historyEl) return;
-  if (!Array.isArray(STATE.historyEntries) || STATE.historyEntries.length === 0) {
-    historyEl.innerHTML = `<li class="history-empty">${escapeHtml(t("evaluation.historyEmpty"))}</li>`;
-    return;
-  }
-  historyEl.innerHTML = "";
-  STATE.historyEntries.forEach((entry, idx) => {
-    const li = document.createElement("li");
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "history-item-btn";
-    btn.dataset.historyIndex = String(idx);
-    btn.textContent = historyEntryLabel(entry);
-    btn.addEventListener("click", () => openHistoryEntry(idx));
-    if (idx === STATE.historySelectedIdx) btn.classList.add("active");
-    li.appendChild(btn);
-    historyEl.appendChild(li);
-  });
-}
-
-function pushHistoryEntry(entry) {
-  if (!entry) return;
-  STATE.historyEntries.unshift(entry);
-  STATE.historySelectedIdx = 0;
-  renderHistoryList();
-}
-
-function renderSessionProgress() {
-  const played = STATE.sessionPlayed;
-  const target = soloSessionTarget();
-  const remaining = Math.max(0, target - played);
-  if (soloProgressLineEl) soloProgressLineEl.innerHTML = renderSessionProgressBar(played, target);
-  if (!isDuelMode()) {
-    sessionProgressEl.textContent = t("game.progressSolo", { played, target, remaining });
-    return;
-  }
-  const p1 = duelPlayerName(0);
-  const p2 = duelPlayerName(1);
-  const currentRound = Math.min(Math.max(1, STATE.index + 1), target);
-  sessionProgressEl.textContent = t("game.progressDuel", {
-    round: currentRound,
-    target,
-    remaining,
-    p1,
-    p2,
-    p1Hits: STATE.duel.hits[0],
-    p2Hits: STATE.duel.hits[1],
-  });
 }
 
 function startRound(options = {}) {
@@ -5286,29 +5122,19 @@ function startRound(options = {}) {
   hidePositionSearchOverlay();
   hideResultOverlay();
 
-  renderGameInfo(position);
   renderSessionTitle();
-  const totalTarget = Math.max(1, STATE.targetPositions || STATE.positions.length || 1);
-  // El rótulo dice sólo la posición; de quién es el turno lo dice el centro de
-  // la barra de ronda, así no se repite el mismo dato dos veces.
-  roundStatusEl.textContent = t("game.roundSolo", { current: STATE.index + 1, target: totalTarget });
-  if (roundResultPanelEl) roundResultPanelEl.classList.add("hidden");
-  roundResultEl.innerHTML = "";
-  setScoringInfoVisible(false);
-  renderSessionProgress();
-  updateScoreDisplay();
-  updateCompetitiveStatus();
-  updatePlayerPanels();
-  setThinkingMode(true);
+  renderPlayHeader();
+  renderThinkingPanel();
   stopRoundTimer();
   startRoundTimer();
+  updateNextButton();
   nextBtn.disabled = true;
   skipBtn.disabled = false;
-  nextBtn.textContent = t("buttons.nextPosition");
 
   renderBoard();
   updateHintButton();
   focusBoardAfterRoundStart();
+  announcePlay(`${t("play.position", { current: STATE.index + 1, total: soloSessionTarget() })}. ${roundTurnEl ? roundTurnEl.textContent : ""}`);
   // The person is about to think for a while and the engine has nothing to do:
   // the analysis that scoring needs starts now, so the answer is scored almost at once.
   prefetchRoundReference(position);
@@ -5337,15 +5163,20 @@ function onSquareClick(square) {
     const move = matches[0];
     if (move) {
       if (isAnalysisMode) {
-        STATE.board.makeMove(move);
-        STATE.selection = null;
-        STATE.legalMoves = [];
-        renderBoard();
+        playAnalysisMove(move);
         return;
       }
       submitUserMove(move);
       return;
     }
+  }
+
+  // Choosing the piece that is already chosen puts it back.
+  if (STATE.selection === square) {
+    STATE.selection = null;
+    STATE.legalMoves = [];
+    renderBoard();
+    return;
   }
 
   if (!piece) {
@@ -5393,6 +5224,17 @@ function openPromotionPicker(matches, isAnalysisMode) {
     isAnalysisMode,
     returnFocusEl: document.activeElement || null,
   };
+  // The strip opens on the promotion file, from the edge the pawn is heading for.
+  try {
+    const Board = ludusModule("Board");
+    const cell = Board && typeof Board.cellOf === "function" ? Board.cellOf(Chess.indexToSquare(matches[0].to), STATE.boardPerspective) : null;
+    if (cell) {
+      promotionPickerEl.dataset.edge = cell.row < 4 ? "top" : "bottom";
+      if (promotionPickerEl.style && typeof promotionPickerEl.style.setProperty === "function") promotionPickerEl.style.setProperty("--bd-promo-col", String(cell.col));
+    }
+  } catch (error) {
+    // The picker still works, centred by its default.
+  }
   promotionPickerEl.classList.remove("hidden");
   // Deferred so the browser has laid out the now-visible buttons before one
   // of them is asked to take focus.
@@ -5423,10 +5265,7 @@ function choosePromotion(promotionLetter) {
   closePromotionPicker({ skipFocusReturn: true });
   if (!chosen) return;
   if (pending.isAnalysisMode) {
-    STATE.board.makeMove(chosen);
-    STATE.selection = null;
-    STATE.legalMoves = [];
-    renderBoard();
+    playAnalysisMove(chosen);
     return;
   }
   submitUserMove(chosen);
@@ -5529,9 +5368,10 @@ function updateHintButton() {
   if (!hintBtn) return;
   hintBtn.classList.toggle("hidden", !STATE.hintsEnabled);
   const nextLevel = Math.min(3, (STATE.hintsUsed || 0) + 1);
-  hintBtn.textContent = (STATE.hintsUsed || 0) >= 3
+  const label = (STATE.hintsUsed || 0) >= 3
     ? t("core.hint.done")
     : t(`core.hint.next.${nextLevel}`, { pct: hintCostPercent(nextLevel) });
+  if (hintBtnLabelEl) hintBtnLabelEl.textContent = label;
   hintBtn.disabled = !hintAvailable();
 }
 
@@ -5619,244 +5459,12 @@ function renderSessionTitle() {
 function focusBoardAfterRoundStart() {
   const active = document.activeElement;
   const lost = !active || active === document.body
-    || (resultOverlayEl && typeof resultOverlayEl.contains === "function" && resultOverlayEl.contains(active));
+    || (coachPanelEl && typeof coachPanelEl.contains === "function" && coachPanelEl.contains(active));
   if (!lost || !boardEl || typeof boardEl.querySelector !== "function") return;
   const target = boardEl.querySelector('.square[tabindex="0"]');
   if (target && typeof target.focus === "function") target.focus({ preventScroll: true });
 }
 
-
-function resultStateClass({ hit = false, noMove = false, isReference = false } = {}) {
-  if (isReference) return "state-neutral";
-  if (noMove) return "state-neutral";
-  return hit ? "state-good" : "state-bad";
-}
-
-const INF_BAR_LABEL_BANDS = Object.freeze({
-  perfect: { min: 0, max: 12 },
-  very_good: { min: 12, max: 26 },
-  good: { min: 26, max: 42 },
-  interesting: { min: 42, max: 58 },
-  dubious: { min: 58, max: 74 },
-  bad: { min: 74, max: 88 },
-  blunder: { min: 88, max: 100 },
-  no_move: { min: 46, max: 56 },
-});
-
-function qualityToInfographicPercent(code, diff, maxDiff) {
-  const band = INF_BAR_LABEL_BANDS[compatQualityCode(code)] || INF_BAR_LABEL_BANDS.no_move;
-  const safeMax = Math.max(1, Number(maxDiff) || 1);
-  const safeDiff = Number.isFinite(diff) ? clamp(diff, 0, safeMax) : safeMax * 0.5;
-  const ratio = safeDiff / safeMax;
-  return clamp(band.min + (band.max - band.min) * ratio, 0, 100);
-}
-
-function renderVerticalInfographic({ bestNode, gameNode, userNodes }) {
-  const container = document.getElementById("vertical-infographic");
-  const nodesContainer = document.getElementById("infographic-nodes");
-  if (!container || !nodesContainer) return;
-
-  const maxDiff = 400; // clamp eval differences to 400 for visual scaling
-  const minSpacing = 16; // minimum percentage spacing between nodes
-
-  // Collect all nodes to be rendered
-  let rawNodes = [];
-
-  if (bestNode && bestNode.san && bestNode.san !== "-") {
-    rawNodes.push({
-      label: t("evaluation.moduleBest"),
-      san: bestNode.san,
-      meta: bestNode.meta,
-      diff: 0,
-      authorClass: "node-engine",
-      originalPercent: 0,
-      isUser: false
-    });
-  }
-
-  if (gameNode && gameNode.san && gameNode.san !== "-") {
-    rawNodes.push({
-      label: t("evaluation.gameLine"),
-      san: gameNode.san,
-      meta: gameNode.meta,
-      diff: gameNode.diff || 0,
-      authorClass: "node-p2",
-      originalPercent: clamp(((gameNode.diff || 0) / maxDiff) * 100, 0, 100),
-      isUser: false
-    });
-  }
-
-  userNodes.forEach(user => {
-    if (!user.noMove) {
-      const safeDiff = Number.isFinite(user.diff) ? user.diff : maxDiff;
-      const label = typeof user.qualityCode === "string" ? user.qualityCode : "no_move";
-      rawNodes.push({
-        label: user.label,
-        san: user.san,
-        meta: user.meta,
-        diff: safeDiff,
-        authorClass: user.authorClass,
-        originalPercent: qualityToInfographicPercent(label, safeDiff, maxDiff),
-        isUser: true
-      });
-    }
-  });
-
-  // Group by SAN
-  let groupedMap = new Map();
-  rawNodes.forEach(node => {
-    if (!groupedMap.has(node.san)) {
-      groupedMap.set(node.san, {
-        san: node.san,
-        diff: node.diff,
-        originalPercent: node.originalPercent,
-        authors: []
-      });
-    }
-    groupedMap.get(node.san).authors.push({
-      label: node.label,
-      authorClass: node.authorClass,
-      meta: node.meta
-    });
-  });
-
-  let groupedNodes = Array.from(groupedMap.values());
-
-  // Sort them from top (0) to bottom (100)
-  groupedNodes.sort((a, b) => a.originalPercent - b.originalPercent);
-
-  // Apply minimum spacing rule so they don't overlap vertically
-  let currentTop = 0;
-  groupedNodes.forEach((node, index) => {
-    if (index === 0) {
-      node.finalPercent = node.originalPercent;
-    } else {
-      node.finalPercent = Math.max(node.originalPercent, currentTop + minSpacing);
-    }
-    currentTop = node.finalPercent;
-  });
-
-  let html = "";
-  groupedNodes.forEach(node => {
-    // Determine the primary class for the border/line (we'll just use the first author's class)
-    const primaryClass = node.authors[0].authorClass;
-
-    let authorLabelsHtml = node.authors.map(author => `
-       <div class="node-author-block ${escapeHtml(author.authorClass)}">
-         <span class="node-label">${escapeHtml(author.label)}</span>
-         <span class="node-eval">${escapeHtml(author.meta)}</span>
-       </div>
-     `).join('');
-
-    html += `
-      <div class="infographic-node grouped-node ${escapeHtml(primaryClass)}" style="top: ${node.finalPercent.toFixed(1)}%;">
-        <span class="node-move">${escapeHtml(node.san)}</span>
-        <div class="node-authors-list">
-          ${authorLabelsHtml}
-        </div>
-      </div>
-    `;
-  });
-
-  nodesContainer.innerHTML = html;
-  container.classList.remove("hidden");
-}
-
-function renderRoundFeedbackTable(bestSan, bestEvalText, gameSan, gameEvalText, userSan, userEvalText, bestMover, gameMover, userMover, scored, noMoveReason = "", extra = {}) {
-  const noMove = extra.noMove !== undefined ? Boolean(extra.noMove) : !Number.isFinite(userMover);
-  const noMoveByTimeout = noMoveReason === "timeout";
-  const duelNoMoveNote = noMoveByTimeout
-    ? t("evaluation.timeoutZeroPoints")
-    : (noMove ? t("evaluation.noMoveZeroPoints") : "");
-  const duelSummary = `${t("evaluation.classification")}: ${qualityLabel(scored.qualityCode)} | ${t("evaluation.delta")}: ${formatDelta(bestMover, userMover)} | ${t("evaluation.points")}: ${formatPoints(scored.points)}${duelNoMoveNote ? ` | ${duelNoMoveNote}` : ""}`;
-
-  let userNodes = [];
-
-  if (extra.mode === "duel" && extra.duel) {
-    const p1 = extra.duel.player1 || { name: duelPlayerName(0), san: "-", qualityCode: "no_move", points: 0, hit: false };
-    const p2 = extra.duel.player2 || { name: duelPlayerName(1), san: "-", qualityCode: "no_move", points: 0, hit: false };
-
-    if (p1.san) {
-      userNodes.push({
-        label: p1.name,
-        san: p1.san,
-        meta: qualityLabel(p1.qualityCode),
-        qualityCode: p1.qualityCode,
-        diff: Number.isFinite(p1.diff) ? p1.diff : null,
-        authorClass: "node-p1",
-        noMove: false
-      });
-    }
-    if (p2.san) {
-      userNodes.push({
-        label: p2.name,
-        san: p2.san,
-        meta: qualityLabel(p2.qualityCode),
-        qualityCode: p2.qualityCode,
-        diff: Number.isFinite(p2.diff) ? p2.diff : null,
-        authorClass: "node-p2", // Player 2 is LightBlue
-        noMove: false
-      });
-    }
-
-    roundResultEl.innerHTML = `<p class="result-summary-line">${escapeHtml(extra.duel.summary || duelSummary)}</p>`;
-  } else {
-    const infographicEl = document.getElementById("vertical-infographic");
-    if (!noMove) {
-      userNodes.push({
-        label: t("evaluation.yourMove"),
-        san: userSan,
-        meta: qualityLabel(scored.qualityCode),
-        qualityCode: scored.qualityCode,
-        diff: Number.isFinite(scored.diff) ? scored.diff : null,
-        authorClass: qualityToVerdictClass(scored.qualityCode) || "node-p1",
-        noMove: false
-      });
-
-      roundResultEl.innerHTML = ""; // No extra summary line for solo mode, as header handles points
-      if (infographicEl) infographicEl.classList.remove("hidden");
-    } else {
-      const soloNoMoveNote = noMoveByTimeout
-        ? t("evaluation.timeoutZeroPoints")
-        : t("evaluation.noMoveZeroPoints");
-      roundResultEl.innerHTML = `<p class="result-summary-line">${escapeHtml(soloNoMoveNote)}</p>`;
-      if (infographicEl) infographicEl.classList.add("hidden");
-    }
-  }
-  // Re-enable and reset the reveal buttons
-  if (revealBestBtn) {
-    revealBestBtn.classList.remove("hidden");
-    revealBestBtn.textContent = t("buttons.revealBest");
-  }
-  if (revealGameBtn) {
-    // A position without the move of a game (a review card) has nothing to compare with.
-    const hasGameMove = extra.hasGameMove !== undefined ? Boolean(extra.hasGameMove) : true;
-    revealGameBtn.classList.toggle("hidden", !hasGameMove);
-    revealGameBtn.textContent = revealGameButtonLabel();
-  }
-
-  if (!(extra.mode !== "duel" && noMove)) {
-    renderVerticalInfographic({ bestNode: null, gameNode: null, userNodes });
-  }
-}
-
-function finalSessionSummaryText() {
-  if (!isDuelMode()) return t("game.finalScoreSolo", { score: soloScoreText() });
-  const p1 = duelPlayerName(0);
-  const p2 = duelPlayerName(1);
-  const s1 = STATE.duel.scores[0];
-  const s2 = STATE.duel.scores[1];
-  let winner = t("game.finalDraw");
-  if (s1 > s2) winner = t("game.finalWinner", { player: p1 });
-  if (s2 > s1) winner = t("game.finalWinner", { player: p2 });
-  return t("game.finalMatchScore", {
-    p1,
-    p2,
-    s1: formatPoints(s1),
-    s2: formatPoints(s2),
-    winner,
-  });
-}
 
 // The round flow: the answer is scored against the engine (evaluateRoundAnswers),
 // the result is drawn, the round is announced on the bus ("round:completed", one
@@ -5867,6 +5475,7 @@ async function resolveRound(move, options = {}) {
   stopRoundTimer();
   STATE.roundSubmitted = true;
   STATE.isResolvingRound = true;
+  syncGamePhase();
   const duelFirstTurn = isDuelMode() && STATE.duel.currentPlayer === 0;
   try {
     const { position, base, noMove, noMoveReason, timeSpentMs, hintsUsed } =
@@ -5878,6 +5487,7 @@ async function resolveRound(move, options = {}) {
     }
 
     showEvaluatingMoveOnBoard(move, noMove, noMoveReason);
+    renderEvaluatingPanel();
 
     const answers = buildAnswersToEvaluate(move, noMoveReason, { timeSpentMs, hintsUsed });
     const plan = getRoundEvaluationPlan(base, position, answers.length);
@@ -5915,8 +5525,7 @@ async function resolveRound(move, options = {}) {
     hideHandoffOverlay();
     hideResultOverlay();
     restoreBoardToRoundStart();
-    if (roundResultPanelEl) roundResultPanelEl.classList.remove("hidden");
-    roundResultEl.textContent = t("analysis.status.roundError", { error: error.message || t("common.unknown") });
+    showToast(t("analysis.status.roundError", { error: error.message || t("common.unknown") }), { kind: "error" });
     STATE.roundSubmitted = false;
     skipBtn.disabled = false;
     nextBtn.disabled = true;
@@ -5930,8 +5539,10 @@ async function resolveRound(move, options = {}) {
     }
     startRoundTimer();
     updateHintButton();
+    renderThinkingPanel();
   } finally {
     STATE.isResolvingRound = false;
+    syncGamePhase();
   }
 }
 
@@ -5985,8 +5596,6 @@ function prepareRoundResolutionContext(move, options, duelFirstTurn) {
   return { position, base, noMove, noMoveReason, timeSpentMs, hintsUsed };
 }
 
-// Duel mode, player 1's turn: stash their pending move without evaluating it
-// yet, and hand the board off to player 2 to play their reply.
 function handleDuelFirstTurnHandoff(base, position, move, noMoveReason, extra = {}) {
   STATE.duel.roundResults[0] = {
     pendingMove: move ? { ...move } : null,
@@ -5995,7 +5604,7 @@ function handleDuelFirstTurnHandoff(base, position, move, noMoveReason, extra = 
     timeSpentMs: extra.timeSpentMs || 0,
     hintsUsed: extra.hintsUsed || 0,
   };
-  if (move) playSound("move");
+  if (move) moveFeedback(move, "move");
   STATE.board = new Chess(position.fen);
   setBoardPerspective(base.turn);
   STATE.selection = null;
@@ -6003,38 +5612,52 @@ function handleDuelFirstTurnHandoff(base, position, move, noMoveReason, extra = 
   STATE.userMove = null;
   STATE.revealed = { best: null, game: null, user: null, userAlt: null };
   renderBoard();
-  roundResultEl.innerHTML = "";
-  showHandoffOverlay(t("game.handoff.title", { player: duelPlayerName(1) }), t("game.handoff.subtitle"));
+  const handoff = handoffTexts();
+  showHandoffOverlay(handoff.title, handoff.subtitle, handoff);
   STATE.duel.handoffReady = true;
   setUiPhase("handoff_ready", true);
-  nextBtn.textContent = t("buttons.nextPosition");
   nextBtn.disabled = true;
   skipBtn.disabled = true;
   updateHintButton();
-  setThinkingMode(false);
-  renderSessionProgress();
-  updateScoreDisplay();
-  setPanelActiveState(1);
-  updateRoundTurn(1);
-  updateCompetitiveStatus();
-  setScoringInfoVisible(false);
+  renderPlayHeader();
+  renderThinkingPanel(1);
+  announcePlay(`${handoff.eyebrow}. ${handoff.title}.`);
 }
 
-// Shows the "evaluating" placeholder text and, if the user made a move,
-// applies it to the visible board right away (before the engine runs).
-function showEvaluatingMoveOnBoard(move, noMove, noMoveReason) {
-  roundResultEl.textContent = noMoveReason === "timeout"
-    ? t("overlay.timeoutEvaluating")
-    : (noMove ? t("overlay.closingWithoutMove") : t("overlay.evaluatingMove"));
+// What the handoff card says to the player who has not moved yet. It never mentions the
+// first player's move: only that they have played.
+function handoffTexts() {
+  const first = duelPlayerName(0);
+  const second = duelPlayerName(1);
+  return {
+    title: t("game.handoff.title", { player: second }),
+    subtitle: t("game.handoff.subtitle", { other: first }),
+    eyebrow: t("play.handoff.eyebrow", { name: first }),
+    avatar: initialsFromName(second, "J2"),
+  };
+}
 
+// If the person made a move, it goes on the visible board right away (before the engine
+// runs), with the sound it deserves.
+function showEvaluatingMoveOnBoard(move, noMove, noMoveReason) {
   if (move) {
     STATE.board.makeMove(move);
+    noteBoardMove(move);
     STATE.revealed = { ...STATE.revealed, user: move };
     renderBoard();
-    let sound = "move";
-    if (STATE.board.inCheck(STATE.board.turn)) sound = "check";
-    else if (move.capture || move.enPassant) sound = "capture";
-    playSound(sound);
+    moveFeedback(move);
+  }
+}
+
+// The panel shows the silhouette of the result while the engine scores the answer, so
+// nothing moves when the verdict arrives.
+function renderEvaluatingPanel() {
+  const coach = ludusModule("Coach");
+  if (!coach || typeof coach.renderEvaluating !== "function" || !coachThinkingEl) return;
+  try {
+    coach.renderEvaluating(coachThinkingEl, { lang: STATE.language });
+  } catch (error) {
+    console.error("[Ludus] the evaluating panel failed to draw", error);
   }
 }
 
@@ -6096,7 +5719,6 @@ async function settleRoundEvaluationVisibility(sessionToken, evaluationVisibleSt
   }
   if (!isCurrentSessionWork(sessionToken)) return false;
   hidePositionSearchOverlay();
-  setThinkingMode(false);
   return true;
 }
 
@@ -6191,6 +5813,9 @@ function buildRoundContext(kind, position, evaluation) {
     source: positionSourceOf(position),
     best: { uci: evaluation.bestUci, san: evaluation.bestSan, score: evaluation.bestScore, evalText: evaluation.bestEvalText },
     master: evaluation.master,
+    // Who made the move of the game and what its notes say (a classic brings a note in both languages).
+    masterName: evaluation.master && !(STATE.session && STATE.session.kind === "own") ? gameMoveAuthorName() : "",
+    masterNote: position.classic && position.classic.note ? { es: position.classic.note.es || "", en: position.classic.note.en || "" } : null,
     lines: evaluation.linesView,
     answers,
     assessment: primary.assessment,
@@ -6201,6 +5826,9 @@ function buildRoundContext(kind, position, evaluation) {
     hintsUsed: primary.hintsUsed,
     points: primary.assessment.points,
     maxPoints: primary.assessment.maxPoints,
+    // What each answer earned, from the profile (XP, notebook card, level, achievements): filled in
+    // once the round is recorded (recordRoundOutcome), one entry per answer, null for a guest.
+    rewards: [],
     session: STATE.session ? { id: STATE.session.id, kind: STATE.session.kind, title: STATE.session.title } : null,
   };
 }
@@ -6261,38 +5889,117 @@ function buildRoundRecord(position, base, evaluation, answer) {
   return record;
 }
 
-function profileLevelNumber(profileId) {
-  if (!profileId) return 0;
+// A level up and the achievements of a round are one celebration, however many there are:
+// the profile emits them while it records the round, all in the same tick, and they are
+// merged into a single toast (css/coach.css keeps the toasts under the header, away from
+// the button that goes on).
+const celebration = { levelUp: false, levelTitle: "", names: [], timer: null, toast: null };
+
+function levelTitleOf(profileId) {
   const profile = ludusModule("Profile");
   try {
-    const stats = profile && typeof profile.stats === "function" ? profile.stats(profileId) : null;
-    return stats && stats.level ? Number(stats.level.level) || 0 : 0;
+    const stats = profile && typeof profile.stats === "function" ? profile.stats(profileId || undefined) : null;
+    return stats && stats.level && stats.level.title ? stats.level.title : "";
   } catch (error) {
-    return 0;
+    return "";
   }
 }
 
-function celebrateLevelUp(profileId) {
-  const profile = ludusModule("Profile");
-  let title = "";
-  try {
-    const stats = profile && typeof profile.stats === "function" ? profile.stats(profileId) : null;
-    title = stats && stats.level && stats.level.title ? stats.level.title : "";
-  } catch (error) {
-    title = "";
+function queueCelebration({ levelUpFor, achievement } = {}) {
+  if (levelUpFor !== undefined) {
+    celebration.levelUp = true;
+    celebration.levelTitle = levelTitleOf(levelUpFor);
   }
-  showToast(t("core.toast.levelUp", { title }), { kind: "levelup" });
-  playSound("levelup", { delay: 0.3 });
+  if (achievement && achievement.name && !celebration.names.includes(achievement.name)) celebration.names.push(achievement.name);
+  if (celebration.timer === null) celebration.timer = setTimeout(flushCelebration, 0);
 }
 
-// Announces a round on the bus (Profile.attach records it) and notices a level
-// up: the result of recordRound is not returned through the bus, so the level
-// is compared before and after.
+// One celebration on screen at a time: they add up (a level up, then an achievement) and a
+// stack of them would cover the header and the headline of the result.
+function dismissCelebration() {
+  const handle = celebration.toast;
+  celebration.toast = null;
+  try {
+    if (handle && typeof handle.dismiss === "function") handle.dismiss();
+  } catch (error) {
+    // A toast is a courtesy, never a failure.
+  }
+}
+
+// The closing summary lists what the session unlocked and the level it reached (a duel is
+// nobody's progress and has no such card): a toast over it would only hide its headline.
+function summaryListsRewards() {
+  const context = STATE.resultView.context;
+  return Boolean(STATE.session && STATE.session.completed && STATE.session.mode !== "duel" && context && context.kind === "session_summary");
+}
+
+function flushCelebration() {
+  celebration.timer = null;
+  const levelUp = celebration.levelUp;
+  const title = celebration.levelTitle;
+  const names = celebration.names.splice(0);
+  celebration.levelUp = false;
+  celebration.levelTitle = "";
+  if (!levelUp && !names.length) return;
+  const parts = [];
+  if (levelUp) parts.push(t("core.toast.levelUp", { title }).trim());
+  if (names.length === 1) parts.push(t("core.toast.achievement", { name: names[0] }));
+  else if (names.length === 2) parts.push(t("core.toast.achievements", { names: names.join(", ") }));
+  else if (names.length > 2) parts.push(t("core.toast.achievementsMany", { n: names.length }));
+  dismissCelebration();
+  if (!summaryListsRewards()) celebration.toast = showToast(parts.join(" "), { kind: levelUp ? "levelup" : "achievement", duration: 6500 });
+  playSound("levelup", levelUp ? { delay: 0.3 } : undefined);
+}
+
+// What a session earned, added up round by round for the closing summary. Achievements
+// arrive from the bus (a round and the end of the session can both unlock some).
+function newSessionRewards() {
+  return { xp: 0, cards: 0, unlocked: [], level: null, levelUp: false };
+}
+
+function noteRoundRewards(outcome) {
+  const rewards = STATE.session && STATE.session.rewards;
+  if (!rewards || !outcome) return;
+  rewards.xp += Number(outcome.xpGained) || 0;
+  if (outcome.card && outcome.card.created) rewards.cards += 1;
+  if (outcome.level) rewards.level = outcome.level;
+  if (outcome.levelUp) rewards.levelUp = true;
+}
+
+function noteAchievement(entry) {
+  const rewards = STATE.session && STATE.session.rewards;
+  if (!rewards || isDuelMode() || !entry || !entry.name) return;
+  if (!rewards.unlocked.some((known) => known.id === entry.id)) {
+    rewards.unlocked.push({ id: entry.id, name: entry.name, description: entry.description || "", glyph: entry.glyph || "" });
+  }
+}
+
+// Announces a round on the bus and gets the profile's answer for it. The profile records
+// the round here, first (Profile.attach() ignores the duplicate that the bus event then
+// is), because what it answers is what the coach shows: XP gained, the notebook card that
+// was made or graded, the level and the achievements. A guest ("profileId: null") has none.
 function emitRoundCompleted(record) {
-  const levelBefore = profileLevelNumber(record.profileId);
+  let outcome = null;
+  const profile = ludusModule("Profile");
+  if (record.profileId !== null && profile && typeof profile.recordRound === "function") {
+    try {
+      const result = profile.recordRound(record);
+      if (result && result.ok && !result.duplicate) {
+        outcome = {
+          xpGained: result.xpGained || 0,
+          level: result.level || null,
+          levelUp: Boolean(result.levelUp),
+          card: result.card || null,
+          unlocked: Array.isArray(result.unlocked) ? result.unlocked : [],
+        };
+      }
+    } catch (error) {
+      console.error("[Ludus] the profile could not record the round", error);
+    }
+  }
   busEmit("round:completed", { round: record });
-  const levelAfter = profileLevelNumber(record.profileId);
-  if (levelBefore > 0 && levelAfter > levelBefore) celebrateLevelUp(record.profileId);
+  if (outcome && outcome.levelUp) queueCelebration({ levelUpFor: record.profileId });
+  return outcome;
 }
 
 // A daily challenge position: finishing the round completes the day.
@@ -6301,20 +6008,22 @@ function completeDailyChallenge(dailyKey, accuracy, profileId) {
   try {
     if (!profile || !profile.daily || typeof profile.daily.complete !== "function") return;
     const result = profile.daily.complete(dailyKey, accuracy, profileId || undefined);
-    if (result && result.levelUp) celebrateLevelUp(profileId);
+    if (result && result.levelUp) queueCelebration({ levelUpFor: profileId });
   } catch (error) {
     console.error("[Ludus] the daily challenge could not be completed", error);
   }
 }
 
+// Records what each answer earned and announces it. Returns the profile's answer per
+// answer (null when there is none), in the order of evaluation.answers.
 function recordRoundOutcome(position, base, evaluation) {
-  evaluation.answers.forEach((answer) => {
+  return evaluation.answers.map((answer) => {
     let record = null;
     try {
       record = buildRoundRecord(position, base, evaluation, answer);
     } catch (error) {
       console.error("[Ludus] the round record could not be built", error);
-      return;
+      return null;
     }
     if (STATE.session) {
       STATE.session.records.push({
@@ -6326,13 +6035,51 @@ function recordRoundOutcome(position, base, evaluation) {
         roundId: record.id,
       });
     }
-    emitRoundCompleted(record);
+    const outcome = emitRoundCompleted(record);
+    if (!isDuelMode()) noteRoundRewards(outcome);
     if (position.dailyKey && !isDuelMode()) completeDailyChallenge(position.dailyKey, record.accuracy, record.profileId);
+    return outcome;
   });
 }
 
-// Solo mode: renders the result board/feedback table, updates the score and
-// history, and leaves the UI ready for the next position.
+// What the closing summary and the progress dots read about a finished round: the
+// primary answer (in a duel, the better one) in the shape of Ludus.Coach.
+function roundView(round) {
+  const context = round.context;
+  const answers = context.answers;
+  const duel = context.kind === "round_duel";
+  const primary = duel && answers[1].assessment.points > answers[0].assessment.points ? answers[1] : answers[0];
+  const qualityOf = (answer) => (answer.uci ? answer.assessment.qualityCode : "no_move");
+  return {
+    index: round.index,
+    fen: round.fen,
+    side: round.side,
+    quality: qualityOf(primary),
+    points: primary.assessment.points,
+    hit: primary.hit,
+    noMove: !primary.uci,
+    san: primary.san,
+    bestSan: context.best.san,
+    bestUci: context.best.uci,
+    userUci: primary.uci || "",
+    players: duel
+      ? answers.map((answer) => ({ name: answer.name, san: answer.san, uci: answer.uci || "", points: answer.assessment.points, quality: qualityOf(answer), accuracy: answer.assessment.accuracy }))
+      : null,
+    duel: duel ? answers.map((answer) => ({ name: answer.name, points: answer.assessment.points })) : undefined,
+  };
+}
+
+// The answers of the session, kept in memory for the closing summary (it can reopen the
+// analysis of any of them).
+function rememberRound(position, context) {
+  if (!STATE.session) return;
+  let side = position.meta && position.meta.sideToMove;
+  if (side !== "w" && side !== "b") side = new Chess(position.fen).turn;
+  STATE.session.rounds.push({ index: STATE.index, fen: position.fen, side, context });
+}
+
+// Solo mode: records the answer, draws the result (board and coach panel), updates the
+// score and leaves the UI ready for the next position.
 function renderSoloRoundOutcome(base, position, evaluation) {
   const answer = evaluation.answers[0];
   const assessment = answer.assessment;
@@ -6349,39 +6096,26 @@ function renderSoloRoundOutcome(base, position, evaluation) {
   };
   captureResultSnapshot(position.fen);
   renderBoard();
-  STATE.resultView.context = buildRoundContext("round_solo", position, evaluation);
-  renderSoloResultPanels(STATE.resultView.context);
-  setUiPhase("result", true);
+  const context = buildRoundContext("round_solo", position, evaluation);
+  context.rewards = recordRoundOutcome(position, base, evaluation);
+  STATE.resultView.context = context;
   STATE.score = roundScore(STATE.score + assessment.points);
   STATE.sessionPlayed += 1;
   if (answer.hit) STATE.sessionHits += 1;
-  pushHistoryEntry({
-    round: STATE.index + 1,
-    mode: "solo",
-    fen: position.fen,
-    meta: position.meta,
-    bestSan: evaluation.bestSan,
-    gameSan: evaluation.master ? evaluation.master.san : (position.gameMoveSan || "-"),
-    userSan: answer.san || "",
-    bestMove: snapshotMove(evaluation.best),
-    gameMove: snapshotMove(evaluation.game),
-    userMove: snapshotMove(answer.move),
-  });
-  nextBtn.textContent = t("buttons.nextPosition");
+  rememberRound(position, context);
+  setUiPhase("result", true);
+  renderResultViewContext();
+  showResultOverlay();
   nextBtn.disabled = false;
   skipBtn.disabled = true;
-  if (roundResultPanelEl) roundResultPanelEl.classList.remove("hidden");
-  renderSessionProgress();
-  updateScoreDisplay();
-  updateCompetitiveStatus();
-  setScoringInfoVisible(true);
+  renderPlayHeader();
   updateHintButton();
   playResultSound(answer);
-  recordRoundOutcome(position, base, evaluation);
+  announcePlay(roundSummaryText(answer));
 }
 
-// Duel mode: builds both players' results, updates duel scores/hits, renders
-// the comparison feedback table, and leaves the UI ready for the next position.
+// Duel mode: builds both players' results, updates duel scores/hits, records both
+// answers and draws the comparison, and leaves the UI ready for the next position.
 function renderDuelRoundOutcome(base, position, evaluation) {
   const [first, second] = evaluation.answers;
   const r1 = { points: first.assessment.points, hit: first.hit, userMove: snapshotMove(first.move) };
@@ -6405,70 +6139,253 @@ function renderDuelRoundOutcome(base, position, evaluation) {
   captureResultSnapshot(position.fen);
   renderBoard();
   hideHandoffOverlay();
-  STATE.resultView.context = buildRoundContext("round_duel", position, evaluation);
-  renderDuelResultPanels(STATE.resultView.context);
-  if (roundResultPanelEl) roundResultPanelEl.classList.remove("hidden");
+  const context = buildRoundContext("round_duel", position, evaluation);
+  context.rewards = recordRoundOutcome(position, base, evaluation);
+  STATE.resultView.context = context;
   STATE.sessionPlayed += 1;
-  pushHistoryEntry({
-    round: STATE.index + 1,
-    mode: "duel",
-    fen: position.fen,
-    meta: position.meta,
-    bestSan: evaluation.bestSan,
-    gameSan: evaluation.master ? evaluation.master.san : (position.gameMoveSan || "-"),
-    bestMove: snapshotMove(evaluation.best),
-    gameMove: snapshotMove(evaluation.game),
-    player1Name: duelPlayerName(0),
-    player2Name: duelPlayerName(1),
-    player1San: first.san,
-    player2San: second.san,
-    player1Move: r1.userMove,
-    player2Move: r2.userMove,
-  });
-  nextBtn.textContent = t("buttons.nextPosition");
-  nextBtn.disabled = false;
-  skipBtn.disabled = true;
+  rememberRound(position, context);
   STATE.duel.handoffReady = false;
   setUiPhase("result", true);
-  renderSessionProgress();
-  updateScoreDisplay();
-  updateCompetitiveStatus();
-  setScoringInfoVisible(true);
+  renderResultViewContext();
+  showResultOverlay();
+  nextBtn.disabled = false;
+  skipBtn.disabled = true;
+  renderPlayHeader();
   updateHintButton();
   playResultSound(r1.points >= r2.points ? first : second);
-  recordRoundOutcome(position, base, evaluation);
+  announcePlay(resultOverlayPointsEl ? resultOverlayPointsEl.textContent : "");
 }
 
 // The end of a session: builds its record, announces it ("session:completed") and
-// shows the closing summary in place of the round result.
+// shows the closing summary in place of the round.
 function showSessionSummary({ noMorePositions = false } = {}) {
   const record = finishSession();
-  if (roundResultEl) roundResultEl.classList.add("hidden");
-  if (resultAnalysisBtn) resultAnalysisBtn.classList.add("hidden");
-  if (nextBtn) nextBtn.classList.add("hidden");
-
-  if (sessionSummaryResultEl) sessionSummaryResultEl.classList.remove("hidden");
+  STATE.resultView.review = null;
   STATE.resultView.context = { kind: "session_summary", noMorePositions, session: record };
-  if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = sessionSummaryScoreText();
-  if (summaryDetailsTextEl) {
-    summaryDetailsTextEl.textContent = finalSessionSummaryText() + (noMorePositions ? ` ${t("game.noMorePositions")}` : "");
-  }
-  if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
-
-  roundStatusEl.textContent = t("game.sessionDone");
+  if (summaryListsRewards()) dismissCelebration();
   skipBtn.disabled = true;
   stopRoundTimer();
-  setThinkingMode(false);
-  updateCompetitiveStatus();
-  setScoringInfoVisible(true);
   setUiPhase("result", true);
   updateHintButton();
-
-  // Show only the summary card overlay
+  renderResultViewContext();
   revealResultOverlay();
-  if (resultOverlayInnerEl) resultOverlayInnerEl.classList.add("hidden"); // Hide normal layout
+  renderPlayHeader();
   updateRoundTimerUi(0);
   renderBoardArrows();
+}
+
+// "Final score: 72.4 / 100 pts", or who won a duel: the text of the live region and of the
+// summary when Ludus.Coach is not there.
+function summaryFallbackText(record, context) {
+  if (!record) return "";
+  const noMore = context && context.noMorePositions ? ` ${t("game.noMorePositions")}` : "";
+  if (record.mode === "duel" && record.duel) {
+    const [p1, p2] = record.duel.names;
+    const [s1, s2] = record.duel.scores;
+    let winner = t("game.finalDraw");
+    if (s1 > s2) winner = t("game.finalWinner", { player: p1 });
+    if (s2 > s1) winner = t("game.finalWinner", { player: p2 });
+    return t("game.finalMatchScore", { p1, p2, s1: formatPoints(s1), s2: formatPoints(s2), winner }) + noMore;
+  }
+  const score = t("core.score.of", { points: formatPoints(record.points), max: record.maxPoints });
+  return t("game.finalScoreSolo", { score }) + noMore;
+}
+
+function sessionRewardsView() {
+  const rewards = STATE.session && STATE.session.rewards;
+  if (!rewards || (STATE.session && STATE.session.mode === "duel")) return null;
+  return { xp: rewards.xp, cards: rewards.cards, unlocked: rewards.unlocked.slice(), levelAfter: rewards.level, levelUp: rewards.levelUp };
+}
+
+function reviewCardCount() {
+  const profile = ludusModule("Profile");
+  try {
+    const counts = profile && profile.notebook && typeof profile.notebook.counts === "function" ? profile.notebook.counts() : null;
+    return counts && Number.isFinite(counts.due) ? counts.due : 0;
+  } catch (error) {
+    return 0;
+  }
+}
+
+// A classic or an own-games session can be played again (a review or the daily challenge
+// cannot: they are made from what the profile holds today).
+function canReplaySession() {
+  return Boolean(STATE.session && (STATE.session.kind === "classic" || STATE.session.kind === "own"));
+}
+
+function summaryApi() {
+  return {
+    lang: STATE.language,
+    canReplay: canReplaySession(),
+    canReview: reviewCardCount() > 0,
+    onPlayAgain: replaySession,
+    onReview: reviewMistakes,
+    onShare: shareSummary,
+  };
+}
+
+function renderSessionSummaryPanel(context) {
+  const coach = ludusModule("Coach");
+  const session = STATE.session;
+  const record = context.session || (session && session.record) || null;
+  let drawn = false;
+  let model = null;
+  if (coach && record && sessionSummaryResultEl && typeof coach.summaryModel === "function") {
+    try {
+      const rounds = session && Array.isArray(session.rounds) ? session.rounds.map(roundView) : [];
+      model = coach.summaryModel({ record, rounds, rewards: sessionRewardsView(), mode: record.mode, lang: STATE.language, noMorePositions: context.noMorePositions });
+      coach.renderSummary(sessionSummaryResultEl, model, coachApi());
+      if (summaryActionsEl) coach.renderSummaryActions(summaryActionsEl, model, summaryApi());
+      drawn = true;
+    } catch (error) {
+      console.error("[Ludus] the coach failed to draw the summary", error);
+    }
+  }
+  STATE.ui.summaryModel = model;
+  const text = summaryFallbackText(record, context);
+  setResultLive(t("game.sessionDone"), text);
+  if (!drawn) {
+    if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = record ? t("core.score.of", { points: formatPoints(record.points), max: record.maxPoints }) : "-";
+    if (summaryDetailsTextEl) summaryDetailsTextEl.textContent = text;
+  }
+  if (resultLiveEl) resultLiveEl.classList.toggle("sr-only", drawn);
+  if (summaryActionsEl) summaryActionsEl.classList.remove("hidden");
+  if (summaryMenuBtn) summaryMenuBtn.classList.remove("hidden");
+}
+
+// The summary reopens the analysis of one of its positions: the board goes back to it,
+// the panel shows its result, and "next" becomes "back to the summary".
+function openSummaryRound(index) {
+  const session = STATE.session;
+  const round = session && Array.isArray(session.rounds) ? session.rounds[index] : null;
+  if (!round || !STATE.resultView.context || STATE.resultView.context.kind !== "session_summary") return;
+  const context = round.context;
+  const summaryContext = STATE.resultView.context;
+  const answers = context.answers;
+  const duel = context.kind === "round_duel";
+  STATE.resultView.review = { index, summary: summaryContext };
+  STATE.resultView.context = context;
+  STATE.board = new Chess(round.fen);
+  setBoardPerspective(STATE.board.turn);
+  STATE.selection = null;
+  STATE.legalMoves = [];
+  STATE.userMove = null;
+  STATE.revealed = duel
+    ? { best: null, game: null, user: answers[1].move || null, userAlt: answers[0].move || null }
+    : { best: answers[0].hintsUsed >= 3 && context.best.uci ? uciMoveSnapshot(context.best.uci) : null, game: null, user: answers[0].move || null, userAlt: null };
+  captureResultSnapshot(round.fen);
+  STATE.resultView.analysisMode = false;
+  STATE.resultView.pv = null;
+  setUiPhase("result", true);
+  renderBoard();
+  renderResultViewContext();
+  showResultOverlay();
+  nextBtn.disabled = false;
+  renderPlayHeader();
+}
+
+function uciMoveSnapshot(uci) {
+  if (typeof uci !== "string" || uci.length < 4) return null;
+  const move = { from: Chess.squareToIndex(uci.slice(0, 2)), to: Chess.squareToIndex(uci.slice(2, 4)) };
+  if (uci.length > 4) move.promotion = uci[4];
+  return Number.isFinite(move.from) && Number.isFinite(move.to) ? move : null;
+}
+
+function backToSummary() {
+  const review = STATE.resultView.review;
+  if (!review) return;
+  STATE.resultView.review = null;
+  STATE.resultView.analysisMode = false;
+  STATE.resultView.pv = null;
+  STATE.resultView.snapshotFen = "";
+  STATE.resultView.context = review.summary;
+  STATE.revealed = { best: null, game: null, user: null, userAlt: null };
+  renderBoard();
+  renderResultViewContext();
+  revealResultOverlay();
+  updateResultAnalysisControls();
+  renderPlayHeader();
+}
+
+// "Play again" / "Rematch": a solo classics session takes fresh positions (the same game
+// when it was one game); a duel rematch replays the same positions, so the two players
+// can be compared on equal ground; the own games go back to the wizard.
+async function replaySession() {
+  const session = STATE.session;
+  if (!session || !canReplaySession()) return;
+  const { kind, mode, title, names, profileIds } = session;
+  const played = STATE.positions.slice(0, Math.max(1, STATE.sessionPlayed));
+  if (kind === "own") {
+    openOwnGamesSetup({ mode, names: names || undefined, profileIds: profileIds || undefined });
+    return;
+  }
+  let positions = played;
+  if (mode !== "duel") {
+    const classics = ludusModule("Classics");
+    try {
+      if (classics && typeof classics.load === "function") await classics.load();
+      const games = Array.from(new Set(played.map((position) => position.classic && position.classic.gameId).filter(Boolean)));
+      const fresh = classics && games.length === 1
+        ? classics.positions(games[0], { count: played.length, shuffle: true })
+        : classics.random(played.length, { exclude: played.map((position) => position.id) });
+      if (Array.isArray(fresh) && fresh.length) positions = fresh;
+    } catch (error) {
+      positions = played;
+    }
+  }
+  try {
+    await startSession({ kind, title, mode, names: names || undefined, profileIds: profileIds || undefined, positions, options: session.options });
+  } catch (error) {
+    showToast(error && error.message ? error.message : t("common.unknown"), { kind: "error" });
+  }
+}
+
+// "Review my mistakes now": the notebook has the cards this session just added.
+function reviewMistakes() {
+  if (!routerShow("notebook", { review: true })) goHome();
+}
+
+// Share: the system sheet when there is one, else the clipboard with a toast, else a
+// dialog with the text to copy by hand.
+async function shareSummary() {
+  const coach = ludusModule("Coach");
+  const model = STATE.ui.summaryModel;
+  if (!coach || !model) return;
+  const text = coach.shareText(model, STATE.language);
+  let url = "";
+  try {
+    url = `${window.location.origin}${window.location.pathname}`;
+  } catch (error) {
+    url = "";
+  }
+  const title = t("coach.share.title");
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      await navigator.share({ title, text, url: url || undefined });
+      return;
+    }
+  } catch (error) {
+    if (error && error.name === "AbortError") return;
+  }
+  const full = url ? `${text}\n${t("coach.share.cta")} ${url}` : text;
+  try {
+    if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(full);
+      showToast(t("coach.sum.copied"), { kind: "success" });
+      return;
+    }
+  } catch (error) {
+    // fall through to the dialog
+  }
+  const ui = ludusModule("ui");
+  const util = ludusModule("util");
+  if (ui && typeof ui.modal === "function" && util && typeof util.h === "function") {
+    ui.modal({
+      title,
+      body: [util.h("p", { class: "modal-text" }, t("coach.sum.shareFailed")), util.h("textarea", { class: "input co-share-text", readonly: true, rows: 6, "aria-label": title }, full)],
+      actions: [{ label: t("ui.close"), kind: "primary" }],
+    });
+  }
 }
 
 // The SessionRecord of section 9 (docs/ARCHITECTURE.md), emitted once. In a duel
@@ -6522,6 +6439,11 @@ function finishSession() {
 
 async function nextPosition() {
   if (STATE.ui.phase !== "result" && STATE.ui.phase !== "result_analysis") return;
+  // A round reopened from the summary: "next" goes back to the summary.
+  if (STATE.resultView.review) {
+    backToSummary();
+    return;
+  }
   if (STATE.resultView.analysisMode) {
     applyResultSnapshotToBoard();
     STATE.resultView.analysisMode = false;
@@ -6552,8 +6474,6 @@ async function nextPosition() {
 
     nextBtn.disabled = true;
     skipBtn.disabled = true;
-    // Do not show a duplicate loading message on the top bar
-    roundStatusEl.textContent = "";
     showPositionSearchOverlay(t("overlay.searchingNext"), "", { cancellable: true, facts: true });
     setUiPhase("loading_next_position", true);
     const sessionToken = STATE.sessionToken;
@@ -6602,21 +6522,16 @@ function revealDuelSecondTurn() {
 // overlays, the summary, the hints. It does not route anywhere.
 function resetGameSurface() {
   stopRoundTimer();
-  setThinkingMode(false);
-  setScoringInfoVisible(false);
   hideHandoffOverlay();
   hidePositionSearchOverlay();
   closePromotionPicker({ skipFocusReturn: true });
   hideResultOverlay();
 
-  if (resultOverlayInnerEl) resultOverlayInnerEl.classList.remove("hidden"); // Restore normal layout exactly
+  if (resultOverlayInnerEl) resultOverlayInnerEl.classList.remove("hidden");
   if (sessionSummaryResultEl) sessionSummaryResultEl.classList.add("hidden");
-  if (summaryMenuBtn) summaryMenuBtn.classList.add("hidden");
-  if (roundResultEl) roundResultEl.classList.remove("hidden");
-  if (resultAnalysisBtn) resultAnalysisBtn.classList.remove("hidden");
-  // The summary hides this button; without showing it again the next session
-  // would have no way to move on from a result.
-  if (nextBtn) nextBtn.classList.remove("hidden");
+  if (summaryActionsEl) summaryActionsEl.classList.add("hidden");
+  if (resultLiveEl) resultLiveEl.classList.add("sr-only");
+  if (coachThinkingEl) coachThinkingEl.textContent = "";
 
   setUiPhase("playing", false);
   STATE.positions = [];
@@ -6630,23 +6545,16 @@ function resetGameSurface() {
   STATE.isResolvingRound = false;
   STATE.revealed = { best: null, game: null, user: null, userAlt: null };
   STATE.analysisContext = null;
-  STATE.historyEntries = [];
-  STATE.historySelectedIdx = -1;
-  if (revealBestBtn) revealBestBtn.classList.remove("revealed-state");
-  if (revealGameBtn) revealGameBtn.classList.remove("revealed-state");
   STATE.score = 0;
   STATE.sessionPlayed = 0;
   STATE.sessionHits = 0;
+  STATE.ui.lastShownScore = 0;
+  STATE.ui.summaryModel = null;
   resetHintState();
   resetDuelState();
-  renderHistoryList();
   renderSessionTitle();
-  renderSessionProgress();
-  updateScoreDisplay();
-  updateCompetitiveStatus();
+  renderPlayHeader();
   updateHintButton();
-  if (roundResultPanelEl) roundResultPanelEl.classList.add("hidden");
-  if (roundResultEl) roundResultEl.innerHTML = "";
   if (skipBtn) skipBtn.disabled = true;
   if (nextBtn) nextBtn.disabled = true;
 }
@@ -6714,6 +6622,8 @@ function hasActiveSessionProgress() {
 
 async function confirmRestartToSetup() {
   if (!hasActiveSessionProgress()) return true;
+  // A finished session is already recorded: leaving it loses nothing, so nothing is asked.
+  if (STATE.session && STATE.session.completed) return true;
   return showConfirmModal({
     title: t("confirm.restartTitle"),
     body: t("confirm.restartToSetup"),
@@ -6839,8 +6749,10 @@ async function startSession(config = {}) {
     completed: false,
     records: [],
     record: null,
+    // What the closing summary is made of: the answers, in order, and what they earned.
+    rounds: [],
+    rewards: newSessionRewards(),
   };
-  renderHistoryList();
   updateRoundTimerUi(Math.round(STATE.turnTimeSeconds * 1000));
   const session = STATE.session;
   // The engine loads while the first round is played; when it is up, the analysis
@@ -6849,6 +6761,8 @@ async function startSession(config = {}) {
     if (!ready || STATE.session !== session || STATE.roundSubmitted || !session || session.completed) return;
     prefetchRoundReference(STATE.positions[STATE.index]);
     updateHintButton();
+    // The "backup engine" notice of the panel goes away once the strong one is up.
+    if (STATE.ui.gamePhase === "thinking") renderThinkingPanel();
   });
   routerShow("game");
   startRound();
@@ -6882,13 +6796,14 @@ function refreshLocalizedUi() {
   syncLocalizedPlayerDefaults();
   updateScoringSystemHint();
   updateResultAnalysisControls();
-  updateScoreDisplay();
-  updateCompetitiveStatus();
-  renderSessionProgress();
+  syncRevealButtons();
   renderSessionTitle();
+  renderPlayHeader();
   updateHintButton();
   updateRoundTimerUi();
-  renderHistoryList();
+  syncSoundButton();
+  updateNextButton();
+  setCoachExpanded(Boolean(gameLayoutEl && gameLayoutEl.dataset && gameLayoutEl.dataset.expanded));
   updatePgnSelectionUi();
   if (STATE.setupWizard.sourceError?.key) {
     showWizardSourceError(STATE.setupWizard.sourceError.key, STATE.setupWizard.sourceError.params || {});
@@ -6903,21 +6818,21 @@ function refreshLocalizedUi() {
     if (wizardSourceCtaEl) wizardSourceCtaEl.classList.remove("hidden");
   }
 
-  if (STATE.positions[STATE.index]) {
-    renderGameInfo(STATE.positions[STATE.index]);
-  }
   if (STATE.board) renderBoard();
 
-  if (STATE.historySelectedIdx >= 0 && STATE.historyEntries[STATE.historySelectedIdx]) {
-    renderHistoryPreview(STATE.historyEntries[STATE.historySelectedIdx]);
-  }
-
-  if (STATE.resultView.visible && STATE.resultView.context && !STATE.resultView.analysisMode) {
+  // The coach panel is drawn from data alone, so it follows the language; a result being
+  // explored keeps its stepper (the state lives in STATE.resultView.pv).
+  if (STATE.resultView.visible && STATE.resultView.context) {
     renderResultViewContext();
+  } else if (STATE.positions[STATE.index] && (STATE.ui.gamePhase === "thinking" || STATE.ui.gamePhase === "handoff")) {
+    renderThinkingPanel(STATE.ui.gamePhase === "handoff" ? 1 : undefined);
+  } else if (STATE.ui.gamePhase === "evaluating") {
+    renderEvaluatingPanel();
   }
 
   if (handoffOverlayEl && !handoffOverlayEl.classList.contains("hidden") && isDuelMode() && STATE.duel.currentPlayer === 0) {
-    showHandoffOverlay(t("game.handoff.title", { player: duelPlayerName(1) }), t("game.handoff.subtitle"));
+    const handoff = handoffTexts();
+    showHandoffOverlay(handoff.title, handoff.subtitle, handoff);
   }
 
   if (positionSearchOverlayEl && !positionSearchOverlayEl.classList.contains("hidden") && STATE.ui.positionSearchState) {
@@ -6950,56 +6865,45 @@ function refreshLocalizedUi() {
   }
 }
 
-// The best move of the round on screen: what the result was scored against
-// (the analysis), else what the position itself knows.
-function resultBestMove(position) {
+// The dock's "best move" and "move of the game" buttons: each draws its arrow on the
+// board (and shows the move in its label), and a second press takes it away. They read
+// the result on screen, so they also work on a round reopened from the summary.
+function revealSpecificMove(type) {
   const context = STATE.resultView.context;
-  if (context && context.best && context.best.uci) return { uci: context.best.uci, san: context.best.san };
-  const uci = lineFirstUci(referenceLinesOf(position)[0]) || String(position.bestMoveUci || "");
-  return uci ? { uci, san: position.bestMoveSan || "-" } : null;
+  if (!context || !STATE.resultView.visible || context.kind === "session_summary") return;
+  if (!STATE.revealed) STATE.revealed = {};
+  const shown = STATE.resultView.shown || (STATE.resultView.shown = { best: false, game: false });
+  const source = type === "best" ? context.best : context.master;
+  const slot = type === "best" ? "best" : "game";
+  if (!source || !source.uci) return;
+  if (shown[type]) {
+    shown[type] = false;
+    STATE.revealed[slot] = null;
+  } else {
+    STATE.revealed[slot] = uciMoveSnapshot(source.uci);
+    shown[type] = true;
+  }
+  syncRevealButtons();
+  renderBoard();
 }
 
-function revealSpecificMove(type) {
-  if (!STATE.revealed) STATE.revealed = {};
-  const p = STATE.positions[STATE.index];
-  if (!p) return;
-
-  if (type === "best") {
-    if (revealBestBtn.classList.contains("revealed-state")) {
-      revealBestBtn.classList.remove("revealed-state");
-      revealBestBtn.textContent = t("buttons.revealBest");
-      STATE.revealed.best = null;
-    } else {
-      const best = resultBestMove(p);
-      if (!best) return;
-      const from = Chess.squareToIndex(best.uci.substring(0, 2));
-      const to = Chess.squareToIndex(best.uci.substring(2, 4));
-      const prom = best.uci.length > 4 ? best.uci[4] : undefined;
-      STATE.revealed.best = { from, to, promotion: prom };
-      if (revealBestBtn) {
-        revealBestBtn.textContent = t("evaluation.bestPrefix", { san: best.san || "-" });
-        revealBestBtn.classList.add("revealed-state");
-      }
-    }
-  } else if (type === "game") {
-    if (revealGameBtn.classList.contains("revealed-state")) {
-      revealGameBtn.classList.remove("revealed-state");
-      revealGameBtn.textContent = revealGameButtonLabel();
-      STATE.revealed.game = null;
-    } else {
-      if (!p.gameMoveUci) return;
-      const from = Chess.squareToIndex(p.gameMoveUci.substring(0, 2));
-      const to = Chess.squareToIndex(p.gameMoveUci.substring(2, 4));
-      const prom = p.gameMoveUci.length > 4 ? p.gameMoveUci[4] : undefined;
-      STATE.revealed.game = { from, to, promotion: prom };
-      if (revealGameBtn) {
-        revealGameBtn.textContent = t("evaluation.gamePrefix", { san: p.gameMoveSan || "-" });
-        revealGameBtn.classList.add("revealed-state");
-      }
-    }
+// Keeps the labels and the pressed state of the two buttons in step with what is drawn.
+function syncRevealButtons() {
+  const context = STATE.resultView.context;
+  const shown = STATE.resultView.shown || {};
+  const round = context && context.kind !== "session_summary";
+  if (revealBestBtn) {
+    const on = Boolean(shown.best && round && context.best);
+    revealBestBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    revealBestBtn.classList.toggle("revealed-state", on);
+    if (revealBestLabelEl) revealBestLabelEl.textContent = on ? t("evaluation.bestPrefix", { san: context.best.san || "-" }) : t("buttons.revealBest");
   }
-
-  renderBoard();
+  if (revealGameBtn) {
+    const on = Boolean(shown.game && round && context.master);
+    revealGameBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    revealGameBtn.classList.toggle("revealed-state", on);
+    if (revealGameLabelEl) revealGameLabelEl.textContent = on ? t("evaluation.gamePrefix", { san: context.master.san || "-" }) : revealGameButtonLabel();
+  }
 }
 
 async function getActivePgnTextSources() {
@@ -7510,7 +7414,6 @@ async function startSessionPipeline() {
   const sessionToken = resetSessionStateForNewPipeline();
   const effectiveConfig = getEffectiveAnalysisConfig();
   STATE.scoringSystem = effectiveConfig.scoringSystem;
-  updateCompetitiveStatus();
 
   try {
     await ensureEngineForSession();
@@ -7558,8 +7461,6 @@ function resetSessionStateForNewPipeline() {
   // Downloading and scanning games is a long wait: chess history keeps it company.
   startWizardFacts();
   stopRoundTimer();
-  setThinkingMode(false);
-  setScoringInfoVisible(false);
   hideHandoffOverlay();
   hidePositionSearchOverlay();
   hideResultOverlay();
@@ -7582,12 +7483,7 @@ function resetSessionStateForNewPipeline() {
   readDuelPlayersFromInputs();
   resetDuelState();
   updateRoundTimerUi(Math.round(STATE.turnTimeSeconds * 1000));
-  updateScoreDisplay();
-  updatePlayerPanels();
-  renderSessionProgress();
-  STATE.historyEntries = [];
-  STATE.historySelectedIdx = -1;
-  renderHistoryList();
+  renderPlayHeader();
   STATE.analysisContext = null;
   nextBtn.disabled = true;
   skipBtn.disabled = true;
@@ -7748,6 +7644,8 @@ function enterPlayModeWithFirstPosition(firstMistake, ctx) {
     completed: false,
     records: [],
     record: null,
+    rounds: [],
+    rewards: newSessionRewards(),
   };
   // The search is over: hiding the wizard must not read as leaving it half way.
   STATE.ui.setupAnalyzing = false;
@@ -7916,7 +7814,6 @@ wizardTimerChipEls.forEach((chipEl) => {
     setWizardTurnTimeSeconds(seconds);
     renderWizardStep();
     updateRoundTimerUi(Math.round(STATE.turnTimeSeconds * 1000));
-    updateCompetitiveStatus();
   });
 });
 
@@ -7997,7 +7894,6 @@ if (scoringSystemEl) {
     STATE.scoringSystem = normalizeScoringSystem(scoringSystemEl.value);
     scoringSystemEl.value = STATE.scoringSystem;
     updateScoringSystemHint();
-    updateCompetitiveStatus();
   });
 }
 
@@ -8020,7 +7916,6 @@ if (turnTimeSecondsEl) {
     setWizardTurnTimeSeconds(turnTimeSecondsEl.value, { fallback: MIN_TURN_TIME_SECONDS });
     renderWizardStep();
     updateRoundTimerUi(Math.round(STATE.turnTimeSeconds * 1000));
-    updateCompetitiveStatus();
   });
 }
 
@@ -8031,9 +7926,6 @@ if (turnTimeSecondsEl) {
       const current = collectWizardConfig();
       STATE.setupWizard.duelNames = [...current.duelNames];
       readDuelPlayersFromInputs();
-      updateScoreDisplay();
-      updateCompetitiveStatus();
-      renderSessionProgress();
       renderWizardStep();
     });
   });
@@ -8076,10 +7968,61 @@ if (skipBtn) {
   });
 }
 if (restartBtn) restartBtn.addEventListener("click", () => {
-  void confirmRestartToSetup().then((confirmed) => {
-    if (confirmed) restartToSetup();
-  });
+  void leaveSession();
 });
+if (coachExpandBtn) {
+  coachExpandBtn.addEventListener("click", () => {
+    setCoachExpanded(!(gameLayoutEl && gameLayoutEl.dataset && gameLayoutEl.dataset.expanded));
+  });
+}
+if (soundBtn) {
+  soundBtn.addEventListener("click", () => {
+    settingsSet("sound.enabled", !settingsGet("sound.enabled", true));
+    syncSoundButton();
+  });
+}
+
+// Keyboard shortcuts of the play screen (the legend under the next button says them):
+// H asks for a hint while thinking; N or Enter go on, E explores the board, B draws the
+// best move and M the move of the game once the answer is in. They stay out of the way of
+// typing, of dialogs, and of the controls that already answer Enter.
+function onGameKeydown(event) {
+  if (!document.body.classList.contains("playing-mode")) return;
+  if (!event || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
+  const target = event.target;
+  const tag = target && target.tagName ? String(target.tagName).toLowerCase() : "";
+  if (tag === "input" || tag === "textarea" || tag === "select" || (target && target.isContentEditable)) return;
+  if (document.querySelector(".modal-backdrop")) return;
+  if (consentOverlayEl && !consentOverlayEl.classList.contains("hidden")) return;
+  if (promotionPickerEl && !promotionPickerEl.classList.contains("hidden")) return;
+  const key = String(event.key || "").toLowerCase();
+  const phase = currentGamePhase();
+  if (phase === "thinking") {
+    if (key === "h" && requestHint()) event.preventDefault();
+    return;
+  }
+  if (phase !== "result") return;
+  const interactive = target && typeof target.closest === "function"
+    ? target.closest("button, a, summary, [role='gridcell'], [role='button']")
+    : null;
+  if (key === "n" || (key === "enter" && !interactive)) {
+    if (nextBtn && !nextBtn.disabled) {
+      event.preventDefault();
+      void nextPosition();
+    }
+  } else if (key === "e") {
+    event.preventDefault();
+    if (STATE.resultView.analysisMode) resetResultAnalysisBoard();
+    else enterResultAnalysisMode();
+  } else if (key === "b") {
+    event.preventDefault();
+    revealSpecificMove("best");
+  } else if (key === "m") {
+    event.preventDefault();
+    revealSpecificMove("game");
+  }
+}
+document.addEventListener("keydown", onGameKeydown);
 if (handoffOverlayEl) {
   handoffOverlayEl.addEventListener("click", () => {
     revealDuelSecondTurn();
@@ -8092,17 +8035,15 @@ if (positionSearchCancelBtnEl) {
 }
 if (promotionPickerEl) {
   promotionPickerEl.addEventListener("keydown", onPromotionPickerKeyDown);
+  promotionPickerEl.addEventListener("click", (event) => {
+    if (event.target === promotionPickerEl) closePromotionPicker();
+  });
 }
 promotionChoiceEls.forEach((btn) => {
   if (!btn) return;
   btn.addEventListener("click", () => choosePromotion(btn.dataset.promotion));
 });
 
-if (oneColumnGameQuery && typeof oneColumnGameQuery.addEventListener === "function") {
-  oneColumnGameQuery.addEventListener("change", () => {
-    mountSharedActionsToActivePanel();
-  });
-}
 if (wizardWideScreenQuery && typeof wizardWideScreenQuery.addEventListener === "function") {
   wizardWideScreenQuery.addEventListener("change", syncWizardSummaryDisclosure);
 }
@@ -8116,9 +8057,6 @@ if (wizardSummaryBoxEl) {
 
 window.addEventListener("resize", () => {
   renderBoardArrows();
-  // Rotating a phone or resizing a window changes which column layout is in
-  // use, and the round actions belong next to the board only in one of them.
-  mountSharedActionsToActivePanel();
 });
 
 function registerServiceWorker() {
@@ -8140,7 +8078,7 @@ function registerRouterScreen(name, container, screen) {
   if (!router) return;
   router.register(name, {
     el: container,
-    title: screen && screen.title,
+    title: screen && (screen.titleKey || screen.title),
     onShow(params) {
       if (name === "landing") document.body.classList.add("landing-active");
       if (screen && typeof screen.show === "function") screen.show(params);
@@ -8159,6 +8097,7 @@ function registerLegacyScreens() {
   if (!router) return;
   router.register("setup", {
     el: setupPanelEl,
+    title: "wizard.title",
     onShow() {
       document.body.classList.remove("landing-active");
     },
@@ -8168,9 +8107,9 @@ function registerLegacyScreens() {
   });
   router.register("game", {
     el: gameLayoutEl,
+    title: "play.title",
     onShow() {
       document.body.classList.add("playing-mode");
-      if (sharedActionsEl) sharedActionsEl.classList.remove("hidden");
       updateRoundTimerUi();
     },
     onHide() {
@@ -8222,14 +8161,17 @@ function watchSettings() {
     } else if (path === "hints.enabled" && typeof overrides.hints !== "boolean" && !STATE.session) {
       STATE.hintsEnabled = Boolean(payload.value);
       updateHintButton();
+    } else if (path === "sound.enabled") {
+      syncSoundButton();
     }
   });
-  // A new achievement is a small celebration (Profile decides what unlocks).
+  // A new achievement is a small celebration (Profile decides what unlocks); the ones that
+  // arrive together are one toast, and the summary lists the ones of the session.
   bus.on("achievement:unlocked", (payload) => {
-    const name = payload && payload.achievement ? payload.achievement.name : "";
-    if (!name) return;
-    showToast(t("core.toast.achievement", { name }), { kind: "achievement" });
-    playSound("levelup");
+    const achievement = payload && payload.achievement ? payload.achievement : null;
+    if (!achievement || !achievement.name) return;
+    noteAchievement(achievement);
+    queueCelebration({ achievement });
   });
   bus.on("screen:changed", (payload) => {
     try {
@@ -8322,9 +8264,6 @@ resetSetupWizard({
 });
 updatePgnSelectionUi();
 updateRoundTimerUi(Math.round(STATE.turnTimeSeconds * 1000));
-updateScoreDisplay();
-updateCompetitiveStatus();
-renderHistoryList();
 buildBoard();
 renderBoard();
 bootCore();

@@ -167,19 +167,21 @@ async function classicScenario(browser) {
     assert.strictEqual(await evalState(page, "Ludus.router.current()"), "game");
     assert.strictEqual(await evalState(page, "Ludus.game.isActive()"), true);
     assert.ok((await page.locator("#session-title").textContent()).startsWith("Classics: "), "the session title is in the round bar");
-    assert.strictEqual((await page.locator("#round-status").textContent()).trim(), "Position 1/3");
+    assert.strictEqual((await page.locator("#round-status").textContent()).trim(), "Position 1 of 3");
     assert.match(await page.locator("#solo-clock-value").textContent(), /^\d\d:\d\d$/);
     await shot(page, "02-classic-round");
 
     step("position 1: a hint marks the piece and costs 15%");
     const best1 = positions[0].reference.lines[0].uci;
     assert.strictEqual(await page.locator("#hint-btn").isDisabled(), false);
-    assert.match(await page.locator("#hint-btn").textContent(), /15%/);
+    // The words of the button are its label; the icon and the cost chip around it are decoration.
+    const hintLabel = () => page.locator("#hint-btn-label").textContent();
+    assert.match(await hintLabel(), /15%/);
     await page.locator("#hint-btn").click();
     assert.strictEqual(await page.locator("#board .square.hint-from").count(), 1, "the piece to move is highlighted");
     assert.strictEqual(await page.locator("#board .square.hint-from").getAttribute("data-square"), best1.slice(0, 2));
     assert.ok((await page.locator("#solo-clock-announce").textContent()).includes(best1.slice(0, 2)), "and announced in words");
-    assert.match(await page.locator("#hint-btn").textContent(), /35%/, "the button now says what the next level costs");
+    assert.match(await hintLabel(), /35%/, "the button now says what the next level costs");
     await shot(page, "03-hint");
     await playUci(page, best1);
     await waitForResult(page);
@@ -228,12 +230,14 @@ async function classicScenario(browser) {
     assert.ok(Number.isFinite(context3.assessment.cpLoss));
     const notes = await page.locator("#round-result").textContent();
     assert.ok(notes && notes.trim().length > 0, "the result explains itself");
+    assert.ok((await page.locator("#round-result .co-hero-verdict").textContent()).trim().length > 10, "with a verdict in words");
 
     step("the session ends with a summary and one session record");
     await clickNext(page);
     await page.waitForFunction(() => !document.querySelector("#session-summary-result").classList.contains("hidden"));
-    const summary = await page.locator("#session-summary-result .summary-score-display").textContent();
-    assert.match(summary, /\/ 30 pts$/);
+    const summary = await page.locator("#session-summary-result .co-sum-stats").textContent();
+    assert.match(summary, /\/ 30/, "the points against the points that were possible");
+    assert.match(await page.locator("#result-overlay-points").textContent(), /\/ 30 pts/, "and the live region reads them");
     const log = await events(page);
     assert.strictEqual(log.started.length, 1);
     assert.strictEqual(log.rounds.length, 3);
@@ -273,7 +277,7 @@ async function classicScenario(browser) {
     await page.evaluate(() => Ludus.game.startSession({ kind: "classic", title: "Reveal", positions: window.__positions.slice(1, 2), options: { clock: { mode: "untimed" } } }));
     for (let level = 1; level <= 2; level += 1) await page.locator("#hint-btn").click();
     assert.strictEqual(await page.locator("#board .square.hint-to").count(), 1, "level 2 also marks the destination");
-    assert.match(await page.locator("#hint-btn").textContent(), /0 pts/, "the button warns that the last level gives the move away");
+    assert.match(await page.locator("#hint-btn-label").textContent(), /0 pts/, "the button warns that the last level gives the move away");
     await page.locator("#hint-btn").click();
     await page.waitForFunction(() => document.querySelectorAll("#board-arrows line").length >= 1, null, { timeout: 5000 });
     await waitForResult(page);
@@ -314,7 +318,8 @@ async function classicScenario(browser) {
     assert.ok(duelRounds[0].points > duelRounds[1].points);
     await clickNext(page);
     await page.waitForFunction(() => !document.querySelector("#session-summary-result").classList.contains("hidden"));
-    assert.match(await page.locator("#session-summary-result .summary-details-text").textContent(), /Winner: Ana/);
+    assert.match(await page.locator("#session-summary-result .co-sum-title").textContent(), /Ana/, "the winner is the headline of the summary");
+    assert.match(await page.locator("#result-overlay-points").textContent(), /Winner: Ana/);
     await page.evaluate(() => Ludus.game.abort());
 
     step("no console errors, page errors or failed requests");

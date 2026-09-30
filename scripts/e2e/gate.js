@@ -244,7 +244,7 @@ async function runViewport(browser, viewport) {
     await page.locator("#board").waitFor({ state: "visible" });
     assert.strictEqual(await page.locator("#board .square").count(), 64, "the board has 64 squares");
     assert.ok((await page.locator("#session-title").textContent()).trim().length > 0, "the round bar names the session");
-    assert.match((await page.locator("#round-status").textContent()).trim(), /1\s*\/\s*2/, "position 1 of 2");
+    assert.match((await page.locator("#round-status").textContent()).trim(), /1\s*(\/|of|de)\s*2/, "position 1 of 2");
     await checkLayoutBasics(page, "game");
     await shot(page, viewport, "05-game");
 

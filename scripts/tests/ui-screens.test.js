@@ -673,13 +673,90 @@ test("shell: hash routes navigate (and #/daily starts the challenge), and never 
   fire();
   await flush(10);
   assert.strictEqual(calls.sessions.length >= 1, true, "the daily challenge was started");
-  // A game in progress ignores hash navigation.
+  // A game in progress asks before hash navigation goes on (the same question as its exit
+  // button): a "no" stays on the screen and puts the hash back, a "yes" follows the hash.
+  const asked = [];
+  let answer = false;
+  Ludus.game.leave = () => {
+    asked.push("leave");
+    return Promise.resolve(answer);
+  };
   Ludus.game.isActive = () => true;
   Ludus.router.show("home");
   location.hash = "#/settings";
   fire();
   await flush();
-  assert.strictEqual(Ludus.router.current(), "home");
+  assert.strictEqual(asked.length, 1, "leaving asked once");
+  assert.strictEqual(Ludus.router.current(), "home", "a no stays where it is");
+  assert.strictEqual(location.hash, "#/home", "and the address goes back to the screen that is shown");
+  answer = true;
+  Ludus.game.leave = () => {
+    asked.push("leave");
+    Ludus.game.isActive = () => false;
+    return Promise.resolve(true);
+  };
+  location.hash = "#/settings";
+  fire();
+  await flush();
+  assert.strictEqual(asked.length, 2);
+  assert.strictEqual(Ludus.router.current(), "settings", "a yes goes on to the route");
+});
+
+test("shell: every way out of a running game asks first, and only a yes goes on", async () => {
+  const { Ludus, els, doc } = createEnv();
+  Ludus.Profile.ensureActive();
+  Ludus.shell.mount(els.app);
+  Ludus.router.show("home");
+  let asks = 0;
+  let answer = false;
+  Ludus.game.isActive = () => true;
+  Ludus.game.leave = () => {
+    asks += 1;
+    return Promise.resolve(answer);
+  };
+  const link = (id) => findAll(els.nav, byData("data-nav", id))[0];
+  // The nav link.
+  const evt = link("progress").click();
+  assert.ok(evt.defaultPrevented, "the link never navigates by itself");
+  await flush();
+  assert.strictEqual(asks, 1);
+  assert.strictEqual(Ludus.router.current(), "home", "a no keeps the game screen");
+  // The brand.
+  Ludus.router.show("classics");
+  doc.getElementById("shell-brand").click();
+  await flush();
+  assert.strictEqual(asks, 2);
+  assert.strictEqual(Ludus.router.current(), "classics");
+  // The More sheet.
+  findAll(doc.body, byClass("sh-more"))[0].click();
+  const sheet = findAll(doc.body, byClass("sheet")).pop();
+  findAll(sheet, byClass("sh-more-item"))[1].click();
+  await flush();
+  assert.strictEqual(asks, 3);
+  assert.strictEqual(Ludus.router.current(), "classics", "the sheet closes and the screen stays");
+  // A yes goes on.
+  answer = true;
+  link("progress").click();
+  await flush();
+  assert.strictEqual(asks, 4);
+  assert.strictEqual(Ludus.router.current(), "progress");
+  // A game that cannot ask (no leave) or whose question throws never navigates away by force.
+  delete Ludus.game.leave;
+  Ludus.router.show("classics");
+  link("progress").click();
+  await flush();
+  assert.strictEqual(Ludus.router.current(), "classics");
+  Ludus.game.leave = () => {
+    throw new Error("broken");
+  };
+  link("progress").click();
+  await flush();
+  assert.strictEqual(Ludus.router.current(), "classics");
+  // Without a running game it is only the navigation.
+  Ludus.game.isActive = () => false;
+  link("progress").click();
+  await flush();
+  assert.strictEqual(Ludus.router.current(), "progress");
 });
 
 test("shell: nav clicks call the router, modified clicks are left to the browser, brand goes home", async () => {

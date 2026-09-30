@@ -529,6 +529,52 @@ With the fallback engine a precomputed reference is used through the difference 
 the lines is never scored above the weakest reference line: the 3-ply search cannot see deep tactics and would otherwise
 give a blunder "no loss"), and lines the fallback guessed are not kept in records.
 
+### Board contract (`js/ui/board.js` = `Ludus.Board`, `css/board.css`)
+
+What is inside `.board-wrap` / `#board` belongs to the board module; the play-screen layout (grid, breakpoints, `--board-size`)
+belongs to the play screen and only has to give `.board-wrap` a size. **Sizing**: `#board` is `width:100%`, `aspect-ratio:1/1`
+(or `height:100%` in a square wrap), never sets a `max-width`, and is a size container (`container-type:inline-size`), so the
+board is square for any box and everything inside scales with it (`cqw`). `.board-wrap` must be `position:relative`; the
+promotion picker, the arrows svg and a polite live region are its children. If the wrap has `overflow:hidden` the board's own
+outer shadow is clipped: give the wrap the shadow.
+
+**DOM** (classes marked `*` are stable API for tests and other screens): `#board.board[role=grid]` with
+`data-orientation="w|b"`, `data-coords`, `data-legal`, `data-drag` (`on|off`, from Settings) ; 8 `.board-row[role=row]`;
+64 `.square*[role=gridcell][data-square="e4"]` `.light|.dark` (a1 is dark) with exactly one `tabindex="0"` (roving) and an
+`aria-label` built by the game core (`describe` callback); state classes `selected* legal* capture* bd-last bd-check hint-from*
+hint-to* best-from|to game-from|to user-from|to user-alt-from|to bd-can-drag bd-drag-src bd-over`; `.coord.coord-rank|coord-file`
+(`aria-hidden`); pieces are `img.bd-piece[data-piece="wK"]` (`aria-hidden`, cburnett SVG, `.bd-moving` / `.bd-leaving`
+while animating). `svg#board-arrows` (`viewBox 0 0 800 800`): `g.bd-arrow.bd-arrow-best|user|userAlt|game|hint` >
+`line.board-arrow-line*` (two for a knight's L) + `polygon.bd-arrow-head`; the same move drawn twice keeps the highest of
+best > game > user > userAlt > hint. While dragging: `img.bd-ghost` (child of `<body>`, `position:fixed`) and `body.bd-drag-active`.
+
+**API**: `Ludus.Board.create({ el, arrowsEl, wrapEl, orientation, onSquare, onMove, onCancel, onFocusSquare, describe, getSetting })`
+-> `{ build(orientation), setOrientation, render(model), setArrows(list), announce(text), setFocus, cancelDrag, isDragging, destroy }`.
+`render(model)` is a diff (squares are built once per orientation; a render that changes nothing writes nothing; ~0.05 ms, ~1.3 ms
+when pieces change): `model = { pieces (Chess#board | FEN), turn, interactive, selected, targets:[{square,capture}], lastMove:{from,to},
+check, hint:{from,to?}, marks:{best,game,user,userAlt}, arrows:[{kind,from,to}], focus, label, lang }`, squares as names.
+`app.js` builds it in `boardModel()` and keeps `onSquareClick`, `boardInputAcceptsMoves`, `renderBoard`, `renderBoardArrows`,
+`buildBoard` as thin adapters (they work without `Ludus.Board`, they just draw nothing). Pure helpers, all unit-tested:
+`parseSquare squareIndex indexSquare isDarkSquare cellOf squareAtCell squareFromPoint nextSquare arrowGeometry planMoves
+motionEnabled slideDuration feedbackKind createDragMachine`; `Ludus.Board.feedback(kind)` plays the sound and the vibration.
+
+**Input**: click-click (unchanged), keyboard (arrows relative to the screen, Home/End/PageUp/PageDown, Enter/Space, Escape), and
+pointer drag (mouse, touch, pen; `board.drag`): a press on the mover's own piece selects it, moving 4 px (8 px for a finger)
+starts a drag with a ghost under the pointer, releasing on a legal target calls `onMove(from, to)` (the game core plays the same two
+clicks), on an illegal square snaps back keeping the selection, outside the board / Escape / `pointercancel` / blur cancels.
+`touch-action:none` is set only on the squares whose piece can be dragged, so the page still scrolls from every other square.
+Nothing is accepted while `boardInputAcceptsMoves()` is false. Choosing the selected piece again deselects it.
+
+**Motion**: a render that moves pieces slides them with the Web Animations API (FLIP, 170-300 ms, `--ease-out`), the captured
+piece fades after the mover arrives, a castling slides both pieces, a promotion slides the pawn and turns it into the new piece,
+a piece dropped by the person does not slide, an unrelated position fades in. `board.animation` `off` is instant; `a11y.motion =
+reduce` always wins; `on` animates even when the system asks for less; `auto` follows `prefers-reduced-motion`. A render that
+moves pieces cancels what was still moving. The last move is remembered by the game core per Chess object (`lastBoardMove`):
+replacing `STATE.board` clears it. **Sound and haptics** of the person's own move: `moveFeedback(move)` in `app.js`
+(`Ludus.Audio.play` + `Ludus.Audio.haptic`, kinds `move|capture|check`). Live settings: `settings:changed` for `board.*` and
+`a11y.*` re-renders (the view calls `Settings.applyToDocument()` for the theme); `sound.*` / `haptics` are read by Audio each time.
+i18n keys `bd.live.*` (announcements) and `bd.state.*` (words for highlights, used in the square labels) are registered by the module.
+
 ## 20. Design system quick reference (`styles.css`, `css/system.css`, `js/ui/kit.js`, `js/ui/shell.js`, `js/ui/home.js`)
 
 (Numbered 20 because section 19 was taken by the game-core notes; the design-system brief called it "section 19".)

@@ -1,1 +1,479 @@
-/* Styles for the board. Prefix every class with .bd- to avoid collisions. */
+/* ==========================================================================
+   THE BOARD  (Ludus.Board, js/ui/board.js)
+
+   Board contract. Everything inside .board-wrap / #board is styled here; the
+   play-screen layout (grid, breakpoints, --board-size) belongs to the play
+   screen (styles.css / css/coach.css), which only has to give .board-wrap a
+   size. The board fills it: #board is width:100%, aspect-ratio:1/1 and never
+   sets a max-width, so it is square for any box it is given.
+
+   DOM (built by Ludus.Board.create, classes marked * are stable API for tests):
+     .board-wrap
+       #board.board  [role=grid]  container-type:inline-size (so cqw = 1% of the board)
+           data-orientation="w|b"   which side is at the bottom
+           data-coords="on|off"     board.coords
+           data-legal="on|off"      board.legalDots (dots and capture rings)
+           data-drag="on|off"       board.drag
+         .board-row [role=row] x8
+           .square*.light|.dark [role=gridcell][data-square]
+              state classes:  selected* legal* capture* bd-last bd-check
+                              hint-from* hint-to*  best-from/-to  game-from/-to
+                              user-from/-to  user-alt-from/-to      (result marks)
+                              bd-can-drag  bd-drag-src  bd-over     (pointer drag)
+              .coord.coord-rank / .coord.coord-file   (aria-hidden)
+              img.bd-piece[data-piece="wK"]           (aria-hidden; .bd-moving / .bd-leaving while animating)
+       svg#board-arrows.board-arrows  (aria-hidden, viewBox 0 0 800 800)
+           g.bd-arrow.bd-arrow-{best|user|userAlt|game|hint} > line.board-arrow-line* + polygon.bd-arrow-head
+       #promotion-picker.promotion-picker  (role=dialog; data-edge="top|bottom" and --bd-promo-col say where it opens)
+       .bd-live.sr-only                    (polite live region)
+     img.bd-ghost  (the piece under the pointer while dragging; a child of <body>, position:fixed)
+     body.bd-drag-active  (while a piece is being dragged)
+
+   Layers inside a square, bottom to top: the square colour, ::before (the
+   highlights: washes stacked through --bd-w-* and rings through --bd-ring*),
+   the coordinates, ::after (legal dot, capture ring, hint target), the piece.
+   One highlight never hides another: they are layers of the same ::before.
+
+   Tokens used (styles.css): --board-light --board-dark --board-hl
+   --board-coord-on-light --board-coord-on-dark (per [data-board-theme]),
+   --color-gold, --focus-ring*, --radius-xl, --shadow-*, --ease-out.
+   ========================================================================== */
+
+/* Colours of the arrows and the result marks. They are brighter than the verdict
+   colours because they have to read on light AND dark squares; the arrows also
+   carry a dark edge and the game move is dashed, so colour is never the only
+   signal. On :root because the arrows svg is a sibling of #board, not inside it. */
+:root {
+  --bd-best: #34c176;
+  --bd-user: #4d9fe8;
+  --bd-user-alt: #b48be6;
+  --bd-game: var(--color-gold, #dda734);
+  --bd-hint: var(--gold-300, #e4bb5f);
+}
+
+.board {
+  --bd-dot: rgba(24, 16, 6, 0.27);
+  --bd-radius: var(--radius-xl, 14px);
+  /* Ring and outline widths: pixels first, proportional to the board where container query units exist. */
+  --bd-rw-sel: 3px;
+  --bd-rw-from: 3px;
+  --bd-rw-to: 4px;
+  --bd-rw-game-from: 2px;
+  --bd-rw-game-to: 3px;
+  --bd-rw-hint: 3px;
+  --bd-rw-hint-to: 4px;
+  --bd-rw-over: 3px;
+
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(8, minmax(0, 1fr));
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  container-type: inline-size;
+  border-radius: var(--bd-radius);
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--board-dark);
+  /* A hairline edge, a tight contact shadow and a wide soft one: the board is the
+     object of the screen and sits above it. */
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.07),
+    0 1px 2px rgba(0, 0, 0, 0.55),
+    0 22px 48px -10px rgba(0, 0, 0, 0.62),
+    0 46px 96px -34px rgba(0, 0, 0, 0.6);
+  /* No text selection, no callout menu and no double-tap zoom on the board; the
+     squares whose piece can be dragged also turn off panning (see .bd-can-drag). */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* The bezel: a crisp inner edge drawn over everything, clipped to the rounded corners. It is one pixel wide on
+   purpose: a soft shade or a sheen over the squares would change the background under the coordinates, and their
+   4.5:1 contrast is calculated on the plain square colours. */
+@supports (width: 1cqw) {
+  .board {
+    --bd-rw-sel: max(3px, 0.55cqw);
+    --bd-rw-from: max(3px, 0.45cqw);
+    --bd-rw-to: max(4px, 0.75cqw);
+    --bd-rw-game-from: max(2px, 0.4cqw);
+    --bd-rw-game-to: max(3px, 0.55cqw);
+    --bd-rw-hint: max(3px, 0.5cqw);
+    --bd-rw-hint-to: max(4px, 0.8cqw);
+    --bd-rw-over: max(3px, 0.6cqw);
+  }
+}
+
+.board::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.board-row {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  min-width: 0;
+  min-height: 0;
+}
+
+.square {
+  position: relative;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  outline: none;
+  cursor: default;
+}
+
+.square.light { background: var(--board-light); }
+.square.dark { background: var(--board-dark); }
+
+/* ── Highlights: layers of the square's ::before ── */
+
+.square::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* first listed = on top */
+  background-image:
+    var(--bd-w-over, none),
+    var(--bd-w-check, none),
+    var(--bd-w-sel, none),
+    var(--bd-w-last, none),
+    var(--bd-w-mark, none),
+    var(--bd-w-hint, none);
+  box-shadow: inset 0 0 0 var(--bd-ring-w, 0) var(--bd-ring, transparent);
+  outline: var(--bd-out-w, 0) var(--bd-out-style, solid) var(--bd-out, transparent);
+  outline-offset: calc(var(--bd-out-w, 0px) * -1.3);
+}
+
+/* Last move: the board's own wash colour (per theme). */
+.square.bd-last { --bd-w-last: linear-gradient(var(--board-hl), var(--board-hl)); }
+
+/* Selected piece: a stronger gold wash and a ring, above the last-move wash. */
+.square.selected {
+  --bd-w-sel: linear-gradient(rgba(255, 214, 88, 0.62), rgba(255, 214, 88, 0.62));
+  --bd-ring: rgba(255, 236, 170, 0.95);
+  --bd-ring-w: var(--bd-rw-sel);
+}
+
+/* A king in check: an ember glow behind the piece. */
+.square.bd-check {
+  --bd-w-check: radial-gradient(circle closest-side at 50% 50%, rgba(255, 74, 60, 0.95) 0%, rgba(232, 44, 40, 0.78) 30%, rgba(190, 22, 22, 0.36) 62%, rgba(150, 0, 0, 0) 92%);
+}
+
+/* Result marks (the move of the engine, of the game, of the person). The origin is
+   a thin ring, the destination a thicker one with a tint. The green one is declared
+   last: when two marks land on one square the best move wins. */
+.square.user-alt-from { --bd-ring: var(--bd-user-alt); --bd-ring-w: var(--bd-rw-from); }
+.square.user-alt-to {
+  --bd-ring: var(--bd-user-alt);
+  --bd-ring-w: var(--bd-rw-to);
+  --bd-w-mark: linear-gradient(rgba(180, 139, 230, 0.3), rgba(180, 139, 230, 0.3));
+}
+.square.user-from { --bd-ring: var(--bd-user); --bd-ring-w: var(--bd-rw-from); }
+.square.user-to {
+  --bd-ring: var(--bd-user);
+  --bd-ring-w: var(--bd-rw-to);
+  --bd-w-mark: linear-gradient(rgba(77, 159, 232, 0.34), rgba(77, 159, 232, 0.34));
+}
+/* The game move is dashed (outline) so it differs from the others without colour. */
+.square.game-from { --bd-out: var(--bd-game); --bd-out-w: var(--bd-rw-game-from); --bd-out-style: dashed; }
+.square.game-to {
+  --bd-out: var(--bd-game);
+  --bd-out-w: var(--bd-rw-game-to);
+  --bd-w-mark: linear-gradient(rgba(221, 167, 52, 0.28), rgba(221, 167, 52, 0.28));
+}
+.square.best-from { --bd-ring: var(--bd-best); --bd-ring-w: var(--bd-rw-from); }
+.square.best-to {
+  --bd-ring: var(--bd-best);
+  --bd-ring-w: var(--bd-rw-to);
+  --bd-w-mark: linear-gradient(rgba(52, 193, 118, 0.32), rgba(52, 193, 118, 0.32));
+}
+
+/* Hints. Level 1 lights the piece to move like a spotlight; level 2 also opens a
+   golden target ring on its destination. Both breathe slowly (not with reduced motion). */
+.square.hint-from {
+  --bd-w-hint: radial-gradient(circle closest-side at 50% 50%, rgba(240, 168, 30, 0.92) 0%, rgba(240, 168, 30, 0.6) 60%, rgba(240, 168, 30, 0.3) 100%);
+  --bd-ring: #f0b428;
+  --bd-ring-w: var(--bd-rw-hint);
+}
+.square.hint-from::before { animation: bd-hint-breathe 2.4s ease-in-out infinite; }
+
+/* Legal moves: a dot on an empty square, a ring on a capture. Hidden by board.legalDots. */
+.square.legal::after,
+.square.capture::after,
+.square.hint-to::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: 1;
+}
+.square.legal::after {
+  inset: 36%;
+  border-radius: 50%;
+  background: var(--bd-dot);
+}
+.square.capture::after {
+  inset: 0;
+  background: radial-gradient(circle closest-side at 50% 50%, transparent 0 72%, var(--bd-dot) 74% 91%, transparent 93%);
+}
+.board[data-legal="off"] .square.legal::after,
+.board[data-legal="off"] .square.capture::after { display: none; }
+
+/* The destination the hint points at (declared after the dots: it wins on a legal square). */
+.square.hint-to::after {
+  inset: 12%;
+  border-radius: 50%;
+  border: var(--bd-rw-hint-to) solid #f0b428;
+  background: radial-gradient(circle closest-side, rgba(240, 168, 30, 0.4), rgba(240, 168, 30, 0.1) 100%);
+  box-shadow: 0 0 0 1.5px rgba(70, 40, 0, 0.55), 0 0 16px rgba(240, 168, 30, 0.75), inset 0 0 0 1.5px rgba(70, 40, 0, 0.35);
+  animation: bd-hint-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes bd-hint-breathe {
+  0%, 100% { opacity: 0.72; }
+  50% { opacity: 1; }
+}
+
+/* ── Coordinates, inside the edge squares ── */
+
+.coord {
+  position: absolute;
+  z-index: 1;
+  font-family: var(--font-ui);
+  font-size: 0.6875rem;
+  font-size: clamp(0.5625rem, 2.15cqw, 0.9375rem);
+  font-weight: 700;
+  font-variant-numeric: lining-nums;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+.coord-rank { top: 0.42em; left: 0.5em; }
+.coord-file { right: 0.5em; bottom: 0.38em; }
+.square.light .coord { color: var(--board-coord-on-light); }
+.square.dark .coord { color: var(--board-coord-on-dark); }
+.board[data-coords="off"] .coord { display: none; }
+/* A wash (last move, selection, hint, result tints) lightens the square under the coordinate; on a dark square that
+   would break the contrast of light coordinates (forest, slate), so those squares use a dark ink. The contrast
+   theme washes dark squares blue, where white reads. */
+:root { --board-coord-on-hl: #1d1409; }
+[data-board-theme="contrast"] { --board-coord-on-hl: #ffffff; }
+.square.dark.selected .coord,
+.square.dark.bd-last .coord,
+.square.dark.hint-from .coord,
+.square.dark.best-to .coord,
+.square.dark.user-to .coord,
+.square.dark.user-alt-to .coord,
+.square.dark.game-to .coord { color: var(--board-coord-on-hl); }
+
+/* ── Pieces ── */
+
+.bd-piece {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  /* The image fills the square so a percentage translation is exactly one square per
+     100% (that is how the slide animation is written); the breathing room is padding. */
+  padding: 3.5%;
+  object-fit: contain;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+  filter: drop-shadow(0 1.5px 1.2px rgba(0, 0, 0, 0.34));
+}
+.bd-piece.bd-moving { z-index: 6; }
+.bd-piece.bd-leaving { z-index: 1; }
+
+/* ── Interaction ── */
+
+.square.bd-can-drag { cursor: grab; touch-action: none; }
+.square.legal, .square.capture { cursor: pointer; }
+/* The piece left behind while its twin is in the air. */
+.square.bd-drag-src .bd-piece { opacity: 0.28; }
+/* The square under the pointer while dragging: legal targets light up strongly. */
+.square.bd-over {
+  --bd-w-over: linear-gradient(rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.2));
+}
+.square.bd-over.legal, .square.bd-over.capture {
+  --bd-w-over: linear-gradient(rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.34));
+  --bd-ring: rgba(255, 255, 255, 0.9);
+  --bd-ring-w: var(--bd-rw-over);
+}
+@media (hover: hover) and (pointer: fine) {
+  .square.legal:hover::after { inset: 30%; }
+  .square.legal:hover, .square.capture:hover {
+    --bd-w-over: linear-gradient(rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.22));
+  }
+}
+
+/* The piece in the air. It is a child of <body> and follows the pointer through an
+   inline transform, so it never causes layout. */
+.bd-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 2000;
+  box-sizing: border-box;
+  object-fit: contain;
+  pointer-events: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  will-change: transform;
+  filter: drop-shadow(0 8px 6px rgba(0, 0, 0, 0.36)) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.34));
+}
+body.bd-drag-active,
+body.bd-drag-active * {
+  cursor: grabbing !important;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Keyboard focus: a light ring over a dark one, drawn above the piece, visible on
+   every theme. #board beats the global [tabindex]:focus-visible rule of styles.css. */
+#board .square:focus-visible {
+  z-index: 5;
+  outline: var(--focus-ring-width, 3px) solid var(--color-info, #53cdff);
+  outline-offset: calc(var(--focus-ring-width, 3px) * -1);
+  box-shadow: inset 0 0 0 calc(var(--focus-ring-width, 3px) + 2px) rgba(8, 12, 20, 0.88);
+}
+
+/* ── Arrows ── */
+
+.board-arrows {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.bd-arrow {
+  --bd-c: var(--bd-best);
+  opacity: 0.88;
+  filter: drop-shadow(0 0 2.5px rgba(0, 0, 0, 0.55));
+}
+.bd-arrow .board-arrow-line {
+  stroke: var(--bd-c);
+  stroke-width: 15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+.bd-arrow .bd-arrow-head {
+  fill: var(--bd-c);
+  stroke: var(--bd-c);
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+.bd-arrow-user { --bd-c: var(--bd-user); }
+.bd-arrow-userAlt { --bd-c: var(--bd-user-alt); }
+.bd-arrow-game { --bd-c: var(--bd-game); }
+.bd-arrow-game .board-arrow-line { stroke-dasharray: 30 18; stroke-linecap: butt; }
+.bd-arrow-hint { --bd-c: var(--bd-hint); opacity: 0.8; }
+.bd-arrow-hint .board-arrow-line { stroke-width: 12; }
+
+/* ── Promotion picker: a strip that opens on the promotion file ── */
+
+.promotion-picker {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: block;
+  padding: 0;
+  border-radius: var(--bd-radius, var(--radius-xl, 14px));
+  background: rgba(4, 8, 14, 0.66);
+  -webkit-backdrop-filter: blur(1.5px);
+  backdrop-filter: blur(1.5px);
+}
+.promotion-picker-panel {
+  --bd-strip: max(12.5%, 56px);
+  position: absolute;
+  top: 0;
+  left: min(calc(var(--bd-promo-col, 3) * 12.5%), calc(100% - var(--bd-strip)));
+  width: var(--bd-strip);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  border: 1px solid var(--color-hairline-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--radius-lg, 12px);
+  background: var(--color-surface-2, #151a21);
+  box-shadow: var(--shadow-3, 0 24px 60px rgba(0, 0, 0, 0.52));
+  overflow: hidden;
+}
+.promotion-picker[data-edge="bottom"] .promotion-picker-panel {
+  top: auto;
+  bottom: 0;
+  flex-direction: column-reverse;
+}
+.promotion-choice {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  min-height: 56px;
+  padding: 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--dur-1, 120ms) ease;
+}
+.promotion-choice + .promotion-choice { border-top: 1px solid var(--color-hairline, rgba(255, 255, 255, 0.09)); }
+.promotion-picker[data-edge="bottom"] .promotion-choice + .promotion-choice { border-top: 0; border-bottom: 1px solid var(--color-hairline, rgba(255, 255, 255, 0.09)); }
+.promotion-choice:hover { background: var(--color-gold-bg, #251500); }
+.promotion-choice:active { background: var(--color-surface-3, #22272d); }
+/* Inside the button (the panel clips what sticks out); more specific than the global focus rule. */
+.promotion-picker .promotion-choice:focus-visible {
+  outline: var(--focus-ring-width, 3px) solid var(--color-info, #53cdff);
+  outline-offset: -5px;
+  border-radius: var(--radius-md, 10px);
+}
+.promotion-choice-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 1.5px 1.2px rgba(0, 0, 0, 0.4));
+}
+
+/* ── Contrast, forced colours and reduced motion ── */
+
+/* A board is a picture: in Windows high-contrast mode the squares and the arrows keep their own colours (both
+   colours would otherwise collapse into the canvas colour and the board could not be read). The focus ring and
+   the dialogs still follow the system palette. */
+@media (forced-colors: active) {
+  .board,
+  .board-arrows { forced-color-adjust: none; }
+  #board .square:focus-visible { outline-color: Highlight; }
+}
+
+[data-board-theme="contrast"] .board { --bd-dot: rgba(0, 0, 0, 0.45); }
+:root[data-contrast="high"] .board .square.legal::after { background: rgba(0, 0, 0, 0.5); }
+
+@media (prefers-reduced-motion: reduce) {
+  .square.hint-from::before,
+  .square.hint-to::after { animation: none; }
+}
+html[data-motion="reduce"] .square.hint-from::before,
+html[data-motion="reduce"] .square.hint-to::after { animation: none; }
