@@ -1,0 +1,450 @@
+{
+  "v": 1,
+  "engine": "Stockfish 18 lite (depth 18)",
+  "quick": {
+    "depth": 12,
+    "multipv": 3
+  },
+  "deep": {
+    "depth": 18,
+    "multipv": 5
+  },
+  "builderVersion": 2,
+  "games": {
+    "alekhine-nimzowitsch-1931": {
+      "hash": "1d45036e1026adb6",
+      "plies": 37,
+      "final": {
+        "kind": "decided",
+        "eval": -466,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 6
+    },
+    "aronian-anand-2013": {
+      "hash": "4eb8f65226061b2d",
+      "plies": 46,
+      "final": {
+        "kind": "decided",
+        "eval": -618,
+        "decided": true
+      },
+      "blunders": [
+        {
+          "ply": 44,
+          "san": "Qd3",
+          "loss": 365
+        }
+      ],
+      "positions": 7
+    },
+    "botvinnik-capablanca-1938": {
+      "hash": "8c371fa5a36754f9",
+      "plies": 81,
+      "final": {
+        "kind": "decided",
+        "eval": -94000,
+        "decided": true
+      },
+      "blunders": [
+        {
+          "ply": 79,
+          "san": "Qe1+",
+          "loss": 774
+        }
+      ],
+      "positions": 12
+    },
+    "byrne-fischer-1956": {
+      "hash": "d196491a60bc0bf3",
+      "plies": 82,
+      "final": {
+        "kind": "checkmate",
+        "eval": -100000,
+        "decided": true
+      },
+      "blunders": [
+        {
+          "ply": 68,
+          "san": "Kg1",
+          "loss": 405
+        },
+        {
+          "ply": 70,
+          "san": "Kf1",
+          "loss": 633
+        }
+      ],
+      "positions": 12
+    },
+    "capablanca-marshall-1918": {
+      "hash": "8f492176e61e7cbf",
+      "plies": 75,
+      "final": {
+        "kind": "decided",
+        "eval": -98000,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 11
+    },
+    "capablanca-tartakower-1924": {
+      "hash": "3786f2d9267990bc",
+      "plies": 103,
+      "final": {
+        "kind": "decided",
+        "eval": -797,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 12
+    },
+    "carlsen-nepomniachtchi-2021-g6": {
+      "hash": "5c501e4f31c86708",
+      "plies": 271,
+      "final": {
+        "kind": "decided",
+        "eval": -865,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 12
+    },
+    "deepblue-kasparov-1997-g6": {
+      "hash": "1199c337bdb670d5",
+      "plies": 37,
+      "final": {
+        "kind": "decided",
+        "eval": -349,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 6
+    },
+    "evergreen-1852": {
+      "hash": "fdccdea7b3dfe578",
+      "plies": 47,
+      "final": {
+        "kind": "checkmate",
+        "eval": -100000,
+        "decided": true
+      },
+      "blunders": [
+        {
+          "ply": 39,
+          "san": "Nxe7",
+          "loss": 1662
+        }
+      ],
+      "positions": 7
+    },
+    "fischer-spassky-1972-g6": {
+      "hash": "a5596eb146cd946d",
+      "plies": 81,
+      "final": {
+        "kind": "decided",
+        "eval": -92000,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 12
+    },
+    "immortal-1851": {
+      "hash": "691d1a1a6d61855f",
+      "plies": 45,
+      "final": {
+        "kind": "checkmate",
+        "eval": -100000,
+        "decided": true
+      },
+      "blunders": [
+        {
+          "ply": 34,
+          "san": "Bd6",
+          "loss": 423
+        },
+        {
+          "ply": 35,
+          "san": "Bxg1",
+          "loss": 414
+        },
+        {
+          "ply": 39,
+          "san": "Na6",
+          "loss": 1409
+        }
+      ],
+      "positions": 7
+    },
+    "karpov-kasparov-1985-g16": {
+      "hash": "7d6fc5b04b90edc3",
+      "plies": 80,
+      "final": {
+        "kind": "decided",
+        "eval": -98000,
+        "decided": true
+      },
+      "blunders": [
+        {
+          "ply": 76,
+          "san": "Nd2",
+          "loss": 709
+        }
+      ],
+      "positions": 12
+    },
+    "kasparov-anand-1995-riga": {
+      "hash": "f2c0692897935602",
+      "plies": 49,
+      "final": {
+        "kind": "decided",
+        "eval": -393,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 8
+    },
+    "kasparov-topalov-1999": {
+      "hash": "007988745ceb1f81",
+      "plies": 87,
+      "final": {
+        "kind": "decided",
+        "eval": -406,
+        "decided": true
+      },
+      "blunders": [
+        {
+          "ply": 66,
+          "san": "Qa1+",
+          "loss": 359
+        },
+        {
+          "ply": 67,
+          "san": "Kd2",
+          "loss": 331
+        }
+      ],
+      "positions": 12
+    },
+    "larsen-spassky-1970": {
+      "hash": "b59cdc4ca86874a2",
+      "plies": 34,
+      "final": {
+        "kind": "decided",
+        "eval": -97000,
+        "decided": true
+      },
+      "blunders": [
+        {
+          "ply": 30,
+          "san": "Rf1",
+          "loss": 1215
+        }
+      ],
+      "positions": 6
+    },
+    "lasker-bauer-1889": {
+      "hash": "c88ec288cff16c21",
+      "plies": 75,
+      "final": {
+        "kind": "decided",
+        "eval": -730,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 11
+    },
+    "lasker-thomas-1912": {
+      "hash": "e72dc90fea312760",
+      "plies": 35,
+      "final": {
+        "kind": "checkmate",
+        "eval": -100000,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 6
+    },
+    "levitsky-marshall-1912": {
+      "hash": "abf8a47b1b1b7582",
+      "plies": 46,
+      "final": {
+        "kind": "decided",
+        "eval": -558,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 7
+    },
+    "opera-1858": {
+      "hash": "bfe61bb4193234b0",
+      "plies": 33,
+      "final": {
+        "kind": "checkmate",
+        "eval": -100000,
+        "decided": true
+      },
+      "blunders": [
+        {
+          "ply": 28,
+          "san": "Bxd7+",
+          "loss": 381
+        },
+        {
+          "ply": 29,
+          "san": "Nxd7",
+          "loss": 1336
+        }
+      ],
+      "positions": 6
+    },
+    "paulsen-morphy-1857": {
+      "hash": "6b937197d4626a7c",
+      "plies": 56,
+      "final": {
+        "kind": "decided",
+        "eval": -784,
+        "decided": true
+      },
+      "blunders": [
+        {
+          "ply": 38,
+          "san": "Rd1",
+          "loss": 344
+        },
+        {
+          "ply": 42,
+          "san": "Kf1",
+          "loss": 1204
+        },
+        {
+          "ply": 43,
+          "san": "Bg2+",
+          "loss": 1208
+        },
+        {
+          "ply": 44,
+          "san": "Kg1",
+          "loss": 1208
+        },
+        {
+          "ply": 47,
+          "san": "Bxf2",
+          "loss": 305
+        }
+      ],
+      "positions": 8
+    },
+    "polugaevsky-nezhmetdinov-1958": {
+      "hash": "4ccf93bf33b5f3e9",
+      "plies": 66,
+      "final": {
+        "kind": "decided",
+        "eval": -99000,
+        "decided": true
+      },
+      "blunders": [
+        {
+          "ply": 56,
+          "san": "Bd3",
+          "loss": 1124
+        },
+        {
+          "ply": 57,
+          "san": "Nexd3+",
+          "loss": 1206
+        },
+        {
+          "ply": 58,
+          "san": "Kc4",
+          "loss": 1206
+        }
+      ],
+      "positions": 10
+    },
+    "reti-tartakower-1910": {
+      "hash": "e4c05875b20463a5",
+      "plies": 21,
+      "final": {
+        "kind": "checkmate",
+        "eval": -100000,
+        "decided": true
+      },
+      "blunders": [
+        {
+          "ply": 15,
+          "san": "Nxe4",
+          "loss": 1478
+        }
+      ],
+      "positions": 6
+    },
+    "rotlewi-rubinstein-1907": {
+      "hash": "238f0301f2dc7dd1",
+      "plies": 50,
+      "final": {
+        "kind": "decided",
+        "eval": -97000,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 8
+    },
+    "saemisch-nimzowitsch-1923": {
+      "hash": "bdaa489a5563aee9",
+      "plies": 50,
+      "final": {
+        "kind": "decided",
+        "eval": -352,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 8
+    },
+    "short-timman-1991": {
+      "hash": "f0f799aa58d1c01f",
+      "plies": 67,
+      "final": {
+        "kind": "decided",
+        "eval": -1624,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 10
+    },
+    "spassky-bronstein-1960": {
+      "hash": "c917047e1b614944",
+      "plies": 45,
+      "final": {
+        "kind": "decided",
+        "eval": -689,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 7
+    },
+    "steinitz-bardeleben-1895": {
+      "hash": "9ddca26f4ae5af47",
+      "plies": 49,
+      "final": {
+        "kind": "decided",
+        "eval": -609,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 8
+    },
+    "tal-larsen-1965": {
+      "hash": "df36d0334adf46f0",
+      "plies": 73,
+      "final": {
+        "kind": "decided",
+        "eval": -703,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 11
+    }
+  }
+}

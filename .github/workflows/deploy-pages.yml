@@ -45,8 +45,10 @@ jobs:
         run: |
           rm -rf _site
           mkdir -p _site
-          cp index.html app.js styles.css sw.js manifest.json LICENSE THIRD_PARTY_NOTICES.md _site/
-          mkdir -p _site/assets _site/vendor
+          cp index.html app.js styles.css config.js sw.js manifest.json LICENSE THIRD_PARTY_NOTICES.md _site/
+          mkdir -p _site/js _site/css _site/assets _site/vendor
+          rsync -av --delete --exclude '.DS_Store' --exclude '.gitkeep' js/ _site/js/
+          rsync -av --delete --exclude '.DS_Store' css/ _site/css/
           rsync -av --delete --exclude '.DS_Store' assets/ _site/assets/
           rsync -av --delete vendor/ _site/vendor/
           find _site -name '.DS_Store' -delete

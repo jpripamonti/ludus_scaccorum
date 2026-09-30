@@ -3,3 +3,5 @@ output/
 _site/
 .DS_Store
 .claude/settings.local.json
+# Raw Stockfish output of scripts/build-classics.js (rebuildable, resumable)
+data/classics/.cache/
