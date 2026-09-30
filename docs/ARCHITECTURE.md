@@ -438,7 +438,10 @@ deploy copies every top-level directory that `index.html` references).
 `scripts/tests/*.test.js` (plain `assert`, no framework) + the classics data
 validation. Browser-level checks live in `scripts/e2e/*.js` (Playwright is not
 a project dependency; the scripts explain how to run them) and are **not** part
-of `npm test`.
+of `npm test`. `scripts/e2e/gate.js` is the release gate (landing -> home -> classics
+-> a scored classic round -> leave, desktop and phone, fresh profile, no console
+errors); `play-session.js` covers the game core in depth, `smoke.js` the boot and the
+service worker precache.
 
 ## 18. Addenda after the logic layer was built (authoritative where it differs from above)
 
@@ -522,8 +525,9 @@ Leaving `game` or `setup` by any router call abandons the session / stops the se
 (`Settings.engineBudget()`, scaled 0.8x..1.6x by how crowded the position is, the whole round capped at 10 s); the analysis of a
 position without lines starts while the person thinks. A move outside the lines is searched with `searchmoves`
 at the same time and re-assessed; the move of the game is scored the same way. A "hit" is `isBest || accuracy >= 70` and no revealed hint.
-With the fallback engine a precomputed reference is used through the difference the fallback measures, and lines the
-fallback guessed are not kept in records.
+With the fallback engine a precomputed reference is used through the difference the fallback measures (a move outside
+the lines is never scored above the weakest reference line: the 3-ply search cannot see deep tactics and would otherwise
+give a blunder "no loss"), and lines the fallback guessed are not kept in records.
 
 ## 20. Design system quick reference (`styles.css`, `css/system.css`, `js/ui/kit.js`, `js/ui/shell.js`, `js/ui/home.js`)
 

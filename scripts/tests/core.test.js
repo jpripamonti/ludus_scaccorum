@@ -1085,6 +1085,50 @@ test("without the strong engine everything still works on the local fallback", a
   assert.strictEqual(searched.lines[0].score.type, "cp");
 });
 
+// Regression (found by the wave-2 gate with Stockfish blocked): the 3-ply fallback cannot see
+// the mate in two of the Immortal Game (Qf6+ Nxf6 Be7#), so it ranked the quiet Kd2 above the
+// mating Qf6+. The difference it measures was negative, was clamped to "no loss", and the
+// blunder earned 10 points. A move outside the reference lines is now never worth more than
+// the weakest of them.
+test("the fallback never ranks a move outside the reference lines above the weakest line", async () => {
+  const t = makeEnv({ engineOptions: { failStart: true } });
+  const { Ludus, events } = t;
+  const immortal = "r1bk2nr/p2p1pNp/n2B4/1p1NP2P/6P1/3P1Q2/P1P1K3/q5b1 w - - 1 22";
+  await Ludus.game.startSession({
+    kind: "classic",
+    title: "Immortal",
+    positions: [{
+      id: "classic:immortal-fallback",
+      fen: immortal,
+      source: "classic",
+      reference: {
+        depth: 18,
+        origin: "precomputed",
+        lines: [
+          { uci: "f3f6", san: "Qf6+", score: 98000, pv: ["f3f6", "g8f6", "d6e7"] },
+          { uci: "f3f7", san: "Qxf7", score: 96000, pv: ["f3f7"] },
+          { uci: "f3f4", san: "Qf4", score: 489, pv: ["f3f4"] },
+        ],
+      },
+    }],
+  });
+  click(t, "e2", "d2");
+  await waitFor(() => state(t, "STATE.ui.phase") === "result" && state(t, "Boolean(STATE.resultView.context)"), "the result of the outside move", 15000);
+  assert.strictEqual(Ludus.game.isUsingFallbackEngine(), true);
+  const round = events.rounds[0];
+  assert.strictEqual(round.userUci, "e2d2");
+  assert.strictEqual(round.isBest, false);
+  assert.ok(round.points <= 2, `a move that gives up a forced mate is not worth ${round.points}`);
+  assert.ok(round.cpLoss > 0, "and the loss is measured, not zero");
+
+  // The best move of the same reference is still the best.
+  await Ludus.game.startSession({ kind: "classic", title: "Immortal again", positions: [{ id: "classic:immortal-fallback-2", fen: immortal, source: "classic", reference: { depth: 18, origin: "precomputed", lines: [{ uci: "f3f6", san: "Qf6+", score: 98000, pv: ["f3f6"] }, { uci: "f3f7", san: "Qxf7", score: 96000, pv: ["f3f7"] }] } }] });
+  click(t, "f3", "f6");
+  await waitFor(() => state(t, "STATE.ui.phase") === "result" && state(t, "Boolean(STATE.resultView.context)"), "the result of the best move", 15000);
+  assert.strictEqual(events.rounds[1].points, 10);
+  assertClean(t);
+});
+
 test("an engine that dies in the middle of a round: the round is still scored, by the fallback", async () => {
   const t = makeEnv({ engineOptions: { dieOnGo: true } });
   const { Ludus, events } = t;

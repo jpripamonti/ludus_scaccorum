@@ -3966,6 +3966,14 @@ async function evaluateRoundAnswers(base, position, answers, plan, hooks = {}) {
       if (bestOne.aborted) return { aborted: true };
       const bestLocal = lineMoverScore(bestOne.lines[0]);
       score = Number.isFinite(bestLocal) ? referenceBest - Math.max(0, bestLocal - score) : score;
+      // A move that is not among the reference lines cannot be better than the
+      // weakest of them (they are the engine's top moves, best first, like
+      // Scoring's own estimate for an unmeasured move). The 3-ply fallback does not
+      // see deep tactics: it can rank a blunder above the master's mating line, the
+      // measured difference is then negative, max(0, ...) turns it into "no loss" and
+      // the blunder was worth 10. The cap keeps such a move where the reference puts it.
+      const weakestReference = lineMoverScore(lines[lines.length - 1]);
+      if (Number.isFinite(weakestReference)) score = Math.min(score, weakestReference);
     }
     return { score, line };
   };
