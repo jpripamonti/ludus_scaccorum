@@ -1439,7 +1439,7 @@
       h("tbody", null, summary.byBox.map((count, i) => h("tr", null,
         h("th", { scope: "row" }, i === 0 ? t("notebook.boxes.aria.new", { count }) : t("notebook.boxes.aria", { n: i, count, interval: tCount("notebook.boxes.interval", leitner[i]) })),
         h("td", null, String(count)))))));
-    return h("figure", { class: "notebook-boxes", role: "group", "aria-label": t("notebook.boxes.title") },
+    return h("figure", { class: "notebook-boxes", "aria-label": t("notebook.boxes.title") },
       h("figcaption", { class: "notebook-boxes-title" }, t("notebook.boxes.title")),
       svg,
       h("p", { class: "notebook-boxes-caption" }, t("notebook.boxes.caption")),

@@ -345,6 +345,14 @@ async function journeyFlow(browser, vp, lang) {
     await stage(journey, "home", { screen: "home" });
     await collectEvents(page);
 
+    // ----- 2b. the own-games wizard opens from its card and the navigation leaves it -----
+    say(journey, "2b the own-games wizard opens from its card; its title is not a raw key; the navigation leaves it");
+    await page.locator('#screen-home .home-mode[data-mode="own"]').click();
+    await waitForScreen(page, "setup");
+    await page.locator("#wizard-step-indicator").waitFor({ state: "visible" });
+    await stage(journey, "wizard", { screen: "setup" });
+    await goTo(journey, "home");
+
     // ----- 3. classics -----
     say(journey, "3 classics: the gallery of 28 games");
     await goTo(journey, "classics");

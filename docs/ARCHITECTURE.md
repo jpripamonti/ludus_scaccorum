@@ -702,6 +702,9 @@ tone, size})`, `stat({label, value, hint, icon, tone})`, `skeleton({kind: text|t
   keeps its place), and on the play screen in stacked layouts it sits under the header, not over the exit button, score and clock
   (`css/coach.css`).
 * A screen's root class must not be the name of a kit component (the progress screen is `.progress-root`: a bare `.progress` is the bar).
+* `Ludus.router` builds `document.title` from the SHARED dictionary: a screen registered with a key that only app.js's own dictionary
+  knows shows the key in the tab (`play.title`). The legacy screens use `core.title.setup` / `core.title.play`; the walkthrough scans
+  the tab title for raw keys. Every screen the router shows also exposes exactly one `main` (`#setup-panel` carries `role="main"`).
 
 ### `Ludus.shell` (`js/ui/shell.js`)
 

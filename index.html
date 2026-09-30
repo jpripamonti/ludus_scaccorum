@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#0b1118" />
-  <meta name="ludus-version" content="f35af15bba06" />
+  <meta name="ludus-version" content="733a37b810ca" />
   <link rel="manifest" href="./manifest.json" />
   <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/svg+xml" href="assets/brand/favicon.svg" />
@@ -17,18 +17,18 @@
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=()" />
   <title>Ludus Scaccorum - Entrenamiento de Errores</title>
-  <link rel="stylesheet" href="styles.css?v=f35af15bba06" />
-  <link rel="stylesheet" href="css/system.css?v=f35af15bba06" />
-  <link rel="stylesheet" href="css/shell.css?v=f35af15bba06" />
-  <link rel="stylesheet" href="css/board.css?v=f35af15bba06" />
-  <link rel="stylesheet" href="css/coach.css?v=f35af15bba06" />
-  <link rel="stylesheet" href="css/home.css?v=f35af15bba06" />
-  <link rel="stylesheet" href="css/classics.css?v=f35af15bba06" />
-  <link rel="stylesheet" href="css/notebook.css?v=f35af15bba06" />
-  <link rel="stylesheet" href="css/progress.css?v=f35af15bba06" />
-  <link rel="stylesheet" href="css/museum.css?v=f35af15bba06" />
-  <link rel="stylesheet" href="css/settings.css?v=f35af15bba06" />
-  <link rel="stylesheet" href="css/account.css?v=f35af15bba06" />
+  <link rel="stylesheet" href="styles.css?v=733a37b810ca" />
+  <link rel="stylesheet" href="css/system.css?v=733a37b810ca" />
+  <link rel="stylesheet" href="css/shell.css?v=733a37b810ca" />
+  <link rel="stylesheet" href="css/board.css?v=733a37b810ca" />
+  <link rel="stylesheet" href="css/coach.css?v=733a37b810ca" />
+  <link rel="stylesheet" href="css/home.css?v=733a37b810ca" />
+  <link rel="stylesheet" href="css/classics.css?v=733a37b810ca" />
+  <link rel="stylesheet" href="css/notebook.css?v=733a37b810ca" />
+  <link rel="stylesheet" href="css/progress.css?v=733a37b810ca" />
+  <link rel="stylesheet" href="css/museum.css?v=733a37b810ca" />
+  <link rel="stylesheet" href="css/settings.css?v=733a37b810ca" />
+  <link rel="stylesheet" href="css/account.css?v=733a37b810ca" />
 </head>
 
 <body class="mode-citizen">
@@ -79,10 +79,12 @@
   </main>
 
   <div class="app" id="app-main" tabindex="-1">
-    <section class="panel hidden" id="setup-panel">
+    <!-- role="main" like the other screens: only the visible one is exposed, so the page always has one main landmark. -->
+    <section class="panel hidden" id="setup-panel" role="main">
       <div id="setup-wizard" class="setup-wizard">
         <header class="wizard-header">
-          <h2 data-i18n="wizard.heading">Armemos tu sesión en 3 pasos</h2>
+          <!-- The page's only top heading: level 1 for the outline, still an h2 element so the wizard styles and app.js keep finding it. -->
+          <h2 role="heading" aria-level="1" data-i18n="wizard.heading">Armemos tu sesión en 3 pasos</h2>
           <p id="wizard-step-indicator" class="wizard-step-indicator" role="status" aria-live="polite">Paso 1 de 3</p>
           <div class="wizard-progress-track" aria-hidden="true">
             <div id="wizard-progress-bar" class="wizard-progress-bar"></div>
@@ -398,33 +400,33 @@
     </div>
   </div>
 
-  <script src="config.js?v=f35af15bba06"></script>
-  <script src="js/ludus.js?v=f35af15bba06"></script>
-  <script src="js/chess.js?v=f35af15bba06"></script>
-  <script src="js/pgn.js?v=f35af15bba06"></script>
-  <script src="js/engine.js?v=f35af15bba06"></script>
-  <script src="js/scoring.js?v=f35af15bba06"></script>
-  <script src="js/insights.js?v=f35af15bba06"></script>
-  <script src="js/concepts.js?v=f35af15bba06"></script>
-  <script src="js/settings.js?v=f35af15bba06"></script>
-  <script src="js/profile.js?v=f35af15bba06"></script>
-  <script src="js/facts.js?v=f35af15bba06"></script>
-  <script src="js/reader.js?v=f35af15bba06"></script>
-  <script src="js/audio.js?v=f35af15bba06"></script>
-  <script src="js/auth.js?v=f35af15bba06"></script>
-  <script src="js/classics.js?v=f35af15bba06"></script>
-  <script src="js/ui/kit.js?v=f35af15bba06"></script>
-  <script src="js/ui/shell.js?v=f35af15bba06"></script>
-  <script src="js/ui/board.js?v=f35af15bba06"></script>
-  <script src="js/ui/coach.js?v=f35af15bba06"></script>
-  <script src="js/ui/home.js?v=f35af15bba06"></script>
-  <script src="js/ui/classics.js?v=f35af15bba06"></script>
-  <script src="js/ui/notebook.js?v=f35af15bba06"></script>
-  <script src="js/ui/progress.js?v=f35af15bba06"></script>
-  <script src="js/ui/museum.js?v=f35af15bba06"></script>
-  <script src="js/ui/settings.js?v=f35af15bba06"></script>
-  <script src="js/ui/account.js?v=f35af15bba06"></script>
-  <script src="app.js?v=f35af15bba06"></script>
+  <script src="config.js?v=733a37b810ca"></script>
+  <script src="js/ludus.js?v=733a37b810ca"></script>
+  <script src="js/chess.js?v=733a37b810ca"></script>
+  <script src="js/pgn.js?v=733a37b810ca"></script>
+  <script src="js/engine.js?v=733a37b810ca"></script>
+  <script src="js/scoring.js?v=733a37b810ca"></script>
+  <script src="js/insights.js?v=733a37b810ca"></script>
+  <script src="js/concepts.js?v=733a37b810ca"></script>
+  <script src="js/settings.js?v=733a37b810ca"></script>
+  <script src="js/profile.js?v=733a37b810ca"></script>
+  <script src="js/facts.js?v=733a37b810ca"></script>
+  <script src="js/reader.js?v=733a37b810ca"></script>
+  <script src="js/audio.js?v=733a37b810ca"></script>
+  <script src="js/auth.js?v=733a37b810ca"></script>
+  <script src="js/classics.js?v=733a37b810ca"></script>
+  <script src="js/ui/kit.js?v=733a37b810ca"></script>
+  <script src="js/ui/shell.js?v=733a37b810ca"></script>
+  <script src="js/ui/board.js?v=733a37b810ca"></script>
+  <script src="js/ui/coach.js?v=733a37b810ca"></script>
+  <script src="js/ui/home.js?v=733a37b810ca"></script>
+  <script src="js/ui/classics.js?v=733a37b810ca"></script>
+  <script src="js/ui/notebook.js?v=733a37b810ca"></script>
+  <script src="js/ui/progress.js?v=733a37b810ca"></script>
+  <script src="js/ui/museum.js?v=733a37b810ca"></script>
+  <script src="js/ui/settings.js?v=733a37b810ca"></script>
+  <script src="js/ui/account.js?v=733a37b810ca"></script>
+  <script src="app.js?v=733a37b810ca"></script>
 </body>
 
 </html>
