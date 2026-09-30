@@ -452,9 +452,10 @@ choices that depend on these numbers live here so that one document explains the
   agree; without a line of three plies only captures can be confirmed.
 * **Sacrifice** (`Insights.moveFeatures(fen, uci, { lines }).sacrifice`, what `brilliant`
   needs): the settled material of the move's line sits at least 2 units below the start
-  on two plies in a row (or at the end of the line, or right before a mate) within the
-  first six plies, from the opponent's actual reply on, and the line does not leave the
-  mover worse than about -1.00 (a losing side that gives things up is not sacrificing).
+  on two plies in a row (or at the end of the line, or right before a mate), the first of
+  them within the first four plies and counted from the opponent's actual reply on, and
+  the line does not leave the mover worse than about -1.00 (a losing side that gives things
+  up is not sacrificing).
   The old rule (what the opponent wins on the destination square) was false for about a
   third of the moves that carried the tag and missed queen sacrifices for a mate and
   exchange sacrifices. An offer that the engine's best defence declines (17...Be6!! in
@@ -473,8 +474,9 @@ choices that depend on these numbers live here so that one document explains the
   it", which was false for 32 % of the answers that got it. At most three messages (two
   when a mate explains the answer), one tactical explanation of the best move, no "solid"
   next to a mistake. Detection is deliberately conservative (a loss must show within four
-  plies and still be there at the end, a win must be a piece's worth held for two plies):
-  it leaves more answers unexplained and fewer explained wrongly.
+  plies and still be there at the end, a win must be a piece's worth held for two plies in a
+  line the engine scores at +0.50 or better): it leaves more answers unexplained and fewer
+  explained wrongly.
 * **Notation.** Moves are stored and compared in English SAN (`Nf3`). What the person
   reads goes through `Ludus.chess.localizeSan(san, lang)`: Spanish letters
   (R rey, D dama, T torre, A alfil, C caballo, promotions `=D`; castling, pawn moves,

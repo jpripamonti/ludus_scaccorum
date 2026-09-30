@@ -875,6 +875,16 @@ html[data-motion="reduce"] .co-score.is-bump .co-score-value { animation: none; 
   background-color: var(--color-surface-2);
   background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0) 50%);
 }
+/* The how-to-play line of the very first session (app.js prependFirstRunNote, QA UX-027): a quiet note, not a card of its own. */
+.co-first-run {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-gold-dim);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  line-height: 1.5;
+}
 .co-eyebrow {
   display: flex;
   align-items: center;

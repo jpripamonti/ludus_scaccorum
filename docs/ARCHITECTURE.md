@@ -558,10 +558,11 @@ fetch finished, `new Worker(blobUrl + "#" + encodeURIComponent(absoluteWasmUrl))
 run with `LUDUS_CSP_VARIANT=<name>` it shows which allowance is needed. Results (Chromium 1194, this tree): removing `'wasm-unsafe-eval'` breaks nothing (the engine runs in a
 worker the policy does not govern and the page only calls `WebAssembly.validate`); it stays because a browser that applied the document's policy to that worker
 would silently lose the strong engine and Firefox / Safari cannot be tried from here; removing `data:` from `img-src` blocks the inline icons of `js/ui/shell.js` and
-`app.js`; `worker-src 'self'` is narrower than the `script-src` fallback (which would also allow Google's script as a worker), so it stays;
+`app.js`; removing `worker-src 'self'` breaks nothing but the fallback to `script-src` would also allow Google's script as a worker, so the directive stays;
 removing `'unsafe-inline'` from `style-src` produces exactly one violation, the static `style="margin-bottom: 0;"` of the wizard in `index.html` (all JavaScript styling goes
 through the CSSOM), so dropping it is one markup edit away: replace that attribute with a class, remove `'unsafe-inline'`, and `LUDUS_CSP_VARIANT=noUnsafeInlineStyle
-node scripts/e2e/csp.js` must pass. `https://*.googleusercontent.com` (profile photos) could not be narrowed without real Google accounts, and Firefox / Safari
+node scripts/e2e/csp.js` must pass (the split `style-src-elem 'self' ...; style-src-attr 'unsafe-inline'`, which only stops injected `<style>` elements, also passes:
+variant `styleAttrOnly`; not applied because the Google Identity flow could not be exercised from here). `https://*.googleusercontent.com` (profile photos) could not be narrowed without real Google accounts, and Firefox / Safari
 were not available.
 
 **Minification (PERF-012, not done).** Measured by the performance review: esbuild `--minify` takes JS from 1.76 MB to 1.02 MB raw (gzip 489 KB to 332 KB) and CSS

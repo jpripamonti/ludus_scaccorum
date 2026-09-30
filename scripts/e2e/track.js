@@ -36,6 +36,8 @@
 //   progress states     empty (what is missing and how to get it), partial (3 rounds), streak at risk
 //   layout              7 viewports x es / en on both screens: no horizontal scroll, nothing outside the window,
 //                       no raw i18n keys, touch targets of 44px, screenshots when LUDUS_E2E_SHOTS is set
+//   reflow              320 px and 130 % text, es / en: no sideways scroll on either screen and no clipped segmented
+//                       control (the achievements filter and the 5 / 10 / 20 picker used to push the page wider)
 //   motion + focus      reduced motion stops the transitions; keyboard focus shows a ring on controls and on the
 //                       points of the chart
 //   axe (optional)      with LUDUS_AXE=/path/to/axe.min.js: no serious or critical violations on every state

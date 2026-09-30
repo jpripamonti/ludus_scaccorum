@@ -161,10 +161,12 @@
   // explains the best move: a piece's worth, held for two plies (audit: lines that
   // gain 2 only on the last ply were unconfirmed by a second search in 1 of 2 cases).
   const TACTIC_CLAIM = 3;
+  const TACTIC_MIN_SCORE = 50; // centipawns
   const SACRIFICE_MIN = 2;
   const SACRIFICE_MIN_SCORE = 100; // centipawns: a "sacrifice" that leaves the mover worse than this is just a bad position
   const TRACE_PLIES = 8;
   const SACRIFICE_PLIES = 6;
+  const SACRIFICE_LATEST_PLY = 4; // the material has to be given up by the fourth ply
   const QS_DEPTH = 6;
   const QS_NODE_LIMIT = 6000; // per traceLine call (measured on 3,000 answers: median 156, largest 886)
 
@@ -1188,7 +1190,10 @@
       if (evidence.matedSelf) return false;
       if (Number.isFinite(desc.lineScore) && desc.lineScore < -SACRIFICE_MIN_SCORE) return false;
       if (evidence.plies < 2) return evidence.deltas.length > 0 && evidence.deltas[0] <= -SACRIFICE_MIN;
-      const last = Math.min(evidence.plies, SACRIFICE_PLIES) - 1;
+      // The dip has to start within the first four plies: a material loss that only
+      // appears on the last plies of the line is the search's horizon (audit: 3 of the
+      // 7 false claims started at ply 5 or later, against 10 of 81 true ones).
+      const last = Math.min(evidence.plies, SACRIFICE_PLIES, SACRIFICE_LATEST_PLY) - 1;
       for (let i = 1; i <= last; i += 1) {
         // (a dip that ends in checkmate is the classic sacrifice for a mating attack)
         if (evidence.deltas[i] <= -SACRIFICE_MIN
@@ -1665,7 +1670,11 @@
         run = value >= LOSS_CLAIM ? run + 1 : 0;
         sustained = Math.max(sustained, run);
       });
-      if (!line.mate && line.deep && line.end >= TACTIC_CLAIM && sustained >= 2
+      // A line that "wins" a piece in a position the engine does not call better for the mover
+      // (+0.50) is compensated material, not a win: 7 of the 11 unconfirmed claims had a score
+      // at or below +0.20.
+      const evaluated = !Number.isFinite(best.lineScore) || best.lineScore >= TACTIC_MIN_SCORE;
+      if (!line.mate && line.deep && line.end >= TACTIC_CLAIM && sustained >= 2 && evaluated
         && !(userLine && userLine.deep && userLine.end >= line.end - 1)) {
         pushCandidate(list, "tactic_available", "insight.tactic_available", { best: best.san, n: Math.round(line.end) }, { concept: null });
       }

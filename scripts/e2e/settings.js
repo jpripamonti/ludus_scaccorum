@@ -30,8 +30,10 @@
 //   keyboard   Tab reaches every control with a visible ring, arrow keys move inside a radio group and change the
 //              setting, Space flips a switch, arrow / Home / End move a slider, Enter on the section nav scrolls
 //              and focuses the heading, Escape closes the reset-all dialog.
-//   reset      Reset section (with Undo), reset all (confirm, cancel with Escape), the global reset, the "already
+//   reset      Reset section (with a keyboard-reachable Undo that stays until used), reset all (confirm, cancel with Escape), the global reset, the "already
 //              default" state.
+//   reflow     320 px, text at 100 % and 130 %, es / en: no sideways scroll, no tile label broken inside a word, no check
+//              badge over a label.
 //   motion     No animation keeps running under prefers-reduced-motion or a11y.motion = reduce.
 //   layout     Seven viewports x es / en: no horizontal scroll, nothing sticking out, 44x44 targets, no clipped
 //              label, no overlapping controls, no repeated id, no raw key, every text at 4.5:1 (3:1 large) on the

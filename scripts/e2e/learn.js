@@ -33,6 +33,8 @@
 //                       the remaining time, hovering pauses, and it advances after the time has passed
 //   layout              7 viewports x es / en on every screen: no horizontal scroll, no overlap of the replay
 //                       controls, touch targets of 44px, no raw i18n keys, screenshots when LUDUS_E2E_SHOTS is set
+//   reflow              320 px and 130 % text, es / en: no sideways scroll, the "Entrenar" CTA never breaks inside its word, a long player
+//                       name wraps (and is its own tooltip), the gallery's ECO chip stays on the first line, the four History tabs fit
 //   motion + focus      reduced motion stops the entrance animation and the highlight; keyboard focus shows a ring
 //   axe (optional)      with LUDUS_AXE=/path/to/axe.min.js: no serious or critical violations on every screen and state
 //

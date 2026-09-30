@@ -29,8 +29,9 @@
 //              a bad file, an oversized file and a foreign JSON are explained; drag and drop; delete all with the
 //              typed word; the storage indicator.
 //   nogoogle   Not configured: the quiet card, no dead button, no request to Google at all.
-//   google     Configured: nothing is requested before the click; sign in (popup mocked), name escaped, first sync
-//              creates the Drive file; sync now; a SECOND device merges and both converge; server error, popup
+//   google     Configured: nothing is requested before the press (hover and focus load nothing); sign in (popup mocked),
+//              name escaped, NOTHING is uploaded until the person chooses which profile goes to the Drive (the link
+//              step), then the first sync creates the Drive file; sync now; a SECOND device merges and both converge; server error, popup
 //              closed / blocked, Drive scope refused, an expired session asks to reconnect; reload shows the
 //              remembered account with Reconnect; sign out; sign out and revoke.
 //   install    beforeinstallprompt captured before the screen exists, the button, the accepted / dismissed answers,
