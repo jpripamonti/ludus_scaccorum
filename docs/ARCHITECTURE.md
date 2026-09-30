@@ -635,8 +635,9 @@ this section lists the differences that matter to integrators. Per-module detail
   loses material is checked against the material along that line (`docs/SCORING.md` section 16); up to 3 messages (2 when
   a forced mate explains the answer). `Insights.moveFeatures(fen, uci, { lines?, pv? })` follows the line too.
   **`Insights.gamePhase(fen | Chess | cells[, fullmove]) -> "opening"|"middlegame"|"endgame"` is the one game-phase
-  classifier** (app.js `getGamePhase`/`adaptiveThreshold`/`RoundRecord.phase` call it; the classics builder uses the
-  same rule): endgame when the non-pawn material of both sides (N 3, B 3, R 5, Q 9; 62 at the start) is 16 or less, or
+  classifier** (app.js `getGamePhase`/`adaptiveThreshold`/`RoundRecord.phase` call it; the classics builder's `phaseOf`
+  lacks the "four pieces" clause and calls 7 of the 248 positions middlegames that are endgames: it should call this
+  function too): endgame when the non-pawn material of both sides (N 3, B 3, R 5, Q 9; 62 at the start) is 16 or less, or
   four pieces or fewer are left, or there are no queens and it is 26 or less; opening while it is 50 or more up to
   move 10; middlegame otherwise. Unusable input is `"middlegame"`. On the 248 classic positions: 36 / 194 / 18.
 * **Profile**: max 4 local profiles; `Profile.attach()` subscribes to `round:completed` / `session:completed`

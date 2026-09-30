@@ -4,7 +4,7 @@
 // Playwright is NOT a project dependency (the app has no runtime or dev dependencies) and this script is not part of
 // `npm test`. Run it by hand:
 //
-//   python3 -m http.server 5010 &                      # serve the repo root
+//   python3 -m http.server 5010 &                      # serve the repo root (or: node scripts/dev/serve.js 5010, which serves only the deployed files)
 //   NODE_PATH=/opt/node22/lib/node_modules node scripts/e2e/walkthrough.js
 //
 // Environment (all optional):

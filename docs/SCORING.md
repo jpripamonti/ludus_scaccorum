@@ -477,6 +477,19 @@ choices that depend on these numbers live here so that one document explains the
   plies and still be there at the end, a win must be a piece's worth held for two plies in a
   line the engine scores at +0.50 or better): it leaves more answers unexplained and fewer
   explained wrongly.
+* **Measured** (QA content audit, 3,330 messages over 1,194 answers and the 1,821 plies of the 28
+  classic games, each claim checked against legal-move material search and an independent
+  Stockfish 18 lite line of 1 s; "false" = the board or the legal-move search contradicts the
+  sentence, "unconfirmed" = true on the board but the fresh engine line does not show what it
+  implies). Before -> after, worst of the two corpora, per tag: sacrifice 34 % -> 6 % false;
+  missed capture 14 % false and 29 % unconfirmed -> 0 % and 6 %; fork / pin / skewer / discovered
+  attack 63 % unconfirmed -> 0 to 11 % (about ten messages each); missed check 49 % unconfirmed -> 8 %;
+  "solid alternative" 15 % -> 6 % (new "close" 6 %); allows-mate length 22 % -> 0 %; hanging
+  piece 3 % -> 1 %; new "loses material" 3 % and "tactic available" 0 % false, 8 % unconfirmed.
+  Structural tags (development, king safety, open file, outpost, endgame) were and are at 0 %.
+  The generic fallback no longer makes a claim; the share of unexplained answers where a fresh
+  engine line does show a plain material tactic is 19 % to 28 % (before: 32 % of them carried the
+  false "no simple tactic" sentence), so coverage, not truth, is what is left to improve.
 * **Notation.** Moves are stored and compared in English SAN (`Nf3`). What the person
   reads goes through `Ludus.chess.localizeSan(san, lang)`: Spanish letters
   (R rey, D dama, T torre, A alfil, C caballo, promotions `=D`; castling, pawn moves,

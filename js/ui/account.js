@@ -203,6 +203,16 @@
       "account.link.option.meta": "{positions} · {level}",
       "account.link.save": "Guardar este perfil en mi Drive",
       "account.link.save.aria": "Guardar el perfil de {name} en mi Drive",
+      "account.link.remote.loading": "Mirando qué hay en tu Drive…",
+      "account.link.remote.exists": "Tu Drive ya tiene el progreso de «{name}» ({positions}). Podés traerlo a este dispositivo o combinarlo con un perfil de acá.",
+      "account.link.remote.empty": "Tu Drive todavía no tiene progreso guardado: elegí el perfil que querés empezar a guardar.",
+      "account.link.remote.error": "No pudimos mirar tu Drive: {reason}",
+      "account.link.remote.retry": "Mirar de nuevo",
+      "account.link.confirm.title": "¿Subir el perfil de {name} a tu Drive?",
+      "account.link.confirm.body": "Se sube todo su historial (posiciones jugadas, cuaderno, logros y nivel) a tu propio Google Drive, en un archivo oculto que solo esta app puede leer. Si analizaste partidas de tus cuentas de Lichess o Chess.com, también van los nombres de los jugadores y los enlaces a esas partidas.",
+      "account.link.confirm.merge": "Tu Drive ya tiene progreso guardado de «{name}»: se combina con este perfil y no se borra nada.",
+      "account.link.confirm.yes": "Subir a mi Drive",
+      "account.profile.synced": "Sincronizado con Google",
       "account.link.import": "Traer mi progreso de Drive a este dispositivo",
       "account.link.import.hint": "Si ya sincronizaste antes en otro dispositivo: lo baja y no sube nada.",
       "account.link.working": "Un momento…",
@@ -400,6 +410,16 @@
       "account.link.option.meta": "{positions} · {level}",
       "account.link.save": "Save this profile to my Drive",
       "account.link.save.aria": "Save {name}'s profile to my Drive",
+      "account.link.remote.loading": "Looking at what is in your Drive…",
+      "account.link.remote.exists": "Your Drive already holds the progress of “{name}” ({positions}). You can bring it to this device or combine it with a profile from here.",
+      "account.link.remote.empty": "Your Drive has no saved progress yet: choose the profile you want to start saving.",
+      "account.link.remote.error": "We could not look at your Drive: {reason}",
+      "account.link.remote.retry": "Look again",
+      "account.link.confirm.title": "Upload {name}'s profile to your Drive?",
+      "account.link.confirm.body": "Its whole history (positions played, notebook, achievements and level) goes to your own Google Drive, in a hidden file only this app can read. If you analysed games from your Lichess or Chess.com accounts, the players' usernames and the links to those games go too.",
+      "account.link.confirm.merge": "Your Drive already holds saved progress for “{name}”: it is combined with this profile and nothing is deleted.",
+      "account.link.confirm.yes": "Upload to my Drive",
+      "account.profile.synced": "Synced with Google",
       "account.link.import": "Bring my Drive progress to this device",
       "account.link.import.hint": "If you already synced on another device: it downloads and uploads nothing.",
       "account.link.working": "One moment…",
@@ -824,8 +844,10 @@
     aboutEl: null,
     importState: null, // { fileName, text, summary }
     messages: { data: null, install: null, link: null },
+    remote: { sub: "", status: "idle", summary: null, error: "" }, // what the Drive already holds (Auth.remoteSummary), per signed-in account
     linkChoice: "", // the profile picked in the "which profile goes to your Drive" step
     linkBusy: false,
+    linkedKey: "",
     refocus: null,
   };
 
@@ -870,9 +892,18 @@
 
   // ----- profiles -----
 
+  // The ids of the local profiles linked to the signed-in Google account (none without Google, or without a link step in Auth).
+  function linkedIds() {
+    if (!authConfigured()) return [];
+    const snapshot = authState();
+    if (!snapshot || !snapshot.user || !Array.isArray(snapshot.linkedProfiles)) return [];
+    return snapshot.linkedProfiles.filter((item) => item && typeof item.id === "string").map((item) => item.id);
+  }
+
   function profileRows() {
     const profile = profileApi();
     if (!profile || typeof profile.list !== "function") return [];
+    const synced = linkedIds();
     let list = [];
     try {
       list = profile.list();
@@ -895,6 +926,7 @@
         positions: stats ? Number(stats.totalPositions) || 0 : 0,
         cards: stats && stats.notebook ? Number(stats.notebook.total) || 0 : 0,
         sessions: stats ? Number(stats.sessions) || 0 : 0,
+        synced: synced.includes(entry.id),
       };
     });
   }
@@ -932,6 +964,7 @@
       row.active
         ? h("p", { class: "account-active" }, icon("check", { size: 14 }), h("span", null, t("account.profile.active")))
         : null,
+      row.synced ? h("p", { class: "account-synced", "data-synced": "true" }, icon("cloud", { size: 14 }), h("span", null, t("account.profile.synced"))) : null,
       h("div", { class: "account-profile-actions" }, actions));
   }
 
@@ -943,6 +976,7 @@
       return card(t("account.profiles.title"), t("account.profiles.lead"), holder, { id: "profiles", icon: "users", className: "account-profiles" });
     }
     const rows = profileRows();
+    state.linkedKey = linkedIds().join("|");
     const max = maxProfiles();
     const list = h("ul", { class: "account-profile-list", "aria-label": t("account.profiles.list") }, rows.map(profileCard));
     if (rows.length < max) {
@@ -1720,11 +1754,69 @@
     return host;
   }
 
+  // What the account's Drive already holds (Auth.remoteSummary: a read-only look), asked once per signed-in account while the choice is open. An Auth
+  // without it (an older one, a stand-in) is treated as "unknown": the import stays on offer, as before.
+  function canProbeRemote() {
+    const auth = authApi();
+    return Boolean(auth && typeof auth.remoteSummary === "function");
+  }
+
+  function loadRemoteSummary(user) {
+    const auth = authApi();
+    if (!canProbeRemote() || !user) return;
+    const sub = String(user.sub || user.email || user.name || "account");
+    if (state.remote.sub === sub && state.remote.status !== "idle") return;
+    state.remote = { sub, status: "loading", summary: null, error: "" };
+    Promise.resolve().then(() => auth.remoteSummary()).then((result) => {
+      if (state.remote.sub !== sub) return;
+      state.remote = result && result.ok
+        ? { sub, status: "done", summary: result, error: "" }
+        : { sub, status: "error", summary: null, error: result && result.error ? result.error : "unknown" };
+    }).catch((error) => {
+      logError("[Ludus.Screens.account] looking at the Drive failed", error);
+      if (state.remote.sub === sub) state.remote = { sub, status: "error", summary: null, error: "unknown" };
+    }).then(() => {
+      if (state.visible && state.remote.sub === sub) paintSync();
+    });
+  }
+
+  function remoteProfileName() {
+    const summary = state.remote.summary;
+    const first = summary && Array.isArray(summary.profiles) ? summary.profiles[0] : null;
+    return first && first.name ? String(first.name) : "";
+  }
+
+  function remoteNote() {
+    const remote = state.remote;
+    if (remote.status === "loading") return h("p", { class: "account-note account-link-remote", "data-remote": "loading" }, t("account.link.remote.loading"));
+    if (remote.status === "error") {
+      return h("div", { class: "account-link-remote", "data-remote": "error" },
+        h("p", { class: "field-error account-error", role: "alert" }, icon("alert", { size: 16 }), h("span", null, t("account.link.remote.error", { reason: errorMessage(remote.error) }))),
+        button(t("account.link.remote.retry"), {
+          kind: "ghost", size: "sm", icon: "refresh", dataset: { action: "remote-retry" },
+          onClick: () => {
+            state.remote = { sub: "", status: "idle", summary: null, error: "" };
+            state.refocus = "[data-action=\"link-save\"]";
+            paintSync();
+          },
+        }));
+    }
+    if (remote.status === "done" && remote.summary) {
+      const first = remote.summary.profiles && remote.summary.profiles[0];
+      return remote.summary.exists && first
+        ? h("p", { class: "account-note account-link-remote", "data-remote": "exists" }, icon("cloud", { size: 16 }),
+          h("span", null, t("account.link.remote.exists", { name: first.name || "", positions: tCount("account.profile.positions", Number(first.rounds) || 0) })))
+        : h("p", { class: "account-note account-link-remote", "data-remote": "empty" }, t("account.link.remote.empty"));
+    }
+    return null;
+  }
+
   // First sign-in: pick the profile that will be saved to the Drive, or bring the Drive's progress here. Nothing has been uploaded yet.
-  function linkPanel() {
+  function linkPanel(model) {
     const rows = profileRows();
     if (!rows.length) return null;
     if (!rows.some((row) => row.id === state.linkChoice)) state.linkChoice = (rows.find((row) => row.active) || rows[0]).id;
+    loadRemoteSummary(model && model.user);
     const groupName = nextId("account-link");
     const options = rows.map((row) => {
       const radio = h("input", {
@@ -1745,17 +1837,47 @@
     const chosen = () => rows.find((row) => row.id === state.linkChoice) || rows[0];
     const save = button(t("account.link.save"), {
       kind: "primary", icon: "cloud", dataset: { action: "link-save" }, busy: state.linkBusy, disabled: state.linkBusy,
-      onClick: () => { const row = chosen(); doLink(row.id, row.name); },
+      onClick: () => { const row = chosen(); confirmLink(row); },
     });
-    const importButton = button(t("account.link.import"), { kind: "secondary", icon: "download", dataset: { action: "link-import" }, disabled: state.linkBusy, onClick: doImportFromDrive });
+    // The import is an explicit choice that only makes sense when the Drive holds a profile (or when nobody can tell: an Auth that cannot look).
+    const showImport = !canProbeRemote() || (state.remote.status === "done" && state.remote.summary && state.remote.summary.exists);
+    const importButton = showImport
+      ? button(t("account.link.import"), { kind: "secondary", icon: "download", dataset: { action: "link-import" }, disabled: state.linkBusy, onClick: doImportFromDrive })
+      : null;
     return h("div", { class: "account-link", "data-link": "required" },
       h("h3", { class: "account-h3" }, t("account.link.title")),
       h("p", { class: "account-note" }, t("account.link.lead")),
+      remoteNote(),
       h("fieldset", { class: "account-fieldset account-link-fieldset" },
         h("legend", { class: "sr-only" }, t("account.link.choose")),
         h("div", { class: "account-link-options", role: "radiogroup", "aria-label": t("account.link.choose") }, options)),
       h("div", { class: "account-actions" }, save, importButton),
-      h("p", { class: "account-note" }, t("account.link.import.hint")));
+      importButton ? h("p", { class: "account-note" }, t("account.link.import.hint")) : null);
+  }
+
+  // "Save this profile to my Drive" asks first: its whole history goes to the person's Drive (QA SEC-005), and what the Drive already holds is named.
+  function confirmLink(row) {
+    const ui = L().ui;
+    const remoteName = state.remote.status === "done" && state.remote.summary && state.remote.summary.exists ? remoteProfileName() : "";
+    const body = remoteName
+      ? h("div", null, h("p", { class: "modal-text" }, t("account.link.confirm.body")), h("p", { class: "modal-text account-note" }, t("account.link.confirm.merge", { name: remoteName })))
+      : h("p", { class: "modal-text" }, t("account.link.confirm.body"));
+    if (!ui || typeof ui.confirm !== "function") {
+      doLink(row.id, row.name);
+      return;
+    }
+    ui.confirm({
+      title: t("account.link.confirm.title", { name: row.name }),
+      body,
+      confirmLabel: t("account.link.confirm.yes"),
+      cancelLabel: t("ui.cancel"),
+    }).then((yes) => {
+      if (yes) doLink(row.id, row.name);
+      else {
+        state.refocus = "[data-action=\"link-save\"]";
+        applyRefocus();
+      }
+    });
   }
 
   // After the choice: which profile is synced, and a way to stop.
@@ -1799,9 +1921,13 @@
     }
 
     // Choosing what goes to the Drive comes before any sync (QA SEC-005): only for a signed-in account whose session is alive.
+    if (!model.user || model.linked.length) {
+      // Signed out, or a profile is linked: what the Drive held is no longer news (it is asked again the next time a choice is open).
+      if (state.remote.status !== "idle") state.remote = { sub: "", status: "idle", summary: null, error: "" };
+    }
     if (model.user && !model.remembered && !model.busy) {
       if (model.linkRequired) {
-        const panel = linkPanel();
+        const panel = linkPanel(model);
         if (panel) parts.push(panel);
       } else if (model.linked.length) {
         parts.push(linkedNote(model));
@@ -2047,7 +2173,14 @@
     if (!auth || typeof auth.onChange !== "function" || !authConfigured()) return;
     try {
       state.offAuth = auth.onChange(() => {
-        if (state.visible) paintSync();
+        if (!state.visible) return;
+        paintSync();
+        // The "synced" mark of a profile card follows the link (linking, unlinking, signing out).
+        const key = linkedIds().join("|");
+        if (key !== state.linkedKey) {
+          state.linkedKey = key;
+          repaintProfiles();
+        }
       });
     } catch (error) {
       state.offAuth = null;

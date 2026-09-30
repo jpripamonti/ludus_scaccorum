@@ -81,6 +81,8 @@ function makeFakeAuth(initial) {
     linkProfile(id) { calls.push(`linkProfile:${id}`); return Promise.resolve(this.results.link || { ok: true, linked: true, profileId: id }); },
     unlinkProfile(id) { calls.push(`unlinkProfile:${id}`); return this.results.unlink || { ok: true, profileId: id }; },
     importFromDrive() { calls.push("importFromDrive"); return Promise.resolve(this.results.import || { ok: true, imported: true }); },
+    // A read-only look at what the Drive holds (Auth.remoteSummary): nothing there by default.
+    remoteSummary() { calls.push("remoteSummary"); return Promise.resolve(this.results.summary || { ok: true, exists: false, profiles: [] }); },
     preload() { calls.push("preload"); return Promise.resolve(true); },
     errorMessage: (code, lang) => `ERR:${code}:${lang}`,
     set(next) { snapshot = Object.assign({}, snapshot, next); listeners.slice().forEach((fn) => fn(snapshot)); },
@@ -911,7 +913,7 @@ test("sync: signed out offers one button that preloads Google when pressed (neve
   assert.ok(stored.includes("What is stored, and where") && stored.includes("ludus-progress-v1.json") && stored.includes("Nothing else is sent anywhere"));
 });
 
-test("sync: a first sign-in asks which profile goes to the Drive, uploads nothing by itself, and shows the linked one afterwards (QA SEC-005)", async () => {
+test("sync: a first sign-in asks which profile goes to the Drive, says what goes there, uploads nothing by itself and shows the linked one afterwards (QA SEC-005)", async () => {
   const env = createEnv({ language: "en", configured: true });
   const auth = makeFakeAuth();
   env.Ludus.Auth = auth;
@@ -922,6 +924,7 @@ test("sync: a first sign-in asks which profile goes to the Drive, uploads nothin
   Ludus.Profile.setActive(me.id);
   const user = { name: "Ana", email: "ana@example.com", picture: "", sub: "9" };
   auth.set({ status: "signed_in", user, lastSyncAt: 0, linkRequired: true, linkedProfiles: [] });
+  await settle();
   const sync = () => card(env, "sync");
   const panel = q(sync(), "[data-link=\"required\"]");
   assert.ok(panel, "the choice is offered");
@@ -932,37 +935,79 @@ test("sync: a first sign-in asks which profile goes to the Drive, uploads nothin
   assert.strictEqual(radios.filter((radio) => radio.checked)[0].getAttribute("data-profile-id"), me.id, "the active profile is preselected");
   assert.ok(q(panel, "[role=\"radiogroup\"]").getAttribute("aria-label"), "the group has a name");
   assert.ok(!action(sync(), "sync"), "no 'Sync now' while nothing is linked");
-  assert.deepStrictEqual(auth.calls, [], "nothing was asked of Auth by the screen itself");
-  // choosing another profile, then saving it
+  // the Drive is looked at (read-only) once; an empty Drive offers no import
+  assert.deepStrictEqual(auth.calls, ["remoteSummary"], "the only thing asked of Auth is a read-only look at the Drive");
+  assert.strictEqual(q(sync(), "[data-remote]").getAttribute("data-remote"), "empty");
+  assert.ok(text(q(sync(), "[data-remote]")).includes("no saved progress yet"));
+  assert.ok(!action(sync(), "link-import"), "nothing on the Drive, nothing to bring");
+  // choosing another profile, then saving it: first a confirmation that says what goes to the Drive
   radios.find((radio) => radio.getAttribute("data-profile-id") === other.id).dispatch("change");
   action(sync(), "link-save").click();
   await settle();
-  assert.deepStrictEqual(auth.calls, [`linkProfile:${other.id}`], "exactly the chosen profile is linked");
+  let dialog = modalOf(env);
+  assert.ok(dialog && text(dialog).includes("Upload Bruno's profile to your Drive?"), "a confirmation names the profile");
+  assert.ok(text(dialog).includes("whole history") && text(dialog).includes("your own Google Drive") && text(dialog).includes("usernames"), "and says plainly what is uploaded");
+  assert.ok(!auth.calls.some((call) => call.startsWith("linkProfile")), "nothing is linked before the confirmation");
+  closeModal(env);
+  assert.ok(!auth.calls.some((call) => call.startsWith("linkProfile")), "cancel links nothing");
+  action(sync(), "link-save").click();
+  await settle();
+  modalButton(env, "primary").click();
+  env.advance(400);
+  await settle();
+  assert.ok(auth.calls.includes(`linkProfile:${other.id}`) && auth.calls.filter((call) => call.startsWith("linkProfile")).length === 1, "exactly the chosen profile is linked");
   // a refusal is said in words and the choice stays
   auth.results.link = { ok: false, error: "linked-elsewhere" };
   auth.set({});
   action(sync(), "link-save").click();
   await settle();
+  modalButton(env, "primary").click();
+  env.advance(400);
+  await settle();
   assert.ok(text(q(sync(), "[data-msg=\"link\"]")).includes("ERR:linked-elsewhere"), "the reason is shown");
   assert.ok(q(sync(), "[data-link=\"required\"]"), "still asking");
-  // bring the Drive's progress here instead: no profile is uploaded
-  auth.results.import = { ok: true, empty: true };
+  // a Drive that already holds a profile: the import appears as an explicit choice and the confirmation says it is combined
+  auth.results.summary = { ok: true, exists: true, profiles: [{ id: "x", name: "Ana's profile", rounds: 120, sessions: 9, notebook: 14, xp: 500, updatedAt: 1 }] };
+  auth.set({ user: { name: "Ana", email: "ana2@example.com", picture: "", sub: "10" } });
+  await settle();
+  assert.ok(text(q(sync(), "[data-remote]")).includes("already holds the progress of “Ana's profile” (120 positions played)"), text(q(sync(), "[data-remote]")));
+  assert.ok(action(sync(), "link-import"), "now there is something to bring");
+  action(sync(), "link-save").click();
+  await settle();
+  assert.ok(text(modalOf(env)).includes("already holds saved progress for “Ana's profile”: it is combined with this profile and nothing is deleted"));
+  closeModal(env);
+  auth.results.import = { ok: true, imported: true };
   action(sync(), "link-import").click();
   await settle();
-  assert.ok(auth.calls.includes("importFromDrive") && auth.calls.filter((call) => call.startsWith("linkProfile")).length === 2);
-  assert.ok(text(q(sync(), "[data-msg=\"link\"]")).includes("Your Drive has no saved progress yet"));
-  // once a profile is linked: which one, and a way to stop
+  assert.ok(auth.calls.includes("importFromDrive"));
+  assert.ok(text(q(sync(), "[data-msg=\"link\"]")).includes("your progress came down from Drive"));
+  // a look that fails is said, and can be repeated
+  auth.results.summary = { ok: false, error: "unauthorized" };
+  auth.set({ user: { name: "Ana", email: "ana3@example.com", picture: "", sub: "11" } });
+  await settle();
+  assert.strictEqual(q(sync(), "[data-remote]").getAttribute("data-remote"), "error");
+  assert.ok(text(q(sync(), "[data-remote]")).includes("ERR:unauthorized"));
+  auth.results.summary = { ok: true, exists: false, profiles: [] };
+  action(sync(), "remote-retry").click();
+  await settle();
+  assert.strictEqual(q(sync(), "[data-remote]").getAttribute("data-remote"), "empty", "looking again works");
+  // once a profile is linked: which one, the mark on its card, and a way to stop
   auth.set({ status: "signed_in", user, lastSyncAt: Date.now(), linkRequired: false, linkedProfiles: [{ id: other.id, name: "Bruno" }] });
   assert.ok(!q(sync(), "[data-link=\"required\"]"));
   const done = q(sync(), "[data-link=\"done\"]");
   assert.ok(done && text(done).includes("You are syncing Bruno's profile") && text(done).includes("The other profiles on this device are not uploaded"));
   assert.ok(action(sync(), "sync"), "'Sync now' is back");
+  const syncedMarks = qa(env.el, "[data-synced=\"true\"]");
+  assert.strictEqual(syncedMarks.length, 1, "exactly one profile card carries the mark");
+  assert.ok(text(syncedMarks[0]).includes("Synced with Google"));
+  assert.strictEqual(syncedMarks[0].closest ? syncedMarks[0].closest("li").getAttribute("data-profile-id") : other.id, other.id, "on the linked profile");
   action(sync(), "unlink", other.id).click();
   assert.ok(auth.calls.includes(`unlinkProfile:${other.id}`));
   assert.ok(text(q(sync(), "[data-msg=\"link\"]")).includes("Bruno is no longer synced"));
   // an Auth without the link step never asks (back compatibility)
   auth.set({ status: "signed_in", user, linkRequired: undefined, linkedProfiles: undefined });
   assert.ok(!q(sync(), "[data-link]") && action(sync(), "sync"));
+  assert.strictEqual(qa(env.el, "[data-synced=\"true\"]").length, 0, "and no card is marked");
 });
 
 test("copy: profiles are not private, the export and the Drive file disclose usernames, the pieces licence is named (QA UX-023, SEC-004, SEC-020)", () => {

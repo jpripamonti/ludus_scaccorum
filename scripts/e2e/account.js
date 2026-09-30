@@ -66,6 +66,15 @@ const PNG_1X1 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUl
 const openAccount = (browser, vp, options = {}) => open(browser, vp, Object.assign({ hash: "#/account", screen: "account" }, options));
 const text = async (locator) => ((await locator.innerText()) || "").replace(/\s+/g, " ").trim();
 const profiles = (page) => page.evaluate(() => Ludus.Profile.list().map((entry) => ({ id: entry.id, name: entry.name, active: entry.active, color: entry.color })));
+// "Save this profile to my Drive" asks first (what goes to the Drive is said in the dialog): this presses the button and confirms.
+async function saveToDrive(page) {
+  await page.locator("[data-action=\"link-save\"]").click();
+  const dialog = page.locator(".modal");
+  await dialog.waitFor();
+  assert.match(await dialog.innerText(), /whole history|todo su historial/, "the dialog says what is uploaded");
+  await dialog.locator(".btn-primary").click();
+  await dialog.waitFor({ state: "detached" });
+}
 const positions = (page, id) => page.evaluate((profileId) => Ludus.Profile.stats(profileId).totalPositions, id || null);
 
 // ---------- seeding ----------
@@ -486,8 +495,18 @@ async function googleFlow(browser) {
   assert.strictEqual(google.files.size, 0, "nothing was uploaded by signing in");
   assert.strictEqual(await card.locator("[data-action=\"sync\"]").count(), 0, "no 'Sync now' before the choice");
   assert.strictEqual(await card.locator("input[type=\"radio\"]:checked").count(), 1, "one profile is preselected (the active one)");
+  await card.locator("[data-remote=\"empty\"]").waitFor();
+  assert.match(await text(card.locator("[data-remote]")), /no saved progress yet/, "an empty Drive is said; there is nothing to import");
+  assert.strictEqual(await card.locator("[data-action=\"link-import\"]").count(), 0);
   await shot(page, "google-link");
+  // cancelling the confirmation uploads nothing
   await card.locator("[data-action=\"link-save\"]").click();
+  await page.locator(".modal").waitFor();
+  assert.match(await page.locator(".modal").innerText(), /Upload Player's profile to your Drive\?/);
+  await page.locator(".modal .btn-secondary").click();
+  await page.locator(".modal").waitFor({ state: "detached" });
+  assert.strictEqual(google.files.size, 0, "cancel uploads nothing");
+  await saveToDrive(page);
   // the name is text: no element came out of it
   assert.ok((await text(card.locator(".account-user-name"))).includes("<b>Pérez</b>"), "the name is shown literally");
   assert.strictEqual(await card.locator("b").count(), 0);
@@ -523,7 +542,11 @@ async function googleFlow(browser) {
   await waitStatus(B, "signed_in");
   await B.locator("[data-link=\"required\"]").waitFor();
   assert.strictEqual(google.doc().profiles[0].data.rounds.length, 3, "device B's sign-in did not upload anything by itself");
-  await B.locator("[data-action=\"link-save\"]").click();
+  // the Drive already holds a profile: the page says so and offers the import as an explicit choice
+  await B.locator("[data-remote=\"exists\"]").waitFor();
+  assert.match(await text(B.locator("[data-remote=\"exists\"]")), /already holds the progress of/);
+  assert.ok(await B.locator("[data-action=\"link-import\"]").isVisible());
+  await saveToDrive(B);
   await B.waitForFunction(() => Ludus.Profile.stats().totalPositions === 5, null, { timeout: 15000 });
   assert.strictEqual(await positions(B), 5, "device B now has its own 2 and the 3 of device A");
   assert.strictEqual((await profiles(B)).length, 1, "one shared profile, not two");
@@ -632,7 +655,7 @@ async function googleErrorsFlow(browser) {
   await attempt("ok");
   // signing in syncs nothing (QA SEC-005): Drive is first touched when the person chooses the profile to save
   assert.strictEqual(await syncStatus(page), "signed_in");
-  await syncCard(page).locator("[data-action=\"link-save\"]").click();
+  await saveToDrive(page);
   await waitStatus(page, "error");
   assert.match(await text(syncCard(page).locator(".field-error")), /denied access to Drive/);
   google.fail = null;
@@ -797,7 +820,7 @@ async function signInMock(page, google, beforeLink) {
   await waitStatus(page, "signed_in");
   await page.locator("[data-link=\"required\"]").waitFor();
   if (beforeLink) await beforeLink();
-  await page.locator("[data-action=\"link-save\"]").click();
+  await saveToDrive(page);
   await page.waitForFunction(() => { const el = document.querySelector("[data-last-sync]"); return Boolean(el) && el.getAttribute("data-last-sync") !== "0"; });
 }
 

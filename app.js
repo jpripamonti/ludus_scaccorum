@@ -863,6 +863,8 @@ Ludus.i18n.register({
     "core.move.pending": "Elegiste {san}. Confirmala o elegí otra casilla.",
     "core.clock.resumed": "El reloj sigue: te quedan {seconds} segundos.",
     "core.firstRun.note": "Tocá una pieza y después su casilla. No se puntúa nada hasta que muevas. Esta primera sesión no tiene reloj.",
+    "core.unsaved.blocked": "Esta sesión no se guardó: el navegador no deja guardar datos en este sitio (¿una pestaña privada?). Tu progreso se pierde al cerrar la pestaña.",
+    "core.unsaved.quota": "Es posible que esta sesión no se haya guardado: el almacenamiento del navegador está lleno. Descargá una copia desde Cuenta y liberá espacio para seguir guardando.",
     "core.resume.title": "Sesión interrumpida",
     "core.resume.body": "Dejaste a medias “{title}”: respondiste {answered} de {total} posiciones y eso ya está guardado en tu progreso. ¿Seguís con las {remaining} que faltan?",
     "core.resume.continue": "Seguir",
@@ -914,6 +916,8 @@ Ludus.i18n.register({
     "core.move.pending": "You chose {san}. Confirm it or choose another square.",
     "core.clock.resumed": "The clock is running again: {seconds} seconds left.",
     "core.firstRun.note": "Tap a piece, then its square. Nothing is scored until you move. This first session has no clock.",
+    "core.unsaved.blocked": "This session was not saved: your browser does not let this site store data (a private tab?). Your progress is lost when you close the tab.",
+    "core.unsaved.quota": "This session may not have been saved: browser storage is full. Download a copy from Account and free some space to keep saving.",
     "core.resume.title": "Interrupted session",
     "core.resume.body": "You left “{title}” half way: you answered {answered} of {total} positions and that is already saved in your progress. Do you want to carry on with the {remaining} that are left?",
     "core.resume.continue": "Carry on",
@@ -7341,7 +7345,10 @@ function renderDuelRoundOutcome(base, position, evaluation) {
 function showSessionSummary({ noMorePositions = false } = {}) {
   const record = finishSession();
   STATE.resultView.review = null;
-  STATE.resultView.context = { kind: "session_summary", noMorePositions, session: record };
+  // unsaved / unsavedReason: the browser refused to store what this session produced (Profile.storageStatus()); the
+  // banner of the shell is hidden while playing, so the summary says it itself.
+  const unsavedReason = sessionUnsavedReason();
+  STATE.resultView.context = { kind: "session_summary", noMorePositions, session: record, unsaved: Boolean(unsavedReason), unsavedReason };
   if (summaryListsRewards()) dismissCelebration();
   skipBtn.disabled = true;
   stopRoundTimer();
@@ -7352,6 +7359,37 @@ function showSessionSummary({ noMorePositions = false } = {}) {
   renderPlayHeader();
   updateRoundTimerUi(0);
   renderBoardArrows();
+}
+
+// "" when what this session produced was saved, else "blocked" (the browser lets this site store nothing) or
+// "quota" (storage is full): Profile counts every write that failed and when the last one did.
+function sessionUnsavedReason() {
+  const profile = ludusModule("Profile");
+  const session = STATE.session;
+  if (!profile || !session || typeof profile.storageStatus !== "function") return "";
+  try {
+    const status = profile.storageStatus();
+    if (!status || !(status.failures > 0) || !(status.lastFailureAt >= (session.startedAt || 0) - 1000)) return "";
+    return status.available === false || status.reason === "blocked" ? "blocked" : "quota";
+  } catch (error) {
+    return "";
+  }
+}
+
+// The line of the summary that says the progress was not saved (and the same words for the live region).
+function unsavedNoteText(context) {
+  const reason = context && context.unsavedReason;
+  return reason ? t(reason === "blocked" ? "core.unsaved.blocked" : "core.unsaved.quota") : "";
+}
+
+function paintUnsavedNote(context) {
+  if (!sessionSummaryResultEl || typeof sessionSummaryResultEl.insertBefore !== "function") return;
+  const text = unsavedNoteText(context);
+  if (!text) return;
+  const util = ludusModule("util");
+  if (!util || typeof util.h !== "function") return;
+  const note = util.h("p", { class: "t-small co-unsaved", role: "status" }, text);
+  sessionSummaryResultEl.insertBefore(note, sessionSummaryResultEl.firstChild || null);
 }
 
 // "Final score: 72.4 / 100 pts", or who won a duel: the text of the live region and of the
@@ -7433,13 +7471,15 @@ function renderSessionSummaryPanel(context) {
       model = coach.summaryModel({ record, rounds, rewards: sessionRewardsView(), mode: record.mode, lang: STATE.language, noMorePositions: context.noMorePositions });
       coach.renderSummary(sessionSummaryResultEl, model, coachApi());
       if (summaryActionsEl) coach.renderSummaryActions(summaryActionsEl, model, summaryApi());
+      paintUnsavedNote(context);
       drawn = true;
     } catch (error) {
       console.error("[Ludus] the coach failed to draw the summary", error);
     }
   }
   STATE.ui.summaryModel = model;
-  const text = summaryFallbackText(record, context);
+  const unsavedNote = unsavedNoteText(context);
+  const text = `${summaryFallbackText(record, context)}${unsavedNote ? ` ${unsavedNote}` : ""}`;
   setResultLive(t("game.sessionDone"), text);
   if (!drawn) {
     if (summaryScoreDisplayEl) summaryScoreDisplayEl.textContent = record ? t("core.score.of", { points: formatPoints(record.points), max: record.maxPoints }) : "-";

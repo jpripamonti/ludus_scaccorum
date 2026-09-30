@@ -1746,6 +1746,37 @@ test("COR-018: a position with a single legal move is no decision and is not off
   assertClean(t);
 });
 
+test("UX-007/F6: the summary says so when the browser did not save the session, in words and for the live region", async () => {
+  const t = makeEnv();
+  const { env, dom, Ludus } = t;
+  const liveText = () => state(t, 'document.getElementById("result-overlay-points").textContent');
+  // A session that saves: no note, no flag.
+  await Ludus.game.startSession({ kind: "classic", title: "Saved", positions: [position(t, 0)], options: { clock: { mode: "untimed" } } });
+  await playAndWait(t, "e2", "e4");
+  await env.context.nextPosition();
+  assert.strictEqual(state(t, "STATE.resultView.context.unsaved"), false);
+  assert.strictEqual(liveText().includes("saved"), false, "nothing to warn about when it was saved");
+  await Ludus.game.abort();
+
+  // The browser's storage refuses from now on (a full quota): what the next session produces cannot be kept.
+  dom.localStorage.setItem = () => { throw new Error("QuotaExceededError"); };
+  await Ludus.game.startSession({ kind: "classic", title: "Lost", positions: [position(t, 0)], options: { clock: { mode: "untimed" } } });
+  await playAndWait(t, "e2", "e4");
+  await env.context.nextPosition();
+  assert.strictEqual(state(t, "STATE.resultView.context.kind"), "session_summary");
+  assert.strictEqual(state(t, "STATE.resultView.context.unsaved"), true, "the summary context carries the flag");
+  assert.strictEqual(state(t, "STATE.resultView.context.unsavedReason"), "quota");
+  // (The summary panel itself is drawn by Ludus.Coach, which this test does not load: its live region carries the same words.)
+  assert.ok(/may not have been saved: browser storage is full/.test(liveText()), "and the live region reads it: " + liveText());
+  assert.ok(/Download a copy from Account/.test(state(t, "unsavedNoteText(STATE.resultView.context)")));
+  // In Spanish, in the same words.
+  await Ludus.i18n.setLanguage("es");
+  assert.ok(/Es posible que esta sesión no se haya guardado/.test(liveText()), liveText());
+  await Ludus.i18n.setLanguage("en");
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
 test("COR-007: the promotion picker closes with the round (a timeout, a skip) and never plays a stale move into the next position", async () => {
   const t = makeEnv();
   const { env, dom, Ludus } = t;

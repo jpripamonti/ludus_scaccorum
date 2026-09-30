@@ -4,7 +4,7 @@
 // Playwright is NOT a project dependency (the app has no runtime or dev
 // dependencies) and this script is not part of `npm test`. Run it by hand:
 //
-//   python3 -m http.server 5030 &                      # serve the repo root
+//   python3 -m http.server 5030 &                      # serve the repo root (or: node scripts/dev/serve.js 5030, which serves only the deployed files)
 //   NODE_PATH=/opt/node22/lib/node_modules LUDUS_URL=http://127.0.0.1:5030/ \
 //     LUDUS_E2E_SHOTS=/tmp/ludus-gate node scripts/e2e/gate.js
 //

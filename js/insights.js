@@ -84,9 +84,10 @@
 //
 //   Sacrifice. The move is not checkmate, the moved piece is not the king and
 //   the settled material of its line sits at least 2 units below the start on
-//   two plies in a row (or at the end of the line, or right before a mate)
-//   within the first six plies, counted from the opponent's actual reply on
-//   (a minor piece for a pawn, an exchange, a queen for a mating attack, ...),
+//   two plies in a row (or at the end of the line, or right before a mate), the
+//   first of them within the first four plies and counted from the opponent's
+//   actual reply on (a minor piece for a pawn, an exchange, a queen for a mating
+//   attack, ...),
 //   while the line does not leave the mover worse than about -1.00 (a losing
 //   side giving things up is not sacrificing). Without a line only the settled
 //   reply to the move can be looked at. Giving up a single pawn is a gambit, not
@@ -100,9 +101,11 @@
 //   start), how many pieces are left and the move number: endgame when that
 //   material is 16 or less, or only four pieces or fewer remain, or there are no
 //   queens and it is 26 or less; opening while it is 50 or more (at most one
-//   minor piece traded) up to move 10; everything else is middlegame. The
-//   classics builder (scripts/build-classics.js) uses the same rule for its
-//   `phase` field and app.js takes its phase from here.
+//   minor piece traded) up to move 10; everything else is middlegame. app.js
+//   takes its phase from here. The classics builder (scripts/build-classics.js
+//   phaseOf) has the same rule except for the "four pieces or fewer" clause (it
+//   calls 7 of the 248 training positions middlegames that are endgames), so its
+//   `phase` field should call this function too.
 (function (root, factory) {
   const api = factory(root);
   root.Ludus = root.Ludus || {};
