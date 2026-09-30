@@ -600,6 +600,8 @@ async function hintScenario(browser) {
   const glow = await page.evaluate(() => getComputedStyle(document.querySelector("#board .square.hint-from"), "::before").backgroundImage);
   assert.match(glow, /radial-gradient/, "the spotlight is painted");
   step("level 2 also marks the destination and draws an arrow");
+  // A second press within HINT_TAP_GAP_MS (450 ms) is the same press (slip guard of the QA pass): wait it out.
+  await page.waitForTimeout(600);
   await page.locator("#hint-btn").click();
   await page.waitForSelector("#board .square.hint-to");
   assert.strictEqual(await page.locator("#board .square.hint-to").getAttribute("data-square"), "f7");
