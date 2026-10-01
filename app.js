@@ -179,7 +179,7 @@ const ENGINE_RETRY_BASE_MS = 1500;
 // How long a starting session waits for it before playing on the local engine
 // while the download keeps going in the background.
 const ENGINE_SESSION_WAIT_MS = 25000;
-const MIN_ROUND_EVAL_VISIBLE_MS = 5000;
+const MIN_ROUND_EVAL_VISIBLE_MS = 10000;
 const ROUND_EVAL_MAX_TOTAL_MS = 7000;
 const ROUND_EVAL_MIN_TOTAL_MS = 2200;
 const ROUND_EVAL_MIN_TASK_MS = 350;
