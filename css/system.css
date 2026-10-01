@@ -971,7 +971,9 @@ textarea.input { min-height: 96px; resize: vertical; }
   box-shadow: 0 0 0 1px var(--gold-500), 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 .slider:focus { outline: none; box-shadow: none; }
-.slider:focus-visible { outline: var(--focus-ring); outline-offset: 0; border-radius: var(--radius-md); }
+/* The ring is the global one (styles.css); its offset travels as a custom property because an `outline-offset` declared on this
+   selector (0,2,0) always lost to the global rule (0,3,0) and the slider was drawn 2px away instead of flush. */
+.slider:focus-visible { --focus-ring-offset: 0px; border-radius: var(--radius-md); }
 
 /* ── Progress, ring, gauge, charts ── */
 .progress { display: grid; gap: 6px; }

@@ -303,6 +303,8 @@
 .museum-surprise-inner { --card-pad: clamp(20px, 3vw, 32px); display: grid; gap: var(--space-4); animation: ui-rise var(--dur-3) var(--ease-out) both; }
 .museum-surprise-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .museum-surprise-head .t-eyebrow { display: inline-flex; align-items: center; gap: var(--space-2); }
+/* The eyebrow gives way (it may take two lines), the Close button never breaks inside its word ("Cerra / r" at 390px). */
+.museum-surprise-head .btn { flex: 0 0 auto; white-space: nowrap; }
 .museum-fact.is-featured { display: grid; gap: var(--space-3); }
 .museum-fact.is-featured .museum-fact-text {
   max-width: 58ch;

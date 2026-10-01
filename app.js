@@ -200,6 +200,13 @@ const ROUND_EVAL_MIN_SEARCH_MS = 300;
 const ROUND_EVAL_MAX_SEARCH_MS = 3500;
 const ROUND_EVAL_MULTIPLIER_MIN = 0.8;
 const ROUND_EVAL_MULTIPLIER_MAX = 1.6;
+// A move that is not among the reference lines is judged on the terms of the best line (PF-1, docs/SCORING.md
+// section 13): it is searched to the depth the best line reached, and its time ceiling is never below the best
+// line's (here: twice it, within the per-search maximum), so reaching that depth is rarely cut short.
+const ROUND_EVAL_MOVE_TIME_FACTOR = 2;
+// Below this many plies a depth is not a budget worth matching (a mate found in the first plies, a device too slow to
+// get past them): the time of the best line is the rule then, as it was before.
+const ROUND_EVAL_MIN_MATCH_DEPTH = 8;
 const DEFAULT_ANALYSIS_MS = 1000;
 const ANALYSIS_CACHE_MAX = 300;
 // Points are 0..10 per position (Ludus.Scoring). A "hit" is an answer that is the
@@ -259,11 +266,11 @@ const TRANSLATIONS = {
   es: {
     "meta.title": "Ludus Scaccorum - Entrenamiento de Errores",
     "landing.description": "Entrená cálculo, evaluación y toma de decisiones encontrando mejores jugadas en posiciones reales.",
-    "buttons.start": "Comenzar",
+    "buttons.start": "Empezar",
     "buttons.backHome": "Volver al inicio",
     "buttons.previous": "Anterior",
     "buttons.next": "Siguiente",
-    "buttons.startSession": "Comenzar sesión",
+    "buttons.startSession": "Empezar sesión",
     "buttons.retryUser": "Probar otro usuario",
     "buttons.switchPlatform": "Cambiar plataforma",
     "buttons.revealBest": "Mejor jugada",
@@ -274,7 +281,7 @@ const TRANSLATIONS = {
     "buttons.resetAnalysis": "Volver a la posición",
     "buttons.nextPosition": "Siguiente posición",
     "buttons.backToMenu": "Volver al inicio",
-    "buttons.skipMove": "Omitir (0 pts)",
+    "buttons.skipMove": "Saltear (0 pts)",
     "play.title": "Entrenamiento",
     "play.exit": "Salir",
     "play.exit.aria": "Salir de la sesión",
@@ -289,7 +296,7 @@ const TRANSLATIONS = {
     "play.panel.aria": "Entrenador",
     "play.scroll.aria": "Notas del entrenador",
     "play.dock.round": "Acciones de la ronda",
-    "play.skip.aria": "Omitir esta posición y sumar 0 puntos",
+    "play.skip.aria": "Saltear esta posición y sumar 0 puntos",
     "play.position": "Posición {current} de {total}",
     "play.finish": "Ver el resumen",
     "play.summary.back": "Volver al resumen",
@@ -307,6 +314,7 @@ const TRANSLATIONS = {
     "buttons.cancelSearch": "Cancelar búsqueda",
     "confirm.restartTitle": "¿Volver al inicio?",
     "confirm.restartToSetup": "Lo que respondiste hasta ahora ({answered}) queda guardado en tu progreso y en tu cuaderno, pero no vas a ver el resumen de esta sesión. ¿Volver al inicio igual?",
+    "confirm.restartToSetup.unsaved": "Tu navegador no está guardando tu progreso, así que lo que respondiste hasta ahora ({answered}) se puede perder si volvés al inicio, y tampoco vas a ver el resumen de esta sesión. ¿Volver al inicio igual?",
     "confirm.restartToSetup.none": "Todavía no respondiste ninguna posición, así que no se pierde nada. ¿Volver al inicio?",
     "confirm.restartAccept": "Volver al inicio",
     "confirm.restartCancel": "Seguir jugando",
@@ -324,7 +332,7 @@ const TRANSLATIONS = {
     "wizard.step2.question": "¿De dónde traemos tus partidas?",
     "wizard.step2.help": "Vamos a descargar partidas públicas del último año para encontrar posiciones.",
     "wizard.step2.howItWorks": "¿Cómo funciona?",
-    "wizard.step2.howItWorksBody": "Buscamos tus partidas recientes de ritmo lento (clásico y rápido). Si no alcanzan, sumamos partidas de blitz. Descargamos sólo hasta juntar las posiciones que pediste.",
+    "wizard.step2.howItWorksBody": "Buscamos tus partidas recientes de ritmo lento (clásico y rápido). Si no alcanzan, sumamos partidas de blitz. Descargamos solo hasta juntar las posiciones que pediste.",
     "wizard.step2.platformAriaLabel": "Plataforma",
     "wizard.step2.lichess": "Lichess",
     "wizard.step2.chesscom": "Chess.com",
@@ -343,7 +351,7 @@ const TRANSLATIONS = {
     "wizard.step3.timerAriaLabel": "Tiempo por ronda",
     "wizard.step3.timerCustom": "Personalizado (5 a 360 segundos)",
     "wizard.step3.sessionSummary": "Resumen de la sesión",
-    "wizard.step3.analysisPrompt": "Tocá “Comenzar sesión”. Descargamos tus partidas y buscamos tus errores: puede tardar hasta un minuto.",
+    "wizard.step3.analysisPrompt": "Tocá “Empezar sesión”. Descargamos tus partidas y buscamos tus errores: puede tardar hasta un minuto.",
     "wizard.step3.clockNote": "Este tiempo vale solo para esta sesión. Tu reloj de siempre se cambia en Ajustes.",
     "wizard.step3.noLimit": "Sin tiempo",
     "wizard.step3.noLimitHint": "Pensás sin reloj en esta sesión.",
@@ -364,7 +372,7 @@ const TRANSLATIONS = {
     "compat.gameFormat.duel": "Modo duelo (2 jugadores)",
     "players.default1": "Jugador 1",
     "players.default2": "Jugador 2",
-    "players.targetLabel": "Usuario objetivo del análisis",
+    "players.targetLabel": "Usuario a analizar",
     "players.targetHint": "Usaremos este usuario para seleccionar posiciones.",
     "players.enterUserContinue": "Ingresá el usuario para continuar.",
     "players.notDetected": "No detectado",
@@ -374,12 +382,12 @@ const TRANSLATIONS = {
     "labels.clockTimeUp": "Se acabó el tiempo.",
     "result.title": "Resultado",
     "result.boardToolsLabel": "Herramientas del tablero",
-    "scoring.system.simple.label": "Precisión (0 a 10)",
+    "scoring.system.simple.label": "Puntos (0 a 10)",
     "scoring.system.simple.description": "Cuanto más cerca esté tu jugada de la mejor del motor, más puntos: hasta 10 por posición.",
     // The quality words ("quality.*") live only in js/scoring.js: one ladder for every screen (CNT-014).
     "common.notAvailable": "No disponible",
     "common.unknown": "desconocido",
-    "common.searching": "Pensando...",
+    "common.searching": "Pensando…",
     "common.gameFallback": "Partida",
     "common.playersUnavailable": "Jugadores no disponibles",
     "common.white": "Blancas",
@@ -420,7 +428,7 @@ const TRANSLATIONS = {
     "network.responseTooLarge": "La respuesta de {provider} es demasiado grande y la rechazamos por seguridad. Probá de nuevo más tarde.",
     "download.error.notFound": "No encontramos a {user} en {provider}. Revisá cómo está escrito el usuario o probá con la otra plataforma.",
     "download.error.noGames": "{user} no tiene partidas públicas de los últimos 12 meses en {provider}. Probá con otro usuario o con la otra plataforma.",
-    "download.error.rateLimited": "{provider} nos pidió ir más despacio. Volvemos a intentar solos en {seconds} {seconds?segundo|segundos}.",
+    "download.error.rateLimited": "{provider} nos pidió ir más despacio. Volvemos a intentar automáticamente en {seconds} {seconds?segundo|segundos}.",
     "download.error.rateLimitedNow": "{provider} nos pidió ir más despacio. Probá de nuevo en un rato.",
     "download.error.server": "{provider} no está respondiendo bien ahora (error {status}). Probá de nuevo en unos minutos.",
     "download.error.offline": "Parece que no tenés conexión. Conectate y probá de nuevo.",
@@ -445,7 +453,7 @@ const TRANSLATIONS = {
     "privacy.remoteFetchUsernameMismatch": "El usuario no coincide. Escribilo exactamente igual para confirmar.",
     "provider.usingCachedBase": "Usamos la base guardada de {provider} para {user}: {games} {games?partida|partidas}.",
     "provider.throttleWait": "Esperá {seconds} {seconds?segundo|segundos} antes de descargar de nuevo, así no sobrecargamos el servicio.",
-    "provider.throttleHourly": "Ya se descargaron partidas {max} veces en la última hora. Probá de nuevo en unos {minutes} {minutes?minuto|minutos}.",
+    "provider.throttleHourly": "Ya se descargaron partidas {max} veces en la última hora. Probá de nuevo en {minutes?1 minuto|unos {minutes} minutos}.",
     "provider.usingStaleCachedBase": "No pudimos actualizar la base. Usamos la última guardada de {provider} para {user}: {games} {games?partida|partidas}.",
     "time.classical": "Clásico",
     "time.rapid": "Rápido",
@@ -456,14 +464,14 @@ const TRANSLATIONS = {
     "evaluation.noMoveMadeZeroPts": "No hiciste jugada: 0 pts.",
     "evaluation.bestPrefix": "Mejor: {san}",
     "evaluation.gamePrefix": "Partida: {san}",
-    "game.searchingNext": "Buscando próxima posición...",
+    "game.searchingNext": "Buscando próxima posición…",
     "game.positionFound": "Posición encontrada",
     "game.handoff.genericTitle": "Cambio de turno",
     "game.handoff.genericSubtitle": "Tocá para revelar",
     "game.handoff.title": "Pasale el dispositivo a {player}",
     "game.handoff.subtitle": "Tocá para ver la posición y empezar tu reloj. La jugada de {other} queda oculta.",
     "game.ready.title": "{player}, preparate",
-    "game.ready.subtitle": "{other} espera su turno sin mirar. Tu reloj empieza cuando toques la pantalla.",
+    "game.ready.subtitle": "Pasale el dispositivo a {player}, que empieza esta vez. {other} espera sin mirar. El reloj arranca cuando toques la pantalla.",
     "play.ready.eyebrow": "Posición {current} de {total}",
     "game.positionMeta": "{players} · Resultado {result} · Jugada {move} · Año {year}",
     "game.turnWhite": "Juegan las blancas",
@@ -489,11 +497,11 @@ const TRANSLATIONS = {
     "game.searchCancelled": "Búsqueda cancelada. Podés volver a buscar la próxima posición cuando quieras.",
     "game.sessionHintCitizen": "Objetivo de sesión: {target} posiciones. Detectadas: {detected}.",
     "game.sessionHintEngineer": "Objetivo de sesión: {target} posiciones. Puntaje: {system}. Detectadas por ahora: {detected}. Analizadas: {analyzed}/{total}.",
-    "overlay.evaluatingBoth": "Evaluando jugadas de ambos jugadores...",
-    "overlay.evaluatingYours": "Evaluando tu jugada...",
+    "overlay.evaluatingBoth": "Evaluando jugadas de ambos jugadores…",
+    "overlay.evaluatingYours": "Evaluando tu jugada…",
     "overlay.difficultyBudget": "Dificultad {label} · {budget}",
-    "overlay.progressLabel": "{pct}% · {elapsed}s / {total}s",
-    "overlay.searchingNext": "Buscando próxima posición...",
+    "overlay.progressLabel": "{pct}% · {elapsed} s / {total} s",
+    "overlay.searchingNext": "Buscando próxima posición…",
     "analysis.metrics.zero": "Totales: 0 | Analizadas: 0 | Detectadas: 0",
     "analysis.metrics.engineer": "Posiciones totales: {total} | Posiciones analizadas: {done} | Posiciones con un error mayor al umbral: {detected}",
     "analysis.progressLabel": "{pct}% ({done}/{total}){extra}",
@@ -509,27 +517,27 @@ const TRANSLATIONS = {
     "analysis.status.continuity": "Posición detectada ({count}). Se priorizó seguir con la sesión.",
     "analysis.status.noFresh": "Posición detectada ({count}). No quedaban partidas nuevas con errores para entrenar.",
     "analysis.status.noMore": "No quedan más posiciones con errores para entrenar.",
-    "analysis.status.prepareBase": "Preparando base online de {provider}...",
-    "analysis.status.prepareEngine": "Preparando el motor de análisis...",
+    "analysis.status.prepareBase": "Preparando las partidas de {provider}…",
+    "analysis.status.prepareEngine": "Preparando el motor de análisis…",
     "analysis.status.localEngineNotice": "El motor fuerte todavía no está listo: por ahora se usa el de respaldo, que analiza menos a fondo.",
-    "analysis.status.shuffle": "Barajando {games} partidas y buscando primera posición para {player}...",
+    "analysis.status.shuffle": "Barajando {games} partidas y buscando la primera posición para {player}…",
     "analysis.status.firstReady": "Primera posición detectada. Ya podés jugar.",
     "analysis.status.failed": "Algo salió mal al analizar tus partidas. Probá de nuevo.",
     "analysis.status.roundError": "Error al evaluar la ronda: {error}",
     "provider.readyToDownload": "Listo. Tocá “Siguiente”: las partidas se descargan recién cuando empieza la sesión.",
     "provider.baseReady": "Base lista para {username}.{warning}",
     "provider.sourceLoaded": "Fuente: {provider} ({username}) | {games} {games?partida cargada|partidas cargadas}.{warning}",
-    "provider.modeChangedRedownload": "Modo cambiado. La base online se descargará de nuevo al comenzar.",
+    "provider.modeChangedRedownload": "Cambiaste el modo. Las partidas se descargarán de nuevo al empezar.",
     "provider.enterLichessContinue": "Ingresá un usuario de Lichess para continuar.",
     "provider.enterChesscomContinue": "Ingresá un usuario de Chess.com para continuar.",
-    "provider.protocolLichess": "Protocolo modo normal: se descargan partidas públicas del último año. Primero {preferred}; si no llega a {minSlowGames}, se completa con Blitz y, si aún falta base, con Bullet (no ideal) hasta {maxGames}.",
-    "provider.protocolChesscom": "Protocolo modo normal: se descargan partidas públicas del último año desde archivos mensuales. Primero {preferred}; si no llega a {minSlowGames}, se completa con Blitz y, si aún falta base, con Bullet (no ideal) hasta {maxGames}.",
+    "provider.protocolLichess": "Se descargan partidas públicas del último año. Primero {preferred}; si no llegan a {minSlowGames}, se completa con Blitz y, si todavía faltan, con Bullet (no es lo ideal) hasta {maxGames}.",
+    "provider.protocolChesscom": "Se descargan partidas públicas del último año desde los archivos mensuales. Primero {preferred}; si no llegan a {minSlowGames}, se completa con Blitz y, si todavía faltan, con Bullet (no es lo ideal) hasta {maxGames}.",
     "provider.downloadingFor": "Descargando para {user}. {protocol}",
-    "provider.searchingUpTo": "Buscando hasta {max} {max?partida|partidas} de {user}: primero {preferred} (últimos 12 meses)...",
-    "provider.completingBlitz": "Descargamos {count} {count?partida|partidas} de ritmo {preferred}. Completando con Blitz (faltan {remaining})...",
+    "provider.searchingUpTo": "Buscando hasta {max} {max?partida|partidas} de {user}: primero {preferred} (últimos 12 meses)…",
+    "provider.completingBlitz": "Descargamos {count} {count?partida|partidas} de ritmo {preferred}. Completando con Blitz ({remaining?falta|faltan} {remaining})…",
     "provider.bulletContextStillShort": "{user} no tiene suficientes partidas en {preferred}; tampoco alcanza con Blitz",
     "provider.bulletContextNoBlitz": "{user} no tiene suficientes partidas en {preferred} ni Blitz",
-    "provider.bulletAttempt": "Advertencia: {context}. Intentando completar con Bullet (faltan {remaining})...",
+    "provider.bulletAttempt": "Advertencia: {context}. Intentando completar con Bullet ({remaining?falta|faltan} {remaining})…",
     "provider.bulletCompleted": "Advertencia: {context}. Completamos con Bullet, pero no es ideal.",
     "provider.readyBullet": "{warning} Listo: {total} {total?partida|partidas} de {user}: {slow} de ritmo {preferred} + {blitz} de Blitz + {bullet} de Bullet (como complemento).",
     "provider.readyBlitz": "Listo: {total} {total?partida|partidas} de {user}: {slow} de ritmo {preferred} + {blitz} de Blitz (como complemento).",
@@ -598,6 +606,7 @@ const TRANSLATIONS = {
     "buttons.cancelSearch": "Cancel search",
     "confirm.restartTitle": "Go back to the start?",
     "confirm.restartToSetup": "What you have answered so far ({answered}) stays saved in your progress and your notebook, but you will not see this session's summary. Go back to the start anyway?",
+    "confirm.restartToSetup.unsaved": "Your browser is not saving your progress, so what you have answered so far ({answered}) may be lost if you go back to the start, and you will not see this session's summary either. Go back to the start anyway?",
     "confirm.restartToSetup.none": "You have not answered any position yet, so nothing is lost. Go back to the start?",
     "confirm.restartAccept": "Back to start",
     "confirm.restartCancel": "Keep playing",
@@ -655,7 +664,7 @@ const TRANSLATIONS = {
     "compat.gameFormat.duel": "Duel mode (2 players)",
     "players.default1": "Player 1",
     "players.default2": "Player 2",
-    "players.targetLabel": "Target user for analysis",
+    "players.targetLabel": "User to analyze",
     "players.targetHint": "We will use this user to choose positions.",
     "players.enterUserContinue": "Enter the user to continue.",
     "players.notDetected": "Not detected",
@@ -665,12 +674,12 @@ const TRANSLATIONS = {
     "labels.clockTimeUp": "Time is up.",
     "result.title": "Result",
     "result.boardToolsLabel": "Board tools",
-    "scoring.system.simple.label": "Precision (0 to 10)",
+    "scoring.system.simple.label": "Points (0 to 10)",
     "scoring.system.simple.description": "The closer your move is to the engine's best, the more points: up to 10 per position.",
     // The quality words ("quality.*") live only in js/scoring.js (see the Spanish dictionary above).
     "common.notAvailable": "Not available",
     "common.unknown": "unknown",
-    "common.searching": "Thinking...",
+    "common.searching": "Thinking…",
     "common.gameFallback": "Game",
     "common.playersUnavailable": "Players unavailable",
     "common.white": "White",
@@ -711,7 +720,7 @@ const TRANSLATIONS = {
     "network.responseTooLarge": "The response from {provider} is too large and we rejected it for safety. Try again later.",
     "download.error.notFound": "We could not find {user} on {provider}. Check how the username is spelled or try the other platform.",
     "download.error.noGames": "{user} has no public games from the last 12 months on {provider}. Try another user or the other platform.",
-    "download.error.rateLimited": "{provider} asked us to slow down. We will try again by ourselves in {seconds} {seconds?second|seconds}.",
+    "download.error.rateLimited": "{provider} asked us to slow down. We will try again automatically in {seconds} {seconds?second|seconds}.",
     "download.error.rateLimitedNow": "{provider} asked us to slow down. Try again in a little while.",
     "download.error.server": "{provider} is not answering properly right now (error {status}). Try again in a few minutes.",
     "download.error.offline": "You seem to be offline. Connect and try again.",
@@ -724,11 +733,11 @@ const TRANSLATIONS = {
     "download.cancel": "Cancel",
     "download.elapsed": "We have been working for {seconds} s. Getting a year of games can take up to a minute.",
     "download.elapsedLong": "{seconds} s so far. It is still running: {provider} is sometimes slow. You can cancel at any time.",
-    "download.cancelled": "You cancelled the download. Nothing was saved.",
-    "download.cancelledSearch": "You cancelled the search.",
+    "download.cancelled": "You canceled the download. Nothing was saved.",
+    "download.cancelledSearch": "You canceled the search.",
     "download.lastUser": "Username remembered in this browser. It is removed with “Clear saved game data”.",
     "privacy.remoteFetchConfirm": "We are going to ask {provider} for the public games of {user}. The request goes straight from your browser to that site: this app has no server of its own. We keep those games and your username in this browser for up to 7 days so we do not download them again; you can delete them with “Clear saved game data”. On a shared computer, someone else could see them. Continue?",
-    "privacy.remoteFetchCancelled": "Request cancelled. No data was sent to {provider}.",
+    "privacy.remoteFetchCancelled": "Request canceled. No data was sent to {provider}.",
     "privacy.remoteFetchTitle": "Fetch public games",
     "privacy.remoteFetchAccept": "Accept",
     "privacy.remoteFetchCancel": "Cancel",
@@ -747,14 +756,14 @@ const TRANSLATIONS = {
     "evaluation.noMoveMadeZeroPts": "You did not play a move: 0 pts.",
     "evaluation.bestPrefix": "Best: {san}",
     "evaluation.gamePrefix": "Game: {san}",
-    "game.searchingNext": "Searching next position...",
+    "game.searchingNext": "Searching for the next position…",
     "game.positionFound": "Position found",
     "game.handoff.genericTitle": "Turn change",
     "game.handoff.genericSubtitle": "Tap to reveal",
     "game.handoff.title": "Pass the device to {player}",
     "game.handoff.subtitle": "Tap to see the position and start your clock. {other}'s move stays hidden.",
     "game.ready.title": "{player}, get ready",
-    "game.ready.subtitle": "{other} waits for their turn without looking. Your clock starts when you tap the screen.",
+    "game.ready.subtitle": "Pass the device to {player}, who goes first this time. {other} waits without looking. The clock starts when you tap the screen.",
     "play.ready.eyebrow": "Position {current} of {total}",
     "game.positionMeta": "{players} · Result {result} · Move {move} · Year {year}",
     "game.turnWhite": "White to move",
@@ -777,14 +786,14 @@ const TRANSLATIONS = {
     "game.finalMatchScore": "Final score: {p1} {s1} - {s2} {p2}. {winner}",
     "game.sessionDone": "Session finished!",
     "game.noMorePositions": "No more positions were found.",
-    "game.searchCancelled": "Search cancelled. You can look for the next position whenever you want.",
+    "game.searchCancelled": "Search canceled. You can look for the next position whenever you want.",
     "game.sessionHintCitizen": "Session target: {target} positions. Found: {detected}.",
     "game.sessionHintEngineer": "Session target: {target} positions. Scoring: {system}. Found so far: {detected}. Analyzed: {analyzed}/{total}.",
-    "overlay.evaluatingBoth": "Evaluating both players' moves...",
-    "overlay.evaluatingYours": "Evaluating your move...",
+    "overlay.evaluatingBoth": "Evaluating both players' moves…",
+    "overlay.evaluatingYours": "Evaluating your move…",
     "overlay.difficultyBudget": "Difficulty {label} · {budget}",
-    "overlay.progressLabel": "{pct}% · {elapsed}s / {total}s",
-    "overlay.searchingNext": "Searching next position...",
+    "overlay.progressLabel": "{pct}% · {elapsed} s / {total} s",
+    "overlay.searchingNext": "Searching for the next position…",
     "analysis.metrics.zero": "Totals: 0 | Analyzed: 0 | Found: 0",
     "analysis.metrics.engineer": "Total positions: {total} | Analyzed positions: {done} | Positions with a mistake above the threshold: {detected}",
     "analysis.progressLabel": "{pct}% ({done}/{total}){extra}",
@@ -793,34 +802,34 @@ const TRANSLATIONS = {
     "analysis.extra.detected": "Position found",
     "analysis.extra.searchingError": "Looking for a mistake",
     "analysis.extra.finished": "Search finished",
-    "analysis.extra.cancelled": "Search cancelled",
+    "analysis.extra.cancelled": "Search canceled",
     "analysis.status.reused": "Position found ({count}). Reusing a game because there are no alternatives.",
     "analysis.status.candidate": "Analyzing candidate {ordinal}/{total}. Found: {detected}.",
     "analysis.status.ready": "Position found ({count}). You can play now.",
     "analysis.status.continuity": "Position found ({count}). We kept the session going.",
     "analysis.status.noFresh": "Position found ({count}). There were no more fresh games with mistakes to train.",
     "analysis.status.noMore": "There are no more positions with mistakes to train.",
-    "analysis.status.prepareBase": "Preparing online base from {provider}...",
-    "analysis.status.prepareEngine": "Getting the analysis engine ready...",
+    "analysis.status.prepareBase": "Preparing the games from {provider}…",
+    "analysis.status.prepareEngine": "Getting the analysis engine ready…",
     "analysis.status.localEngineNotice": "The strong engine is not ready yet: the backup one is being used for now, and it looks less deeply.",
-    "analysis.status.shuffle": "Shuffling {games} games and looking for the first position for {player}...",
+    "analysis.status.shuffle": "Shuffling {games} games and looking for the first position for {player}…",
     "analysis.status.firstReady": "First position found. You can start playing now.",
     "analysis.status.failed": "Something went wrong while analyzing your games. Try again.",
     "analysis.status.roundError": "Error while evaluating the round: {error}",
     "provider.readyToDownload": "Looks good. Tap “Next”: games are only downloaded when the session starts.",
     "provider.baseReady": "Base ready for {username}.{warning}",
     "provider.sourceLoaded": "Source: {provider} ({username}) | {games} {games?game|games} loaded.{warning}",
-    "provider.modeChangedRedownload": "Mode changed. The online base will be downloaded again when you start.",
+    "provider.modeChangedRedownload": "You changed the mode. The games will be downloaded again when you start.",
     "provider.enterLichessContinue": "Enter a Lichess username to continue.",
     "provider.enterChesscomContinue": "Enter a Chess.com username to continue.",
-    "provider.protocolLichess": "Normal-mode protocol: public games from the last year are downloaded. First {preferred}; if it does not reach {minSlowGames}, Blitz is added and, if the base is still too small, Bullet (not ideal) is added up to {maxGames}.",
-    "provider.protocolChesscom": "Normal-mode protocol: public games from the last year are downloaded from monthly archives. First {preferred}; if it does not reach {minSlowGames}, Blitz is added and, if the base is still too small, Bullet (not ideal) is added up to {maxGames}.",
+    "provider.protocolLichess": "Public games from the last year are downloaded. First {preferred}; if there are fewer than {minSlowGames}, Blitz is added and, if that is still not enough, Bullet (not ideal) up to {maxGames}.",
+    "provider.protocolChesscom": "Public games from the last year are downloaded from the monthly archives. First {preferred}; if there are fewer than {minSlowGames}, Blitz is added and, if that is still not enough, Bullet (not ideal) up to {maxGames}.",
     "provider.downloadingFor": "Downloading for {user}. {protocol}",
-    "provider.searchingUpTo": "Looking for up to {max} {max?game|games} by {user}: first {preferred} (last 12 months)...",
-    "provider.completingBlitz": "Downloaded {count} {count?game|games} ({preferred}). Filling up with Blitz ({remaining} to go)...",
+    "provider.searchingUpTo": "Looking for up to {max} {max?game|games} by {user}: first {preferred} (last 12 months)…",
+    "provider.completingBlitz": "Downloaded {count} {count?game|games} ({preferred}). Filling up with Blitz ({remaining} to go)…",
     "provider.bulletContextStillShort": "{user} does not have enough games in {preferred}; Blitz is still not enough",
     "provider.bulletContextNoBlitz": "{user} does not have enough games in {preferred} or Blitz",
-    "provider.bulletAttempt": "Warning: {context}. Trying to fill up with Bullet ({remaining} to go)...",
+    "provider.bulletAttempt": "Warning: {context}. Trying to fill up with Bullet ({remaining} to go)…",
     "provider.bulletCompleted": "Warning: {context}. We filled with Bullet, but it is not ideal.",
     "provider.readyBullet": "{warning} Ready: {total} {total?game|games} from {user}: {slow} {preferred} + {blitz} Blitz + {bullet} Bullet (as a top-up).",
     "provider.readyBlitz": "Ready: {total} {total?game|games} from {user}: {slow} {preferred} + {blitz} Blitz (as a top-up).",
@@ -856,23 +865,29 @@ Ludus.i18n.register({
     "core.hint.said.2": "Pista: mové {pieceDef} de {from} a {to}. Cuesta el {pct}% de los puntos.",
     "core.hint.confirm": "Tocá de nuevo para ver la jugada: esta posición vale 0 puntos.",
     "core.hint.confirmLabel": "Tocá de nuevo: 0 pts",
-    "core.skip.confirm": "Tocá de nuevo para omitir esta posición: vale 0 puntos.",
-    "core.skip.confirmLabel": "Tocá de nuevo para omitir",
+    "core.skip.confirm": "Tocá de nuevo para saltear esta posición: vale 0 puntos.",
+    "core.skip.confirmLabel": "Tocá de nuevo para saltear",
     "core.move.confirm": "Confirmar jugada",
     "core.move.confirmSan": "Confirmar {san}",
     "core.move.pending": "Elegiste {san}. Confirmala o elegí otra casilla.",
     "core.clock.resumed": "El reloj sigue: te quedan {seconds} segundos.",
+    "core.clock.resumed.one": "El reloj sigue: te queda 1 segundo.",
     "core.firstRun.note": "Tocá una pieza y después su casilla. No se puntúa nada hasta que muevas. Esta primera sesión no tiene reloj.",
     "core.unsaved.blocked": "Esta sesión no se guardó: el navegador no deja guardar datos en este sitio (¿una pestaña privada?). Tu progreso se pierde al cerrar la pestaña.",
     "core.unsaved.quota": "Es posible que esta sesión no se haya guardado: el almacenamiento del navegador está lleno. Descargá una copia desde Cuenta y liberá espacio para seguir guardando.",
     "core.resume.title": "Sesión interrumpida",
-    "core.resume.body": "Dejaste a medias “{title}”: respondiste {answered} de {total} posiciones y eso ya está guardado en tu progreso. ¿Seguís con las {remaining} que faltan?",
+    "core.resume.body": "Dejaste a medias “{title}”: respondiste {answered} de {total} posiciones. {saved} ¿Seguís con {left}?",
+    "core.resume.left": "las {remaining} que faltan",
+    "core.resume.left.one": "la que falta",
+    "core.resume.saved": "Eso ya está guardado en tu progreso.",
+    "core.resume.unsaved.blocked": "Pero no se guardó: este navegador no deja guardar datos en este sitio (¿una pestaña privada?), así que lo que respondiste solo se conserva en esta pestaña mientras siga abierta.",
+    "core.resume.unsaved.quota": "Pero es posible que no se haya guardado: el almacenamiento del navegador está lleno. Descargá una copia desde Cuenta y liberá espacio.",
     "core.resume.continue": "Seguir",
     "core.resume.discard": "Ahora no",
-    "core.resume.note": "Tu última sesión se interrumpió. Lo que respondiste ({answered}) quedó guardado en tu progreso.",
+    "core.resume.note": "Tu última sesión se interrumpió. Respondiste {answered} de {total}. {saved}",
     "core.engine.unsupported": "Este navegador no puede usar el motor fuerte: analizamos con uno más simple, que mira menos a fondo.",
     "core.engine.offline": "Sin conexión: por ahora analizamos con el motor de respaldo, que mira menos a fondo.",
-    "core.engine.downloading": "Descargando el motor de análisis: {pct} %",
+    "core.engine.downloading": "Descargando el motor de análisis: {pct}%",
     "core.engine.slow": "El motor fuerte está tardando en llegar: seguimos con el de respaldo y la descarga sigue en segundo plano.",
     "core.sound.on": "Sonido activado (queda guardado)",
     "core.sound.off": "Sonido desactivado (queda guardado)",
@@ -915,18 +930,24 @@ Ludus.i18n.register({
     "core.move.confirmSan": "Confirm {san}",
     "core.move.pending": "You chose {san}. Confirm it or choose another square.",
     "core.clock.resumed": "The clock is running again: {seconds} seconds left.",
+    "core.clock.resumed.one": "The clock is running again: 1 second left.",
     "core.firstRun.note": "Tap a piece, then its square. Nothing is scored until you move. This first session has no clock.",
     "core.unsaved.blocked": "This session was not saved: your browser does not let this site store data (a private tab?). Your progress is lost when you close the tab.",
     "core.unsaved.quota": "This session may not have been saved: browser storage is full. Download a copy from Account and free some space to keep saving.",
     "core.resume.title": "Interrupted session",
-    "core.resume.body": "You left “{title}” half way: you answered {answered} of {total} positions and that is already saved in your progress. Do you want to carry on with the {remaining} that are left?",
-    "core.resume.continue": "Carry on",
+    "core.resume.body": "You left “{title}” halfway: you answered {answered} of {total} positions. {saved} Do you want to continue with {left}?",
+    "core.resume.left": "the {remaining} that are left",
+    "core.resume.left.one": "the one that is left",
+    "core.resume.saved": "That is already saved in your progress.",
+    "core.resume.unsaved.blocked": "But it was not saved: this browser does not let this site store data (a private tab?), so what you answered is only kept in this tab while it stays open.",
+    "core.resume.unsaved.quota": "But it may not have been saved: browser storage is full. Download a copy from Account and free some space.",
+    "core.resume.continue": "Continue",
     "core.resume.discard": "Not now",
-    "core.resume.note": "Your last session was interrupted. What you answered ({answered}) is saved in your progress.",
+    "core.resume.note": "Your last session was interrupted. You answered {answered} of {total}. {saved}",
     "core.engine.unsupported": "This browser cannot run the strong engine: we analyze with a simpler one, which looks less deeply.",
     "core.engine.offline": "You are offline: for now we analyze with the backup engine, which looks less deeply.",
     "core.engine.downloading": "Downloading the analysis engine: {pct}%",
-    "core.engine.slow": "The strong engine is slow to arrive: we carry on with the backup one and the download goes on in the background.",
+    "core.engine.slow": "The strong engine is slow to arrive: we continue with the backup one and the download keeps going in the background.",
     "core.sound.on": "Sound on (saved)",
     "core.sound.off": "Sound off (saved)",
     "core.hint.said.3": "Move revealed: {san}. This position is worth 0 points.",
@@ -1002,6 +1023,19 @@ function ludusModule(name) {
     return typeof Ludus === "object" && Ludus ? (Ludus[name] || null) : null;
   } catch (error) {
     return null;
+  }
+}
+
+// polish-play (PL-6): a move (the stored English SAN) as the person reads it, which follows the notation setting (Ludus.chess.localizeSan),
+// or, with `spoken`, as a screen reader says it in words (Ludus.chess.spokenSan). Without js/chess.js the stored text is shown.
+function sanForPerson(san, spoken) {
+  if (typeof san !== "string" || !san) return san;
+  const chess = ludusModule("chess");
+  try {
+    const convert = chess ? (spoken ? chess.spokenSan : chess.localizeSan) : null;
+    return typeof convert === "function" ? convert(san, STATE.language) : san;
+  } catch (error) {
+    return san;
   }
 }
 
@@ -1096,7 +1130,8 @@ function saveNoPersistDownloadsPreference(enabled) {
 // is drawn again in the other language from the same numbers).
 function interpolate(text, params = {}) {
   return String(text || "")
-    .replace(/\{(\w+)\?([^|{}]*)\|([^{}]*)\}/g, (_, key, one, other) => (Number(params[key]) === 1 ? one : other))
+    // A form may carry plain {name} tokens ("{n?1 minuto|unos {n} minutos}"): the second pass below fills them in.
+    .replace(/\{(\w+)\?((?:[^|{}]|\{\w+\})*)\|((?:[^{}]|\{\w+\})*)\}/g, (_, key, one, other) => (Number(params[key]) === 1 ? one : other))
     .replace(/\{(\w+)\}/g, (_, key) => {
       const value = params[key];
       return value == null ? "" : String(value);
@@ -1294,7 +1329,11 @@ const STATE = {
     players: [...DUEL_DEFAULT_PLAYERS],
     scores: [0, 0],
     hits: [0, 0],
+    // Who is playing now (0 or 1: the identity of the player, whose name, score and profile they are) and who plays
+    // first in this position. The players take turns going first (PF-2): the second one to move has watched the
+    // position while the first one's clock ran, and that advantage must not always be the same person's.
     currentPlayer: 0,
+    firstPlayer: 0,
     roundResults: [null, null],
     handoffReady: false,
     // The cover of a new duel position is up and the first player's clock has not started yet.
@@ -1695,6 +1734,17 @@ function revealGameButtonLabel() {
 function currentUiPlayerIndex() {
   if (!isDuelMode()) return 0;
   return STATE.duel.currentPlayer === 1 ? 1 : 0;
+}
+
+// The players of a duel take turns going first (PF-2): position 1 starts the first player, position 2 the second one, and
+// so on. Whoever goes second has watched the position while the other's clock ran, so the advantage is shared.
+function duelFirstPlayerFor(index) {
+  return Math.abs(Math.round(Number(index) || 0)) % 2 === 0 ? 0 : 1;
+}
+
+// The player who moves second in the position on screen.
+function duelSecondPlayer() {
+  return STATE.duel.firstPlayer === 1 ? 0 : 1;
 }
 
 function initialsFromName(value, fallback = "J") {
@@ -2283,6 +2333,7 @@ function captureResultViewSnapshot() {
     duel: isDuelMode() ? {
       roundResults: STATE.duel.roundResults.slice(),
       currentPlayer: STATE.duel.currentPlayer,
+      firstPlayer: STATE.duel.firstPlayer,
       handoffReady: STATE.duel.handoffReady,
     } : null,
   };
@@ -2298,6 +2349,7 @@ function restoreResultView(snapshot) {
   if (snapshot.duel) {
     STATE.duel.roundResults = snapshot.duel.roundResults;
     STATE.duel.currentPlayer = snapshot.duel.currentPlayer;
+    STATE.duel.firstPlayer = snapshot.duel.firstPlayer;
     STATE.duel.handoffReady = snapshot.duel.handoffReady;
   }
   STATE.resultView.analysisMode = false;
@@ -2333,10 +2385,12 @@ function updateRoundTurn(playerIndex = currentUiPlayerIndex()) {
     return;
   }
   if (isDuelMode()) {
-    roundTurnEl.textContent = t("play.turn.duel", {
-      player: duelPlayerName(playerIndex === 1 ? 1 : 0),
-      side: t(turn === "b" ? "play.side.black" : "play.side.white"),
-    });
+    const player = duelPlayerName(playerIndex === 1 ? 1 : 0);
+    const sentence = t("play.turn.duel", { player, side: t(turn === "b" ? "play.side.black" : "play.side.white") });
+    // polish-play (PL-3): a very long name is shortened inside the sentence, never the side to move (Ludus.Coach.renderTurn).
+    const coach = ludusModule("Coach");
+    if (coach && typeof coach.renderTurn === "function") coach.renderTurn(roundTurnEl, { text: sentence, name: player });
+    else roundTurnEl.textContent = sentence;
     return;
   }
   roundTurnEl.textContent = t(turn === "b" ? "game.turnBlack" : "game.turnWhite");
@@ -2516,6 +2570,7 @@ function resetDuelState() {
   STATE.duel.scores = [0, 0];
   STATE.duel.hits = [0, 0];
   STATE.duel.currentPlayer = 0;
+  STATE.duel.firstPlayer = 0;
   STATE.duel.roundResults = [null, null];
   STATE.duel.handoffReady = false;
   STATE.duel.readyWait = false;
@@ -2762,7 +2817,8 @@ function resumeRoundTimer() {
   timer.deadlineMs = now + timer.remainingAtPause;
   updateRoundTimerUi(timer.remainingAtPause);
   scheduleClockTick();
-  announcePlay(t("core.clock.resumed", { seconds: Math.ceil(timer.remainingAtPause / 1000) }));
+  const secondsLeft = Math.ceil(timer.remainingAtPause / 1000);
+  announcePlay(t(secondsLeft === 1 ? "core.clock.resumed.one" : "core.clock.resumed", { seconds: secondsLeft }));
 }
 
 function onPageVisibilityChange() {
@@ -4413,14 +4469,25 @@ function getRoundEvaluationPlan(board, position, answerCount = 1) {
     ROUND_EVAL_MIN_SEARCH_MS,
     ROUND_EVAL_MAX_SEARCH_MS,
   );
+  // The ceiling of the search of one move that is not among the lines (an answer, or the move of the game): its target
+  // is the depth of the best line (evaluateRoundAnswers), this is only how long it may take to get there. Never below
+  // the best line's time, so the move is never given a smaller budget; the whole round still fits the hard cap.
+  const referenceTasks = hasReferenceLines(position) ? 0 : 1;
+  const moveTasks = Math.max(1, answerCount) + 1;
+  const moveMovetimeMs = clamp(
+    Math.min(movetimeMs * ROUND_EVAL_MOVE_TIME_FACTOR, ROUND_EVAL_MAX_SEARCH_MS, Math.floor((ROUND_EVAL_HARD_CAP_MS - referenceTasks * movetimeMs) / moveTasks)),
+    movetimeMs,
+    ROUND_EVAL_MAX_SEARCH_MS,
+  );
   return {
     level,
     label,
     multiplier: Math.round(multiplier * 100) / 100,
     movetimeMs,
+    moveMovetimeMs,
     multiPv: budget.multiPv,
     maxTasks,
-    totalBudgetMs: movetimeMs * maxTasks,
+    totalBudgetMs: referenceTasks * movetimeMs + moveTasks * moveMovetimeMs,
   };
 }
 
@@ -4600,9 +4667,9 @@ function noMoveReasonToScoring(noMoveReason) {
 // Returns null when the work was cancelled (a new session started meanwhile).
 // The reference is the position's own lines when it has them (classics, notebook
 // cards) and one MultiPV search at the root otherwise. A move that is not among
-// those lines is searched on its own (searchmoves) with the same time, so both
-// scores are comparable; the move of the game is scored the same way so its
-// evaluation can be shown.
+// those lines is searched on its own (searchmoves) to the same depth as the best
+// line and with at least its time (PF-1), so both scores are comparable; the move
+// of the game is scored the same way so its evaluation can be shown.
 async function evaluateRoundAnswers(base, position, answers, plan, hooks = {}) {
   const fen = position.fen;
   const scoring = ludusModule("Scoring");
@@ -4621,8 +4688,8 @@ async function evaluateRoundAnswers(base, position, answers, plan, hooks = {}) {
   let sourceUsed = engineSourceName();
   const task = async (options) => {
     const result = await analyzePosition(fen, {
-      ...options,
       movetimeMs: plan.movetimeMs,
+      ...options,
       onProgress: (progress) => report(progress.ratio),
     });
     completedTasks += 1;
@@ -4635,31 +4702,48 @@ async function evaluateRoundAnswers(base, position, answers, plan, hooks = {}) {
   let lines;
   let origin;
   let depth = 0;
+  // The depth the strong engine searched the best line to (0: unknown, or not the strong engine's number).
+  let referenceDepth = 0;
   if (hasReferenceLines(position)) {
     lines = referenceLinesOf(position);
     origin = position.reference.origin === "runtime" ? "runtime" : "precomputed";
     depth = Number(position.reference.depth) || 0;
+    referenceDepth = depth;
   } else {
     const root = await task({ multiPv: plan.multiPv });
     if (root.aborted) return null;
     lines = compactEngineLines(root.lines);
     origin = "runtime";
     depth = root.depth;
+    if (root.source === "stockfish") referenceDepth = depth;
   }
   if (!lines.length) throw new Error("no-analysis");
   const referenceBest = lineMoverScore(lines[0]);
 
+  // The budget of the search of a move that is not among the lines (PF-1): the best line's. The best line has a depth
+  // (the position's own reference, or what the root search reached), so the move is searched to that same depth, with
+  // a time ceiling that is never shorter than the best line's. A depth is no budget when the best line is a mate (the
+  // engine stops at the first mate it finds, at any depth) or is only a few plies deep: then it is the best line's
+  // time, as before. The MultiPV search shares its time among the lines and a single move does not, so the same time
+  // reached different depths (the learner's move 3 plies deeper or 3 shallower than the line it is compared with).
+  const referenceKind = scoring.decodeScore(referenceBest);
+  const matchDepth = referenceDepth >= ROUND_EVAL_MIN_MATCH_DEPTH && referenceDepth <= 40 && referenceKind && referenceKind.kind === "cp"
+    ? Math.round(referenceDepth)
+    : 0;
+  const moveBudget = () => (matchDepth ? { depth: matchDepth, movetimeMs: plan.moveMovetimeMs || plan.movetimeMs } : {});
+
   // 2. The score of a move that is not among the lines.
   const scoreOutsideLines = async (uci) => {
-    const one = await task({ searchMoves: [uci], multiPv: 1 });
+    const one = await task({ searchMoves: [uci], multiPv: 1, ...moveBudget() });
     if (one.aborted) return { aborted: true };
     const line = one.lines[0] || null;
     let score = lineMoverScore(line);
     if (Number.isFinite(score) && origin === "precomputed" && one.source === "local") {
       // The reference was made by the strong engine and this by the 3-ply
       // fallback, whose numbers are not comparable. Carry over only the
-      // difference between the best move and this one, both measured by the fallback.
-      const bestOne = await task({ searchMoves: [lines[0].uci], multiPv: 1 });
+      // difference between the best move and this one, both measured by the fallback
+      // (with the same budget: the fallback searches both to its own fixed depth).
+      const bestOne = await task({ searchMoves: [lines[0].uci], multiPv: 1, ...moveBudget() });
       if (bestOne.aborted) return { aborted: true };
       const bestLocal = lineMoverScore(bestOne.lines[0]);
       score = Number.isFinite(bestLocal) ? referenceBest - Math.max(0, bestLocal - score) : score;
@@ -5221,7 +5305,10 @@ async function runStockfishAnalysis(request, isAborted) {
   const ticker = request.onProgress
     ? setInterval(() => {
       const elapsed = Date.now() - startedAt;
-      report(clamp(request.movetimeMs > 0 ? elapsed / request.movetimeMs : depthSeen / Math.max(1, request.depth || 18), 0, 0.98));
+      // A search that stops at a depth OR a time (the learner's move, PF-1) is as far along as the closer of the two.
+      const byTime = request.movetimeMs > 0 ? elapsed / request.movetimeMs : 0;
+      const byDepth = depthSeen / Math.max(1, request.depth || 18);
+      report(clamp(request.depth > 0 && request.movetimeMs > 0 ? Math.max(byTime, byDepth) : request.movetimeMs > 0 ? byTime : byDepth, 0, 0.98));
     }, 120)
     : null;
   try {
@@ -5991,10 +6078,15 @@ function startRound(options = {}) {
   const preserveDuelRoundResults = Boolean(options.preserveDuelRoundResults);
   if (isDuelMode() && !preserveDuelRoundResults) {
     STATE.duel.roundResults = [null, null];
+    // The first turn of a position: whose it is alternates from position to position (PF-2).
+    STATE.duel.firstPlayer = duelFirstPlayerFor(STATE.index);
+    STATE.duel.currentPlayer = STATE.duel.firstPlayer;
   }
-  // From its second position on, a duel waits for the first player's tap before their clock starts (the position stays
-  // covered until then): the clock used to start the moment anybody pressed "Next position".
-  const duelReadyGate = isDuelMode() && !preserveDuelRoundResults && STATE.index > 0;
+  // Every position of a duel, the first one included, waits for the first player's tap before their clock starts (the
+  // position stays covered until then, and says whose turn it is and that the device goes to them): the clock used to
+  // start the moment anybody pressed "Next position", and a session started with the first player's clock running while
+  // the device was still in the hands of whoever had pressed "Start".
+  const duelReadyGate = isDuelMode() && !preserveDuelRoundResults;
 
   STATE.board = new Chess(position.fen);
   setBoardPerspective(STATE.board.turn);
@@ -6375,7 +6467,7 @@ function updateConfirmButton() {
       } catch (error) {
         san = "";
       }
-      confirmMoveLabelEl.textContent = san ? t("core.move.confirmSan", { san }) : t("core.move.confirm");
+      confirmMoveLabelEl.textContent = san ? t("core.move.confirmSan", { san: sanForPerson(san) }) : t("core.move.confirm");
     }
   }
   updateHintButton();
@@ -6397,7 +6489,7 @@ function stageMove(move) {
   } catch (error) {
     san = "";
   }
-  announceHint(t("core.move.pending", { san }));
+  announceHint(t("core.move.pending", { san: sanForPerson(san, true) }));
   // A keyboard user chose the destination with Enter: the confirmation is the next Tab stop, and Enter is on it.
   if (lastInputKind === "keyboard" && confirmMoveBtn && typeof confirmMoveBtn.focus === "function") confirmMoveBtn.focus({ preventScroll: true });
 }
@@ -6451,7 +6543,7 @@ function requestHint(options = {}) {
   } else if (hint.level === 2) {
     announceHint(t("core.hint.said.2", { pieceDef, from, to, pct }));
   } else {
-    announceHint(t("core.hint.said.3", { san: hint.san }));
+    announceHint(t("core.hint.said.3", { san: sanForPerson(hint.san, true) }));
     STATE.revealed = { ...STATE.revealed, best: { from: hint.from, to: hint.to, promotion: hint.promotion || undefined } };
   }
   clearPendingMove();
@@ -6498,7 +6590,10 @@ function focusBoardAfterRoundStart() {
   const active = document.activeElement;
   // Also "lost" when the focus stayed on a control of the screen the session was started from (the
   // button that was pressed is hidden now): a session must not begin with the focus on the page body.
-  const lost = !active || active === document.body
+  // The cover of a duel (the ready cover, the handoff) held the focus and has just been hidden: the browser only moves
+  // the focus off a hidden element at its next frame, so for now it is still "on" it (PF-2: Enter or Space on the cover
+  // must leave the focus on the board, not on the page).
+  const lost = !active || active === document.body || active === handoffOverlayEl
     || (coachPanelEl && typeof coachPanelEl.contains === "function" && coachPanelEl.contains(active))
     || (gameLayoutEl && typeof gameLayoutEl.contains === "function" && !gameLayoutEl.contains(active));
   if (!lost || !boardEl || typeof boardEl.querySelector !== "function") return;
@@ -6528,7 +6623,7 @@ async function resolveRound(move, options = {}) {
   STATE.roundSubmitted = true;
   STATE.isResolvingRound = true;
   syncGamePhase();
-  const duelFirstTurn = isDuelMode() && STATE.duel.currentPlayer === 0;
+  const duelFirstTurn = isDuelMode() && STATE.duel.currentPlayer === STATE.duel.firstPlayer;
   try {
     const { position, base, noMove, noMoveReason, timeSpentMs, hintsUsed } =
       prepareRoundResolutionContext(move, options, duelFirstTurn);
@@ -6717,6 +6812,7 @@ function prepareRoundResolutionContext(move, options, duelFirstTurn) {
 }
 
 function handleDuelFirstTurnHandoff(base, position, move, noMoveReason, extra = {}) {
+  // Slot 0 is whoever went first in this position (STATE.duel.firstPlayer), not always the first player of the duel.
   STATE.duel.roundResults[0] = {
     pendingMove: move ? { ...move } : null,
     noMoveReason,
@@ -6740,20 +6836,20 @@ function handleDuelFirstTurnHandoff(base, position, move, noMoveReason, extra = 
   skipBtn.disabled = true;
   updateHintButton();
   renderPlayHeader();
-  renderThinkingPanel(1);
+  renderThinkingPanel(duelSecondPlayer());
   announcePlay(`${handoff.eyebrow}. ${handoff.title}.`);
 }
 
 // What the handoff card says to the player who has not moved yet. It never mentions the
 // first player's move: only that they have played.
 function handoffTexts() {
-  const first = duelPlayerName(0);
-  const second = duelPlayerName(1);
+  const first = duelPlayerName(STATE.duel.firstPlayer);
+  const second = duelPlayerName(duelSecondPlayer());
   return {
     title: t("game.handoff.title", { player: second }),
     subtitle: t("game.handoff.subtitle", { other: first }),
     eyebrow: t("play.handoff.eyebrow", { name: first }),
-    avatar: initialsFromName(second, "J2"),
+    avatar: initialsFromName(second, `J${duelSecondPlayer() + 1}`),
   };
 }
 
@@ -6788,18 +6884,20 @@ function renderEvaluatingPanel() {
 function buildAnswersToEvaluate(move, noMoveReason, extra = {}) {
   const current = { move, noMoveReason, hintsUsed: extra.hintsUsed || 0, timeSpentMs: extra.timeSpentMs || 0 };
   if (!isDuelMode()) return [{ ...current, playerIndex: 0 }];
-  const p1Pending = STATE.duel.roundResults[0];
-  const p1Move = p1Pending && p1Pending.pendingMove ? { ...p1Pending.pendingMove } : null;
-  return [
-    {
-      move: p1Move,
-      noMoveReason: p1Move ? "" : (p1Pending?.noMoveReason || "no_move"),
-      hintsUsed: p1Pending?.hintsUsed || 0,
-      timeSpentMs: p1Pending?.timeSpentMs || 0,
-      playerIndex: 0,
-    },
-    { ...current, playerIndex: 1 },
-  ];
+  // The move waiting in slot 0 is the first mover's, the one just made is the second mover's (PF-2: which player is which
+  // alternates). The list is in PLAYER order, not turn order, so every consumer (the cards, the scores, the summary's
+  // per-player numbers, the profiles each round is recorded for) finds the same person in the same place every position.
+  const pending = STATE.duel.roundResults[0];
+  const firstMove = pending && pending.pendingMove ? { ...pending.pendingMove } : null;
+  const firstAnswer = {
+    move: firstMove,
+    noMoveReason: firstMove ? "" : (pending?.noMoveReason || "no_move"),
+    hintsUsed: pending?.hintsUsed || 0,
+    timeSpentMs: pending?.timeSpentMs || 0,
+    playerIndex: STATE.duel.firstPlayer,
+  };
+  const secondAnswer = { ...current, playerIndex: duelSecondPlayer() };
+  return STATE.duel.firstPlayer === 0 ? [firstAnswer, secondAnswer] : [secondAnswer, firstAnswer];
 }
 
 // Shows the "searching" overlay with its progress bar before the engine work
@@ -7301,6 +7399,7 @@ function sessionIsOnLastPosition() {
 // Duel mode: builds both players' results, updates duel scores/hits, records both
 // answers and draws the comparison, and leaves the UI ready for the next position.
 function renderDuelRoundOutcome(base, position, evaluation) {
+  // The answers are in player order (buildAnswersToEvaluate): scores, hits and cards are per player, whoever went first.
   const [first, second] = evaluation.answers;
   const r1 = { points: first.assessment.points, hit: first.hit, userMove: snapshotMove(first.move) };
   const r2 = { points: second.assessment.points, hit: second.hit, userMove: snapshotMove(second.move) };
@@ -7317,6 +7416,7 @@ function renderDuelRoundOutcome(base, position, evaluation) {
   STATE.revealed = {
     best: null,
     game: null,
+    // A player keeps their arrow in every position (the second player's is "user", the first's "userAlt"), like their card.
     user: second.move || null,
     userAlt: r1.userMove || null,
   };
@@ -7715,7 +7815,9 @@ async function nextPosition() {
   hideResultOverlay();
 
   if (isDuelMode()) {
-    STATE.duel.currentPlayer = 0;
+    // Whoever goes first in the NEXT position is the one the scoreboard points at while it is being found.
+    STATE.duel.firstPlayer = duelFirstPlayerFor(STATE.index + 1);
+    STATE.duel.currentPlayer = STATE.duel.firstPlayer;
     STATE.duel.handoffReady = false;
     STATE.duel.roundResults = [null, null];
   }
@@ -7769,15 +7871,16 @@ async function nextPosition() {
   startRound();
 }
 
-// The cover of a new duel position: it says whose turn it is and that the clock has not started. One tap starts it.
+// The cover of a new duel position, the first one included: it says who goes first (they take turns, PF-2), that the
+// device goes to them and that the clock has not started. One tap starts it.
 function readyTexts() {
-  const first = duelPlayerName(0);
-  const second = duelPlayerName(1);
+  const first = duelPlayerName(STATE.duel.firstPlayer);
+  const second = duelPlayerName(duelSecondPlayer());
   return {
     title: t("game.ready.title", { player: first }),
-    subtitle: t("game.ready.subtitle", { other: second }),
+    subtitle: t("game.ready.subtitle", { player: first, other: second }),
     eyebrow: t("play.ready.eyebrow", { current: STATE.index + 1, total: soloSessionTarget() }),
-    avatar: initialsFromName(first, "J1"),
+    avatar: initialsFromName(first, `J${STATE.duel.firstPlayer + 1}`),
   };
 }
 
@@ -7812,9 +7915,9 @@ function revealDuelSecondTurn() {
     return;
   }
   if (STATE.ui.phase !== "handoff_ready") return;
-  if (STATE.duel.currentPlayer !== 0) return;
+  if (STATE.duel.currentPlayer !== STATE.duel.firstPlayer) return;
   if (!STATE.duel.roundResults[0]) return;
-  STATE.duel.currentPlayer = 1;
+  STATE.duel.currentPlayer = duelSecondPlayer();
   STATE.duel.handoffReady = false;
   hideHandoffOverlay();
   startRound({ preserveDuelRoundResults: true });
@@ -7929,11 +8032,15 @@ async function confirmRestartToSetup() {
   // A finished session is already recorded (it is, from the moment its last position is answered):
   // leaving it loses nothing, so nothing is asked.
   if (STATE.session && STATE.session.completed) return true;
-  // What is lost is the summary, not the answers: they are already in the progress and the notebook.
+  // What is lost is the summary, not the answers: they are already in the progress and the notebook (unless the browser refused
+  // to store them: then the answers go too, and the dialog must not say otherwise, PC-2).
   const answered = Math.max(0, STATE.sessionPlayed);
+  const body = answered <= 0
+    ? t("confirm.restartToSetup.none")
+    : t(sessionUnsavedReason() ? "confirm.restartToSetup.unsaved" : "confirm.restartToSetup", { answered });
   return showConfirmModal({
     title: t("confirm.restartTitle"),
-    body: answered > 0 ? t("confirm.restartToSetup", { answered }) : t("confirm.restartToSetup.none"),
+    body,
     acceptLabel: t("confirm.restartAccept"),
     cancelLabel: t("confirm.restartCancel"),
     // Nothing irreversible hangs on this question: without the dialog's markup the exit still works.
@@ -7996,6 +8103,9 @@ function saveSessionProgress() {
     answered: Math.max(0, STATE.sessionPlayed),
     total: Math.max(1, STATE.targetPositions),
     remaining: resumable ? STATE.positions.slice(Math.max(0, STATE.sessionPlayed)) : null,
+    // "" | "blocked" | "quota": whether the profile's storage refused what this session produced. The page that offers to
+    // resume is a new one (Profile's counters start again), so it cannot know this by itself (PC-2).
+    unsaved: sessionUnsavedReason(),
   };
   try {
     let text = JSON.stringify(record);
@@ -8027,13 +8137,35 @@ function readSessionProgress() {
 // At boot: a record left by a session that was interrupted (it is removed the moment it is read,
 // so it is offered once). With answers and positions left it offers to go on; otherwise it only
 // says that what was answered is saved.
+// Whether what an interrupted session answered reached the profile's storage: "" when it did, else "blocked" or "quota".
+// Two witnesses, because the page that asks is a new one: the record the old page left (its Profile saw the write fail) and
+// the storage as it is now (a browser that blocks site data is blocked again after a reload). The worse reason wins.
+function resumeStorageProblem(record) {
+  const reasons = [record && record.unsaved];
+  const profile = ludusModule("Profile");
+  try {
+    const status = profile && typeof profile.storageStatus === "function" ? profile.storageStatus() : null;
+    if (status && status.ok === false) reasons.push(status.available === false || status.reason === "blocked" ? "blocked" : "quota");
+  } catch (error) {
+    // No answer: only the record speaks.
+  }
+  return reasons.includes("blocked") ? "blocked" : (reasons.includes("quota") ? "quota" : "");
+}
+
+// "That is already saved in your progress", or what is true when it was not (PC-2).
+function resumeSavedText(record) {
+  const problem = resumeStorageProblem(record);
+  return t(problem ? `core.resume.unsaved.${problem}` : "core.resume.saved");
+}
+
 async function offerSessionResume() {
   const record = readSessionProgress();
   clearSessionProgress();
   if (!record || record.answered < 1 || STATE.session) return;
   const remaining = Array.isArray(record.remaining) ? normalizeSessionPositions(record.remaining, record.kind) : [];
+  const saved = resumeSavedText(record);
   if (record.mode !== "solo" || !remaining.length) {
-    showToast(t("core.resume.note", { answered: record.answered }), { kind: "info", duration: 9000 });
+    showToast(t("core.resume.note", { answered: record.answered, total: Math.max(record.answered, Number(record.total) || 0), saved }), { kind: "info", duration: 9000 });
     return;
   }
   const accepted = await showConfirmModal({
@@ -8042,7 +8174,8 @@ async function offerSessionResume() {
       title: record.title || defaultSessionTitle(record.kind),
       answered: record.answered,
       total: record.total,
-      remaining: remaining.length,
+      saved,
+      left: t(remaining.length === 1 ? "core.resume.left.one" : "core.resume.left", { remaining: remaining.length }),
     }),
     acceptLabel: t("core.resume.continue"),
     cancelLabel: t("core.resume.discard"),
@@ -8281,12 +8414,12 @@ function refreshLocalizedUi() {
   if (STATE.resultView.visible && STATE.resultView.context) {
     renderResultViewContext();
   } else if (STATE.positions[STATE.index] && (STATE.ui.gamePhase === "thinking" || STATE.ui.gamePhase === "handoff")) {
-    renderThinkingPanel(STATE.ui.gamePhase === "handoff" && !STATE.duel.readyWait ? 1 : undefined);
+    renderThinkingPanel(STATE.ui.gamePhase === "handoff" && !STATE.duel.readyWait ? duelSecondPlayer() : undefined);
   } else if (STATE.ui.gamePhase === "evaluating") {
     renderEvaluatingPanel();
   }
 
-  if (handoffOverlayEl && !handoffOverlayEl.classList.contains("hidden") && isDuelMode() && STATE.duel.currentPlayer === 0) {
+  if (handoffOverlayEl && !handoffOverlayEl.classList.contains("hidden") && isDuelMode() && STATE.duel.currentPlayer === STATE.duel.firstPlayer) {
     const handoff = STATE.duel.readyWait ? readyTexts() : handoffTexts();
     showHandoffOverlay(handoff.title, handoff.subtitle, handoff);
   }
@@ -8352,13 +8485,13 @@ function syncRevealButtons() {
     const on = Boolean(shown.best && round && context.best);
     revealBestBtn.setAttribute("aria-pressed", on ? "true" : "false");
     revealBestBtn.classList.toggle("revealed-state", on);
-    if (revealBestLabelEl) revealBestLabelEl.textContent = on ? t("evaluation.bestPrefix", { san: context.best.san || "-" }) : t("buttons.revealBest");
+    if (revealBestLabelEl) revealBestLabelEl.textContent = on ? t("evaluation.bestPrefix", { san: sanForPerson(context.best.san) || "-" }) : t("buttons.revealBest");
   }
   if (revealGameBtn) {
     const on = Boolean(shown.game && round && context.master);
     revealGameBtn.setAttribute("aria-pressed", on ? "true" : "false");
     revealGameBtn.classList.toggle("revealed-state", on);
-    if (revealGameLabelEl) revealGameLabelEl.textContent = on ? t("evaluation.gamePrefix", { san: context.master.san || "-" }) : revealGameButtonLabel();
+    if (revealGameLabelEl) revealGameLabelEl.textContent = on ? t("evaluation.gamePrefix", { san: sanForPerson(context.master.san) || "-" }) : revealGameButtonLabel();
   }
 }
 
@@ -9885,6 +10018,11 @@ function registerRouterScreen(name, container, screen) {
     onHide() {
       if (name === "landing") document.body.classList.remove("landing-active");
       if (screen && typeof screen.hide === "function") screen.hide();
+    },
+    // polish-discover (PD-4): a screen that keeps sub-states in the history (the museum's tabs, Ludus.router.pushSub) is told when Back or
+    // Forward lands on one of them.
+    onSub(sub) {
+      if (screen && typeof screen.onSub === "function") screen.onSub(sub);
     },
   });
 }

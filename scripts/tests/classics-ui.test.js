@@ -4,7 +4,7 @@
 // Covers: text parity es / en; the pure helpers (eras, accent-blind search, filters that combine, sorting,
 // facets, the signature position of every game, train counts, the mix availability against
 // Ludus.Classics.random, the "verified" rule, safe source links, hash routes, display names, events and
-// sites in both languages); the replay model for ALL 28 games (squares of every ply, checks, castling,
+// sites in both languages); the replay model for ALL the games (squares of every ply, checks, castling,
 // training flags and notes agree with the data); the replay state machine and the auto play delay; and the
 // screen itself: gallery, filters, chips, empty state, mix, daily strip, game page, replay controls,
 // keyboard, training launchers, hash mirroring, language switch, load failure with retry and the board
@@ -20,18 +20,62 @@ const { FakeDocument, findAll, byClass } = require("./_uidom.js");
 const { createFakeLocalStorage } = require("./_fakedom.js");
 
 const repoRoot = path.resolve(__dirname, "..", "..");
+// How many games the library holds: read from the generated data, so adding a game (PX-2) needs no edit here.
+const LIBRARY_SIZE = (() => {
+  const sandbox = { Ludus: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(repoRoot, "js", "data", "classics.data.js"), "utf8"), sandbox);
+  return sandbox.Ludus.ClassicsData.games.length;
+})();
 const SCRIPTS = [
   "js/ludus.js", "js/chess.js", "js/pgn.js", "js/scoring.js", "js/settings.js", "js/profile.js",
   "js/facts.js", "js/reader.js", "js/classics.js", "js/data/classics.data.js", "js/ui/kit.js", "js/ui/classics.js",
 ];
 
+// A window with a real history (entries, state, Back and Forward) for the tests of the game page as a history entry: a traversal fires popstate and, when
+// the address differs, hashchange with the address the traversal went to (newURL), as a browser does. The default environment has no pushState, so
+// Ludus.router writes no history there (the older tests).
+function createHistoryWindow(fire) {
+  const entries = [{ state: null, url: "http://app.test/" }];
+  let index = 0;
+  const hashOf = (url) => { const at = url.indexOf("#"); return at < 0 ? "" : url.slice(at); };
+  const urlFor = (url) => (url === undefined ? entries[index].url : new URL(url, entries[index].url).href);
+  const location = { pathname: "/", search: "", get href() { return entries[index].url; }, get hash() { return hashOf(entries[index].url); } };
+  const history = {
+    get state() { return entries[index].state; },
+    pushState(state, _title, url) { const next = urlFor(url); entries.splice(index + 1); entries.push({ state, url: next }); index += 1; },
+    replaceState(state, _title, url) { entries[index] = { state, url: urlFor(url) }; },
+    back() { return traverse(-1); },
+    forward() { return traverse(1); },
+  };
+  function traverse(delta) {
+    const target = index + delta;
+    if (target < 0 || target >= entries.length) return false;
+    const oldURL = entries[index].url;
+    index = target;
+    const newURL = entries[index].url;
+    fire("popstate", { type: "popstate", state: entries[index].state });
+    if (newURL !== oldURL && hashOf(newURL) !== hashOf(oldURL)) fire("hashchange", { type: "hashchange", oldURL, newURL });
+    return true;
+  }
+  // The person types an address: a new entry without a state of ours, then hashchange.
+  function type(hash) {
+    const oldURL = entries[index].url;
+    entries.splice(index + 1);
+    entries.push({ state: null, url: new URL(hash, oldURL).href });
+    index += 1;
+    fire("hashchange", { type: "hashchange", oldURL, newURL: entries[index].url });
+  }
+  return { history, location, entries, type, at: () => index };
+}
+
 // Timers of the sandbox are manual, so nothing here waits in real time.
-function createEnv({ language = "es", withBoard = false, homeStub = false } = {}) {
+function createEnv({ language = "es", withBoard = false, homeStub = false, realHistory = false } = {}) {
   const doc = new FakeDocument();
   const storageMap = new Map();
-  const location = { hash: "", pathname: "/", search: "" };
   const clock = { now: 0, seq: 0, timers: new Map() };
   const winListeners = new Map();
+  const win = realHistory ? createHistoryWindow((type, event) => (winListeners.get(type) || []).slice().forEach((fn) => fn(event))) : null;
+  const location = win ? win.location : { hash: "", pathname: "/", search: "" };
   const sandbox = {
     console, Date, Math, JSON, Object, Array, String, Number, Promise, Map, Set, Intl, URL, structuredClone, WeakMap,
     setTimeout(fn, ms) { clock.seq += 1; clock.timers.set(clock.seq, { at: clock.now + Number(ms || 0), fn }); return clock.seq; },
@@ -44,7 +88,7 @@ function createEnv({ language = "es", withBoard = false, homeStub = false } = {}
     removeEventListener(type, fn) { winListeners.set(type, (winListeners.get(type) || []).filter((entry) => entry !== fn)); },
   };
   sandbox.window = sandbox;
-  sandbox.history = { state: null, replaceState(_state, _title, url) { location.hash = (String(url).match(/#.*$/) || [""])[0]; } };
+  sandbox.history = win ? win.history : { state: null, replaceState(_state, _title, url) { location.hash = (String(url).match(/#.*$/) || [""])[0]; } };
   const context = vm.createContext(sandbox);
   const scripts = SCRIPTS.slice();
   if (withBoard) scripts.splice(scripts.indexOf("js/ui/classics.js"), 0, "js/ui/board.js");
@@ -78,7 +122,8 @@ function createEnv({ language = "es", withBoard = false, homeStub = false } = {}
   app.appendChild(el);
   app.appendChild(other);
   const shown = [];
-  Ludus.router.register("classics", { el, onShow: (params) => { shown.push("classics"); Ludus.Screens.classics.show(params); }, onHide: () => Ludus.Screens.classics.hide() });
+  // The same wiring as registerRouterScreen in app.js, onSub included.
+  Ludus.router.register("classics", { el, onShow: (params) => { shown.push("classics"); Ludus.Screens.classics.show(params); }, onHide: () => Ludus.Screens.classics.hide(), onSub: (sub) => Ludus.Screens.classics.onSub(sub) });
   Ludus.router.register("home", { el: other, onShow: () => shown.push("home") });
   Ludus.router.register("game", { el: mk("section", { id: "game" }), onShow: () => shown.push("game") });
   const calls = { sessions: [] };
@@ -90,8 +135,12 @@ function createEnv({ language = "es", withBoard = false, homeStub = false } = {}
   if (homeStub) {
     Ludus.Screens.home = { startDaily: async () => { calls.sessions.push({ kind: "daily", viaHome: true }); } };
   }
+  if (win) {
+    // What js/ui/shell.js does on every screen change: the address is rewritten to the plain screen id (also while Back is being handled).
+    Ludus.bus.on("screen:changed", ({ id }) => { sandbox.history.replaceState(sandbox.history.state, "", `/#/${id}`); });
+  }
   const fire = (type) => (winListeners.get(type) || []).slice().forEach((fn) => fn({ type }));
-  return { Ludus, doc, context, el, calls, location, advance, storageMap, shown, fire, setActive: (value) => { active = value; } };
+  return { Ludus, doc, context, el, calls, location, advance, storageMap, shown, fire, win, setActive: (value) => { active = value; } };
 }
 
 const flush = async (times = 6) => {
@@ -180,8 +229,8 @@ test("search: accents, case and word order do not matter; every word must match"
   deepEq(ids({ q: "1851" }), ["immortal-1851"], "year");
   deepEq(ids({ q: "la inmortal" }).slice(0, 1), ["immortal-1851"], "the title in Spanish");
   assert.strictEqual(ids({ q: "zzzz" }).length, 0);
-  assert.strictEqual(ids({ q: "   " }).length, 28, "blank means no filter");
-  assert.strictEqual(ids({}).length, 28);
+  assert.strictEqual(ids({ q: "   " }).length, LIBRARY_SIZE, "blank means no filter");
+  assert.strictEqual(ids({}).length, LIBRARY_SIZE);
 });
 
 test("filters combine, unknown values mean no filter, sort is not a filter", async () => {
@@ -196,12 +245,12 @@ test("filters combine, unknown values mean no filter, sort is not a filter", asy
   assert.ok(hardModern.length > 0 && hardModern.length < hard.length && hardModern.every((g) => g.year >= 2000 && g.difficulty === 3));
   assert.ok(f({ era: "e1" }).every((g) => g.year < 1900));
   assert.ok(f({ era: "e2" }).every((g) => g.year >= 1900 && g.year < 1950));
-  assert.strictEqual(f({ era: "e1" }).length + f({ era: "e2" }).length + f({ era: "e3" }).length + f({ era: "e4" }).length, 28, "the eras partition the library");
+  assert.strictEqual(f({ era: "e1" }).length + f({ era: "e2" }).length + f({ era: "e3" }).length + f({ era: "e4" }).length, LIBRARY_SIZE, "the eras partition the library");
   const theme = games[0].themes[0];
   assert.ok(f({ theme }).every((g) => g.themes.includes(theme)));
   const sac = f({ kind: "sacrifice" });
   assert.ok(sac.length > 0 && sac.every((g) => g.kinds.sacrifice > 0));
-  assert.strictEqual(f({ era: "e9", difficulty: 9, theme: "", kind: "", sort: "nope" }).length, 28, "garbage falls back to no filter");
+  assert.strictEqual(f({ era: "e9", difficulty: 9, theme: "", kind: "", sort: "nope" }).length, LIBRARY_SIZE, "garbage falls back to no filter");
   deepEq(h.cleanFilters(null), h.defaultFilters());
   assert.strictEqual(h.hasActiveFilters({ sort: "title" }), false, "sorting is not a filter");
   assert.strictEqual(h.hasActiveFilters({ q: " x " }), true);
@@ -217,7 +266,7 @@ test("sort: chronological, by difficulty then year, by title in the language", a
   const games = Ludus.Classics.list().reverse();
   const chrono = h.sortGames(games, "chrono", "es");
   assert.strictEqual(chrono[0].id, "immortal-1851");
-  assert.strictEqual(chrono[27].id, "carlsen-nepomniachtchi-2021-g6");
+  assert.strictEqual(chrono[chrono.length - 1].id, "carlsen-nepomniachtchi-2021-g6");
   chrono.forEach((g, i) => { if (i) assert.ok(chrono[i - 1].year <= g.year); });
   const diff = h.sortGames(games, "difficulty", "es");
   diff.forEach((g, i) => {
@@ -240,7 +289,7 @@ test("facets, summary, signature position and train counts", async () => {
   assert.ok(facets.themes.length >= 10 && facets.themes.every((t) => Ludus.Classics.THEMES.includes(t.id) && t.count >= 1));
   assert.ok(facets.kinds.every((k) => Ludus.Classics.KINDS.includes(k.id)));
   const summary = h.summarize(games);
-  assert.strictEqual(summary.games, 28);
+  assert.strictEqual(summary.games, LIBRARY_SIZE);
   assert.strictEqual(summary.from, 1851);
   assert.strictEqual(summary.to, 2021);
   assert.strictEqual(summary.positions, games.reduce((n, g) => n + g.positionCount, 0));
@@ -327,8 +376,8 @@ test("progress: answers already given show on the cards and on the game page, an
   const line = q(el, ".classics-progress-text");
   assert.ok(text(line).includes("Ya practicaste 3 de 6") && text(line).includes("superaste 2") && text(line).includes("72%"), text(line));
   Ludus.i18n.setLanguage("en", { persist: false });
-  assert.ok(text(q(el, ".classics-progress-text")).includes("You have practised 3 of 6") && text(q(el, ".classics-progress-text")).includes("passed 2"));
-  // All six practised: the sentence changes and the bar is complete.
+  assert.ok(text(q(el, ".classics-progress-text")).includes("You have practiced 3 of 6") && text(q(el, ".classics-progress-text")).includes("passed 2"));
+  // All six practiced: the sentence changes and the bar is complete.
   positions.slice(3).forEach((pos, i) => Ludus.Profile.recordRound({
     id: `q${i}`, ts: Date.now() + i, source: "classic", sessionKind: "classic", positionId: pos.id, fen: pos.fen, userUci: pos.bestMoveUci, bestUci: pos.bestMoveUci,
     accuracy: 100, points: 10, phase: pos.phase, timeSpentMs: 4000,
@@ -619,7 +668,7 @@ test("describeFen: who moves and where the pieces stand, in the language", () =>
 
 // ---------- the screen ----------
 
-test("gallery: 28 cards with a board, links, counts; the shell of the screen is idempotent", async () => {
+test("gallery: one card per game with a board, links, counts; the shell of the screen is idempotent", async () => {
   const { Ludus, el } = createEnv();
   const screen = Ludus.Screens.classics;
   screen.mount(el);
@@ -630,8 +679,8 @@ test("gallery: 28 cards with a board, links, counts; the shell of the screen is 
   assert.ok(findAll(el, byClass("skeleton")).length > 0 || findAll(el, byClass("classics-loading")).length > 0, "a skeleton while there is no data");
   Ludus.router.show("classics");
   await flush();
-  assert.strictEqual(cardIds(el).length, 28);
-  assert.strictEqual(text(q(el, ".classics-count")), "28 partidas");
+  assert.strictEqual(cardIds(el).length, LIBRARY_SIZE);
+  assert.strictEqual(text(q(el, ".classics-count")), `${LIBRARY_SIZE} partidas`);
   const card = one(el, (n) => n.getAttribute("data-game") === "opera-1858");
   assert.strictEqual(findAll(card, (n) => n.tagName.toLowerCase() === "svg" && n.classList.contains("mini-board")).length, 1);
   const link = q(card, ".classics-card-link");
@@ -655,18 +704,18 @@ test("gallery: search, filters, chips and the empty state", async () => {
   search.dispatch("input");
   search.dispatch("keydown", { key: "Enter" });
   deepEq(cardIds(el), ["paulsen-morphy-1857", "opera-1858"]);
-  assert.strictEqual(text(q(el, ".classics-count")), "2 of 28 games");
+  assert.strictEqual(text(q(el, ".classics-count")), `2 of ${LIBRARY_SIZE} games`);
   const chips = findAll(el, byClass("classics-active-chip"));
   assert.strictEqual(chips.length, 1);
   assert.ok(text(chips[0]).includes("morphy"));
   assert.ok(chips[0].getAttribute("aria-label").startsWith("Remove filter"));
   chips[0].click();
-  assert.strictEqual(cardIds(el).length, 28);
+  assert.strictEqual(cardIds(el).length, LIBRARY_SIZE);
   assert.strictEqual(search.value, "", "removing the chip empties the box");
   const seg = (value) => q(el, `.classics-diff-seg button[data-value="${value}"]`);
   seg("1").click();
   const easy = cardIds(el);
-  assert.ok(easy.length > 0 && easy.length < 28 && easy.every((id) => Ludus.Classics.get(id).difficulty === 1));
+  assert.ok(easy.length > 0 && easy.length < LIBRARY_SIZE && easy.every((id) => Ludus.Classics.get(id).difficulty === 1));
   assert.strictEqual(seg("1").getAttribute("aria-pressed"), "true");
   assert.strictEqual(seg("0").getAttribute("aria-pressed"), "false");
   const era = q(el, "#classics-era");
@@ -675,7 +724,7 @@ test("gallery: search, filters, chips and the empty state", async () => {
   assert.ok(cardIds(el).every((id) => Ludus.Classics.get(id).year >= 2000 && Ludus.Classics.get(id).difficulty === 1));
   assert.strictEqual(findAll(el, byClass("classics-active-chip")).length, 2);
   q(el, ".classics-clear").click();
-  assert.strictEqual(cardIds(el).length, 28);
+  assert.strictEqual(cardIds(el).length, LIBRARY_SIZE);
   assert.strictEqual(era.value, "all");
   assert.strictEqual(seg("0").getAttribute("aria-pressed"), "true");
   const sort = q(el, "#classics-sort");
@@ -691,7 +740,7 @@ test("gallery: search, filters, chips and the empty state", async () => {
   assert.ok(!empty.hasAttribute("hidden"));
   assert.ok(text(empty).includes("No game matches"));
   q(empty, ".btn").click();
-  assert.strictEqual(cardIds(el).length, 28);
+  assert.strictEqual(cardIds(el).length, LIBRARY_SIZE);
   assert.ok(empty.hasAttribute("hidden"));
   assert.strictEqual(sort.value, "title", "clearing the filters keeps the sort order");
 });
@@ -704,7 +753,7 @@ test("gallery: the search box is debounced and keeps its node (focus) while typi
   const search = q(el, "#classics-search");
   search.value = "hast";
   search.dispatch("input");
-  assert.strictEqual(cardIds(el).length, 28, "not yet: the debounce is waiting");
+  assert.strictEqual(cardIds(el).length, LIBRARY_SIZE, "not yet: the debounce is waiting");
   advance(200);
   assert.strictEqual(cardIds(el).length, 1);
   assert.strictEqual(q(el, "#classics-search"), search, "the input is the same node");
@@ -842,7 +891,7 @@ test("game page: hash mirrored, back returns to the gallery with focus on the ca
   advance(5);
   assert.strictEqual(location.hash, "#/classics");
   assert.strictEqual(screen._state.view, "list");
-  assert.strictEqual(cardIds(el).length, 28);
+  assert.strictEqual(cardIds(el).length, LIBRARY_SIZE);
   assert.strictEqual(el.ownerDocument.activeElement.getAttribute("data-fkey"), "open-opera-1858", "focus returns to the card");
   // A modified click (open in a new tab) is left to the browser.
   const modified = one(el, byFkey("open-opera-1858")).dispatch("click", { button: 0, ctrlKey: true });
@@ -859,10 +908,10 @@ test("route params: show({game}) opens the page; an unknown id shows the gallery
   assert.strictEqual(text(q(el, ".classics-detail-title")), "La Inmortal");
   Ludus.router.show("classics");
   assert.strictEqual(screen._state.view, "list", "the nav link goes back to the gallery");
-  assert.strictEqual(cardIds(el).length, 28);
+  assert.strictEqual(cardIds(el).length, LIBRARY_SIZE);
   Ludus.router.show("classics", { game: "nope" });
   await flush();
-  assert.strictEqual(cardIds(el).length, 28);
+  assert.strictEqual(cardIds(el).length, LIBRARY_SIZE);
   assert.ok(text(q(el, ".classics-notice")).includes("No encontramos esa partida"));
   Ludus.router.show("classics", { gameId: "opera-1858" });
   assert.strictEqual(screen._state.gameId, "opera-1858", "gameId works too");
@@ -1153,7 +1202,7 @@ test("language: the gallery and the game page re-render in place (filters and po
   assert.ok(text(q(el, ".classics-title")).includes("Classic games"));
   assert.strictEqual(q(el, "#classics-search").value, "morphy", "the filter survives a language switch");
   deepEq(cardIds(el), ["paulsen-morphy-1857", "opera-1858"]);
-  assert.strictEqual(text(q(el, ".classics-count")), "2 of 28 games");
+  assert.strictEqual(text(q(el, ".classics-count")), `2 of ${LIBRARY_SIZE} games`);
   assert.ok(text(one(el, (n) => n.getAttribute("data-game") === "opera-1858")).includes("The Opera Game"));
   assert.ok(text(one(el, (n) => n.getAttribute("data-game") === "opera-1858")).includes("Philidor Defence") || text(one(el, (n) => n.getAttribute("data-game") === "opera-1858")).toLowerCase().includes("philidor defence"));
   Ludus.router.show("classics", { game: "opera-1858" });
@@ -1185,7 +1234,7 @@ test("loading: a failing load shows an error with a retry (never a blank screen)
   assert.ok(retry, "there is a retry button");
   retry.click();
   await flush();
-  assert.strictEqual(cardIds(el).length, 28, "the retry loads the gallery");
+  assert.strictEqual(cardIds(el).length, LIBRARY_SIZE, "the retry loads the gallery");
   assert.strictEqual(attempts, 2);
 });
 
@@ -1208,8 +1257,12 @@ test("notation: every SAN the replay shows follows the notation setting; the rep
   const moves = findAll(el, (n) => n.classList && n.classList.contains("classics-move-san")).map((n) => text(n));
   assert.ok(moves.includes("Td8#") && !moves.includes("Rd8#"), "the move list is in Spanish letters");
   assert.ok(moves.includes("Cf3"), "a knight move too");
-  const label = findAll(el, (n) => n.getAttribute && /Td8#/.test(n.getAttribute("aria-label") || ""))[0];
-  assert.ok(label, "and so is the accessible name of a move button");
+  // What is drawn is "Td8#"; the accessible name says it in words (PB-6, A11Y-016: "Td8#" is read letter by letter).
+  const label = findAll(el, (n) => n.getAttribute && /torre a d8, jaque mate/.test(n.getAttribute("aria-label") || ""))[0];
+  assert.ok(label, "the accessible name of a move button is the move in words");
+  assert.ok(!/Td8#/.test(label.getAttribute("aria-label")), "and carries no spelled-out letters");
+  assert.ok(label.getAttribute("aria-label").replace(/^\d+\. [^:]+: /, "").startsWith(Ludus.chess.spokenSan("Rd8#", "es")), "it is Ludus.chess.spokenSan of the stored SAN");
+  assert.strictEqual(text(q(label, ".classics-move-san")), "Td8#", "while the button still draws the notation setting's form");
   Ludus.Settings.set("notation.style", "english");
   Ludus.Screens.classics.render();
   await flush();
@@ -1256,7 +1309,7 @@ test("loading: a download that hangs admits it is slow, then offers a retry (QA 
   assert.ok(q(el, ".classics-loading"), "the retry waits again");
   release();
   await flush(12);
-  assert.strictEqual(cardIds(el).length, 28, "the data that finally arrived shows");
+  assert.strictEqual(cardIds(el).length, LIBRARY_SIZE, "the data that finally arrived shows");
   assert.ok(!text(el).includes("tardando más de lo normal"), "the slow notice is gone");
 });
 
@@ -1292,7 +1345,7 @@ test("degrading: no Ludus.Classics, no Ludus.game, no Ludus.ui: the screen still
   noUi.Ludus.Screens.classics.mount(noUi.el);
   noUi.Ludus.router.show("classics");
   await flush();
-  assert.strictEqual(cardIds(noUi.el).length, 28, "cards without mini boards or icons");
+  assert.strictEqual(cardIds(noUi.el).length, LIBRARY_SIZE, "cards without mini boards or icons");
   assert.strictEqual(findAll(noUi.el, byClass("mini-board")).length, 0);
   noUi.Ludus.router.show("classics", { game: "opera-1858" });
   await flush();
@@ -1391,6 +1444,326 @@ test("hashchange and cold start: #/classics/<id> is followed, a running session 
   Ludus.router.show("home");
   env.fire("hashchange");
   assert.strictEqual(Ludus.router.current(), "home");
+});
+
+// ---------- polish pass: PB-5 history, PB-3 where line, PB-4 hints, PB-6 SAN, PB-7 copy ----------
+
+const activeKey = (el) => (el.ownerDocument.activeElement && el.ownerDocument.activeElement.getAttribute ? el.ownerDocument.activeElement.getAttribute("data-fkey") : null);
+
+test("history: a game page is an entry of the screen; Back and Forward walk the gallery and the game, the title and the address follow (PB-5, A11Y-024)", async () => {
+  const env = createEnv({ realHistory: true });
+  const { Ludus, el, doc, win, advance } = env;
+  const screen = Ludus.Screens.classics;
+  screen.mount(el);
+  Ludus.router.show("home");
+  Ludus.router.show("classics");
+  await flush();
+  advance(5);
+  assert.strictEqual(win.entries.length, 2, "home and the gallery");
+  assert.strictEqual(win.history.state.ludus.sub, undefined, "the gallery is the base state");
+  one(el, byFkey("open-opera-1858")).dispatch("click", { button: 0 });
+  advance(5);
+  assert.strictEqual(win.entries.length, 3, "opening a game is one more entry");
+  deepEq(win.history.state.ludus.sub, { game: "opera-1858", list: 1 }, "marked as opened from the gallery below it");
+  assert.strictEqual(win.location.hash, "#/classics/opera-1858", "the entry has its own address");
+  assert.strictEqual(doc.title, "La Ópera - Partidas clásicas - Ludus Scaccorum");
+  // Back: the gallery, the title of the screen, the card that was open is focused again; nothing is written.
+  win.history.back();
+  advance(5);
+  await flush();
+  assert.strictEqual(Ludus.router.current(), "classics", "Back stays on the screen");
+  assert.strictEqual(screen._state.view, "list");
+  assert.strictEqual(cardIds(el).length, LIBRARY_SIZE);
+  assert.strictEqual(doc.title, "Partidas clásicas - Ludus Scaccorum");
+  assert.strictEqual(win.location.hash, "#/classics");
+  assert.strictEqual(activeKey(el), "open-opera-1858", "focus is back on the card that was open");
+  assert.strictEqual(win.entries.length, 3, "moving through the history writes nothing");
+  // Back again leaves the screen; Forward comes back to the gallery and then to the game.
+  win.history.back();
+  advance(5);
+  assert.strictEqual(Ludus.router.current(), "home");
+  win.history.forward();
+  advance(5);
+  await flush();
+  assert.strictEqual(Ludus.router.current(), "classics");
+  assert.strictEqual(screen._state.view, "list");
+  win.history.forward();
+  advance(5);
+  await flush();
+  assert.strictEqual(screen._state.view, "game");
+  assert.strictEqual(screen._state.gameId, "opera-1858");
+  assert.strictEqual(text(q(el, ".classics-detail-title")), "La Ópera");
+  assert.strictEqual(doc.title, "La Ópera - Partidas clásicas - Ludus Scaccorum");
+  assert.strictEqual(win.location.hash, "#/classics/opera-1858");
+  assert.strictEqual(win.entries.length, 3);
+  // The page's own "All games" is one step Back (no dead entry stays): the gallery, with the card focused.
+  const before = win.at();
+  one(el, byFkey("back")).click();
+  advance(5);
+  await flush();
+  assert.strictEqual(win.at(), before - 1, "it went back one entry");
+  assert.strictEqual(win.entries.length, 3, "and wrote none");
+  assert.strictEqual(screen._state.view, "list");
+  assert.strictEqual(activeKey(el), "open-opera-1858");
+  assert.strictEqual(doc.title, "Partidas clásicas - Ludus Scaccorum");
+  // Forward returns to the game; the language switch retitles the page and Back still works.
+  win.history.forward();
+  advance(5);
+  await flush();
+  assert.strictEqual(screen._state.view, "game");
+  Ludus.i18n.setLanguage("en", { persist: false });
+  await flush();
+  assert.strictEqual(doc.title, "The Opera Game - Classic games - Ludus Scaccorum");
+  win.history.back();
+  advance(5);
+  await flush();
+  assert.strictEqual(screen._state.view, "list");
+  assert.strictEqual(doc.title, "Classic games - Ludus Scaccorum");
+  // Another game from the gallery replaces the forward entry; Back and Forward land on the right ones.
+  one(el, byFkey("open-immortal-1851")).dispatch("click", { button: 0 });
+  advance(5);
+  assert.strictEqual(win.entries.length, 3, "the old forward entry made room for the new one");
+  deepEq(win.history.state.ludus.sub, { game: "immortal-1851", list: 1 });
+  win.history.back();
+  advance(5);
+  win.history.forward();
+  advance(5);
+  await flush();
+  assert.strictEqual(screen._state.gameId, "immortal-1851");
+});
+
+test("history: a game that a route or a typed address opened has no gallery below it; the button closes it in place; the Classics tab steps back when it can (PB-5)", async () => {
+  const env = createEnv({ realHistory: true });
+  const { Ludus, el, win, advance, doc } = env;
+  const screen = Ludus.Screens.classics;
+  screen.mount(el);
+  Ludus.router.show("home");
+  // A route that names the game (a link from another screen): the entry says so, no gallery entry is invented below it.
+  Ludus.router.show("classics", { game: "immortal-1851" });
+  await flush();
+  advance(5);
+  assert.strictEqual(win.entries.length, 2);
+  deepEq(win.history.state.ludus.sub, { game: "immortal-1851" }, "adopted by the entry, without the gallery marker");
+  assert.strictEqual(win.location.hash, "#/classics/immortal-1851");
+  one(el, byFkey("back")).click();
+  advance(5);
+  await flush();
+  assert.strictEqual(screen._state.view, "list", "the button closes it where it stands");
+  assert.strictEqual(win.entries.length, 2, "no entry written, none left behind");
+  assert.strictEqual(win.history.state.ludus.sub, undefined, "the entry is the gallery now");
+  assert.strictEqual(win.location.hash, "#/classics");
+  win.history.back();
+  advance(5);
+  assert.strictEqual(Ludus.router.current(), "home", "and Back leaves the screen");
+  // A typed address is an entry of its own, adopted by the screen: a game opened after it does not overwrite it.
+  Ludus.router.show("classics");
+  await flush();
+  advance(5);
+  win.type("#/classics/lasker-bauer-1889");
+  await flush();
+  advance(5);
+  assert.strictEqual(screen._state.gameId, "lasker-bauer-1889");
+  deepEq(win.history.state.ludus.sub, { game: "lasker-bauer-1889" }, "adopted");
+  win.type("#/classics");
+  advance(5);
+  assert.strictEqual(screen._state.view, "list", "the typed gallery closes the game");
+  deepEq(win.history.state.ludus.sub === undefined ? {} : win.history.state.ludus.sub, {}, "and the typed entry is adopted as the gallery");
+  one(el, byFkey("open-opera-1858")).dispatch("click", { button: 0 });
+  advance(5);
+  win.history.back();
+  advance(5);
+  assert.strictEqual(screen._state.view, "list", "Back from that game is the typed gallery entry");
+  win.history.back();
+  advance(5);
+  await flush();
+  assert.strictEqual(screen._state.gameId, "lasker-bauer-1889", "and then the game the person typed first");
+  // Another screen in between: Back returns to the game with its title.
+  one(el, byFkey("back")).click();
+  advance(5);
+  await flush();
+  one(el, byFkey("open-opera-1858")).dispatch("click", { button: 0 });
+  advance(5);
+  Ludus.router.show("home");
+  advance(5);
+  assert.strictEqual(Ludus.router.current(), "home");
+  win.history.back();
+  advance(5);
+  await flush();
+  assert.strictEqual(Ludus.router.current(), "classics");
+  assert.strictEqual(screen._state.gameId, "opera-1858", "back on the game the screen was left on");
+  assert.strictEqual(doc.title, "La Ópera - Partidas clásicas - Ludus Scaccorum");
+  assert.strictEqual(win.location.hash, "#/classics/opera-1858", "with its address");
+  // The Classics tab on a game page goes back to the gallery and leaves no second gallery entry in the history.
+  const at = win.at();
+  const length = win.entries.length;
+  Ludus.router.show("classics");
+  advance(5);
+  await flush();
+  assert.strictEqual(screen._state.view, "list");
+  assert.strictEqual(win.entries.length, length, "no entry written");
+  assert.strictEqual(win.at(), at - 1, "one step Back to the gallery below the game");
+});
+
+test("history: without a history the page opens and closes as it did, onSub is told what Back landed on, and a failing router never stops a game (PB-5)", async () => {
+  const env = createEnv();
+  const { Ludus, el } = env;
+  const screen = Ludus.Screens.classics;
+  screen.mount(el);
+  Ludus.router.show("classics");
+  await flush();
+  screen.onSub({ game: "opera-1858" });
+  assert.strictEqual(screen._state.view, "game");
+  assert.strictEqual(screen._state.gameId, "opera-1858");
+  screen.onSub({ game: "opera-1858" });
+  assert.strictEqual(screen._state.view, "game", "the game it is already on changes nothing");
+  screen.onSub(null);
+  assert.strictEqual(screen._state.view, "list", "null is the gallery");
+  screen.onSub({ game: "__proto__" });
+  assert.strictEqual(screen._state.view, "list", "an unknown game is the gallery with a notice");
+  screen.onSub({ game: 5 });
+  assert.strictEqual(screen._state.view, "list");
+  one(el, byFkey("open-opera-1858")).dispatch("click", { button: 0 });
+  one(el, byFkey("back")).click();
+  assert.strictEqual(screen._state.view, "list", "the button closes it where it stands without a history");
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    Ludus.router.pushSub = () => { throw new Error("history refused"); };
+    Ludus.router.replaceSub = () => { throw new Error("history refused"); };
+    one(el, byFkey("open-opera-1858")).dispatch("click", { button: 0 });
+    assert.strictEqual(screen._state.view, "game", "the game is shown either way");
+    one(el, byFkey("back")).click();
+    assert.strictEqual(screen._state.view, "list");
+  } finally {
+    console.error = originalError;
+  }
+  // Hidden or not mounted: Back has nothing to move.
+  Ludus.router.show("home");
+  screen.onSub({ game: "opera-1858" });
+  assert.strictEqual(screen._state.view, "list", "a hidden screen ignores it");
+  assert.strictEqual(screen.helpers.shownSan !== undefined, true);
+});
+
+test("where line: the place is named once, for every game in both languages, and nothing is lost (PB-3)", async () => {
+  const { Ludus, el } = createEnv();
+  await Ludus.Classics.load();
+  const h = Ludus.Screens.classics.helpers;
+  const games = Ludus.Classics.list();
+  assert.strictEqual(games.length, LIBRARY_SIZE);
+  const fold = (value) => h.normalizeText(value).replace(/ł/g, "l");
+  let dropped = 0;
+  ["es", "en"].forEach((lang) => {
+    games.forEach((game) => {
+      const parts = h.whereParts(game, lang);
+      const event = h.eventLabel(game.event, lang);
+      const city = h.cityLabel(game.site, lang);
+      assert.strictEqual(parts[0], event, `${game.id}/${lang}: the event comes first`);
+      assert.strictEqual(parts[parts.length - 1], String(game.year), `${game.id}/${lang}: the year comes last`);
+      // No part names the place of another part.
+      const line = ` ${parts.map(fold).join(" | ")} `;
+      const mentions = line.split(` ${fold(city)} `).length - 1;
+      assert.ok(mentions <= 1, `${game.id}/${lang}: the place "${city}" is repeated in "${parts.join(" · ")}"`);
+      // ...and the place is still in the line, once, either as the city or inside the event.
+      assert.ok(mentions === 1, `${game.id}/${lang}: the place "${city}" is in "${parts.join(" · ")}"`);
+      if (parts.length === 2) dropped += 1;
+      else assert.strictEqual(parts[1], city, `${game.id}/${lang}: the city sits between the event and the year`);
+    });
+  });
+  assert.ok(dropped >= 14, `the events named after their city lose the repeated city (${dropped} lines of 56)`);
+  // The cases that read badly before.
+  assert.strictEqual(h.whereParts({ event: "Copenhagen", site: "Copenhagen DEN", year: 1923 }, "es").join(" · "), "Torneo de Copenhague · 1923");
+  assert.strictEqual(h.whereParts({ event: "Copenhagen", site: "Copenhagen DEN", year: 1923 }, "en").join(" · "), "Copenhagen tournament · 1923");
+  assert.strictEqual(h.whereParts({ event: "Lodz", site: "Lodz POL", year: 1907 }, "en").join(" · "), "Łódź tournament · 1907", "two spellings of one city are one place");
+  assert.strictEqual(h.whereParts({ event: "Amsterdam", site: "Amsterdam NED", year: 1889 }, "es").join(" · "), "Torneo de Ámsterdam · 1889");
+  assert.strictEqual(h.whereParts({ event: "New York", site: "New York USA", year: 1918 }, "es").join(" · "), "Torneo de Nueva York · 1918", "a city of two words");
+  // An event that does not name the place keeps the city; a place that merely shares letters with the event is not a repeat.
+  assert.strictEqual(h.whereParts({ event: "World Championship match", site: "Reykjavik ISL", year: 1972 }, "en").join(" · "), "World Championship match · Reykjavik · 1972");
+  assert.strictEqual(h.whereParts({ event: "Candidates semifinal match", site: "Bled YUG", year: 1965 }, "es").join(" · "), "Match de semifinales de Candidatos · Bled · 1965");
+  assert.strictEqual(h.eventNamesCity("Torneo de Bledsoe", "Bled"), false, "whole words only");
+  assert.strictEqual(h.eventNamesCity("Torneo de Bled", "Bled"), true);
+  assert.strictEqual(h.eventNamesCity("Anything", ""), false);
+  // Somebody's own game: no site, no year: nothing invented, nothing repeated.
+  assert.deepStrictEqual(Array.from(h.whereParts({ event: "Lichess blitz" }, "es")), ["Lichess blitz"]);
+  assert.deepStrictEqual(Array.from(h.whereParts(null, "es")), []);
+  // One spelling per place on a page: the "Place" row says the same city as the event.
+  assert.strictEqual(h.siteLabel("Amsterdam NED", "es"), "Ámsterdam, Países Bajos");
+  assert.strictEqual(h.siteLabel("Lodz POL", "en"), "Łódź, Poland");
+  assert.strictEqual(h.siteLabel("Lodz POL", "es"), "Łódź, Polonia");
+  assert.strictEqual(h.siteLabel("Constructor XXX", "es"), "Constructor XXX", "an unknown site is left as it came");
+  assert.strictEqual(h.siteLabel("constructor", "en"), "constructor", "an object's own keys are not cities");
+  // The page itself: the line under the title of the Copenhagen game.
+  Ludus.Screens.classics.mount(el);
+  Ludus.router.show("classics", { game: "saemisch-nimzowitsch-1923" });
+  await flush();
+  assert.ok(text(q(el, ".classics-detail-where")).startsWith("Torneo de Copenhague · 1923 · "), text(q(el, ".classics-detail-where")));
+  assert.ok(text(q(el, ".classics-about")).includes("Copenhague, Dinamarca"), "the country is still in the 'Place' row");
+  Ludus.i18n.setLanguage("en", { persist: false });
+  await flush();
+  assert.ok(text(q(el, ".classics-detail-where")).startsWith("Copenhagen tournament · 1923 · "), text(q(el, ".classics-detail-where")));
+});
+
+test("replay: accessible names and announcements say the move in words, the drawn move follows the notation setting (PB-6, A11Y-016)", async () => {
+  const { Ludus, el } = createEnv();
+  const screen = Ludus.Screens.classics;
+  screen.mount(el);
+  Ludus.router.show("classics", { game: "opera-1858" });
+  await flush();
+  const h = screen.helpers;
+  assert.strictEqual(h.spokenSan("Nf3"), "caballo a f3");
+  assert.strictEqual(h.spokenSan("Qxh7#"), "dama captura en h7, jaque mate");
+  assert.strictEqual(h.spokenSan("O-O"), "enroque corto");
+  assert.strictEqual(h.shownSan("Nf3"), "Cf3", "and what is drawn keeps the letters of the notation setting");
+  assert.strictEqual(h.spokenMove({ moveNumber: 12, color: "b", san: "Nf6" }), "12. Negras: caballo a f6");
+  // Step to the second move (1...e5 is a pawn move, 2.Nf3 a knight move): the live region, the stage and the "now" card.
+  one(el, byAction("next")).click();
+  one(el, byAction("next")).click();
+  one(el, byAction("next")).click();
+  const stage = q(el, ".classics-stage").getAttribute("aria-label");
+  assert.ok(/^Posición después de 2\. Blancas: caballo a f3/.test(stage), stage);
+  assert.ok(!/\bCf3\b|\bNf3\b/.test(stage), "no spelled-out letters in the board's name");
+  assert.strictEqual(text(q(el, ".classics-now-move .sr-only")), "caballo a f3");
+  assert.strictEqual(text(q(q(el, ".classics-now-move"), '[aria-hidden="true"]')), "2. Cf3", "the drawn form follows the notation setting");
+  const live = one(el, (n) => n.getAttribute("role") === "status" && n.classList.contains("sr-only") && n.getAttribute("aria-atomic") === "true");
+  assert.strictEqual(text(live), "Jugada 2, Blancas: caballo a f3.", "the live region says the move in words");
+  // English page: the stored letters are drawn, the words are English.
+  Ludus.i18n.setLanguage("en", { persist: false });
+  await flush();
+  assert.strictEqual(h.spokenSan("Nf3"), "knight to f3");
+  assert.strictEqual(text(q(q(el, ".classics-now-move"), '[aria-hidden="true"]')), "2. Nf3", "English page: the stored letters are drawn");
+  assert.strictEqual(text(q(el, ".classics-now-move .sr-only")), "knight to f3");
+  const moveLabels = findAll(el, byClass("classics-move")).map((n) => n.getAttribute("aria-label"));
+  assert.ok(moveLabels.every((label) => /: [a-z]/.test(label)), "every move button is named by a move in words");
+  assert.ok(moveLabels.some((label) => /knight to f3/.test(label)));
+  assert.ok(moveLabels.every((label) => !/\b[KQRBN][a-h1-8x]/.test(label.replace(/^\d+\. [^:]+: /, ""))), "none of them is spelled letter by letter");
+});
+
+test("kind hint on the result: the 'only move' sentence reaches the screen unchanged and matches the scorer (PB-4)", async () => {
+  const { Ludus } = createEnv();
+  await Ludus.Classics.load();
+  ["es", "en"].forEach((lang) => {
+    const hint = Ludus.Classics.kindHint("only-move", lang);
+    assert.ok(hint.includes(String(Ludus.Scoring.CONSTANTS.ONLY_MOVE_GAP_PCT)), hint);
+    assert.strictEqual(Ludus.i18n.t("cdata.kindHint.only-move", null, lang), hint, "the registered string is the same sentence");
+  });
+});
+
+test("copy: American English, no tuteo, one name for accuracy, and a plural that agrees (PB-7)", () => {
+  const { Ludus } = createEnv();
+  const { es, en } = Ludus.Screens.classics.TEXT;
+  const british = /\b(practis\w*|analys\w*|colour\w*|favour\w*|centre\w*|defence|licence|organis\w*|recognis\w*|catalogue)\b/i;
+  Object.keys(en).forEach((key) => assert.ok(!british.test(en[key]), `${key}: British spelling in "${en[key]}"`));
+  const tuteo = /\b(elige|prueba|puedes|tienes|quieres|toca|pulsa|haz|mira|selecciona|tú)\b/i;
+  Object.keys(es).forEach((key) => assert.ok(!tuteo.test(es[key]), `${key}: tuteo in "${es[key]}"`));
+  Object.keys(en).forEach((key) => assert.ok(!/winning chances|win probability|odds|precision\b/i.test(en[key]), `${key}: one name for each concept`));
+  // The singular of the progress line agrees whatever the number of passed positions is ("y 0 superada" was wrong).
+  const t = (key, params, lang) => Ludus.i18n.t(key, params, lang);
+  [0, 1].forEach((passed) => {
+    assert.strictEqual(t("classics.progress.detail.one", { total: 8, passed, accuracy: 55 }, "es"), `Ya practicaste 1 de 8 posiciones de esta partida y superaste ${passed}. Precisión de tu mejor intento: 55%.`);
+    assert.strictEqual(t("classics.progress.detail.one", { total: 8, passed, accuracy: 55 }, "en"), `You have practiced 1 of 8 positions of this game and passed ${passed}. Accuracy of your best attempt: 55%.`);
+  });
+  assert.strictEqual(t("classics.card.practised", { played: 2, total: 8 }, "en"), "2 of 8 practiced");
+  assert.strictEqual(t("classics.mix.available.one", {}, "es"), "Hay 1 posición hasta esa dificultad.");
+  assert.strictEqual(t("classics.daily.streak.one", {}, "en"), "Streak: 1 day");
 });
 
 runAll().then(() => {

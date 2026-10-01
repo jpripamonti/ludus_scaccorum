@@ -58,6 +58,25 @@
     return ui && typeof ui.icon === "function" ? ui.icon(name, options) : null;
   }
 
+  // Moves quoted in a fact ("1.e4 e5 2.Cf3 Cc6") are re-spelled by the data module for the notation setting like every move on screen
+  // (Ludus.Classics.localizeQuotedMoves); the text is unchanged without it.
+  function quotedText(text, language) {
+    const Classics = L().Classics;
+    if (!text || !Classics || typeof Classics.localizeQuotedMoves !== "function") return text;
+    try {
+      return Classics.localizeQuotedMoves(text, language === "en" ? "en" : "es");
+    } catch (error) {
+      return text;
+    }
+  }
+
+  // A count in words: the singular form lives under "<key>.one" (both languages use one rule: exactly 1 is singular, 0 and the rest are plural).
+  function tCount(key, n, params) {
+    const i18n = L().i18n;
+    const singular = Number(n) === 1 && i18n && typeof i18n.has === "function" && i18n.has(`${key}.one`);
+    return t(singular ? `${key}.one` : key, Object.assign({ n }, params || {}));
+  }
+
   function logError(...args) {
     if (root.console && typeof root.console.error === "function") root.console.error(...args);
   }
@@ -73,10 +92,13 @@
       "home.greet.anon": "¡Hola! ¿Empezamos?",
       "home.sub.first": "Elegí cómo querés entrenar. Con tu primera posición empezamos a armar tu progreso.",
       "home.sub.risk": "Tu racha de {n} días depende de que entrenes hoy.",
-      "home.sub.due": "Tenés {n} para repasar en tu cuaderno de errores.",
+      "home.sub.risk.one": "Tu racha de 1 día depende de que entrenes hoy.",
+      "home.sub.due": "Tenés {n} posiciones para repasar en tu cuaderno de errores.",
+      "home.sub.due.one": "Tenés 1 posición para repasar en tu cuaderno de errores.",
       "home.sub.default": "¿Qué entrenamos hoy? Cada posición es una oportunidad de aprender algo nuevo.",
       "home.level.label": "Nivel",
       "home.level.progress": "{xp} XP · faltan {n} para {next}",
+      "home.level.progress.one": "{xp} XP · falta 1 para {next}",
       "home.level.max": "{xp} XP · nivel máximo",
       "home.level.first": "Cada posición suma hasta 100 XP. Jugá una para empezar a subir de nivel.",
       "home.stat.streak": "Racha",
@@ -110,18 +132,19 @@
       "home.daily.eyebrow": "Desafío diario",
       "home.daily.title.pending": "La posición de hoy",
       "home.daily.title.done": "¡Desafío de hoy completado!",
-      "home.daily.body.pending": "Una posición de una partida clásica, distinta cada día. Encontrá la mejor jugada.",
-      "home.daily.body.done": "Tu precisión fue {accuracy}%. Volvé mañana: cada día hay una posición nueva.",
+      "home.daily.body.pending": "Una posición de una partida clásica cada día, sin repetirse durante meses. Encontrá la mejor jugada.",
+      "home.daily.body.done": "Tu precisión fue {accuracy}%. Volvé mañana: te espera otra posición.",
       "home.daily.turn": "Juegan las {side}",
       "home.daily.streak": "Racha del desafío: {n} días",
       "home.daily.streak.one": "Racha del desafío: 1 día",
       "home.daily.risk": "Completalo hoy para no perder tu racha de {n} días.",
+      "home.daily.risk.one": "Completalo hoy para no perder tu racha de 1 día.",
       "home.daily.play": "Jugar ahora",
       "home.daily.more": "Seguir con clásicos",
       "home.daily.done.badge": "Completado",
       "home.first.play": "Jugar la posición de hoy",
       "home.first.more": "Ver otras formas de entrenar",
-      "home.daily.already": "Ya hiciste el desafío de hoy. Mañana hay una posición nueva; mientras tanto, practicá con las partidas clásicas.",
+      "home.daily.already": "Ya hiciste el desafío de hoy. Mañana te espera otra posición; mientras tanto, practicá con las partidas clásicas.",
       "home.daily.pending.badge": "Pendiente",
       "home.daily.board": "Posición del desafío diario",
       "home.daily.loading": "Cargando el desafío de hoy",
@@ -136,7 +159,7 @@
       "home.error.start": "No se pudo abrir esa opción.",
       "duel.title": "Duelo en un dispositivo",
       "duel.intro": "Se turnan en este mismo dispositivo. Gana quien juegue más cerca de la mejor jugada.",
-      "duel.fair": "Para que sea justo: en cada posición juega primero Jugador 1, con el reloj corriendo, y Jugador 2 mira para otro lado hasta que le toque. Después se pasan el dispositivo: la jugada del primero queda oculta.",
+      "duel.fair": "Para que sea justo: se turnan para empezar cada posición. Quien va primero juega con el reloj corriendo y el otro mira para otro lado hasta que le toque. Después se pasan el dispositivo: la jugada del primero queda oculta.",
       "duel.players": "Jugadores",
       "duel.player": "Jugador {n}",
       "duel.who": "¿Quién es el jugador {n}?",
@@ -193,9 +216,10 @@
       "ld.private.a.title": "Sin cuenta",
       "ld.private.a.body": "Abrís la página y entrenás. No hace falta registrarse.",
       "ld.private.b.title": "Datos en tu dispositivo",
-      "ld.private.b.body": "Tu progreso vive en tu navegador. Esta app no tiene servidor propio ni base de datos.",
+      // polish-corecopy (PC-3): the disclosure that own-game rounds keep usernames and game links lives in this card, which every visitor sees.
+      "ld.private.b.body": "Tu progreso vive en tu navegador. Esta app no tiene servidor ni base de datos, así que nada de esto nos llega. Si entrenás con tus partidas, también se guardan tu usuario, el de tus rivales y el enlace a cada partida. Lo borrás desde Cuenta.",
       "ld.private.c.title": "Sincronización opcional",
-      "ld.private.c.body": "Si querés, iniciá sesión con Google para llevar tu progreso a otros dispositivos a través de tu propio Google Drive.",
+      "ld.private.c.body": "Si querés, iniciá sesión con Google para llevar tu progreso, con esos datos, a otros dispositivos a través de tu propio Google Drive.",
       "ld.private.d.title": "Vos decidís qué se descarga",
       "ld.private.d.body": "La app solo se conecta a Lichess o Chess.com cuando se lo pedís y confirmás tu usuario.",
       "ld.final.title": "¿Listo para tu primera posición?",
@@ -217,12 +241,15 @@
       "home.greet.anon": "Hello! Shall we start?",
       "home.sub.first": "Pick how you want to train. Your first position starts building your progress.",
       "home.sub.risk": "Your {n}-day streak depends on training today.",
-      "home.sub.due": "You have {n} to review in your mistake notebook.",
+      "home.sub.risk.one": "Your 1-day streak depends on training today.",
+      "home.sub.due": "You have {n} positions to review in your mistake notebook.",
+      "home.sub.due.one": "You have 1 position to review in your mistake notebook.",
       "home.sub.default": "What shall we train today? Every position is a chance to learn something new.",
       "home.level.label": "Level",
       "home.level.progress": "{xp} XP · {n} to {next}",
+      "home.level.progress.one": "{xp} XP · 1 to {next}",
       "home.level.max": "{xp} XP · top level",
-      "home.level.first": "Each position is worth up to 100 XP. Play one to start levelling up.",
+      "home.level.first": "Each position is worth up to 100 XP. Play one to start leveling up.",
       "home.stat.streak": "Streak",
       "home.stat.streak.hint": "days in a row",
       "home.stat.streak.hint.one": "day in a row",
@@ -254,18 +281,19 @@
       "home.daily.eyebrow": "Daily challenge",
       "home.daily.title.pending": "Today's position",
       "home.daily.title.done": "Today's challenge is complete!",
-      "home.daily.body.pending": "A position from a classic game, different every day. Find the best move.",
-      "home.daily.body.done": "Your accuracy was {accuracy}%. Come back tomorrow: there is a new position every day.",
+      "home.daily.body.pending": "A position from a classic game every day, with no repeats for months. Find the best move.",
+      "home.daily.body.done": "Your accuracy was {accuracy}%. Come back tomorrow: another position is waiting.",
       "home.daily.turn": "{side} to move",
       "home.daily.streak": "Challenge streak: {n} days",
       "home.daily.streak.one": "Challenge streak: 1 day",
       "home.daily.risk": "Complete it today to keep your {n}-day streak.",
+      "home.daily.risk.one": "Complete it today to keep your 1-day streak.",
       "home.daily.play": "Play now",
       "home.daily.more": "Keep going with classics",
       "home.daily.done.badge": "Completed",
       "home.first.play": "Play today's position",
       "home.first.more": "See other ways to train",
-      "home.daily.already": "You already played today's challenge. There is a new position tomorrow; meanwhile, practise with the classic games.",
+      "home.daily.already": "You already played today's challenge. Another position is waiting tomorrow; meanwhile, practice with the classic games.",
       "home.daily.pending.badge": "Pending",
       "home.daily.board": "Daily challenge position",
       "home.daily.loading": "Loading today's challenge",
@@ -280,7 +308,7 @@
       "home.error.start": "That option could not be opened.",
       "duel.title": "Duel on one device",
       "duel.intro": "You take turns on this device. Whoever plays closer to the best move wins.",
-      "duel.fair": "To keep it fair: in every position player 1 goes first with the clock running while player 2 looks away until it is their turn. Then you pass the device: the first move stays hidden.",
+      "duel.fair": "To keep it fair: you take turns going first in each position. Whoever goes first plays with the clock running while the other looks away until it is their turn. Then you pass the device: the first move stays hidden.",
       "duel.players": "Players",
       "duel.player": "Player {n}",
       "duel.who": "Who is player {n}?",
@@ -337,9 +365,9 @@
       "ld.private.a.title": "No account",
       "ld.private.a.body": "Open the page and train. There is nothing to sign up for.",
       "ld.private.b.title": "Data on your device",
-      "ld.private.b.body": "Your progress lives in your browser. This app has no server or database of its own.",
+      "ld.private.b.body": "Your progress lives in your browser. This app has no server or database, so none of this reaches us. If you train with your own games, your username, your opponents' and the link to each game are saved too. You can delete it from Account.",
       "ld.private.c.title": "Optional sync",
-      "ld.private.c.body": "If you like, sign in with Google to carry your progress to other devices through your own Google Drive.",
+      "ld.private.c.body": "If you like, sign in with Google to carry your progress, with that data, to other devices through your own Google Drive.",
       "ld.private.d.title": "You decide what is downloaded",
       "ld.private.d.body": "The app only connects to Lichess or Chess.com when you ask it to and confirm your username.",
       "ld.final.title": "Ready for your first position?",
@@ -626,6 +654,9 @@
       "aria-checked": current === code ? "true" : "false",
       tabindex: current === code ? "0" : "-1",
       "data-lang": code,
+      // polish-corecopy: named in its own language, like the header buttons in index.html ("ES" alone is spelled out letter by letter).
+      lang: code,
+      "aria-label": code === "es" ? "Español" : "English",
       onclick: () => setLanguageFromFooter(code),
       onkeydown: (event) => {
         if (!event) return;
@@ -812,8 +843,8 @@
     const total = stats ? stats.totalPositions : 0;
     const streak = stats && stats.streak ? stats.streak : null;
     if (!total) return t("home.sub.first");
-    if (streak && streak.atRisk && streak.current > 0) return t("home.sub.risk", { n: streak.current });
-    if (data.counts.due > 0) return t("home.sub.due", { n: data.counts.due });
+    if (streak && streak.atRisk && streak.current > 0) return tCount("home.sub.risk", streak.current);
+    if (data.counts.due > 0) return tCount("home.sub.due", data.counts.due);
     return t("home.sub.default");
   }
 
@@ -833,7 +864,8 @@
       } catch (error) {
         nextTitle = "";
       }
-      text = t("home.level.progress", { xp: formatNumber(level.xp), n: formatNumber(level.xpToNext), next: nextTitle });
+      // The number is shown formatted ("1.250"), the singular is chosen by its value ("falta 1").
+      text = tCount("home.level.progress", level.xpToNext, { xp: formatNumber(level.xp), n: formatNumber(level.xpToNext), next: nextTitle });
     }
     return { title: level.title || "", text, progress: Math.max(0, Math.min(1, level.progress || 0)) };
   }
@@ -1017,7 +1049,7 @@
     const notes = [];
     notes.push(h("li", { class: "home-daily-note" }, icon("flag", { size: 16 }), t("home.daily.turn", { side: t(`ui.side.${side}`) })));
     if (streakText) notes.push(h("li", { class: "home-daily-note" }, icon("flame", { size: 16 }), streakText));
-    if (!done && atRisk && streakN > 0) notes.push(h("li", { class: "home-daily-note is-risk" }, icon("alert", { size: 16 }), t("home.daily.risk", { n: streakN })));
+    if (!done && atRisk && streakN > 0) notes.push(h("li", { class: "home-daily-note is-risk" }, icon("alert", { size: 16 }), tCount("home.daily.risk", streakN)));
 
     const actions = done
       ? h("button", { type: "button", class: "btn btn-secondary", "data-fkey": "daily-more", onclick: () => go("classics") }, h("span", { class: "btn-label" }, t("home.daily.more")), icon("arrow-right", { size: 18 }))
@@ -1143,7 +1175,7 @@
     const Facts = L().Facts;
     const fact = pickFact(false);
     const currentLang = lang();
-    const factText = fact && Facts && typeof Facts.text === "function" ? Facts.text(fact, currentLang) : "";
+    const factText = fact && Facts && typeof Facts.text === "function" ? quotedText(Facts.text(fact, currentLang), currentLang) : "";
     const category = fact && Facts && typeof Facts.categoryLabel === "function" ? Facts.categoryLabel(fact.cat, currentLang) : "";
     const year = fact && Facts && typeof Facts.formatYear === "function" ? Facts.formatYear(fact, currentLang) : "";
     const box = h("section", { class: "home-fact card", "aria-labelledby": "home-fact-title" },
@@ -1493,7 +1525,7 @@
     startDaily,
     openDuelSetup,
     // Pure helpers (also used by the tests).
-    helpers: { localDateKey, greetingPart, resolveDuelPlayers, buildDuelPositions, normalizeCount, DUEL_COUNTS },
+    helpers: { localDateKey, greetingPart, resolveDuelPlayers, buildDuelPositions, normalizeCount, DUEL_COUNTS, tCount, quotedText },
     TEXT,
     destroy() {
       homeState.offs.forEach((off) => off());

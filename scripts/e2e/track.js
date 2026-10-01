@@ -395,6 +395,36 @@ async function notebookScenario(browser) {
   assert.ok(!(await page.locator(".notebook-clear").isHidden()), "clear filters appears");
   await page.locator(".notebook-clear").click();
   assert.strictEqual(await page.locator("#notebook-search").inputValue(), "");
+  // The search finds a move by what the card draws (PB-2): with the Spanish notation the knight is "C...", the stored (English) form still matches.
+  const pieceCard = await page.evaluate(() => Ludus.Profile.notebook.list({}).find((c) => /^N/.test(c.bestSan || "")) || null);
+  if (pieceCard) {
+    await page.evaluate(() => Ludus.Settings.set("notation.style", "spanish"));
+    const spanishBest = await page.evaluate((san) => Ludus.chess.localizeSan(san, "en"), pieceCard.bestSan);
+    assert.ok(/^C/.test(spanishBest), spanishBest);
+    const showEverything = async () => {
+      for (let i = 0; i < 12 && (await page.locator(".notebook-more-btn").count()); i += 1) await page.locator(".notebook-more-btn").click();
+    };
+    for (const typed of [spanishBest.replace(/[+#]/g, ""), pieceCard.bestSan.replace(/[+#]/g, "")]) {
+      await page.locator("#notebook-search").fill(typed);
+      await page.waitForTimeout(400);
+      await showEverything();
+      const ids = await page.locator(".notebook-card").evaluateAll((els) => els.map((el) => el.getAttribute("data-card")));
+      assert.ok(ids.includes(pieceCard.id), `searching "${typed}" finds the card whose best move is ${pieceCard.bestSan}`);
+    }
+    // A word that is neither a stored move nor a drawn one finds nothing.
+    await page.locator("#notebook-search").fill("Zz9");
+    await page.waitForSelector(".notebook-list-empty");
+    await page.locator("#notebook-search").fill(spanishBest.replace(/[+#]/g, ""));
+    await page.waitForTimeout(400);
+    await showEverything();
+    const drawn = await page.locator(`.notebook-card[data-card="${pieceCard.id}"] .notebook-san.is-best [aria-hidden="true"]`).first().innerText();
+    assert.strictEqual(drawn, spanishBest, "the card draws the move with Spanish letters");
+    const spoken = await page.locator(`.notebook-card[data-card="${pieceCard.id}"] .notebook-san.is-best .sr-only`).first().textContent();
+    assert.match(spoken, /^knight (to|takes)/, "and a screen reader gets it in words");
+    await page.evaluate(() => Ludus.Settings.set("notation.style", "auto"));
+    await page.locator("#notebook-search").fill("");
+    await page.waitForFunction((n) => document.querySelectorAll(".notebook-card").length === n, Math.min(12, counts.total));
+  }
   await page.locator(".notebook-more-summary").click();
   await page.selectOption("#notebook-f-tag", firstTag);
   assert.strictEqual(await page.locator(".notebook-card").count(), Math.min(12, tagCards));
@@ -410,15 +440,24 @@ async function notebookScenario(browser) {
   const classic = await page.evaluate(() => Ludus.Profile.notebook.list({ source: "classic" }).length);
   assert.strictEqual(await page.locator(".notebook-card").count(), Math.min(12, classic));
   await page.selectOption("#notebook-f-source", "all");
-  // How bad the mistake was: the four buckets split the notebook, and every card shows a badge of its bucket.
+  // How bad the mistake was: the four buckets split the notebook, and every card shows a badge of its bucket. The words of the filter are the
+  // scorer's (PB-1): the options read exactly what Scoring.qualityLabel says, the same words as the badges of the cards.
   let bucketed = 0;
-  for (const quality of ["blunder", "bad", "dubious", "mild"]) {
+  const qualityWords = await page.evaluate(() => ["blunder", "bad", "dubious", "interesting"].map((code) => Ludus.Scoring.qualityLabel(code, Ludus.i18n.lang())));
+  assert.deepStrictEqual(await page.locator("#notebook-f-quality option").allInnerTexts(), ["All"].concat(qualityWords), "the options are the scorer's words");
+  assert.deepStrictEqual(qualityWords, ["Serious mistake", "Mistake", "Dubious", "Inaccuracy"]);
+  for (const quality of ["blunder", "bad", "dubious", "interesting"]) {
     await page.selectOption("#notebook-f-quality", quality);
     const n = Number((await total()).split(" ")[0]);
     bucketed += n;
     const badges = await page.locator(".notebook-card .q-badge").evaluateAll((els) => els.map((el) => el.className));
-    const wrong = badges.filter((c) => (quality === "mild" ? /q-(blunder|bad|dubious)\b/.test(c) : !new RegExp(`q-${quality}\\b`).test(c)));
+    const wrong = badges.filter((c) => (quality === "interesting" ? /q-(blunder|bad|dubious)\b/.test(c) : !new RegExp(`q-${quality}\\b`).test(c)));
     assert.deepStrictEqual(wrong, [], `quality ${quality}: every visible card has a badge of that kind`);
+    if (n > 0 && quality !== "interesting") {
+      const words = await page.locator(".notebook-card .q-badge").evaluateAll((els) => els.map((el) => el.textContent.trim()));
+      const expectedWord = qualityWords[["blunder", "bad", "dubious"].indexOf(quality)];
+      assert.ok(words.every((word) => word.includes(expectedWord)), `quality ${quality}: the badge says "${expectedWord}": ${words.slice(0, 3).join(" | ")}`);
+    }
   }
   assert.strictEqual(bucketed, counts.total, "the four buckets add up to the notebook");
   await page.selectOption("#notebook-f-quality", "all");
@@ -616,7 +655,7 @@ async function notebookStatesScenario(browser) {
   checkProblems("notebook empty", s.problems);
   await s.context.close();
 
-  step("nothing due: it says so, when the next card comes back and offers to practise anyway");
+  step("nothing due: it says so, when the next card comes back and offers to practice anyway");
   s = await newSession(browser, { lang: "en" });
   const counts = await seedNotDue(s.page, 4);
   assert.strictEqual(counts.due, 0, "every card is waiting for its next date");
@@ -624,7 +663,7 @@ async function notebookStatesScenario(browser) {
   assert.match(await txt(s.page, ".notebook-clear-title"), /You are all caught up/);
   assert.match(await txt(s.page, ".notebook-due-note"), /Next review: Tomorrow · \w+, \w+ \d+/);
   assert.match(await txt(s.page, ".notebook-due-note"), /\(4 cards\)/);
-  assert.strictEqual(await txt(s.page, "#notebook-start"), "Practise anyway");
+  assert.strictEqual(await txt(s.page, "#notebook-start"), "Practice anyway");
   assert.match(await txt(s.page, ".notebook-hint"), /counts as a review too/);
   assert.strictEqual(await s.page.locator(".notebook-card.is-due").count(), 0);
   assert.ok((await s.page.locator(".notebook-card").first().innerText()).includes("Tomorrow"), "the cards say when they come back");

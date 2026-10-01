@@ -102,10 +102,9 @@
 //   material is 16 or less, or only four pieces or fewer remain, or there are no
 //   queens and it is 26 or less; opening while it is 50 or more (at most one
 //   minor piece traded) up to move 10; everything else is middlegame. app.js
-//   takes its phase from here. The classics builder (scripts/build-classics.js
-//   phaseOf) has the same rule except for the "four pieces or fewer" clause (it
-//   calls 7 of the 248 training positions middlegames that are endgames), so its
-//   `phase` field should call this function too.
+//   takes its phase from here, and so does the classics builder
+//   (scripts/build-classics.js phaseOf calls this function), so the `phase` of a
+//   classic training position is never a second opinion.
 (function (root, factory) {
   const api = factory(root);
   root.Ludus = root.Ludus || {};

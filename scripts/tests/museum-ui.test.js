@@ -24,12 +24,50 @@ const SCRIPTS = [
   "js/ludus.js", "js/chess.js", "js/settings.js", "js/facts.js", "js/reader.js", "js/classics.js", "js/insights.js", "js/concepts.js", "js/ui/kit.js", "js/ui/museum.js",
 ];
 
-function createEnv({ language = "es", skip = [] } = {}) {
+// A window with a real history (entries, state, Back and Forward) for the tests of the tabs as history entries: a traversal fires popstate and, when
+// the address differs, hashchange with the address the traversal went to (newURL), as a browser does. The default environment has no pushState, so
+// Ludus.router writes no history there (the older tests below).
+function createHistoryWindow(fire) {
+  const entries = [{ state: null, url: "http://app.test/" }];
+  let index = 0;
+  const hashOf = (url) => { const at = url.indexOf("#"); return at < 0 ? "" : url.slice(at); };
+  const urlFor = (url) => (url === undefined ? entries[index].url : new URL(url, entries[index].url).href);
+  const location = { pathname: "/", search: "", get href() { return entries[index].url; }, get hash() { return hashOf(entries[index].url); } };
+  const history = {
+    get state() { return entries[index].state; },
+    pushState(state, _title, url) { const next = urlFor(url); entries.splice(index + 1); entries.push({ state, url: next }); index += 1; },
+    replaceState(state, _title, url) { entries[index] = { state, url: urlFor(url) }; },
+    back() { return traverse(-1); },
+    forward() { return traverse(1); },
+  };
+  function traverse(delta) {
+    const target = index + delta;
+    if (target < 0 || target >= entries.length) return false;
+    const oldURL = entries[index].url;
+    index = target;
+    const newURL = entries[index].url;
+    fire("popstate", { type: "popstate", state: entries[index].state });
+    if (newURL !== oldURL && hashOf(newURL) !== hashOf(oldURL)) fire("hashchange", { type: "hashchange", oldURL, newURL });
+    return true;
+  }
+  // The person types an address: a new entry without a state of ours, then hashchange.
+  function type(hash) {
+    const oldURL = entries[index].url;
+    entries.splice(index + 1);
+    entries.push({ state: null, url: new URL(hash, oldURL).href });
+    index += 1;
+    fire("hashchange", { type: "hashchange", oldURL, newURL: entries[index].url });
+  }
+  return { history, location, entries, type, at: () => index };
+}
+
+function createEnv({ language = "es", skip = [], realHistory = false } = {}) {
   const doc = new FakeDocument();
   const storageMap = new Map();
-  const location = { hash: "", pathname: "/", search: "" };
   const clock = { now: 0, seq: 0, timers: new Map() };
   const winListeners = new Map();
+  const win = realHistory ? createHistoryWindow((type, event) => (winListeners.get(type) || []).slice().forEach((fn) => fn(event))) : null;
+  const location = win ? win.location : { hash: "", pathname: "/", search: "" };
   const sandbox = {
     console, Date, Math, JSON, Object, Array, String, Number, Promise, Map, Set, Intl, URL, structuredClone, WeakMap, performance: { now: () => clock.now },
     setTimeout(fn, ms) { clock.seq += 1; clock.timers.set(clock.seq, { at: clock.now + Number(ms || 0), fn }); return clock.seq; },
@@ -42,7 +80,7 @@ function createEnv({ language = "es", skip = [] } = {}) {
     removeEventListener(type, fn) { winListeners.set(type, (winListeners.get(type) || []).filter((entry) => entry !== fn)); },
   };
   sandbox.window = sandbox;
-  sandbox.history = { state: null, replaceState(_state, _title, url) { location.hash = (String(url).match(/#.*$/) || [""])[0]; } };
+  sandbox.history = win ? win.history : { state: null, replaceState(_state, _title, url) { location.hash = (String(url).match(/#.*$/) || [""])[0]; } };
   const context = vm.createContext(sandbox);
   SCRIPTS.filter((rel) => !skip.includes(rel)).forEach((rel) => vm.runInContext(fs.readFileSync(path.join(repoRoot, rel), "utf8"), context, { filename: rel }));
   const Ludus = context.Ludus;
@@ -72,10 +110,16 @@ function createEnv({ language = "es", skip = [] } = {}) {
   const other = mk("section", { id: "screen-home", class: "screen hidden" });
   app.appendChild(el);
   app.appendChild(other);
-  Ludus.router.register("museum", { el, onShow: (params) => Ludus.Screens.museum.show(params), onHide: () => Ludus.Screens.museum.hide() });
+  // The same wiring as registerRouterScreen in app.js, onSub included.
+  Ludus.router.register("museum", { el, onShow: (params) => Ludus.Screens.museum.show(params), onHide: () => Ludus.Screens.museum.hide(), onSub: (sub) => Ludus.Screens.museum.onSub(sub) });
   Ludus.router.register("home", { el: other });
+  Ludus.router.register("classics", { el: mk("section", { id: "screen-classics", class: "screen hidden" }) });
+  if (win) {
+    // What js/ui/shell.js does on every screen change: the address is rewritten to the plain screen id (also while Back is being handled).
+    Ludus.bus.on("screen:changed", ({ id }) => { sandbox.history.replaceState(sandbox.history.state, "", `/#/${id}`); });
+  }
   const fire = (type) => (winListeners.get(type) || []).slice().forEach((fn) => fn({ type }));
-  return { Ludus, doc, el, location, advance, fire, setGame: (game) => { Ludus.game = game; } };
+  return { Ludus, doc, el, location, advance, fire, win, setGame: (game) => { Ludus.game = game; } };
 }
 
 const text = (node) => node.textContent.replace(/\s+/g, " ").trim();
@@ -501,7 +545,7 @@ test("curiosities: 24 first, categories with counts, search, show more, empty st
   const surprise = q(root, ".museum-surprise");
   assert.ok(hidden(surprise));
   const button = q(root, ".museum-surprise-btn");
-  assert.ok(text(button).includes("Sorpréndeme"));
+  assert.ok(text(button).includes("Sorprendeme"));
   button.click();
   assert.ok(!hidden(surprise));
   const first = text(q(surprise, ".museum-fact-text"));
@@ -517,7 +561,7 @@ test("curiosities: 24 first, categories with counts, search, show more, empty st
   assert.strictEqual(surprise.getAttribute("aria-live"), "polite");
   one(surprise, (n) => n.tagName === "BUTTON").click();
   assert.ok(hidden(surprise));
-  assert.ok(text(button).includes("Sorpréndeme"));
+  assert.ok(text(button).includes("Sorprendeme"));
   assert.strictEqual(el.ownerDocument.activeElement, button, "focus returns to the button");
   assert.strictEqual(Ludus.storage.keys("ludus.museum").length + Ludus.storage.keys("ludus.facts").length, 0, "nothing is saved");
 });
@@ -700,6 +744,318 @@ test("degrading: without Facts, Concepts, Insights, Reader or the kit the tabs s
   } finally {
     console.error = originalError;
   }
+});
+
+// ---------- polish pass: PD-2 voseo, PD-3 plurals, PD-4 history, PD-5 notation ----------
+
+test("register: the Spanish strings are voseo, none is tuteo (PD-2)", async () => {
+  const { Ludus } = createEnv();
+  const es = Ludus.Screens.museum.TEXT.es;
+  assert.strictEqual(es["museum.facts.surprise"], "Sorprendeme");
+  // The imperatives a tuteo would write ("sorpréndeme", "prueba", "elige", ...) next to the voseo ones the screen uses.
+  const tuteo = /\b(\w+éndeme|prueba|elige|escoge|toca|escribe|busca|vuelve|pulsa|abre|usa|selecciona|haz|ve)\b/i;
+  Object.keys(es).forEach((key) => assert.ok(!tuteo.test(es[key]), `${key} is not voseo: ${es[key]}`));
+  ["Abrí", "Escribí", "Probá", "elegí", "podés"].forEach((word) => assert.ok(Object.values(es).some((value) => value.includes(word)), `${word} is used`));
+  // English: American spelling and no contractions in this screen's own strings.
+  const en = Ludus.Screens.museum.TEXT.en;
+  Object.keys(en).forEach((key) => {
+    assert.ok(!/\b(colour|centre|defence|analys|practis|licence|favour|organis)/i.test(en[key]), `${key} is not American English: ${en[key]}`);
+    assert.ok(!/n't|'re\b|'ve\b|'ll\b/.test(en[key]), `${key} has a contraction: ${en[key]}`);
+  });
+});
+
+test("plurals: one thing is singular, the rest plural, in both languages and in the screen (PD-3)", async () => {
+  const { Ludus } = createEnv();
+  const museum = Ludus.Screens.museum;
+  const tCount = museum.helpers.tCount;
+  const forms = [
+    ["museum.facts.count", 1, { shown: 1, total: 1 }, "1 curiosidad", "1 curiosity"],
+    ["museum.facts.count", 5, { shown: 5, total: 5 }, "5 de 5 curiosidades", "5 of 5 curiosities"],
+    ["museum.facts.count", 0, { shown: 0, total: 0 }, "0 de 0 curiosidades", "0 of 0 curiosities"],
+    ["museum.facts.more.n", 1, {}, "Mostrar más (1 restante)", "Show more (1 left)"],
+    ["museum.facts.more.n", 2, {}, "Mostrar más (2 restantes)", "Show more (2 left)"],
+    ["museum.school.count", 1, {}, "1 lección", "1 lesson"],
+    ["museum.school.count", 14, {}, "14 lecciones", "14 lessons"],
+    ["museum.timeline.milestones", 1, {}, "1 hito", "1 milestone"],
+    ["museum.timeline.milestones", 0, {}, "0 hitos", "0 milestones"],
+  ];
+  forms.forEach(([key, n, params, es, en]) => {
+    Ludus.i18n.setLanguage("es", { persist: false });
+    assert.strictEqual(tCount(key, n, params), es, `${key} ${n} es`);
+    Ludus.i18n.setLanguage("en", { persist: false });
+    assert.strictEqual(tCount(key, n, params), en, `${key} ${n} en`);
+  });
+  // Every string that counts something has a singular form, and no string hedges with "(s)".
+  const { es, en } = museum.TEXT;
+  ["museum.facts.count", "museum.facts.more.n", "museum.school.count", "museum.timeline.milestones"].forEach((key) => assert.ok(`${key}.one` in es && `${key}.one` in en, `${key} has a singular`));
+  Object.keys(es).forEach((key) => {
+    assert.ok(!/\(s\)|\(es\)/.test(es[key]) && !/\(s\)/.test(en[key]), `${key} hedges the plural`);
+  });
+  // In the screen: a search that leaves one curiosity says "1 curiosidad", and one left to show says "(1 restante)".
+  Ludus.i18n.setLanguage("es", { persist: false });
+  const env = createEnv();
+  env.Ludus.Screens.museum.mount(env.el);
+  env.Ludus.router.show("museum", { tab: "curiosities" });
+  const root = panel(env.el, "curiosities");
+  const search = q(root, "#museum-search");
+  search.value = "polerio";
+  search.dispatch("input");
+  env.advance(200);
+  assert.strictEqual(text(q(root, ".museum-count")), "1 curiosidad");
+  search.value = "";
+  search.dispatch("input");
+  env.advance(200);
+  env.Ludus.Screens.museum._state.facts.shown = 125;
+  env.Ludus.Screens.museum.render();
+  assert.strictEqual(text(q(panel(env.el, "curiosities"), ".museum-more-facts")), "Mostrar más (1 restante)");
+});
+
+test("notation: the example move is drawn through localizeSan and read aloud through spokenSan (PD-5)", async () => {
+  const card = (env) => findAll(panel(env.el, "school"), byClass("museum-concept"))[0];
+  const move = (env) => q(card(env), ".museum-concept-move");
+  // The drawn move (the one span of the paragraph that is hidden from the reader; the icon is another one) and the spoken one; the label stays visible.
+  const drawnOf = (paragraph) => findAll(paragraph, (n) => n.tagName === "SPAN" && n.getAttribute("aria-hidden") === "true")[0];
+  const spokenOf = (paragraph) => q(paragraph, ".sr-only");
+  // Spanish page, automatic notation.
+  const es = createEnv({ language: "es" });
+  es.Ludus.Screens.museum.mount(es.el);
+  es.Ludus.router.show("museum", { tab: "school" });
+  let drawn = drawnOf(move(es));
+  let spoken = spokenOf(move(es));
+  assert.strictEqual(text(drawn), "Cc7+");
+  assert.strictEqual(text(spoken), "caballo a c7, jaque");
+  assert.strictEqual(text(move(es)), "Jugada del ejemplo: Cc7+ caballo a c7, jaque", "the label is read, then the spoken move");
+  assert.ok(!drawn.parentNode.hasAttribute("aria-hidden") && !drawn.parentNode.parentNode.hasAttribute("aria-hidden"), "only the drawn move is hidden from the reader");
+  // English letters chosen in Settings on a Spanish page: drawn in English, still spoken in Spanish words.
+  es.Ludus.Settings.set("notation.style", "english");
+  es.Ludus.Screens.museum.render();
+  drawn = drawnOf(move(es));
+  spoken = spokenOf(move(es));
+  assert.strictEqual(text(drawn), "Nc7+");
+  assert.strictEqual(text(spoken), "caballo a c7, jaque");
+  // English page.
+  const en = createEnv({ language: "en" });
+  en.Ludus.Screens.museum.mount(en.el);
+  en.Ludus.router.show("museum", { tab: "school" });
+  assert.strictEqual(text(drawnOf(move(en))), "Nc7+");
+  assert.strictEqual(text(spokenOf(move(en))), "knight to c7, check");
+  assert.ok(text(move(en)).startsWith("Move of the example: Nc7+"));
+  en.Ludus.Settings.set("notation.style", "spanish");
+  en.Ludus.Screens.museum.render();
+  assert.strictEqual(text(drawnOf(move(en))), "Cc7+", "Spanish letters when the setting says so");
+  // Every lesson: the drawn move is localizeSan of its SAN, the spoken one is spokenSan of it.
+  const sans = es.Ludus.Concepts.list().map((concept) => es.Ludus.Screens.museum.helpers.conceptMoveSan(concept, es.Ludus.chess));
+  es.Ludus.Settings.set("notation.style", "auto");
+  es.Ludus.Screens.museum.render();
+  findAll(panel(es.el, "school"), byClass("museum-concept-move")).forEach((paragraph, i) => {
+    assert.ok(text(paragraph).startsWith("Jugada del ejemplo: "), `lesson ${i} keeps its label`);
+    assert.strictEqual(text(drawnOf(paragraph)), es.Ludus.chess.localizeSan(sans[i], "es"), `lesson ${i} drawn`);
+    assert.strictEqual(text(spokenOf(paragraph)), es.Ludus.chess.spokenSan(sans[i], "es"), `lesson ${i} spoken`);
+  });
+  // Without the chess helpers the move is shown as it is (nothing throws).
+  const bare = createEnv();
+  bare.Ludus.chess.localizeSan = undefined;
+  bare.Ludus.chess.spokenSan = undefined;
+  assert.strictEqual(bare.Ludus.Screens.museum.helpers.shownSan("Nc7+"), "Nc7+");
+  assert.strictEqual(bare.Ludus.Screens.museum.helpers.spokenMove("Nc7+"), "Nc7+");
+});
+
+test("notation: the reading room and the timeline's related curiosities draw quoted moves in the person's notation (PD-5)", async () => {
+  const env = createEnv({ language: "es" });
+  const { Ludus, el } = env;
+  Ludus.Screens.museum.mount(el);
+  Ludus.router.show("museum", { tab: "room" });
+  const root = () => panel(el, "room"); // drawn again by render(), so never kept
+  const carousel = () => findAll(root(), byClass("rd-carousel"))[0];
+  // Walks the room to the Berlin Defence fact, which quotes "2.Cf3 Cc6 3.Ab5 Cf6" in its Spanish text.
+  const showBerlin = () => {
+    for (let i = 0; i < 140 && carousel().getAttribute("data-fact") !== "openings-berlin-wall"; i += 1) q(root(), ".rd-next").click();
+    assert.strictEqual(carousel().getAttribute("data-fact"), "openings-berlin-wall");
+  };
+  showBerlin();
+  assert.ok(text(q(root(), ".rd-text")).includes("(1.e4 e5 2.Cf3 Cc6 3.Ab5 Cf6)"), "automatic notation on a Spanish page: Spanish letters");
+  Ludus.Settings.set("notation.style", "english");
+  Ludus.Screens.museum.render();
+  showBerlin();
+  assert.ok(text(q(root(), ".rd-text")).includes("(1.e4 e5 2.Nf3 Nc6 3.Bb5 Nf6)"), "English letters when the setting says so");
+  assert.ok(text(q(root(), ".rd-live")).includes("2.Nf3 Nc6"), "and what a screen reader is told when the person moves on follows it too");
+  // The curiosities of a milestone's time (the timeline panel) are re-spelled the same way.
+  Ludus.router.show("museum", { tab: "timeline" });
+  const related = findAll(panel(el, "timeline"), byClass("museum-related-text")).map((node) => text(node)).filter((t) => /\d\.[A-Za-z]/.test(t));
+  assert.ok(related.length >= 1, "some milestone lists a curiosity that quotes moves");
+  related.forEach((t) => assert.ok(!/\b[DCAT][a-h]?x?[a-h][1-8][+#]?/.test(t), `English letters in: ${t}`));
+  assert.ok(related.some((t) => t.includes("2.Nf3 Nc6 3.Bb5 Nf6")), "the Berlin Defence under the 1999 milestone is spelled with English letters");
+  // The option is optional: the carousel without it draws the text as it is.
+  const bare = createEnv({ language: "es" });
+  const host = bare.doc.createElement("div");
+  bare.doc.body.appendChild(host);
+  const controller = bare.Ludus.Reader.createCarousel(host, { category: "openings" });
+  assert.ok(findAll(host, byClass("rd-text"))[0].textContent.length > 20);
+  controller.destroy();
+  const throwing = bare.Ludus.Reader.createCarousel(host, { category: "openings", formatText: () => { throw new Error("broken hook"); } });
+  assert.ok(findAll(host, byClass("rd-text"))[0].textContent.length > 20, "a failing hook leaves the text as it is");
+  throwing.destroy();
+});
+
+test("history: every tab a person opens is an entry; Back and Forward walk them, the title and the address follow (PD-4)", async () => {
+  const env = createEnv({ realHistory: true });
+  const { Ludus, el, doc, win, advance } = env;
+  const selected = () => findAll(el, (n) => n.getAttribute("role") === "tab" && n.getAttribute("aria-selected") === "true").map((n) => n.getAttribute("data-tab")).join();
+  Ludus.Screens.museum.mount(el);
+  Ludus.router.show("home");
+  Ludus.router.show("museum");
+  advance(5);
+  assert.strictEqual(win.entries.length, 2, "home and the museum");
+  assert.strictEqual(win.history.state.ludus.sub, undefined, "the timeline is the base state");
+  tabButton(el, "curiosities").click();
+  tabButton(el, "school").click();
+  advance(5);
+  assert.strictEqual(win.entries.length, 4, "one entry per tab opened");
+  deepEq(win.history.state.ludus.sub, { tab: "school" });
+  assert.strictEqual(win.location.hash, "#/museum/school");
+  tabButton(el, "school").click();
+  assert.strictEqual(win.entries.length, 4, "the tab that is already open writes nothing");
+  win.history.back();
+  advance(5);
+  assert.strictEqual(Ludus.router.current(), "museum", "Back stays on the screen");
+  assert.strictEqual(selected(), "curiosities");
+  assert.strictEqual(doc.title, "Curiosidades - Historia - Ludus Scaccorum", "the title follows");
+  assert.strictEqual(win.location.hash, "#/museum/curiosities");
+  assert.ok(!hidden(panel(el, "curiosities")) && hidden(panel(el, "school")));
+  win.history.back();
+  advance(5);
+  assert.strictEqual(selected(), "timeline");
+  assert.strictEqual(doc.title, "Línea de tiempo - Historia - Ludus Scaccorum");
+  assert.strictEqual(win.location.hash, "#/museum");
+  win.history.back();
+  advance(5);
+  assert.strictEqual(Ludus.router.current(), "home", "then it leaves the screen");
+  win.history.forward();
+  advance(5);
+  assert.strictEqual(Ludus.router.current(), "museum");
+  assert.strictEqual(selected(), "timeline");
+  win.history.forward();
+  advance(5);
+  assert.strictEqual(selected(), "curiosities");
+  win.history.forward();
+  advance(5);
+  assert.strictEqual(selected(), "school");
+  assert.strictEqual(doc.title, "Escuela de ajedrez - Historia - Ludus Scaccorum");
+  assert.strictEqual(win.entries.length, 4, "moving through the history writes nothing");
+  // Arrow keys: one entry per tab, and the focus follows Back to the tab that is open.
+  const key = (name) => q(el, '[role="tablist"]').dispatch("keydown", { key: name });
+  tabButton(el, "school").focus();
+  key("ArrowRight");
+  assert.strictEqual(selected(), "room");
+  assert.strictEqual(win.entries.length, 5);
+  assert.ok(doc.activeElement === tabButton(el, "room"), "focus follows the arrow key");
+  win.history.back();
+  advance(5);
+  assert.strictEqual(selected(), "school");
+  assert.ok(doc.activeElement === tabButton(el, "school"), "the focus is on the open tab");
+  // Focus inside the tab that Back hides goes to the open tab instead of being lost on the page.
+  tabButton(el, "curiosities").click();
+  q(panel(el, "curiosities"), "#museum-search").focus();
+  win.history.back();
+  advance(5);
+  assert.strictEqual(selected(), "school");
+  assert.ok(doc.activeElement === tabButton(el, "school"), "focus that was inside the hidden tab goes to the open one");
+  // The reading room's carousel stops when Back leaves it.
+  tabButton(el, "room").click();
+  assert.ok(Ludus.Screens.museum._state.room.controller);
+  win.history.back();
+  advance(5);
+  assert.strictEqual(Ludus.Screens.museum._state.room.controller, null, "nothing keeps rotating behind another tab");
+});
+
+test("history: a screen in between, the bar the shell rewrites, a typed address and a tab the screen is shown on (PD-4)", async () => {
+  const env = createEnv({ realHistory: true, language: "en" });
+  const { Ludus, el, doc, win, advance } = env;
+  const selected = () => findAll(el, (n) => n.getAttribute("role") === "tab" && n.getAttribute("aria-selected") === "true").map((n) => n.getAttribute("data-tab")).join();
+  Ludus.Screens.museum.mount(el);
+  Ludus.router.show("home");
+  Ludus.router.show("museum");
+  tabButton(el, "room").click();
+  advance(5);
+  // Another screen, then Back: the shell rewrites the bar to "#/museum" while Back is handled; the hashchange that follows is about
+  // "#/museum/room" and must not send the person to the timeline.
+  Ludus.router.show("classics");
+  advance(5);
+  assert.strictEqual(win.location.hash, "#/classics");
+  win.history.back();
+  advance(5);
+  assert.strictEqual(Ludus.router.current(), "museum");
+  assert.strictEqual(selected(), "room", "back on the tab the museum was left on");
+  assert.strictEqual(doc.title, "Reading room - History - Ludus Scaccorum");
+  deepEq(win.history.state.ludus.sub, { tab: "room" }, "the entry still says so");
+  assert.strictEqual(win.location.hash, "#/museum/room", "and the address is back");
+  // A new visit from another screen starts on the tab the screen was last on, and records it.
+  Ludus.router.show("home");
+  Ludus.router.show("museum");
+  advance(5);
+  assert.strictEqual(selected(), "room");
+  deepEq(win.history.state.ludus.sub, { tab: "room" });
+  assert.strictEqual(win.location.hash, "#/museum/room");
+  // A route that names a tab: the entry says that tab, no extra entry is written for it.
+  const before = win.entries.length;
+  Ludus.router.show("museum", { tab: "school" });
+  advance(5);
+  assert.strictEqual(selected(), "school");
+  deepEq(win.history.state.ludus.sub, { tab: "school" });
+  assert.strictEqual(win.entries.length, before, "a route's tab rewrites the entry on show");
+  // An address typed by hand is an entry of its own, adopted by the screen: a tab opened after it does not overwrite it.
+  win.type("#/museum/curiosities");
+  advance(5);
+  assert.strictEqual(selected(), "curiosities");
+  deepEq(win.history.state.ludus.sub, { tab: "curiosities" }, "adopted");
+  tabButton(el, "timeline").click();
+  advance(5);
+  win.history.back();
+  advance(5);
+  assert.strictEqual(selected(), "curiosities", "the typed entry is still there");
+  win.history.back();
+  advance(5);
+  assert.strictEqual(selected(), "school", "and the one before it");
+  // Typing "#/museum" while another tab is open goes to the timeline.
+  win.type("#/museum");
+  advance(5);
+  assert.strictEqual(selected(), "timeline");
+  // A popped entry of another screen is not touched by the museum.
+  win.history.back();
+  advance(5);
+  win.history.forward();
+  advance(5);
+  assert.strictEqual(Ludus.router.current(), "museum");
+});
+
+test("history: without a history the tabs work as they did, and a broken router never stops a tab (PD-4)", async () => {
+  const env = createEnv();
+  const { Ludus, el } = env;
+  Ludus.Screens.museum.mount(el);
+  Ludus.router.show("museum");
+  tabButton(el, "school").click();
+  assert.strictEqual(tabButton(el, "school").getAttribute("aria-selected"), "true");
+  Ludus.Screens.museum.onSub({ tab: "room" });
+  assert.strictEqual(tabButton(el, "room").getAttribute("aria-selected"), "true", "onSub moves to the tab it names");
+  Ludus.Screens.museum.onSub(null);
+  assert.strictEqual(tabButton(el, "timeline").getAttribute("aria-selected"), "true", "null is the timeline");
+  Ludus.Screens.museum.onSub({ tab: "__proto__" });
+  assert.strictEqual(tabButton(el, "timeline").getAttribute("aria-selected"), "true", "an unknown tab is the timeline");
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    Ludus.router.pushSub = () => { throw new Error("history refused"); };
+    tabButton(el, "curiosities").click();
+    assert.strictEqual(tabButton(el, "curiosities").getAttribute("aria-selected"), "true");
+  } finally {
+    console.error = originalError;
+  }
+  // Hidden or not mounted: Back has nothing to move.
+  Ludus.router.show("home");
+  Ludus.Screens.museum.onSub({ tab: "school" });
+  assert.strictEqual(tabButton(el, "curiosities").getAttribute("aria-selected"), "true", "a hidden screen ignores it");
+  deepEq(Ludus.Screens.museum.helpers.tabSub("timeline"), null);
+  deepEq(Ludus.Screens.museum.helpers.tabSub("room"), { tab: "room" });
 });
 
 runAll().then(() => {

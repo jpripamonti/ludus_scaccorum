@@ -50,13 +50,17 @@ const ENGINE_SUMS = path.join(ROOT, "vendor", "SHA256SUMS");
 require(path.join(ROOT, "js", "ludus.js"));
 const chessApi = require(path.join(ROOT, "js", "chess.js"));
 const pgnApi = require(path.join(ROOT, "js", "pgn.js"));
+// The app's one game-phase classifier (PX-1): the builder must not carry a copy of the rule, or the
+// `phase` stored in the data drifts from what the notebook, the progress chart and the scorer compute.
+// insights.js reads Ludus.chess at call time, so it is loaded after chess.js.
+const insightsApi = require(path.join(ROOT, "js", "insights.js"));
 const { Chess, uciToMove, moveToUci, moveToSan } = chessApi;
 
 // ---------------------------------------------------------------- constants
 
 // Bump when the selection/classification logic or the output shape changes:
 // `--check` treats data built by another version as stale.
-const BUILDER_VERSION = 3; // 3: the data carries `names` and `events` (display forms per language)
+const BUILDER_VERSION = 4; // 4: `phase` comes from Insights.gamePhase (3: the data carries `names` and `events`)
 const DATA_VERSION = 1;
 const QUICK = { depth: 12, multipv: 3 };
 const MID = { depth: 16, multipv: 3 };   // candidate detection (deep combinations are invisible at depth 12)
@@ -463,12 +467,9 @@ function materialOf(chess) {
   return { white, black, balance: white - black, nonPawn };
 }
 
+// "opening" | "middlegame" | "endgame" of a Chess instance, from Insights.gamePhase (the rule lives there).
 function phaseOf(chess) {
-  const { nonPawn } = materialOf(chess);
-  const queens = chess.board.filter((piece) => piece && piece.toUpperCase() === "Q").length;
-  if (nonPawn <= 16 || (queens === 0 && nonPawn <= 26)) return "endgame";
-  if (chess.fullmove <= 10 && nonPawn >= 50) return "opening";
-  return "middlegame";
+  return insightsApi.gamePhase(chess);
 }
 
 // Plays the PV on a copy of the position; returns the material balance (in

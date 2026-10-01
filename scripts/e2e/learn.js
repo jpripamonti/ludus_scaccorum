@@ -17,12 +17,15 @@
 //   LUDUS_AXE             path to axe.min.js: turns on the axe scenario (axe-core is not a project dependency)
 //
 // Scenarios (each in a fresh context with service workers blocked, CSP enforced):
-//   gallery             28 cards; text search (accents do not matter), difficulty, era, theme, kind and sort;
+//   gallery             one card per game; text search (accents do not matter), difficulty, era, theme, kind and sort;
 //                       the count, the removable chips, the empty state and "clear filters"
 //   game page + replay  open a card (hash #/classics/<id>), first / previous / next / last, the arrow keys, the
 //                       scrubber, the list of moves, the note of a key moment, the training cue, auto play
 //                       (moves on its own, pause holds), the board flips, Escape-free keyboard flow
 //   deep links          a cold start on #/classics/<id> and on #/museum/<tab>; an unknown game id
+//   game history        a game page is an entry of the screen: Back and Forward (a phone's Back gesture) go between the gallery and the game before
+//                       they leave the screen, "All games" is one step Back, the tab title and the address follow, the line under the title names
+//                       the place once, the moves are named in words (polish PB-3, PB-5, PB-6)
 //   train               "Train this game" starts a classic session with the chosen count and hints; "try this
 //                       position" starts one position; the random mix respects difficulty and count; the daily
 //                       strip starts the daily challenge; the play screen appears each time
@@ -46,6 +49,14 @@
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
+const vm = require("vm");
+
+// How many games the library holds: read from the generated data, so adding a game needs no edit here (PX-2).
+const LIBRARY_SIZE = (() => {
+  const sandbox = { Ludus: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "..", "js", "data", "classics.data.js"), "utf8"), sandbox);
+  return sandbox.Ludus.ClassicsData.games.length;
+})();
 
 let chromium;
 try {
@@ -191,11 +202,11 @@ function noRawKeys(text, label) {
 async function galleryScenario(browser) {
   const { context, page, problems } = await newSession(browser, { lang: "en" });
   await openClassics(page);
-  step("28 games, one card each, the count and the summary");
-  assert.strictEqual(await page.locator(".classics-item").count(), 28);
-  assert.match(await page.locator(".classics-count").innerText(), /^28 games$/);
+  step(`${LIBRARY_SIZE} games, one card each, the count and the summary`);
+  assert.strictEqual(await page.locator(".classics-item").count(), LIBRARY_SIZE);
+  assert.match(await page.locator(".classics-count").innerText(), new RegExp(`^${LIBRARY_SIZE} games$`));
   const stats = await page.locator(".classics-stats").innerText();
-  assert.match(stats, /28/);
+  assert.match(stats, new RegExp(String(LIBRARY_SIZE)));
   step("a card has a board, the title, players, year, opening, difficulty and a training count");
   const card = page.locator(`.classics-item[data-game="${GAME}"]`);
   assert.ok(await card.locator("svg.mini-board").count() === 1, "mini board");
@@ -212,7 +223,7 @@ async function galleryScenario(browser) {
   const search = page.locator("#classics-search");
   await search.fill("morphy");
   await page.waitForFunction(() => document.querySelectorAll(".classics-item").length === 2);
-  assert.match(await page.locator(".classics-count").innerText(), /^2 of 28 games$/);
+  assert.match(await page.locator(".classics-count").innerText(), new RegExp(`^2 of ${LIBRARY_SIZE} games$`));
   await search.fill("réti");
   await page.waitForFunction(() => document.querySelectorAll(".classics-item").length === 1);
   await search.fill("Hastings");
@@ -222,13 +233,13 @@ async function galleryScenario(browser) {
   step("the active filter shows as a chip that removes it");
   assert.strictEqual(await page.locator(".classics-active-chip").count(), 1);
   await page.locator(".classics-active-chip").click();
-  await page.waitForFunction(() => document.querySelectorAll(".classics-item").length === 28);
+  await page.waitForFunction((n) => document.querySelectorAll(".classics-item").length === n, LIBRARY_SIZE);
   assert.strictEqual(await search.inputValue(), "");
 
   step("difficulty, era, theme and kind narrow the list; they combine");
   await page.locator('.classics-diff-seg button[data-value="3"]').click();
   const hard = await page.locator(".classics-item").count();
-  assert.ok(hard > 5 && hard < 28, `hard games: ${hard}`);
+  assert.ok(hard > 5 && hard < LIBRARY_SIZE, `hard games: ${hard}`);
   assert.strictEqual(await page.locator('.classics-diff-seg button[aria-pressed="true"]').getAttribute("data-value"), "3");
   await page.selectOption("#classics-era", "e4");
   await page.waitForFunction(() => document.querySelectorAll(".classics-item").length < 8);
@@ -237,15 +248,15 @@ async function galleryScenario(browser) {
   const era2000 = await page.evaluate(() => Ludus.Classics.list().filter((g) => g.year >= 2000 && g.difficulty === 3).map((g) => g.id).sort());
   assert.deepStrictEqual(modern.slice().sort(), era2000, "era + difficulty = the games of 2000 on that are hard");
   await page.locator(".classics-clear").click();
-  await page.waitForFunction(() => document.querySelectorAll(".classics-item").length === 28);
+  await page.waitForFunction((n) => document.querySelectorAll(".classics-item").length === n, LIBRARY_SIZE);
   const themeOption = await page.evaluate(() => Array.from(document.querySelectorAll("#classics-theme option")).map((o) => o.value)[1]);
   await page.selectOption("#classics-theme", themeOption);
   const themed = await page.locator(".classics-item").count();
-  assert.ok(themed >= 1 && themed < 28, `theme ${themeOption}: ${themed}`);
+  assert.ok(themed >= 1 && themed < LIBRARY_SIZE, `theme ${themeOption}: ${themed}`);
   await page.selectOption("#classics-theme", "all");
   await page.selectOption("#classics-kind", "sacrifice");
   const sacrifices = await page.locator(".classics-item").count();
-  assert.ok(sacrifices >= 1 && sacrifices < 28, `kind sacrifice: ${sacrifices}`);
+  assert.ok(sacrifices >= 1 && sacrifices < LIBRARY_SIZE, `kind sacrifice: ${sacrifices}`);
   await page.selectOption("#classics-kind", "all");
 
   step("sorting: chronological, by difficulty, by title");
@@ -266,7 +277,7 @@ async function galleryScenario(browser) {
   await page.waitForSelector(".classics-empty:not([hidden]) .empty");
   assert.strictEqual(await page.locator(".classics-item").count(), 0);
   await page.locator(".classics-empty .btn").click();
-  await page.waitForFunction(() => document.querySelectorAll(".classics-item").length === 28);
+  await page.waitForFunction((n) => document.querySelectorAll(".classics-item").length === n, LIBRARY_SIZE);
   assert.strictEqual(await search.inputValue(), "", "clearing also empties the search box");
   checkProblems("gallery", problems);
   await context.close();
@@ -411,6 +422,127 @@ async function deepLinkScenario(browser) {
   assert.strictEqual(await s.page.locator("#museum-tab-school").getAttribute("aria-selected"), "true");
   assert.match(await s.page.title(), /^Chess school - History - /, "and the section");
   checkProblems("museum deep link", s.problems);
+  await s.context.close();
+}
+
+async function gameHistoryScenario(browser) {
+  let s = await newSession(browser, { lang: "en" });
+  const { page } = s;
+  const where = () => page.evaluate(() => ({
+    screen: Ludus.router.current(),
+    view: Ludus.Screens.classics._state.view,
+    game: Ludus.Screens.classics._state.gameId,
+    title: document.title,
+    hash: window.location.hash,
+    focus: document.activeElement && (document.activeElement.dataset.fkey || document.activeElement.className),
+  }));
+  const waitFor = (view, game) => page.waitForFunction(([wantedView, wantedGame]) => {
+    const state = Ludus.Screens.classics._state;
+    return Ludus.router.current() === "classics" && state.view === wantedView && (wantedGame === null || state.gameId === wantedGame);
+  }, [view, game], { timeout: 5000 });
+
+  step("opening a game is an entry: Back is the gallery (card focused, tab title and address back), Forward the game");
+  await page.evaluate(() => Ludus.router.show("home"));
+  await page.waitForFunction(() => Ludus.router.current() === "home");
+  await openClassics(page);
+  const lengthBefore = await page.evaluate(() => history.length);
+  await page.locator(`.classics-card-link[data-fkey="open-${GAME}"]`).click();
+  await waitFor("game", GAME);
+  let now = await where();
+  assert.strictEqual(now.title, "The Opera Game - Classic games - Ludus Scaccorum");
+  assert.strictEqual(now.hash, `#/classics/${GAME}`);
+  assert.strictEqual(await page.evaluate(() => history.length), lengthBefore + 1, "one entry more");
+  await page.goBack();
+  await waitFor("list", null);
+  await page.waitForSelector(".classics-grid .classics-item");
+  now = await where();
+  assert.strictEqual(now.title, "Classic games - Ludus Scaccorum");
+  assert.strictEqual(now.hash, "#/classics");
+  assert.strictEqual(now.focus, `open-${GAME}`, "the card that was open has the focus again");
+  await page.goForward();
+  await waitFor("game", GAME);
+  await page.waitForSelector(".classics-detail .classics-board .square");
+  now = await where();
+  assert.strictEqual(now.title, "The Opera Game - Classic games - Ludus Scaccorum");
+  assert.strictEqual(now.hash, `#/classics/${GAME}`);
+
+  step("the page's own 'All games' is one step Back: no second gallery entry stays behind");
+  const entriesBefore = await page.evaluate(() => history.length);
+  await page.locator('[data-fkey="back"]').click();
+  await waitFor("list", null);
+  assert.strictEqual(await page.evaluate(() => history.length), entriesBefore, "nothing written");
+  assert.strictEqual((await where()).focus, `open-${GAME}`);
+  await page.goBack();
+  await page.waitForFunction(() => Ludus.router.current() === "home");
+  await page.goForward();
+  await waitFor("list", null);
+  await page.goForward();
+  await waitFor("game", GAME);
+
+  step("the Classics tab on a game page goes back to the gallery without a second gallery entry");
+  const atGame = await page.evaluate(() => history.length);
+  await page.evaluate(() => Ludus.router.show("classics"));
+  await waitFor("list", null);
+  assert.strictEqual(await page.evaluate(() => history.length), atGame, "no entry written");
+  await page.goBack();
+  await page.waitForFunction(() => Ludus.router.current() === "home");
+
+  step("another game, the language switch and Back: the title is in the language of the page");
+  await page.goForward();
+  await waitFor("list", null);
+  await page.locator(`.classics-card-link[data-fkey="open-immortal-1851"]`).click();
+  await waitFor("game", "immortal-1851");
+  await page.evaluate(() => Ludus.i18n.setLanguage("es"));
+  await page.waitForFunction(() => /^La Inmortal - Partidas clásicas/.test(document.title));
+  await page.goBack();
+  await waitFor("list", null);
+  assert.strictEqual((await where()).title, "Partidas clásicas - Ludus Scaccorum");
+  await page.goForward();
+  await waitFor("game", "immortal-1851");
+  assert.match((await where()).title, /^La Inmortal - Partidas clásicas - Ludus Scaccorum$/);
+  await page.evaluate(() => Ludus.i18n.setLanguage("en"));
+
+  step("a game that another screen links to has no gallery below it: the button closes it in place");
+  await page.evaluate(() => Ludus.router.show("home"));
+  await page.waitForFunction(() => Ludus.router.current() === "home");
+  await page.evaluate(() => Ludus.router.show("classics", { game: "lasker-bauer-1889" }));
+  await waitFor("game", "lasker-bauer-1889");
+  const linked = await page.evaluate(() => ({ sub: history.state.ludus.sub, hash: location.hash }));
+  assert.deepStrictEqual(linked.sub, { game: "lasker-bauer-1889" });
+  assert.strictEqual(linked.hash, "#/classics/lasker-bauer-1889");
+  await page.locator('[data-fkey="back"]').click();
+  await waitFor("list", null);
+  assert.strictEqual((await where()).hash, "#/classics");
+  await page.goBack();
+  await page.waitForFunction(() => Ludus.router.current() === "home", null, { timeout: 5000 });
+  checkProblems("game history", s.problems);
+  await s.context.close();
+
+  step("a cold start on a game: 'All games' shows the gallery, and a game opened from it is an entry again");
+  s = await newSession(browser, { lang: "es", hash: `#/classics/${GAME}` });
+  await s.page.waitForSelector(`.classics-detail-page[data-game="${GAME}"] .classics-board .square`, { timeout: 10000 });
+  await s.page.locator('[data-fkey="back"]').click();
+  await s.page.waitForSelector(".classics-grid .classics-item");
+  assert.strictEqual(await s.page.evaluate(() => location.hash), "#/classics");
+  await s.page.locator(`.classics-card-link[data-fkey="open-immortal-1851"]`).click();
+  await s.page.waitForSelector('.classics-detail-page[data-game="immortal-1851"]');
+  await s.page.goBack();
+  await s.page.waitForSelector(".classics-grid .classics-item");
+  assert.strictEqual(await s.page.evaluate(() => Ludus.router.current()), "classics", "Back stays on the screen");
+  checkProblems("game history cold start", s.problems);
+  await s.context.close();
+
+  step("the line under the title names the place once; the moves are named in words");
+  s = await newSession(browser, { lang: "es", hash: "#/classics/saemisch-nimzowitsch-1923" });
+  await s.page.waitForSelector('.classics-detail-page[data-game="saemisch-nimzowitsch-1923"] .classics-board .square', { timeout: 10000 });
+  assert.match(await s.page.locator(".classics-detail-where").innerText(), /^Torneo de Copenhague · 1923 · /);
+  assert.match(await s.page.locator(".classics-about").innerText(), /Copenhague, Dinamarca/, "the country is still said once, in the Place row");
+  const labels = await s.page.locator(".classics-move").evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
+  assert.ok(labels.length > 20 && labels.every((label) => /^\d+\. (Blancas|Negras): [a-zñé]/.test(label)), `every move button is named by the move in words: ${labels.slice(0, 3)}`);
+  assert.ok(labels.some((label) => /caballo a /.test(label)));
+  await s.page.evaluate(() => Ludus.i18n.setLanguage("en"));
+  await s.page.waitForFunction(() => /^Copenhagen tournament · 1923/.test(document.querySelector(".classics-detail-where").textContent));
+  checkProblems("where line", s.problems);
   await s.context.close();
 }
 
@@ -922,6 +1054,7 @@ const scenarios = [
   ["gallery", galleryScenario],
   ["game page + replay", replayScenario],
   ["deep links", deepLinkScenario],
+  ["game history", gameHistoryScenario],
   ["train", trainScenario],
   ["history tabs", historyScenario],
   ["reading room", readingRoomScenario],

@@ -22,7 +22,7 @@ Everything runs in your browser. There is no server: Stockfish (WebAssembly) ana
 ### Ways to train
 
 - **Your games**: downloads your public games from Lichess or Chess.com, finds the positions where you erred and lets you replay them.
-- **Classic games**: ~28 famous games (Morphy, Anderssen, Capablanca, Fischer, Kasparov, Carlsen...) with a story, an interactive replay and training positions. You play the master's side and are scored against the engine's best move; the master's move and its story are revealed afterwards.
+- **Classic games**: ~29 famous games (Morphy, Anderssen, Capablanca, Fischer, Kasparov, Carlsen...) with a story, an interactive replay and training positions. You play the master's side and are scored against the engine's best move; the master's move and its story are revealed afterwards.
 - **Review**: your notebook of past mistakes, scheduled with spaced repetition.
 - **Daily challenge**: one classic position per day, with a streak.
 - **Duel**: two people share one device, take turns on the same position and compare points. Each can use their own local profile.
@@ -48,6 +48,7 @@ Settings let you choose how the best move is decided and scored: engine strength
 - Downloads go directly from your browser to Lichess or Chess.com. Before the first download of a session for each provider the app asks you to retype your username as an explicit confirmation.
 - The downloaded PGN, your username and metadata are cached in the browser's IndexedDB for 7 days; a "Clear saved game data" button deletes that cache.
 - Profiles, settings and the notebook are stored in the browser's `localStorage`. Nothing is sent anywhere else. Google sign-in, if enabled, loads Google's script only when you press the button.
+- **Usernames and game links.** When you train with your own Lichess or Chess.com games, every saved round keeps the players' names (your username and your opponent's) and the link to the game, and the session is titled with your username. They live in your local profile and notebook, in the export files you download and, if you turn on Google sync, in the hidden file in your own Google Drive. This app has no server, so none of it is ever sent to us. To remove it: delete the profile or use "Delete all my data" in Account, and clear the downloaded games in Settings > Privacy.
 
 ### Browser support
 
@@ -95,7 +96,7 @@ GPL-3.0-or-later, see [LICENSE](./LICENSE). The project bundles Stockfish.js / S
 ### Formas de entrenar
 
 - **Tus partidas**: descarga tus partidas públicas de Lichess o Chess.com, encuentra las posiciones donde te equivocaste y te deja rejugarlas.
-- **Partidas clásicas**: unas 28 partidas famosas (Morphy, Anderssen, Capablanca, Fischer, Kaspárov, Carlsen...) con su historia, repetición interactiva y posiciones de entrenamiento. Jugás del lado del maestro y te puntúa contra la mejor jugada del motor; después se revela la jugada del maestro y su historia.
+- **Partidas clásicas**: unas 29 partidas famosas (Morphy, Anderssen, Capablanca, Fischer, Kaspárov, Carlsen...) con su historia, repetición interactiva y posiciones de entrenamiento. Jugás del lado del maestro y te puntúa contra la mejor jugada del motor; después se revela la jugada del maestro y su historia.
 - **Repaso**: tu cuaderno de errores con repetición espaciada.
 - **Desafío diario**: una posición clásica por día, con racha.
 - **Duelo**: dos personas comparten el dispositivo, se turnan en la misma posición y comparan puntos. Cada una puede usar su perfil local.
@@ -108,7 +109,7 @@ En Ajustes elegís cómo se decide y se puntúa la mejor jugada: potencia del mo
 ### Perfiles, progreso y sincronización
 
 - Los **perfiles locales** (hasta 4 por dispositivo) guardan el progreso: precisión, niveles, rachas, logros y el cuaderno. No hace falta cuenta. El progreso se puede exportar e importar como archivo.
-- El **inicio de sesión con Google** (opcional) sincroniza tu progreso entre dispositivos mediante un archivo oculto en **tu propio Google Drive** (sin servidor nuestro). Sólo aparece cuando el dueño del sitio lo habilita: ver [`docs/GOOGLE_SIGNIN.md`](docs/GOOGLE_SIGNIN.md). Sin servidor no podemos verificar identidades: es una comodidad para sincronizar, no un control de acceso.
+- El **inicio de sesión con Google** (opcional) sincroniza tu progreso entre dispositivos mediante un archivo oculto en **tu propio Google Drive** (sin servidor nuestro). Solo aparece cuando el dueño del sitio lo habilita: ver [`docs/GOOGLE_SIGNIN.md`](docs/GOOGLE_SIGNIN.md). Sin servidor no podemos verificar identidades: es una comodidad para sincronizar, no un control de acceso.
 
 ### Política de descarga (tus partidas)
 
@@ -120,7 +121,8 @@ En Ajustes elegís cómo se decide y se puntúa la mejor jugada: potencia del mo
 
 - Las descargas van directo de tu navegador a Lichess o Chess.com. Antes de la primera descarga de la sesión para cada proveedor, la app te pide reescribir tu usuario como confirmación explícita.
 - El PGN descargado, tu usuario y metadatos se guardan en el IndexedDB del navegador durante 7 días; el botón "Borrar datos guardados de partidas" elimina esa caché.
-- Perfiles, ajustes y cuaderno se guardan en el `localStorage` del navegador. No se envía nada a ningún otro lado. Si se habilita el acceso con Google, el script de Google se carga sólo cuando tocás el botón.
+- Perfiles, ajustes y cuaderno se guardan en el `localStorage` del navegador. No se envía nada a ningún otro lado. Si se habilita el acceso con Google, el script de Google se carga solo cuando tocás el botón.
+- **Usuarios y enlaces a partidas.** Si entrenás con tus propias partidas de Lichess o Chess.com, cada ronda guardada conserva los nombres de los jugadores (tu usuario y el de tu rival) y el enlace a la partida, y la sesión lleva tu usuario como título. Quedan en tu perfil y tu cuaderno locales, en los archivos de exportación que descargues y, si activás la sincronización con Google, en el archivo oculto de tu propio Google Drive. Esta app no tiene servidor: nada de esto nos llega. Para borrarlo: eliminá el perfil o usá "Borrar todos mis datos" en Cuenta, y borrá las partidas descargadas en Ajustes > Privacidad.
 
 ### Navegadores compatibles
 

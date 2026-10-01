@@ -420,7 +420,7 @@ test("duel setup: two players, mix source, count -> startSession with names and 
   assert.ok(dialog, "the duel dialog opened");
   // UX-022: the dialog says who looks away and what stays hidden, before anybody starts.
   const fair = findAll(dialog, byClass("duel-fair"))[0];
-  assert.ok(fair && text(fair).includes("juega primero Jugador 1") && text(fair).includes("mira para otro lado") && text(fair).includes("queda oculta"), "fairness guidance in the setup dialog");
+  assert.ok(fair && text(fair).includes("se turnan para empezar cada posición") && text(fair).includes("mira para otro lado") && text(fair).includes("queda oculta"), "fairness guidance in the setup dialog");
   const selects = findAll(dialog, (el) => el.tagName === "SELECT" && el.getAttribute("id") && el.getAttribute("id").startsWith("duel-who"));
   assert.strictEqual(selects.length, 2);
   assert.strictEqual(selects[0].value, `p:${first.id}`, "player 1 defaults to the active profile");

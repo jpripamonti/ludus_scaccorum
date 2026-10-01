@@ -311,6 +311,12 @@ body.playing-mode #landing-screen { display: none !important; }
 .co-turn-king { flex: none; width: 24px; height: 24px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
 .co-turn-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .co-turn-text:empty { display: none; }
+/* A duel names the player ("Ana plays White", Coach.renderTurn). A name is whatever a person typed (24 letters, say): when the line is
+   too narrow the NAME gets the ellipsis (its whole text is in its title) and the side to move keeps its full width, because the side is
+   the point of the line and the king beside it only repeats it. */
+.co-turn-text:has(.co-turn-name) { display: flex; gap: 0.3em; text-overflow: clip; }
+.co-turn-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.co-turn-side { flex: none; }
 
 /* The board fills its wrap; the wrap is exactly --board-size wide and tall. */
 .co-stage .board-wrap {
@@ -398,6 +404,8 @@ body.playing-mode #landing-screen { display: none !important; }
   font-weight: 650;
 }
 .co-expand:hover { background: rgba(255, 255, 255, 0.04); color: var(--color-text); }
+/* The handle is as wide as the panel and the panel (and the screen) clip: an outside ring would lose three of its four sides. */
+.co-expand:focus-visible { --focus-ring-offset: -3px; }
 .co-expand-grip { width: 36px; height: 4px; border-radius: 4px; background: var(--color-border); }
 .co-expand[aria-expanded="true"] .co-expand-grip { background: var(--color-gold-dim); }
 .co-scroll {
@@ -416,10 +424,13 @@ body.playing-mode #landing-screen { display: none !important; }
   scrollbar-color: var(--color-surface-4) transparent;
 }
 /* The scroll region is a tab stop (a keyboard has to be able to scroll the notes) and sits flush inside a panel that clips: the
-   ring is drawn inside it, and the fade under the footer is dropped while it shows (the mask would cut the ring's last side). */
+   ring is drawn inside it, and the fade under the footer is dropped while it shows (the mask would cut the ring's last side).
+   The ring itself is the global one (styles.css reads --focus-ring and --focus-ring-offset): an `outline-offset` declared here has the
+   specificity (0,2,0) and always lost to that rule (0,3,0), so the offset travels as a custom property, which cannot lose (the
+   pattern of `.segmented > *` in css/system.css). It is set on the FOCUSED state, not on the region: a custom property is inherited, and
+   every button inside the notes would otherwise draw its ring inset as well. */
 .co-scroll:focus-visible {
-  outline: var(--focus-ring-width, 3px) solid var(--focus-ring, var(--color-info));
-  outline-offset: -3px;
+  --focus-ring-offset: -3px;
   -webkit-mask-image: none;
   mask-image: none;
 }
@@ -566,6 +577,8 @@ body.playing-mode #landing-screen { display: none !important; }
 @media (max-width: 719px) and (orientation: portrait) and (max-height: 700px) {
   .co-play { --co-head-h: 62px; --co-gap: 6px; --co-strip-h: 24px; --co-dock-h: 44px; --co-panel-min: 184px; }
   .co-head { padding-block: 4px; }
+  /* 4px above the 44px buttons leave no room for a ring 2px away (3px wide) before the top edge of the screen: it hugs the button. */
+  .co-head :is(.co-exit, .co-sound):focus-visible { --focus-ring-offset: 0px; }
   .co-dots { margin-top: 3px; }
   .co-turn { font-size: var(--text-sm); }
   .co-turn-king { width: 20px; height: 20px; }
@@ -667,6 +680,83 @@ body.playing-mode #landing-screen { display: none !important; }
   #shared-actions { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   /* The header title is already hidden here: the position keeps the room and wraps before it is cut. */
   .co-head-pos { white-space: normal; line-height: 1.1; }
+}
+
+/* ── Short landscape: the turn line and the dock stand BESIDE the board (QA UX-031 / VIS-012, polish-layout PL-A) ──
+   A phone on its side (320-430px tall), a small tablet (1024x600) or a laptop window under 700px has no height to spare: with the turn strip
+   above the board and the dock under it, 120px of a 390px screen went to chrome and the board was 258px. Here the strip and the dock are one
+   column to the right of the board, so the board takes everything under the header (--co-head-h) and the coach panel keeps its own column
+   and its own scroll. The column has a fixed width (--co-side-w), so the board does not move when the dock swaps its buttons. Every dock
+   button keeps its words (two or three short lines) and is at least --co-dock-h tall; at 560px and wider only: a landscape window narrower
+   than that keeps the stacked layout above. */
+@media (orientation: landscape) and (min-width: 560px) and (max-height: 700px) {
+  .co-play {
+    --co-side-w: 96px;
+    --co-top-gap: 4px;
+    /* Narrower than the side regime's 340px floor: a window 560-670px wide and 520-700px tall would otherwise overflow sideways. */
+    --co-panel-w: clamp(260px, 33vw, 440px);
+    --board-size: max(200px, min(
+      calc(100vw - var(--co-panel-w) - var(--co-side-w) - 2 * var(--co-gap) - 2 * var(--co-pad)),
+      calc(100vh - var(--co-head-h) - var(--co-top-gap) - var(--co-pad))
+    ));
+    /* The panel takes what the board and its column leave, up to 460px (the pair is centred). */
+    grid-template-columns: calc(var(--board-size) + var(--co-gap) + var(--co-side-w)) minmax(var(--co-panel-w), 460px);
+  }
+  @supports (height: 100dvh) {
+    .co-play {
+      --board-size: max(200px, min(
+        calc(100vw - var(--co-panel-w) - var(--co-side-w) - 2 * var(--co-gap) - 2 * var(--co-pad)),
+        calc(100dvh - var(--co-head-h) - var(--co-top-gap) - var(--co-pad))
+      ));
+    }
+  }
+  .co-stage { padding-top: var(--co-top-gap); }
+  .co-stage-inner {
+    grid-template-columns: var(--board-size) var(--co-side-w);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "board strip" "board dock";
+    column-gap: var(--co-gap);
+    row-gap: var(--co-gap);
+    justify-content: start;
+    align-content: start;
+  }
+  .co-stage .board-wrap { grid-area: board; }
+  /* The turn line: the king over the words, centred in the column. A name a person typed gets the ellipsis on its own line. */
+  .co-turn {
+    grid-area: strip;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 4px;
+    padding-top: 2px;
+    font-size: var(--text-sm);
+    line-height: 1.2;
+    text-align: center;
+  }
+  .co-turn-text { max-width: 100%; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+  .co-turn-text:has(.co-turn-name) { flex-direction: column; align-items: center; gap: 0; }
+  .co-turn-name { max-width: 100%; white-space: nowrap; }
+  /* The dock: one button per row, as wide as the column, under the turn line. */
+  .co-dock { grid-area: dock; align-content: start; }
+  .co-dock-set { grid-auto-flow: row; grid-auto-columns: minmax(0, 1fr); grid-auto-rows: minmax(var(--co-dock-h), auto); align-content: start; }
+  #shared-actions { grid-template-columns: minmax(0, 1fr); }
+  .co-dock-btn { flex-direction: column; gap: 4px; padding: 6px 6px; }
+}
+@media (orientation: landscape) and (min-width: 560px) and (max-height: 520px) {
+  /* A phone on its side: the column is as narrow as its words allow, the panel gives up width before the board does, and the board
+     sits 2px under the header (its row is the controls' own 44px). */
+  .co-play {
+    --co-panel-w: clamp(232px, 39vw, 400px);
+    --co-side-w: clamp(64px, 10.5vw, 100px);
+    --co-top-gap: 2px;
+  }
+  .co-turn { gap: 2px; font-size: 0.75rem; }
+  .co-turn-king { width: 20px; height: 20px; }
+  .co-dock-btn { padding: 2px 3px; }
+}
+/* A wider phone has the room for the next size of type in its column (the board is the height's, the panel gets the rest). */
+@media (orientation: landscape) and (min-width: 800px) and (max-height: 520px) {
+  .co-turn { font-size: 0.8rem; }
+  .co-dock-btn { font-size: 0.78rem; }
 }
 
 /* ── Waiting: the "evaluating" overlay over the board ── */
@@ -775,7 +865,8 @@ body.playing-mode #landing-screen { display: none !important; }
 }
 .co-handoff.hidden { display: none; }
 .co-handoff:hover, .co-handoff:active { background-color: rgba(4, 8, 14, 0.95); }
-.co-handoff:focus-visible { outline-offset: -6px; }
+/* The cover clips everything outside itself (overflow, and the board's own clipping): its ring is drawn inside (see .co-scroll). */
+.co-handoff:focus-visible { --focus-ring-offset: -6px; }
 .co-handoff-card { display: grid; justify-items: center; gap: var(--space-2); width: 100%; min-width: 0; max-width: 22rem; }
 /* A name is whatever a person typed (20 letters without a space, say): it wraps anywhere rather than running off the screen. */
 .co-handoff-card > * { max-width: 100%; min-width: 0; overflow-wrap: anywhere; }
@@ -1227,6 +1318,14 @@ button.co-concept { min-height: 44px; }
 .co-line-eval { grid-area: eval; color: var(--color-text-muted); font-size: var(--text-sm); font-weight: 650; font-variant-numeric: tabular-nums; }
 .co-line-marks { grid-area: marks; display: inline-flex; gap: 4px; justify-self: end; }
 .co-line-pv { grid-area: pv; min-width: 0; overflow: hidden; color: var(--color-text-muted); font-family: var(--font-mono); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+/* A narrow panel (about 230-270px: a phone on its side, see the short landscape regime) cannot hold the rank, the line and two pills side by side:
+   the pills (Best, Master name) get a row of their own under the line and wrap, so the list never scrolls sideways. The item is the container:
+   the width that counts is the one the line has, whatever the panel is. */
+.co-line-item { container-type: inline-size; }
+@container (max-width: 300px) {
+  .co-line { grid-template-areas: "rank move eval" "rank pv pv" "rank marks marks"; }
+  .co-line-marks { flex-wrap: wrap; justify-self: start; min-width: 0; }
+}
 .co-pill { display: inline-flex; align-items: center; gap: 4px; padding: 0 7px; border: 1px solid var(--color-border); border-radius: var(--radius-pill); color: var(--color-text-muted); font-size: 0.6875rem; font-weight: 700; line-height: 1.6; }
 .co-pill-best { color: var(--color-perfect); background: var(--color-perfect-bg); border-color: var(--color-perfect-bd); }
 .co-pill-user { color: var(--color-good); background: var(--color-good-bg); border-color: var(--color-good-bd); }
@@ -1475,6 +1574,13 @@ button.co-concept { min-height: 44px; }
   .co-players { gap: var(--space-2); }
 }
 
+/* The narrowest phones on their side (568px: the panel is about 230px): the gauge and the headline cannot share a row (the card's inner width
+   minus the 116px gauge left the headline 84px, and "mistake" ran into the card's edge), so the gauge sits over the words. */
+@media (orientation: landscape) and (min-width: 560px) and (max-width: 640px) and (max-height: 520px) {
+  .co-hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "gauge" "copy" "chips"; justify-items: center; text-align: center; padding: var(--space-3); }
+  .co-hero-title { justify-content: center; }
+  .co-chips { justify-content: center; }
+}
 /* Reduced motion: no entrances, no growing bars */
 @media (prefers-reduced-motion: reduce) {
   .co-result > *, .co-thinking > *, .co-sum-hero, .co-bar-fill { animation: none; }

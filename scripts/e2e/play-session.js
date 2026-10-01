@@ -9,7 +9,7 @@
 //
 // Environment (all optional):
 //   LUDUS_URL             page to test               (default http://127.0.0.1:5010/)
-//   LUDUS_E2E_ONLY        "classic", "first" or "own" to run only one scenario
+//   LUDUS_E2E_ONLY        "classic", "first", "own" or "terms" to run only one scenario
 //   LUDUS_CHROMIUM        chrome binary if Playwright cannot launch its own
 //                         (falls back to /opt/pw-browsers/chromium-1194/chrome-linux/chrome)
 //   LUDUS_E2E_SHOTS       directory for screenshots (none are saved when unset)
@@ -28,7 +28,11 @@
 // Lichess request intercepted and answered from a PGN written here (the network
 // is never touched), checking the facts carousel of the waiting screens.
 //
-// Both fail on any console error, uncaught page error or failed request.
+// Scenario "terms" (PF-1): a move that is not among the reference lines is searched to the depth of the best line (the
+// position's own reference depth, or what the root search reached), under a time ceiling that is not shorter than the best
+// line's, and never twice; the Worker commands are recorded by wrapping the Worker handed to Ludus.game.configureEngine.
+//
+// All fail on any console error, uncaught page error or failed request.
 // Exits 0 on success, 1 on the first failed assertion, 2 if Playwright is missing.
 
 "use strict";
@@ -325,6 +329,11 @@ async function classicScenario(browser) {
 
     step("a duel on one device: both players are scored against the same reference");
     await page.evaluate(() => Ludus.game.startSession({ kind: "classic", title: "Duel", mode: "duel", names: ["Ana", "Beto"], positions: window.__positions.slice(0, 1), options: { clock: { mode: "untimed" } } }));
+    // The first position starts covered, like every duel position (PF-2): Ana goes first, and the tap starts her clock.
+    await page.waitForFunction(() => STATE.ui.phase === "duel_ready");
+    assert.match(await page.locator("#handoff-overlay-title").textContent(), /^Ana, get ready$/);
+    await page.locator("#handoff-overlay").click();
+    await page.waitForFunction(() => STATE.ui.phase === "playing");
     await playUci(page, positions[0].reference.lines[0].uci);
     await page.waitForFunction(() => STATE.ui.phase === "handoff_ready");
     await page.locator("#handoff-overlay").click();
@@ -511,6 +520,109 @@ async function ownGamesScenario(browser) {
   }
 }
 
+// ---------- scenario: terms (PF-1) ----------
+
+// A move that is not among the reference lines is judged on the best line's terms: it is searched to the depth the best
+// line reached (the position's own reference, or what the root search got to), with a time ceiling that is not shorter
+// than the best line's, and never searched twice. The real Stockfish Worker runs; its commands are recorded by wrapping the
+// Worker the page hands to the engine (Ludus.game.configureEngine, the hook the tests use).
+function parseGo(line) {
+  const movetime = /\bmovetime (\d+)/.exec(line);
+  const depth = /\bdepth (\d+)/.exec(line);
+  const index = line.indexOf(" searchmoves ");
+  return { movetime: movetime ? Number(movetime[1]) : null, depth: depth ? Number(depth[1]) : null, searchmoves: index >= 0 ? line.slice(index + 13).split(" ") : null };
+}
+
+async function termsScenario(browser) {
+  console.log("scenario: the learner's move is judged on the best line's terms");
+  const { context, page, problems } = await newSession(browser);
+  try {
+    await boot(page);
+    await collectEvents(page);
+    await page.evaluate(() => {
+      window.__uci = [];
+      Ludus.game.configureEngine({
+        minEvalVisibleMs: 0,
+        createTransport: () => {
+          const worker = new Worker("vendor/stockfish-18-lite-single.js");
+          const post = worker.postMessage.bind(worker);
+          worker.postMessage = (line) => {
+            window.__uci.push(String(line));
+            post(line);
+          };
+          return worker;
+        },
+      });
+    });
+    const gos = () => page.evaluate(() => window.__uci.filter((line) => line.startsWith("go")));
+    const searchesOf = async (uci) => (await gos()).map(parseGo).filter((go) => go.searchmoves && go.searchmoves[0] === uci).length;
+    const timeIt = async (action) => {
+      const started = Date.now();
+      await action();
+      await waitForResult(page);
+      return Date.now() - started;
+    };
+
+    step("a classic position (best line searched offline to depth 18): the move outside its lines is searched to depth 18");
+    const positions = await page.evaluate(async () => {
+      await Ludus.Classics.load();
+      window.__positions = Ludus.Classics.positions(Ludus.Classics.list()[0].id, { count: 2 });
+      return JSON.parse(JSON.stringify(window.__positions));
+    });
+    await page.evaluate(() => Ludus.game.startSession({ kind: "classic", title: "Terms", positions: window.__positions.slice(0, 1), options: { clock: { mode: "untimed" } } }));
+    await page.waitForFunction(() => STATE.engine.ready === true, null, { timeout: 60000 });
+    const poor = await page.evaluate(() => {
+      const position = STATE.positions[STATE.index];
+      const known = position.reference.lines.map((line) => line.uci);
+      return new Chess(position.fen).generateMoves().map((move) => moveToUci(move)).filter((uci) => !known.includes(uci)).pop();
+    });
+    const referenceDepth = positions[0].reference.depth;
+    const classicMs = await timeIt(() => playUci(page, poor));
+    const classicMove = (await gos()).map(parseGo).find((go) => go.searchmoves && go.searchmoves[0] === poor);
+    assert.ok(classicMove, "the move was searched");
+    assert.strictEqual(classicMove.depth, referenceDepth, "to the depth of the best line");
+    assert.ok(classicMove.movetime >= 700 && classicMove.movetime <= 3500, `with a ceiling (${classicMove.movetime} ms), not a fixed time`);
+    const classicContext = await resultContext(page);
+    assert.strictEqual(classicContext.assessment.needsEvaluation, false);
+    assert.strictEqual(classicContext.engine.source, "stockfish");
+    step(`  searched to depth ${classicMove.depth} under a ${classicMove.movetime} ms ceiling; the answer was scored ${classicMs} ms after the move`);
+    await page.evaluate(() => Ludus.game.abort());
+
+    step("a position with no lines of its own: the best line gets a MultiPV search, the move the depth that search reached");
+    const italian = "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4";
+    await page.evaluate((fen) => Ludus.game.startSession({ kind: "classic", title: "No lines", positions: [{ fen, source: "classic" }], options: { clock: { mode: "untimed" } } }), italian);
+    await page.waitForFunction(() => STATE.engine.ready === true, null, { timeout: 60000 });
+    const ownMs = await timeIt(() => playUci(page, "h2h3"));
+    const log = (await gos()).map(parseGo);
+    const root = log.find((go) => !go.searchmoves && go.depth === null);
+    const move = log.find((go) => go.searchmoves && go.searchmoves[0] === "h2h3");
+    const ownContext = await resultContext(page);
+    assert.ok(root && move, "the best line and the move were both searched");
+    assert.strictEqual(move.depth, ownContext.engine.depth, "the move is searched to the depth the best line reached");
+    assert.ok(move.depth >= 8, `a real depth (${move.depth})`);
+    assert.ok(move.movetime >= root.movetime && move.movetime <= 3500, `a ceiling that is not below the best line's time (${move.movetime} against ${root.movetime})`);
+    assert.strictEqual(ownContext.assessment.needsEvaluation, false);
+    step(`  the best line: ${root.movetime} ms (reached depth ${ownContext.engine.depth}); the move: depth ${move.depth} under a ${move.movetime} ms ceiling; scored ${ownMs} ms after the move`);
+    await page.evaluate(() => Ludus.game.abort());
+
+    step("the same position and move in another session are not searched again");
+    const before = await searchesOf("h2h3");
+    const rootsBefore = (await gos()).map(parseGo).filter((go) => !go.searchmoves).length;
+    await page.evaluate((fen) => Ludus.game.startSession({ kind: "classic", title: "Again", positions: [{ fen, source: "classic" }], options: { clock: { mode: "untimed" } } }), italian);
+    await page.waitForFunction(() => STATE.engine.ready === true, null, { timeout: 60000 });
+    const againMs = await timeIt(() => playUci(page, "h2h3"));
+    assert.strictEqual(await searchesOf("h2h3"), before, "no second search of the move");
+    assert.strictEqual((await gos()).map(parseGo).filter((go) => !go.searchmoves).length, rootsBefore, "nor of the best line");
+    step(`  scored ${againMs} ms after the move (from the cache; the first time took ${ownMs} ms)`);
+    await page.evaluate(() => Ludus.game.abort());
+
+    step("no console errors, page errors or failed requests");
+    checkProblems("terms", problems);
+  } finally {
+    await context.close();
+  }
+}
+
 // ---------- run ----------
 
 (async () => {
@@ -519,6 +631,7 @@ async function ownGamesScenario(browser) {
     if (!ONLY || ONLY === "classic") await classicScenario(browser);
     if (!ONLY || ONLY === "first") await firstRunScenario(browser);
     if (!ONLY || ONLY === "own") await ownGamesScenario(browser);
+    if (!ONLY || ONLY === "terms") await termsScenario(browser);
     console.log("play-session passed");
   } catch (error) {
     console.error("play-session FAILED");

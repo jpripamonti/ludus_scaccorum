@@ -33,6 +33,9 @@
 //                       board does not move when pieces do
 //   feedback            the person's own move plays move / capture / check with a haptic tick each, also in analysis
 //   black side          Black at the bottom: mirrored squares, drag and labels in both languages
+//   short landscape     568x320 to 1024x600 in both languages: the board takes the height (300px at 375, 330 at 390), the turn line and
+//                       the dock stand in a column beside it, the panel beside that, 44x44 targets that keep their words, nothing
+//                       scrolls; portrait and desktop keep the dock under the board
 //   axe (optional)      with LUDUS_AXE=/path/to/axe.min.js: no serious or critical violations in five board states
 //
 // Every scenario fails on any console error, uncaught page error or failed request.
@@ -820,6 +823,104 @@ async function axeScenario(browser) {
   await context.close();
 }
 
+// A phone on its side (QA UX-031 / VIS-012, polish-layout PL-A): the board takes the height under the header, the turn line and the
+// dock stand in a column beside it (so the board was 258px at 844x390 and is now 336) and the coach panel sits beside that column.
+// Minimums are the ones the polish pass promised; 568x320 and 667x375 are limited by their WIDTH (board + column + a panel that
+// still holds a verdict), the others by their height.
+async function landscapeScenario(browser) {
+  const cases = [
+    { w: 568, h: 320, board: 240, result: false },
+    { w: 667, h: 375, board: 300, result: true },
+    { w: 740, h: 360, board: 300, result: false },
+    { w: 844, h: 390, board: 330, result: true },
+    { w: 932, h: 430, board: 370, result: false },
+    { w: 1024, h: 600, board: 500, result: false },
+  ];
+  const geometry = (page) => page.evaluate(() => {
+    const rect = (selector) => {
+      const el = document.querySelector(selector);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 ? { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height } : null;
+    };
+    const buttons = Array.from(document.querySelectorAll("#board-dock .co-dock-btn")).filter((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    }).map((el) => {
+      const r = el.getBoundingClientRect();
+      return { id: el.id, width: r.width, height: r.height, clipped: el.scrollHeight > el.clientHeight + 1, text: (el.textContent || "").replace(/\s+/g, " ").trim() };
+    });
+    const scroll = document.querySelector("#coach-scroll");
+    return {
+      board: rect("#board"), dock: rect("#board-dock"), strip: rect("#round-turn-line"), panel: rect("#coach-panel"), buttons,
+      scroller: scroll ? { sideways: scroll.scrollWidth - scroll.clientWidth } : null,
+      page: { sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth, down: document.documentElement.scrollHeight - innerHeight },
+    };
+  });
+  const check = (label, g, w, h, minBoard) => {
+    assert.ok(g.board && g.dock && g.strip && g.panel, `${label}: board, turn line, dock and panel are on screen`);
+    assert.ok(g.board.width >= minBoard, `${label}: the board is ${Math.round(g.board.width)}px, at least ${minBoard} expected`);
+    assert.ok(Math.abs(g.board.width - g.board.height) < 1.5, `${label}: the board is square`);
+    assert.ok(g.board.left >= -0.5 && g.board.top >= -0.5 && g.board.right <= w + 0.5 && g.board.bottom <= h + 0.5, `${label}: the board is whole on screen`);
+    assert.ok(g.dock.left >= g.board.right - 0.5 && g.strip.left >= g.board.right - 0.5, `${label}: the turn line and the dock stand beside the board, not under it`);
+    assert.ok(g.dock.top >= g.strip.bottom - 0.5, `${label}: the dock sits under the turn line`);
+    assert.ok(g.dock.bottom <= h + 0.5, `${label}: the dock is whole on screen (${Math.round(g.dock.bottom)} > ${h})`);
+    assert.ok(g.panel.left >= Math.max(g.dock.right, g.strip.right) - 0.5 && g.panel.right <= w + 0.5, `${label}: the panel sits beside the column and on screen`);
+    assert.ok(g.page.sideways <= 0 && g.page.down <= 1, `${label}: the page does not scroll (${g.page.sideways}, ${g.page.down})`);
+    assert.ok(g.buttons.length >= 1, `${label}: the dock has buttons`);
+    g.buttons.forEach((button) => {
+      assert.ok(button.width >= 43.5 && button.height >= 43.5, `${label}: ${button.id} is ${Math.round(button.width)}x${Math.round(button.height)}, 44x44 expected`);
+      assert.ok(!button.clipped, `${label}: ${button.id} clips its label`);
+      assert.ok(button.text.length >= 3, `${label}: ${button.id} keeps its words (an icon alone says nothing)`);
+    });
+    assert.ok(!g.scroller || g.scroller.sideways <= 1, `${label}: the panel scrolls sideways by ${g.scroller && g.scroller.sideways}px`);
+  };
+  for (const { w, h, board, result } of cases) {
+    for (const locale of ["es-AR", "en-US"]) {
+      const label = `${w}x${h} ${locale}`;
+      const { context, page, problems } = await newSession(browser, { viewport: { width: w, height: h }, locale, hasTouch: true, isMobile: Math.min(w, h) < 500 });
+      await startFen(page, MATE_FEN, { bestMoveUci: "h5f7", bestMoveSan: "Qxf7#" });
+      const thinking = await geometry(page);
+      check(`${label} thinking`, thinking, w, h, board);
+      assert.ok(thinking.buttons.some((button) => button.id === "hint-btn") && thinking.buttons.some((button) => button.id === "skip-btn"), `${label}: hint and skip are in the dock`);
+      // A hint changes the panel, never the board or the column.
+      await page.locator("#hint-btn").click();
+      await page.waitForSelector("#board .square.hint-from");
+      const hinted = await geometry(page);
+      check(`${label} hint`, hinted, w, h, board);
+      assert.ok(Math.abs(hinted.board.width - thinking.board.width) < 1 && Math.abs(hinted.dock.left - thinking.dock.left) < 1, `${label}: the hint moved the board or the dock`);
+      if (result) {
+        await square(page, "h5").click();
+        await square(page, "f7").click();
+        await waitForResult(page);
+        await page.waitForTimeout(700);
+        const done = await geometry(page);
+        check(`${label} result`, done, w, h, board);
+        assert.ok(done.buttons.some((button) => button.id === "reveal-best-btn"), `${label}: the result dock offers the best move`);
+        assert.ok(Math.abs(done.board.width - thinking.board.width) < 1 && Math.abs(done.dock.left - thinking.dock.left) < 1, `${label}: the result moved the board or the dock`);
+        // The end of the notes (engine lines, pills) must not scroll sideways in the narrowest panel.
+        await page.evaluate(() => { document.querySelector("#coach-scroll").scrollTop = 99999; });
+        await page.waitForTimeout(200);
+        check(`${label} result bottom`, await geometry(page), w, h, board);
+      }
+      checkProblems(`landscape ${label}`, problems);
+      await context.close();
+    }
+  }
+  step("568x320, 667x375, 740x360, 844x390, 932x430 and 1024x600: the board takes the height, the dock and the turn line stand beside it");
+  // The stacked layouts keep the dock under the board (no regression of portrait and desktop).
+  for (const [w, h] of [[390, 844], [320, 568], [820, 1180], [1280, 800]]) {
+    const { context, page, problems } = await newSession(browser, { viewport: { width: w, height: h }, hasTouch: w < 900, isMobile: w < 500 });
+    await startFen(page, MATE_FEN, { bestMoveUci: "h5f7", bestMoveSan: "Qxf7#" });
+    const g = await geometry(page);
+    assert.ok(g.dock.top >= g.board.bottom - 0.5, `${w}x${h}: the dock stays under the board (${Math.round(g.dock.top)} < ${Math.round(g.board.bottom)})`);
+    assert.ok(g.strip.bottom <= g.board.top + 0.5, `${w}x${h}: the turn line stays above the board`);
+    checkProblems(`portrait ${w}x${h}`, problems);
+    await context.close();
+  }
+  step("portrait phones, a portrait tablet and a desktop keep the dock under the board");
+}
+
 // ---------- main ----------
 
 const scenarios = [
@@ -838,6 +939,7 @@ const scenarios = [
   ["crisp + performance", crispScenario],
   ["feedback", feedbackScenario],
   ["black side", blackScenario],
+  ["short landscape", landscapeScenario],
   ["axe", axeScenario],
 ];
 

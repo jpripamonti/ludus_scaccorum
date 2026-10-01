@@ -636,16 +636,22 @@ this section lists the differences that matter to integrators. Per-module detail
   loses material is checked against the material along that line (`docs/SCORING.md` section 16); up to 3 messages (2 when
   a forced mate explains the answer). `Insights.moveFeatures(fen, uci, { lines?, pv? })` follows the line too.
   **`Insights.gamePhase(fen | Chess | cells[, fullmove]) -> "opening"|"middlegame"|"endgame"` is the one game-phase
-  classifier** (app.js `getGamePhase`/`adaptiveThreshold`/`RoundRecord.phase` call it; the classics builder's `phaseOf`
-  lacks the "four pieces" clause and calls 7 of the 248 positions middlegames that are endgames: it should call this
-  function too): endgame when the non-pawn material of both sides (N 3, B 3, R 5, Q 9; 62 at the start) is 16 or less, or
+  classifier** (app.js `getGamePhase`/`adaptiveThreshold`/`RoundRecord.phase` call it, and so does the classics builder's
+  `phaseOf`, so a classic position's stored `phase` and `kind: "endgame"` can never differ from it; polish PX-1, builder
+  version 4): endgame when the non-pawn material of both sides (N 3, B 3, R 5, Q 9; 62 at the start) is 16 or less, or
   four pieces or fewer are left, or there are no queens and it is 26 or less; opening while it is 50 or more up to
-  move 10; middlegame otherwise. Unusable input is `"middlegame"`. On the 248 classic positions: 36 / 194 / 18.
+  move 10; middlegame otherwise. Unusable input is `"middlegame"`. On the 260 classic positions: 36 / 199 / 25.
 * **Profile**: max 4 local profiles; `Profile.attach()` subscribes to `round:completed` / `session:completed`
   (duplicate ids are ignored, so attach + direct `recordRound` is safe); `recordRound` returns
   `{ok, round, xpGained, card, unlocked, level, levelUp}`; a new notebook card starts in box 0 and is due immediately;
   "cleared" = box 3. Round `accuracy` ignores hints: a revealed answer never passes a review (handled inside Profile).
-  `Profile.exportJSON(which, {sync:true})` includes `googleSub` for Drive sync.
+  `Profile.exportJSON(which, {sync:true})` includes `googleSub` for Drive sync. Profile names are unique ignoring capital letters, spaces and zero-width
+  characters (`nameKey`): `create({name})` / `rename(id, name)` fail with `lastError() === "duplicate-name"` (a profile may change the case or the spaces of its
+  own name); a missing name is the default, numbered when taken ("Player 2"); an import that brings a taken name creates a numbered profile and a replacement
+  that would take another profile's name keeps its own. The sentence is in `profile.import.error.duplicate-name` (the account screen shows it through
+  `Profile.errorKey`) and, because the shell's form looks it up under its own prefix, also in `shell.profile.error.duplicate-name`. Own-game rounds keep the
+  players' names and the game link (`meta.players`, `meta.site`) and their session the person's username as title: the landing, `README.md` and
+  `docs/GOOGLE_SIGNIN.md` say so (exports and the Drive file carry them).
 * **Settings**: `Settings.clockOptions()`, `Settings.mistakeThresholdCp()`, `Settings.schema` / `Settings.groups`
   (for generic rendering), `Settings.registerText`. `ludus.setup.v1` is migrated once; from now on the wizard must read and
   write `Settings.get/set("clock.seconds")`. Call `Settings.applyToDocument()` at boot.
@@ -701,7 +707,10 @@ Leaving `game` or `setup` by any router call abandons the session / stops the se
 **Scoring a round.** Reference = the position's `reference.lines`, else one MultiPV search at the root
 (`Settings.engineBudget()`, scaled 0.8x..1.6x by how crowded the position is, the whole round capped at 10 s); the analysis of a
 position without lines starts while the person thinks. A move outside the lines is searched with `searchmoves`
-at the same time and re-assessed; the move of the game is scored the same way. A "hit" is `isBest || accuracy >= 70` and no revealed hint.
+on the best line's terms (polish PF-1, `docs/SCORING.md` section 13: the depth the best line reached, a time ceiling never below
+the best line's, `plan.moveMovetimeMs`; a depth is no budget for a mate or under 8 plies, then it is the time) and re-assessed; the
+move of the game is scored the same way, and no position + move is ever searched twice (the analysis cache, keyed by position, move,
+depth and ceiling). A "hit" is `isBest || accuracy >= 70` and no revealed hint.
 With the fallback engine a precomputed reference is used through the difference the fallback measures (a move outside
 the lines is never scored above the weakest reference line: the 3-ply search cannot see deep tactics and would otherwise
 give a blunder "no loss"), and lines the fallback guessed are not kept in records.
@@ -741,7 +750,9 @@ played) is untimed and starts with a how-to-play note. `session:completed` is em
 
 **Session resume.** While a session runs the tab keeps `sessionStorage["ludus.sessionProgress.v1"]` (the position list and the answered rounds, not the
 profile's data); a reload offers "continue with what is left" once (`offerSessionResume`), and `beforeunload` warns while a session has unanswered
-rounds. A session that was answered to the end leaves nothing behind.
+rounds. A session that was answered to the end leaves nothing behind. The record carries `unsaved: "" | "blocked" | "quota"` (`sessionUnsavedReason()` at the
+time of the write), and the resume offer / the exit question never say "saved" when it is not "" or when `Profile.storageStatus()` says the storage is not ok
+now (`resumeStorageProblem`): they say that what was answered is only kept in this tab, or that it may not have been saved.
 
 **Own games: downloads and mistake detection.** Failures are `RemoteFetchError { code }` (`notFound`, `userMissing`, `noGames`, `rateLimited` with `retryAfterMs`,
 `server`, `offline`, `network`, `timeout`, `malformed`, `tooLarge`, `consentUnavailable`, `cancelled`); the wizard maps every code to a sentence with its remedy buttons, and never shows a raw error.
@@ -759,8 +770,12 @@ a wall-clock limit); a session that answers before the engine is up waits while 
 `go` fails the transport, the round falls back at once and the strong engine is retried (`reviveEngineIfNeeded`). The backup engine is alpha-beta with
 MVV-LVA ordering and yields to the page every `LOCAL_SLICE_MS` = 12 ms, so it gives the same answers with a tenth of the work and never blocks the page.
 
-**Copy.** `interpolate` in `app.js` understands a tiny plural form `{n?one|other}` (Spanish and English share it); the Spanish is voseo.
-Language detection: the first `es*` / `en*` entry of `navigator.languages` wins, anything else is English.
+**Copy.** `interpolate` in `app.js` understands a tiny plural form `{n?one|other}` (Spanish and English share it; a form may carry plain `{name}` tokens:
+`{minutes?1 minuto|unos {minutes} minutos}`), but only in app.js's own dictionary: the `core.*` strings live in the shared dictionary, whose interpolation has no plural
+form, so they use `.one` keys chosen in code (`core.resume.left.one`, `core.clock.resumed.one`). The Spanish is voseo, the English is American, and the words are one
+set across the app: "win chance", "accuracy" (the percentage that summarises a session or a round), "points" (the 0-10 score of a position).
+Language detection: the first `es*` / `en*` entry of `navigator.languages` wins, anything else is English; `js/boot.js`, `app.js` and `js/ludus.js` follow the same
+rule (`scripts/tests/boot.test.js` runs `boot.js` and `ludus.js` over one table of inputs).
 
 ### Board contract (`js/ui/board.js` = `Ludus.Board`, `css/board.css`)
 
@@ -817,8 +832,20 @@ the panel is its own scroll region and its footer (`#next-btn`, or `#summary-act
 handoff | result | summary`, `data-view` = `play | summary`, `data-mode` = `solo | duel`, `data-expanded` = the phone/tablet sheet
 open over the board. **Regimes**: side (>= 1100px, or landscape >= 560px: board left, panel right, `--board-size` from the
 viewport), stacked (portrait: the board, the dock, the panel as a sheet; on a phone the board runs edge to edge and in a result
-the handle opens the sheet over the board), and short landscape (a dock of small two-line labels without icons, the title kept
-for a screen reader). **Short phones** (portrait, under 700px tall: 320x568, 360x640, 375x667) have their own metrics
+the handle opens the sheet over the board), and **short landscape** (landscape >= 560px wide and <= 700px tall: a phone on its side,
+1024x600, a laptop window; polish-layout PL-A, QA UX-031 / VIS-012): the turn line and the dock are ONE COLUMN beside the board
+(`.co-stage-inner` is a two-column grid, `--co-side-w` wide: 64-100px on a phone, 96px on a tablet) instead of a strip above and a
+dock under it, so the board takes everything under the header (`--co-head-h`) and is 309px at 667x375, 336 at 844x390, 376 at
+932x430, 528 at 1024x600 (it was 243, 258, 298, 432; 568x320 and 667x375 are limited by width: board + column + a panel of at least
+232px / 260px), and the panel keeps its own column (`minmax(--co-panel-w, 460px)`) and its own scroll. The column has a fixed
+width, so the board does not move when the dock swaps its buttons; every dock button keeps its words (icons only from the tablet
+tier, where there is room), is at least 44x44 and wraps to two or three lines (never clipped). Under about 300px a line of the
+engine list puts its pills on a row of their own (`.co-line-item` is the container) and under 640px the verdict card stacks the
+gauge over the headline. Focus-ring offsets of the files this pass touched travel as `--focus-ring-offset` (the slider is flush,
+the promotion choice and the board square inside): `scripts/e2e/shell.js` (`offsets`) checks the computed values, and
+`scripts/e2e/board.js` (`short landscape`) the geometry. `env(safe-area-inset-*)` is used only for bottoms and toasts and is 0
+without `viewport-fit=cover` (not enabled): if it is ever enabled, `.co-head`, the shell header and the left/right edges of the
+landscape layout need the insets too. **Short phones** (portrait, under 700px tall: 320x568, 360x640, 375x667) have their own metrics
 (`--co-head-h`, strip, dock, gap, `--co-panel-min` of 184px, 156px in a duel) so the page never scrolls and the board gets what is
 left; on a phone the turn strip and the dock take the width of the screen and only the board is centred. Every name a person typed
 (duel players) wraps anywhere instead of overflowing; "Position 1 of 10" wraps to two lines under 400px instead of being cut.
@@ -841,7 +868,17 @@ context carries `classicKind` (the kind of a classic position): the result names
 does (naming the idea before the answer would hand over what is being trained). The result explains its own numbers in a disclosure
 ("How to read these numbers": win chance, the signed evaluation, Stockfish and its depth). A sentence never claims "the best move"
 for a move that is only as good as the best (`coach.verdict.equivalent*`), and the loss note is computed from the rounded bars it
-sits under. The result on screen is always drawn from `STATE.resultView.context` alone, so a
+sits under. **Polish pass (play)**: the verdict sentences follow the one label ladder of `Scoring.qualityLabel` ("An inaccuracy: ... X was
+better", "A mistake: ...", "A serious mistake: ...") and "Great move" says what `onlyMove` measures (every other line at least 12 win%
+worse, not "the only move"); every tag of `Insights.TAGS` has a picture (`Coach.insightIconFor(tag)`: the kit's, or one drawn in the
+coach for `loses_material` and `tactic_available`); the duel's "Ana plays White" line is drawn by `Coach.renderTurn(el, { text, name })`
+so only the NAME takes the ellipsis (title = the whole name) and the side to move never does; a focus ring that must sit inside a
+clipping parent is moved with `--focus-ring-offset` on the `:focus-visible` state (an `outline-offset` declaration there loses to the
+global rule, 0,2,0 against 0,3,0; `.co-scroll`, `.co-handoff`, `.co-expand`); a number is followed by its unit in the right form
+(keys `coach.unit.points.*` and `coach.unit.pp.*`: "points" is the 0-10 score, a difference of two win chances is
+"percentage points"; "1 point", "1 punto"); and every move written goes through `Ludus.chess.localizeSan` (`Coach.showSan`) while every
+`aria-label` goes through `Ludus.chess.spokenSan` (`Coach.speakSan`, words in the page language; `app.js` has the same pair in
+`sanForPerson(san, spoken)` for the confirm button, the reveal buttons and the hint announcements). The result on screen is always drawn from `STATE.resultView.context` alone, so a
 `language:changed` redraws it without recomputing anything and keeps the engine line that is open (`STATE.resultView.pv`).
 
 **What a session keeps for the summary**: `STATE.session.rounds` (index, fen, side, context), so the summary can reopen any
@@ -853,9 +890,16 @@ round lists the XP, the level and the achievements that round earned (a duel, on
 of a solo session lists the session's, and the summary of a duel shows them per player (`STATE.session.rewards.players`, passed to
 `summaryModel` as `rewards.players`); the sound still plays and a screen reader is told once the verdict has been read. On every other
 screen they are one toast at a time. A duel summary never merges the two players (no combined points, hits or mix of moves).
-**A duel from its second position on starts covered** (`STATE.duel.readyWait`, phase `duel_ready`, `data-phase="handoff"`): the
-first player's clock does not run and the board ignores input until one tap on `#handoff-overlay` (`revealDuelSecondTurn()` handles
-both covers). Leaving a running session by any road (nav, brand, "More" sheet, the address bar) asks the same question as the exit
+**Every position of a duel starts covered, the first one included, and the players take turns going first** (polish PF-2;
+`STATE.duel.readyWait`, phase `duel_ready`, `data-phase="handoff"`): the clock of the player who goes first does not run and the board
+ignores input until one tap (or Enter / Space: the cover is the `#handoff-overlay` button, it takes the focus when it opens and
+announces itself once, politely, through `#play-announce`) (`revealDuelSecondTurn()` handles both covers; the focus goes to the board
+afterwards). The cover says who goes first, that the device goes to them and who waits (`game.ready.*`); the one between the two turns
+says that the first has played (`game.handoff.*`). `STATE.duel.firstPlayer` (`duelFirstPlayerFor(index)`: 0 for positions 1, 3, 5...,
+1 for 2, 4, ...) is who moves first in the position on screen, `STATE.duel.currentPlayer` who is moving now; both are PLAYER indexes
+(0 = the first player of the duel: name, score, profile, card), never turn order. `roundResults[0]` is the first mover's pending
+move; everything handed to the rest of the app (`evaluation.answers`, `context.answers`, `context.rewards`, `session.records`, the
+summary's per-player numbers, the arrows) is in PLAYER order, so a card or a record never moves between positions. Leaving a running session by any road (nav, brand, "More" sheet, the address bar) asks the same question as the exit
 button (`shell.js` `leaveGameThen()` -> `Ludus.game.leave()`), and only a yes goes on.
 
 **Rules this screen keeps** (checked by `scripts/e2e/coach.js`): no horizontal scroll and no page scroll, nothing overlaps (header
@@ -863,9 +907,11 @@ items, board, dock, panel), every control is at least 44x44, every text is at le
 on, the quality of an answer is never told by colour alone (glyph, label and words), a visible focus ring on every stop, N / H / E / B
 keys as in the legend, no motion under `prefers-reduced-motion` or `a11y.motion = reduce`, no serious or critical axe violation.
 
-`scripts/tests/coach.test.js` (39): the pure helpers, both languages, the renderers in the fake DOM, degradation without the kit or a
+`scripts/tests/coach.test.js` (46): the pure helpers, both languages, the renderers in the fake DOM, degradation without the kit or a
 DOM. Browser: `scripts/e2e/coach.js` (scenarios `regimes` at ten viewports x es / en, `classic`, `duel`, `clock`, `own`, `motion`,
-`keyboard`, `contrast`, and `axe` with `LUDUS_AXE=/path/to/axe.min.js`); the core flows stay in `play-session.js` and `gate.js`.
+`keyboard`, `contrast`, `polish`, `duel-ready` (the cover of a duel position with two 24-letter names), and `axe` with
+`LUDUS_AXE=/path/to/axe.min.js`); the core flows stay in `play-session.js` (its `terms` scenario records the real engine's `go` commands:
+the learner's move is searched on the best line's terms) and `gate.js`.
 
 ## 20. Design system quick reference (`styles.css`, `css/system.css`, `js/ui/kit.js`, `js/ui/shell.js`, `js/ui/home.js`)
 
@@ -967,7 +1013,10 @@ steps, sources, privacy, closing call and footer (version, GPL-3.0-or-later, Sto
 clicks the header buttons). `home.mount(#screen-home)`, `show()` (also driven by `screen:changed`), `hide()`, `render()`,
 `startDaily()`, `openDuelSetup()`, `title: "home.title"`, pure `helpers` for tests. The hub re-renders on `language:changed`,
 `profile:changed`, `notebook:changed`, `session:completed`; the daily position loads lazily with a skeleton, an error state with a
-retry, a done state; "Next fact" only touches the fact card.
+retry, a done state; "Next fact" only touches the fact card. Polish pass: a count in words picks `<key>.one` when it is exactly 1 (the local `tCount`; "1 día", "falta 1",
+never "1 días" or "(s)"); the daily card promises "no repeats for months", which `scripts/tests/home-ui.test.js` holds to the real cycle of `Classics.daily` (a repeat
+after at least 180 days; the first one comes with the 255 eligible positions), and says tomorrow brings "another" position, never a "new" one; moves quoted in the fact card
+go through `Classics.localizeQuotedMoves` like the museum's.
 
 ### Boot guards (`js/boot.js`), the storage warning and the rules of the QA fix pass (F4)
 
@@ -1013,7 +1062,7 @@ retry, a done state; "Next fact" only touches the fact card.
 Both export `{ titleKey, mount, show(params), hide, render, destroy, helpers, TEXT }` and re-render on `language:changed`.
 
 **classics** (`titleKey "classics.title"`): `mount` draws the shell, `show` loads `Ludus.Classics.load()` (skeleton, error state with retry).
-Gallery of the 28 games (mini board of a signature position, bilingual title, players, opening, difficulty as dots + words, themes, number
+Gallery of the 29 games (mini board of a signature position, bilingual title, players, opening, difficulty as dots + words, themes, number
 of training positions, a "moves cross-checked" mark when the record has >= 2 sources and one names the score), search (accent-blind, every
 word must match players, event, place, year, ECO, title, opening in both languages), difficulty / era (before 1900, 1900-1949, 1950-1999,
 2000 on) / theme / position kind / sort, removable chips, result count (`role=status`), empty state. "Random mix" (max difficulty x 5/10/20,
@@ -1034,6 +1083,18 @@ every SAN drawn (move list, status, board label) goes through `Ludus.chess.local
 (`helpers.shownSan`, `showPly`; the replayed SAN stays English); names and events come from `Ludus.Classics.displayName / displayEvent` (the `names` /
 `events` tables of the data) with local fallback tables only while the data is not loaded (a test keeps them equal to the data); a source link is named by
 site and page (`helpers.sourceLinkLabel`), the source list is `lang="en"`; a player name wraps over up to 3 lines and carries its full name as `title`.
+Polish pass (PB-3..PB-7, polish-library): **the game page is a sub-state of the screen.** The gallery is the base state of the classics history entry and a game page is
+`{ game: id }` (`list: 1` when it was opened from the gallery entry right below it); opening a card is one `Ludus.router.pushSub`, so Back, Forward and a phone's Back gesture
+go between the gallery and the game before they leave the screen, and `Ludus.Screens.classics.onSub(sub)` (passed on by `registerRouterScreen`) draws what the entry says. A game
+that a route or a typed address opened only rewrites its entry (`replaceSub`); the page's own "All games" is one step Back (`popSub`) when `list` says the gallery is the entry
+below it, else it closes the page in place, and the Classics tab pressed on a game page does the same. `show()` reads the entry's own sub-state when the screen was hidden (the router
+calls it before `onSub` on a popped entry); the `hashchange` handler reads `event.newURL`. `document.title` follows every view. The line under a game's title is
+`helpers.whereParts(meta, lang)`: event, city, year, with the city left out when the event already names it ("Torneo de Copenhague · 1923"; accent-blind, `ł` = `l`, whole words;
+the "Place" row still gives city and country), and a place has one spelling per language (`CITY_ES` / `CITY_EN`). Every accessible name, tooltip and live region of the replay
+says a move in words (`helpers.spokenSan`, `spokenMove`: "12. Negras: caballo a f6"); what is drawn goes through `shownSan`, the "now" card draws the move and gives a screen reader
+a `.sr-only` twin. The sentence of the kind "only move" (`Ludus.Classics.kindHint`) states the scorer's definition (every other move gives up at least 12 percentage points of win
+chance, a test keeps the number equal to `Scoring.CONSTANTS.ONLY_MOVE_GAP_PCT`) and the "quiet" one no longer denies captures and checks. English strings are American ("practice",
+"Defense").
 
 **museum** (`titleKey "museum.title"`, nav label "History"): accessible tablist (roles, roving tab stop, Left / Right / Home / End, panels built
 on first use) with `timeline` (36 milestones grouped in 8 eras; each expands to the curiosities of its time and its source; era links; jump to
@@ -1043,7 +1104,17 @@ a year), `curiosities` (category pills with counts, accent-blind search, 24 at a
 `onlyWhile` keeps it from rotating in the background). `show({ tab })` and the hash `#/museum/<tab>` open a tab. A missing module (Facts,
 Concepts, Insights, Reader, kit) turns that tab into a short notice. `document.title` follows the tab ("Escuela de ajedrez - Historia - Ludus Scaccorum");
 below 18.5 rem of screen width (a 320px phone, or a larger text size: the query is in rem) the four tabs become two rows of two; example moves and moves
-quoted in facts follow the notation setting like the rest.
+quoted in facts follow the notation setting like the rest (the example move is drawn through `Ludus.chess.localizeSan` and read aloud through `spokenSan`: the drawn
+one is `aria-hidden`, a `.sr-only` span carries the spoken one; the facts of the timeline's "related curiosities" go through `Classics.localizeQuotedMoves`, and the reading room passes it
+as `formatText(text, lang)`, an optional `Reader.createCarousel` option added for this, so the drawn text and the live announcement quote moves in the same notation).
+Polish pass (PD-4): **the tabs are history entries.** A tab the person opens (click or arrow keys) is one `Ludus.router.pushSub` (`null` for the timeline, the base state,
+`{ tab }` for the others), so Back, Forward and a phone's Back gesture walk the tabs before they leave the screen; the router calls the screen's `onSub(sub)` and
+`registerRouterScreen` in `app.js` hands it to `Ludus.Screens.museum.onSub` (any screen that exports `onSub` gets the hook). A tab that is not a step of the person (a
+route's `{ tab }`, a typed `#/museum/<tab>`, the tab a new visit starts on) only rewrites the entry on show with `replaceSub`, and an entry made by a typed address
+is adopted that way so a later push does not overwrite it. `show()` reads the entry's own sub-state (`history.state.ludus.sub`) because the router calls it before
+`onSub` on a popped entry. The `hashchange` handler reads the address from `event.newURL`, not from the bar: while Back is being handled the shell has already rewritten the
+bar to the plain `#/museum`. After Back the focus goes to the open tab when it was on a tab or inside the tab that was hidden. Filters, search and the expanders write
+no history. Tests: `scripts/tests/museum-ui.test.js` (a fake window with a real history) and the `museum` scenario of `scripts/e2e/navigation.js`.
 
 ### Screens `Ludus.Screens.notebook` and `Ludus.Screens.progress` (`js/ui/notebook.js`, `js/ui/progress.js`; `css/notebook.css` `.notebook-`, `css/progress.css` `.progress-`)
 
@@ -1068,6 +1139,12 @@ QA pass: after a confirmed removal the focus goes to the card now at that place 
 none is left) and is scrolled into view; the review / lines / remove buttons are named "<title> (card n)" (`notebook.card.named`) because two cards of one game share a
 title; SANs (your move, the best move, the engine lines, the lesson example) go through `Ludus.chess.localizeSan` (`helpers.shownSan`; `formatPv(fen, pv, chess, show)`
 takes the display mapper as an optional 4th argument); the size control wraps its label above it when they do not fit.
+Polish pass (PB-1, PB-2, PB-6, PB-7): the filter "Your move" lists the Scoring codes `blunder | bad | dubious | interesting` (worst first; `interesting` is the least severe bucket and
+also takes anything better) and takes its words from `Scoring.qualityLabel` only (`helpers.qualityText`; no `notebook.quality.*` strings exist, and without the scorer the filter is
+left out); the text search compares the stored English SAN of your move and of the best move AND the form the page draws (`ctx.sansOf`, `ctx.showSan` of `filterCards`), plus the
+players and the event in both spellings, so "Cf3" and "Nf3" find the same card; every move of a card (yours, the best, the stored lines, the lesson's example) is drawn through
+`localizeSan` and has a `.sr-only` twin in words (`spokenSan`, `sanNode`) while the drawn one is `aria-hidden`; the count says "0 of 1 card" for a notebook of one card; the box table
+names its cards ("Box 1: 3 cards, comes back every 3 days").
 
 **progress** (`titleKey "progress.title"`): level and XP bar, streak (with the "at risk" warning) and daily streak, the four numbers, a 12 week heatmap
 (a grid computed by calendar arithmetic on local Y-M-D, so DST changes and New Year cannot shift a day; a list of the active days as its alternative),
@@ -1145,7 +1222,7 @@ maths, heatmap grid with an injected clock) and both screens against the real Pr
 through the real Profile API with `scripts/e2e/track-seed.js`: ~150 rounds over 40 days; a real review session graded by Profile; empty, partial and
 at-risk states; 7 viewports x es / en; reduced motion; focus rings; axe on 46 states).
 
-`scripts/tests/classics-ui.test.js` (36) and `scripts/tests/museum-ui.test.js` (18): pure helpers, the replay model of all 28 games, the
+`scripts/tests/classics-ui.test.js` (36) and `scripts/tests/museum-ui.test.js` (18): pure helpers, the replay model of all the games, the
 screens against the real data in the fake DOM. Browser: `scripts/e2e/learn.js` (gallery, replay, deep links, training launchers, history tabs,
 the reading room against the real clock, 7 viewports x es / en, reduced motion, focus rings, axe).
 

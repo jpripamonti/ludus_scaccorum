@@ -1097,6 +1097,20 @@ test("integration", "searchMoves restricts the search to the given moves", async
   assert.ok(Math.abs(Engine.moverScore(only.lines[0]) - Engine.moverScore(target)) < 120, "same ballpark as the MultiPV score for that move");
 });
 
+test("integration", "PF-1: a single move searched to a depth reports exactly that depth, so it can be matched to the best line's", async () => {
+  // The learner's move is searched to the depth the MultiPV best line reached (app.js evaluateRoundAnswers): the engine has
+  // to stop at that depth with an exact line of it, and well before the time ceiling, or the two scores are not comparable.
+  const fen = "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3";
+  const root = await withTimeout(shared.engine.analyze({ fen, movetimeMs: 300, multiPv: 3, newGame: true }), 10000, "pf1 root");
+  const target = root.lines[0].depth;
+  assert.ok(target >= 8, `a 300 ms MultiPV search gets past 8 plies (got ${target})`);
+  const one = await withTimeout(shared.engine.analyze({ fen, depth: target, movetimeMs: 6000, searchMoves: ["h7h6"] }), 12000, "pf1 move");
+  assert.strictEqual(one.lines.length, 1);
+  assert.strictEqual(one.lines[0].pv[0], "h7h6");
+  assert.strictEqual(one.lines[0].depth, target, "the same depth as the best line, not the deeper one the same time would have reached");
+  assert.ok(one.elapsedMs < 5000 && !one.timedOut, `stopped by the depth, not by the ceiling (${one.elapsedMs} ms)`);
+});
+
 test("integration", "Scoring.flipAfterMove agrees with the engine: score after the move, flipped, equals the score before it", async () => {
   // Mate in 2 for White (Kg6 + Rg1 against Kh8): 1.Rb1 (or similar) and then mate.
   const fen = "7k/8/6K1/8/8/8/8/6R1 w - - 0 1";

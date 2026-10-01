@@ -157,6 +157,29 @@
       .slice(0, max);
   }
 
+  // How two profile names are compared (PC-5): capital letters, spaces of any kind and zero-width characters do not tell two names
+  // apart, so "Marta" and "marta " are the same name. An empty key means the name shows nothing at all.
+  function nameKey(value) {
+    let text = cleanText(value, NAME_MAX);
+    try {
+      text = text.normalize("NFKC");
+    } catch (error) {
+      // No normalize(): the plain text is compared.
+    }
+    return text.replace(/[\s\u200b-\u200d\u2060\ufeff]+/g, "").toLowerCase();
+  }
+
+  // `base` as a name no key in `taken` (a Set of nameKey values) uses: "Marta", then "Marta 2", "Marta 3"... within the length cap.
+  function freeName(taken, base) {
+    if (!taken.has(nameKey(base))) return base;
+    for (let n = 2; n < 100; n += 1) {
+      const suffix = ` ${n}`;
+      const candidate = `${cleanText(base, NAME_MAX - suffix.length)}${suffix}`;
+      if (!taken.has(nameKey(candidate))) return candidate;
+    }
+    return base;
+  }
+
   function idOrNull(value) {
     return typeof value === "string" && ID_RE.test(value) && !FORBIDDEN_KEYS.includes(value) ? value : null;
   }
@@ -390,7 +413,7 @@
     { id: "first_perfect", category: "moves", glyph: "★", target: 1, measure: (c) => c.perfectMoves,
       text: [["Jugada perfecta", "Perfect move"], ["Encontrá la mejor jugada de una posición, sin pistas.", "Find the best move in a position, without hints."]] },
     { id: "hot_streak", category: "moves", glyph: "✹", target: HOT_STREAK_LENGTH, measure: (c) => c.hotStreak,
-      text: [["Racha caliente", "Hot streak"], ["Encadená 10 posiciones seguidas con más de 80 de precisión, sin pistas.", "Chain 10 positions in a row above 80 accuracy, without hints."]] },
+      text: [["Racha caliente", "Hot streak"], ["Encadená 10 posiciones seguidas con más de 80% de precisión, sin pistas.", "Chain 10 positions in a row above 80% accuracy, without hints."]] },
     { id: "only_move", category: "moves", glyph: "⚑", target: 1, measure: (c) => c.onlyMovesFound,
       text: [["Jugada única", "Only move"], ["Encontrá una jugada única, sin pistas: la mejor estaba muy por encima de las demás.", "Find an only-move without hints: the best move stood far above the alternatives."]] },
     { id: "sacrifice", category: "moves", glyph: "⚔", target: 1, measure: (c) => c.sacrifices,
@@ -400,7 +423,7 @@
     { id: "quick_draw", category: "moves", glyph: "↯", target: 1, measure: (c) => c.quickDraws,
       text: [["Reflejos rápidos", "Quick draw"], ["Jugá una jugada casi perfecta en 5 segundos o menos, sin pistas.", "Play a near-perfect move in 5 seconds or less, without hints."]] },
     { id: "sharp_eye", category: "moves", glyph: "◉", target: 20, measure: (c) => c.cleanSharp,
-      text: [["Ojo agudo", "Sharp eye"], ["Resolvé 20 posiciones con 90 o más de precisión y sin pistas.", "Solve 20 positions with 90+ accuracy and no hints."]] },
+      text: [["Ojo agudo", "Sharp eye"], ["Resolvé 20 posiciones con 90% o más de precisión y sin pistas.", "Solve 20 positions with 90% accuracy or more and no hints."]] },
     { id: "streak_3", category: "habit", glyph: "③", target: 3, measure: (c) => c.streakBest,
       text: [["Tres días seguidos", "Three-day streak"], ["Entrená 3 días seguidos.", "Train 3 days in a row."]] },
     { id: "streak_7", category: "habit", glyph: "⑦", target: 7, measure: (c) => c.streakBest,
@@ -416,7 +439,7 @@
     { id: "first_card_cleared", category: "notebook", glyph: "✓", target: 1, measure: (c) => c.clearedCards,
       text: [["Error superado", "Mistake overcome"], ["Superá tu primera tarjeta del cuaderno de errores.", "Clear your first card from the mistake notebook."]] },
     { id: "notebook_10", category: "notebook", glyph: "☷", target: 10, measure: (c) => c.clearedCards,
-      text: [["Cuaderno al día", "Notebook master"], ["Superá 10 tarjetas del cuaderno de errores.", "Clear 10 mistake notebook cards."]] },
+      text: [["Cuaderno al día", "Notebook up to date"], ["Superá 10 tarjetas del cuaderno de errores.", "Clear 10 mistake notebook cards."]] },
     { id: "positions_100", category: "volume", glyph: "Ⅽ", target: 100, measure: (c) => c.solvedPositions,
       text: [["Cien posiciones", "One hundred positions"], ["Resolvé 100 posiciones.", "Solve 100 positions."]] },
     { id: "positions_500", category: "volume", glyph: "Ⅾ", target: 500, measure: (c) => c.solvedPositions,
@@ -432,7 +455,7 @@
     { id: "rank_knight", category: "progress", glyph: "♞", target: 4, measure: (c) => c.level,
       text: [["Salto de caballo", "Knight's leap"], ["Llegá al nivel Caballo.", "Reach the Knight level."]] },
     { id: "improver", category: "progress", glyph: "↗", target: 10, measure: (c) => c.improvementDelta,
-      text: [["Cada vez mejor", "Getting better"], ["Mejorá tu precisión al menos 10 puntos entre tus primeras 50 y tus últimas 50 posiciones.", "Improve your accuracy by at least 10 points between your first 50 and your last 50 positions."]] },
+      text: [["Cada vez mejor", "Getting better"], ["Mejorá tu precisión media al menos 10 puntos porcentuales entre tus primeras 50 y tus últimas 50 posiciones.", "Improve your average accuracy by at least 10 percentage points between your first 50 and your last 50 positions."]] },
   ];
   const ACHIEVEMENT_IDS = new Set(ACHIEVEMENTS.map((def) => def.id));
 
@@ -468,6 +491,8 @@
     "read-only": ["Estos datos vienen de una versión más nueva de la app y no se pueden modificar.", "This data comes from a newer version of the app and cannot be changed."],
     "invalid-mode": ["Modo de importación no válido.", "Invalid import mode."],
     "no-such-profile": ["No se encontró ese perfil.", "That profile was not found."],
+    // PC-5: a name another profile already has ("Marta" and "marta " are the same); the account screen shows it through Profile.errorKey.
+    "duplicate-name": ["Ya hay un perfil con ese nombre (no cuentan las mayúsculas ni los espacios). Elegí otro.", "A profile with that name already exists (capital letters and spaces do not count). Choose another name."],
     // A code of Profile.lastError() that a screen may want to explain (Profile.errorKey).
     "unknown-profile": ["Ese perfil ya no existe en este dispositivo, así que lo que jugaste no se guardó.", "That profile no longer exists on this device, so what you played was not saved."],
   };
@@ -488,6 +513,10 @@
       put(`achievement.${def.id}.desc`, def.text[1]);
     });
     Object.keys(IMPORT_ERROR_TEXT).forEach((code) => put(`profile.import.error.${code}`, IMPORT_ERROR_TEXT[code]));
+    // The shell's "new profile" form looks its message up as shell.profile.error.<code> and shows a generic one when that key is missing
+    // (js/ui/shell.js): the sentence for a taken name is supplied here so the form says why it refused (PC-5). A key the shell registers
+    // itself later replaces this one.
+    put("shell.profile.error.duplicate-name", IMPORT_ERROR_TEXT["duplicate-name"]);
     return bundle;
   }
 
@@ -1969,9 +1998,13 @@
       if (indexReadOnly) return fail("read-only") || null;
       if (index.profiles.length >= MAX_PROFILES) return fail("limit") || null;
       const now = nowMs();
+      const taken = new Set(index.profiles.map((item) => nameKey(item.name)));
+      // A name that was typed must be free; a name nobody typed (the default) is numbered instead of refused: "Player", "Player 2".
+      const typed = cleanText(spec.name, NAME_MAX);
+      if (typed && nameKey(typed) && taken.has(nameKey(typed))) return fail("duplicate-name") || null;
       const profile = {
         id: uniqueProfileId(indexIds()),
-        name: cleanText(spec.name, NAME_MAX) || defaultName(),
+        name: typed && nameKey(typed) ? typed : freeName(taken, defaultName()),
         color: pickColor(index, spec.color),
         createdAt: now,
       };
@@ -1995,9 +2028,11 @@
     function rename(id, name) {
       lastError = "";
       const clean = cleanText(name, NAME_MAX);
-      if (!clean) return fail("invalid-name");
+      if (!clean || !nameKey(clean)) return fail("invalid-name");
       if (!indexIds().has(id)) return fail("not-found");
       const done = mutateIndex((index) => {
+        // Another profile may not carry the same name; the profile itself may change the case or the spaces of its own.
+        if (index.profiles.some((profile) => profile.id !== id && nameKey(profile.name) === nameKey(clean))) return fail("duplicate-name");
         index.profiles.find((profile) => profile.id === id).name = clean;
       });
       if (done) emit("profile:changed", { profileId: id });
@@ -2643,6 +2678,9 @@
       const plan = new Map(); // local id -> { meta, data, existing }
       const order = [];
       const taken = new Set(locals.map((profile) => profile.id));
+      // Names stay unique here too (PC-5): a backup may carry a name this device already uses; the profile it creates is numbered
+      // ("Marta 2") and a replacement that would take another profile's name keeps the name it had.
+      const takenNames = new Set(locals.map((profile) => nameKey(profile.name)));
       let imported = doc.profiles;
       let into = null;
       if (o.into !== undefined) {
@@ -2666,10 +2704,19 @@
             order.push(target.id);
             const localData = readData(target.id);
             if (readOnlyIds.has(target.id)) return fail2("read-only");
+            let replacementName = target.name;
+            if (mode === "replace" && !into && entry.name && nameKey(entry.name)) {
+              const before = nameKey(target.name);
+              if (nameKey(entry.name) === before || !takenNames.has(nameKey(entry.name))) {
+                takenNames.delete(before);
+                takenNames.add(nameKey(entry.name));
+                replacementName = entry.name;
+              }
+            }
             plan.set(target.id, {
               existing: true,
               meta: mode === "replace" && !into
-                ? { id: target.id, name: entry.name || target.name, color: entry.color, createdAt: target.createdAt, googleSub: entry.googleSub || target.googleSub || "" }
+                ? { id: target.id, name: replacementName, color: entry.color, createdAt: target.createdAt, googleSub: entry.googleSub || target.googleSub || "" }
                 : { id: target.id, name: target.name, color: target.color, createdAt: target.createdAt, googleSub: target.googleSub || entry.googleSub || "" },
               data: mode === "replace" && !into ? entry.data : mergeData(localData, entry.data),
             });
@@ -2679,9 +2726,11 @@
           const id = wanted || uniqueProfileId(taken);
           taken.add(id);
           order.push(id);
+          const newName = freeName(takenNames, entry.name && nameKey(entry.name) ? entry.name : defaultName());
+          takenNames.add(nameKey(newName));
           plan.set(id, {
             existing: false,
-            meta: { id, name: entry.name || defaultName(), color: entry.color, createdAt: entry.createdAt, googleSub: entry.googleSub },
+            meta: { id, name: newName, color: entry.color, createdAt: entry.createdAt, googleSub: entry.googleSub },
             data: entry.data,
           });
         }

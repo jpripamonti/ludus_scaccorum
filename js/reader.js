@@ -2,7 +2,7 @@
 // docs/ARCHITECTURE.md section 12.
 //
 //   Reader.readingTimeMs(text, lang)   clamp(words / 3 * 1000 + 1500, 6000, 24000)
-//   Reader.createCarousel(container, { category?, lang?, onlyWhile?, ... }) -> controller
+//   Reader.createCarousel(container, { category?, lang?, onlyWhile?, formatText?(text, lang), ... }) -> controller
 //       controller = { start, stop, next, prev, pause, resume, destroy }
 //                    (+ current(), state(), element)
 //
@@ -437,7 +437,16 @@
     }
 
     function factText(fact) {
-      return fact && fact.text ? fact.text[lang()] || fact.text.es || "" : "";
+      const text = fact && fact.text ? fact.text[lang()] || fact.text.es || "" : "";
+      // polish-discover (PD-5), the one edit this module needed: opts.formatText(text, lang) lets a screen re-spell what is drawn and
+      // announced (the museum writes the moves quoted in a fact in the person's notation). Optional; a failing hook leaves the text as it is.
+      if (typeof opts.formatText !== "function" || !text) return text;
+      try {
+        const formatted = opts.formatText(text, lang());
+        return typeof formatted === "string" ? formatted : text;
+      } catch (error) {
+        return text;
+      }
     }
 
     function yearLabel(fact) {

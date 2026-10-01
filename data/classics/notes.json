@@ -97,6 +97,10 @@
       "es": "José Raúl Capablanca",
       "en": "José Raúl Capablanca"
     },
+    "Judit Polgar": {
+      "es": "Judit Polgár",
+      "en": "Judit Polgár"
+    },
     "Lev Polugaevsky": {
       "es": "Lev Polugaevsky",
       "en": "Lev Polugaevsky"
@@ -230,6 +234,10 @@
     "New York": {
       "es": "Torneo de Nueva York",
       "en": "New York tournament"
+    },
+    "Russia vs Rest of the World": {
+      "es": "Rusia contra el Resto del Mundo",
+      "en": "Russia vs Rest of the World"
     },
     "Tal Memorial": {
       "es": "Memorial Tal",
@@ -1381,6 +1389,52 @@
           "note": {
             "es": "Sacrificio de caballo: 8.Cxe6! aprovecha 7...h6. Tras 8...De7 9.O-O fxe6 10.Ag6+ el rey negro queda en el centro y ya no puede enrocar.",
             "en": "Knight sacrifice: 8.Nxe6! exploits 7...h6. After 8...Qe7 9.O-O fxe6 10.Bg6+ Black's king is stuck in the centre and can no longer castle."
+          }
+        }
+      ]
+    },
+    "polgar-kasparov-2002": {
+      "title": {
+        "es": "Polgár contra Kaspárov, Moscú 2002",
+        "en": "Polgár versus Kasparov, Moscow 2002"
+      },
+      "blurb": {
+        "es": "Quinta ronda del match Rusia contra el Resto del Mundo (Moscú, 9 de septiembre de 2002), a ritmo rápido: 25 minutos más 10 segundos por jugada. Con blancas, Judit Polgár venció a Kaspárov, que eligió la Defensa Berlinesa: cambió las damas en la jugada 8 y atacó con las torres al rey negro, que siguió en el centro. Fue su primera victoria contra Kaspárov y suele presentarse como la primera vez que una mujer le ganaba a quien encabezaba el ranking mundial.",
+        "en": "Round five of the Russia versus Rest of the World match (Moscow, 9 September 2002), played at rapid speed: 25 minutes plus 10 seconds a move. With White, Judit Polgár beat Kasparov, who chose the Berlin Defence: she traded queens on move 8 and attacked the black king, which stayed in the centre, with her rooks. It was her first win against Kasparov and is usually presented as the first time a woman beat the world's top-ranked player."
+      },
+      "opening": {
+        "es": "Apertura Española, Defensa Berlinesa",
+        "en": "Ruy Lopez, Berlin Defence"
+      },
+      "themes": [
+        "initiative",
+        "attack",
+        "endgame-technique"
+      ],
+      "difficulty": 2,
+      "protagonist": "w",
+      "minPly": 16,
+      "sources": [
+        "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Kasparov.pgn)",
+        "Score identical move for move in github.com/BD-Chess/bd-chessdb and github.com/Pranav-Bhatlapenumarthi/KibitzAI (same lineage), github.com/ology/Chess-Inspector and github.com/LuisGoeppel/ChessFX (another export); a web search result gave the same moves",
+        "Facts (round 5, 9 Sept 2002, rapid 25 min + 10 s, Berlin Defence, first win over Kasparov): web search summaries of https://www.chessgames.com/perl/chessgame?gid=1254283, https://www.chess.com/article/view/judit-polgar-vs-garry-kasparov-1-0 and https://olimpbase.org/2002g/2002in.html",
+        "Fact-check note (2026-10-01): a search summary said Kasparov resigned 'two pawns down', but the material trace (js/chess.js) shows 4 pawns against 3 after 42...Kc8, so the blurb leaves it out; 'first woman to beat the world no. 1' is hedged ('usually presented as')"
+      ],
+      "moments": [
+        {
+          "ply": 46,
+          "san": "Bf4",
+          "note": {
+            "es": "24.Af4 defiende el peón de e5, atacado por el peón de f6. En la partida siguió 24...Axf5 25.gxf5 fxe5 26.Te1 Ad6 27.Axe5, y las blancas recuperaron el peón.",
+            "en": "24.Bf4 defends the e5 pawn, which the f6 pawn attacks. The game went 24...Bxf5 25.gxf5 fxe5 26.Re1 Bd6 27.Bxe5, and White got the pawn back."
+          }
+        },
+        {
+          "ply": 76,
+          "san": "Rcc7",
+          "note": {
+            "es": "39.Tcc7 pone las dos torres blancas en la séptima fila, en c7 y d7. En la partida siguió 39...Txf5 40.Tb7+ Rc8 41.Tdc7+ Rd8 42.Txg7, y las blancas ganaron el peón de g7.",
+            "en": "39.Rcc7 puts both white rooks on the seventh rank, on c7 and d7. The game went 39...Rxf5 40.Rb7+ Kc8 41.Rdc7+ Kd8 42.Rxg7, and White won the g7 pawn."
           }
         }
       ]

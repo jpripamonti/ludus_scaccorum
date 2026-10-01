@@ -7,7 +7,7 @@
 //   NODE_PATH=/opt/node22/lib/node_modules node scripts/e2e/navigation.js
 //
 // Environment (all optional): LUDUS_URL (default http://127.0.0.1:5010/), LUDUS_E2E_ONLY (history | guard |
-// wizard | resume | clock | downloads), LUDUS_CHROMIUM, LUDUS_E2E_SHOTS (screenshot directory).
+// wizard | resume | clock | downloads | museum), LUDUS_CHROMIUM, LUDUS_E2E_SHOTS (screenshot directory).
 //
 //   history    the browser's Back and Forward move between the screens of the app (UX-001);
 //   guard      Back in the middle of a game asks; "keep playing" stays, "leave" goes on, and the finished game
@@ -18,6 +18,8 @@
 //   clock      the round clock does not run while the page is hidden (UX-003);
 //   downloads  the download's failures say what failed and offer a remedy (404, rate limit with its countdown),
 //              and a hanging download can be cancelled (UX-006, UX-009, UX-010, UX-012).
+//   museum     the museum's tabs are entries of the history: Back and Forward (a phone's Back gesture) walk through them before they leave
+//              the screen, the tab title and the address follow, a typed address and a cold start on a tab behave (polish PD-4).
 //
 // Every scenario fails on a console error, an uncaught page error or a failed request of the app's own files.
 // Exits 0 on success, 1 on the first failed assertion, 2 if Playwright is missing.
@@ -380,12 +382,125 @@ async function downloadsScenario(browser) {
   }
 }
 
+// ---------- polish PD-4: the museum's tabs are history entries ----------
+
+async function museumScenario(browser) {
+  console.log("scenario: museum");
+  const { context, page, problems } = await newSession(browser);
+  try {
+    await boot(page);
+    const where = () => page.evaluate(() => {
+      const tab = document.querySelector('.museum-tab[aria-selected="true"]');
+      return { screen: Ludus.router.current(), tab: tab ? tab.dataset.tab : null, title: document.title, hash: window.location.hash };
+    });
+    const waitFor = (screen, tab) => page.waitForFunction(([wantedScreen, wantedTab]) => {
+      const el = document.querySelector('.museum-tab[aria-selected="true"]');
+      return Ludus.router.current() === wantedScreen && (wantedTab === null || (el && el.dataset.tab === wantedTab));
+    }, [screen, tab], { timeout: 5000 });
+
+    step("a tab the person opens is an entry: Back goes to the tab before, then to the screen before the museum");
+    await page.evaluate(() => Ludus.router.show("museum"));
+    await waitFor("museum", "timeline");
+    await page.locator("#museum-tab-curiosities").click();
+    await page.locator("#museum-tab-school").click();
+    let now = await where();
+    assert.strictEqual(now.tab, "school");
+    assert.match(now.title, /^Chess school - History - Ludus Scaccorum$/, "the tab title names the section");
+    assert.strictEqual(now.hash, "#/museum/school");
+    await page.goBack();
+    await waitFor("museum", "curiosities");
+    now = await where();
+    assert.match(now.title, /^Curiosities - History/, "the title follows the tab Back landed on");
+    assert.strictEqual(now.hash, "#/museum/curiosities");
+    await page.goBack();
+    await waitFor("museum", "timeline");
+    now = await where();
+    assert.match(now.title, /^Timeline - History/);
+    assert.strictEqual(now.hash, "#/museum");
+    await page.goBack();
+    await waitFor("home", null);
+
+    step("Forward walks the tabs again");
+    await page.goForward();
+    await waitFor("museum", "timeline");
+    await page.goForward();
+    await waitFor("museum", "curiosities");
+    await page.goForward();
+    await waitFor("museum", "school");
+    assert.strictEqual(await page.locator("#museum-panel-school").isVisible(), true);
+    assert.strictEqual(await page.locator("#museum-panel-curiosities").isVisible(), false);
+    assert.strictEqual((await where()).title, "Chess school - History - Ludus Scaccorum");
+
+    step("the arrow keys move between tabs and each one is an entry; focus follows Back to the tab that is open");
+    await page.locator("#museum-tab-school").focus();
+    await page.keyboard.press("ArrowRight");
+    await waitFor("museum", "room");
+    assert.strictEqual(await evalIn(page, "document.activeElement && document.activeElement.id"), "museum-tab-room");
+    await page.goBack();
+    await waitFor("museum", "school");
+    assert.strictEqual(await evalIn(page, "document.activeElement && document.activeElement.id"), "museum-tab-school", "the focus is on the open tab, not lost on the page");
+    await page.goForward();
+    await waitFor("museum", "room");
+
+    step("focus inside a tab that Back hides goes to the tab that is open (the browser would drop it on the page)");
+    await page.locator("#museum-tab-curiosities").click();
+    await page.locator("#museum-search").focus();
+    await page.goBack();
+    await waitFor("museum", "room");
+    assert.strictEqual(await evalIn(page, "document.activeElement && document.activeElement.id"), "museum-tab-room");
+
+    step("another screen in between: Back returns to the tab the museum was left on, then to the tab before it");
+    await page.evaluate(() => Ludus.router.show("classics"));
+    await waitFor("classics", null);
+    await page.goBack();
+    await waitFor("museum", "room");
+    await page.goBack();
+    await waitFor("museum", "school");
+
+    step("the language switch redraws the tab in place and Back still lands on the right one, titled in the new language");
+    await page.evaluate(() => Ludus.i18n.setLanguage("es"));
+    await page.waitForFunction(() => /Escuela de ajedrez/.test(document.title));
+    await page.goBack();
+    await waitFor("museum", "curiosities");
+    assert.strictEqual((await where()).title, "Curiosidades - Historia - Ludus Scaccorum");
+    assert.match(await page.locator("#museum-tab-curiosities").innerText(), /Curiosidades/);
+    await page.evaluate(() => Ludus.i18n.setLanguage("en"));
+
+    step("a tab typed in the address is an entry of its own (a tab opened after it does not overwrite it); Back goes to where the person was");
+    await page.evaluate(() => { window.location.hash = "#/museum/room"; });
+    await waitFor("museum", "room");
+    await page.locator("#museum-tab-timeline").click();
+    await waitFor("museum", "timeline");
+    await page.goBack();
+    await waitFor("museum", "room");
+    await page.goBack();
+    await waitFor("museum", "curiosities");
+
+    step("a page opened on #/museum/<tab> shows that tab; Back goes to the tab before, then leaves the museum");
+    await page.goto("about:blank");
+    await page.goto(`${BASE_URL}#/museum/room`);
+    await page.waitForFunction(() => window.Ludus && Ludus.router && Ludus.router.current() === "museum" && document.querySelector('.museum-tab[aria-selected="true"]'));
+    await waitFor("museum", "room");
+    await page.locator("#museum-tab-timeline").click();
+    await waitFor("museum", "timeline");
+    await page.goBack();
+    await waitFor("museum", "room");
+    await page.goBack();
+    await page.waitForFunction(() => Ludus.router.current() === "home");
+
+    step("no console errors, page errors or failed requests");
+    check("museum", problems);
+  } finally {
+    await context.close();
+  }
+}
+
 // ---------- run ----------
 
 (async () => {
   const browser = await launchBrowser();
   try {
-    const scenarios = { history: historyScenario, guard: guardScenario, wizard: wizardScenario, resume: resumeScenario, clock: clockScenario, downloads: downloadsScenario };
+    const scenarios = { history: historyScenario, guard: guardScenario, wizard: wizardScenario, resume: resumeScenario, clock: clockScenario, downloads: downloadsScenario, museum: museumScenario };
     for (const [name, run] of Object.entries(scenarios)) {
       if (!ONLY || ONLY === name) await run(browser);
     }

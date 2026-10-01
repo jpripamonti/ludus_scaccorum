@@ -256,7 +256,7 @@ const CTRL = String.fromCharCode(0, 7, 27);
   eq(p.create({ name: "x".repeat(60) }).name.length, 24, "names are capped at 24 characters");
   const plain = p.create({ color: "red" });
   ok(constants.PALETTE.includes(plain.color), "an invalid color falls back to the palette");
-  eq(plain.name, "Player", "a missing name falls back to the default");
+  eq(plain.name, "Player 2", "a missing name falls back to the default, numbered because \"Player\" is taken (PC-5)");
   eq(new Set(p.list().map((profile) => profile.id)).size, 4, "ids are unique");
   eq(constants.MAX_PROFILES, 4);
   eq(p.list().length, constants.MAX_PROFILES, "four profiles fit");
@@ -294,6 +294,104 @@ const CTRL = String.fromCharCode(0, 7, 27);
   const spanish = make().p.ensureActive();
   eq(spanish.name, "Participante", "the default name follows the language");
   Ludus.i18n.setLanguage("en", { persist: false });
+}
+
+{
+  // PC-5: profile names are unique, ignoring capital letters, spaces and zero-width characters.
+  const { p } = make();
+  const marta = p.create({ name: "Marta" });
+  ok(marta, "the first Marta is created");
+  eq(p.create({ name: "marta " }), null, "'marta ' is the same name as 'Marta'");
+  eq(p.lastError(), "duplicate-name");
+  eq(p.create({ name: "  MARTA" }), null, "capital letters and leading spaces do not make a new name");
+  eq(p.create({ name: "M a r t a" }), null, "nor do spaces inside it");
+  eq(p.create({ name: "Mar\u200bta" }), null, "nor does a zero-width character");
+  eq(p.create({ name: "Ｍａｒｔａ" }), null, "nor do full-width letters");
+  eq(p.list().length, 1, "nothing was created by the refused attempts");
+  eq(p.create({ name: "Martina" }).name, "Martina", "a different name is fine");
+  eq(p.lastError(), "", "a successful create clears the error");
+
+  // Renaming: another profile's name is refused, the profile's own name may change its case or spaces.
+  const beto = p.create({ name: "Beto" });
+  eq(p.rename(beto.id, " marta"), false, "renaming to another profile's name is refused");
+  eq(p.lastError(), "duplicate-name");
+  eq(p.list().find((profile) => profile.id === beto.id).name, "Beto", "and the name did not change");
+  eq(p.rename(marta.id, "MARTA"), true, "a profile may change the case of its own name");
+  eq(p.list().find((profile) => profile.id === marta.id).name, "MARTA");
+  eq(p.rename(marta.id, "Marta  "), true, "and its own spaces");
+  eq(p.rename(beto.id, "\u200b"), false, "a name that shows nothing is not a name");
+  eq(p.lastError(), "invalid-name");
+  eq(p.create({ name: "\u200b\u200c" }).name, "Player", "a typed name that shows nothing falls back to the default");
+
+  // A default name is numbered instead of refused (nobody typed it).
+  eq(make().p.create({}).name, "Player", "the first default is plain");
+  const d = make();
+  d.p.create({});
+  eq(d.p.create({}).name, "Player 2");
+  eq(d.p.create({}).name, "Player 3");
+  eq(d.p.create({ name: "player 2" }), null, "and a typed name is checked against the numbered ones");
+  // The numbered default respects the length cap.
+  const long = make();
+  long.p.create({ name: "x".repeat(24) });
+  Ludus.i18n.register({ en: { "profile.defaultName": "x".repeat(24) } });
+  const second = long.p.create({});
+  ok(second.name.length <= 24 && second.name !== "x".repeat(24) && /2$/.test(second.name), "the suffix fits inside the cap");
+  Ludus.i18n.register({ en: { "profile.defaultName": "Player" } });
+
+  // The message the account screen shows exists in both languages (Profile.errorKey).
+  const key = p.errorKey("duplicate-name");
+  const es = Ludus.i18n.t(key, null, "es");
+  const en = Ludus.i18n.t(key, null, "en");
+  ok(es !== key && en !== key && es !== en, "duplicate-name is translated");
+  ok(/Elegí/.test(es) && /mayúsculas/.test(es), "in voseo, and it says what does not count");
+  ok(/already exists/.test(en) && /capital letters/.test(en));
+  eq(Ludus.i18n.t("shell.profile.error.duplicate-name", null, "es"), es, "the shell's new-profile form finds the same sentence (it looks it up under its own prefix)");
+  eq(Ludus.i18n.t("shell.profile.error.duplicate-name", null, "en"), en);
+
+  // A backup that brings a name this device already uses creates a numbered profile, never a twin.
+  const src = make({ uid: makeUid("S") });
+  src.p.create({ name: "Marta" });
+  src.p.create({ name: "Zoe" });
+  const dst = make({ uid: makeUid("D") });
+  dst.p.create({ name: "marta" });
+  const added = dst.p.importJSON(src.p.exportJSON("all"), { mode: "add" });
+  ok(added.ok && added.created === 2, JSON.stringify(added));
+  same(dst.p.list().map((profile) => profile.name).sort(), ["Marta 2", "Zoe", "marta"], "the imported Marta is numbered");
+  // A replacement that would take another profile's name keeps the name it had.
+  const rep = make({ uid: makeUid("S") });
+  const local = rep.p.create({ name: "Old" });
+  rep.p.create({ name: "Zoe" });
+  const one = make({ uid: makeUid("T") });
+  one.p.create({ name: "zoe" });
+  const exported = JSON.parse(one.p.exportJSON());
+  exported.profiles[0].id = local.id;
+  const replaced = rep.p.importJSON(JSON.stringify(exported), { mode: "replace" });
+  ok(replaced.ok && replaced.merged === 1, JSON.stringify(replaced));
+  same(rep.p.list().map((profile) => profile.name).sort(), ["Old", "Zoe"], "'zoe' would have duplicated 'Zoe': the profile keeps its own name");
+}
+
+{
+  // PC-1 wording of the profile texts: the percentage is a percentage, "points" stays the 0-10 score of a position.
+  const entry = (lang, id) => Profile.achievements.catalog(lang).find((item) => item.id === id);
+  ok(/above 80% accuracy/.test(entry("en", "hot_streak").description));
+  ok(/más de 80% de precisión/.test(entry("es", "hot_streak").description));
+  ok(/90% accuracy or more/.test(entry("en", "sharp_eye").description));
+  ok(/90% o más de precisión/.test(entry("es", "sharp_eye").description));
+  ok(/percentage points/.test(entry("en", "improver").description) && /puntos porcentuales/.test(entry("es", "improver").description), "a gain in accuracy is in percentage points, not 'points'");
+  eq(entry("en", "notebook_10").name, "Notebook up to date", "the English name says what the Spanish one says");
+  eq(entry("es", "notebook_10").name, "Cuaderno al día");
+  // No British spelling, no contraction, no tuteo in any text this module registers.
+  const bundle = { es: {}, en: {} };
+  Profile.registerText({ register(b) { Object.assign(bundle.es, b.es); Object.assign(bundle.en, b.en); } });
+  Object.entries(bundle.en).forEach(([key, text]) => {
+    ok(!/colour|analyse|favour|centre|defence|licence|practise|recognise|judgement/i.test(text), `${key}: American English`);
+    ok(!/\b\w+n't\b|\b(we|you|they)'(re|ll|ve)\b/i.test(text), `${key}: no contraction`);
+    ok(!/winning chances|odds|win probability/i.test(text), `${key}: "win chance"`);
+  });
+  Object.entries(bundle.es).forEach(([key, text]) => {
+    ok(!/\b(elige|prueba|tú|toca|vuelve|puedes|tienes|resuelve|completa|encadena|entrena|juega|mejora|llega|supera|encuentra|termina|gana)\b/i.test(text), `${key}: voseo, not tuteo`);
+    ok(!/\(s\)|\.\.\./.test(text), `${key}: no "(s)" and no three dots`);
+  });
 }
 
 {

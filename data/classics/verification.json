@@ -9,7 +9,7 @@
     "depth": 18,
     "multipv": 5
   },
-  "builderVersion": 3,
+  "builderVersion": 4,
   "games": {
     "alekhine-nimzowitsch-1931": {
       "hash": "1d45036e1026adb6",
@@ -335,6 +335,17 @@
         }
       ],
       "positions": 8
+    },
+    "polgar-kasparov-2002": {
+      "hash": "1fc382246eec8b5a",
+      "plies": 84,
+      "final": {
+        "kind": "decided",
+        "eval": 359,
+        "decided": true
+      },
+      "blunders": [],
+      "positions": 12
     },
     "polugaevsky-nezhmetdinov-1958": {
       "hash": "40d12a301e9728b3",

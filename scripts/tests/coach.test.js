@@ -1026,10 +1026,10 @@ test("compare card: the note adds up with the bars it sits under, says what a wi
     Coach.renderRound(el, context, { lang: "en" });
     const bars = all(first(el, "co-compare"), "co-bar-pct").map(text).map((value) => Number(value.replace("%", "")));
     const note = all(first(el, "co-compare"), "co-cmp-note").map(text).find((value) => /win chance/.test(value));
-    const match = /from (\d+)% to (\d+)% \((\d+) points? less/.exec(note || "");
+    const match = /from (\d+)% to (\d+)% \((\d+) percentage points? less/.exec(note || "");
     assert.ok(match, `the loss note says where it goes from and to: ${note}`);
     const [best, user, gap] = match.slice(1).map(Number);
-    assert.strictEqual(gap, best - user, "the points are the difference of the two numbers printed");
+    assert.strictEqual(gap, best - user, "the percentage points are the difference of the two numbers printed (never plain \"points\": that word is the 0-10 score)");
     assert.deepStrictEqual([best, user], [Math.round(Ludus.Scoring.winPercent(240)), Math.round(Ludus.Scoring.winPercent(uci === "a2a3" ? 185 : -100))]);
     assert.ok(bars.includes(best) && bars.includes(user), "and they are the numbers of the bars");
   });
@@ -1046,7 +1046,7 @@ test("compare card: the note adds up with the bars it sits under, says what a wi
   assert.strictEqual(button.getAttribute("aria-expanded"), "false");
   assert.strictEqual(button.getAttribute("aria-controls"), body.getAttribute("id"));
   assert.ok(body.hasAttribute("hidden"));
-  assert.ok(/estimate, not a real probability/.test(text(body)) && /positive favours you/.test(text(body)), text(body));
+  assert.ok(/estimate, not a real probability/.test(text(body)) && /positive favors you/.test(text(body)), text(body));
   button.click();
   assert.strictEqual(button.getAttribute("aria-expanded"), "true");
   assert.ok(!body.hasAttribute("hidden") || body.hidden === false);
@@ -1058,10 +1058,10 @@ test("compare card: the note adds up with the bars it sits under, says what a wi
   // Whose move was it: the master's, or the one of the person's own game.
   const named = makeContext(env, [makeAnswer(env, { uci: "e2e4", san: "e4" })], { master: { uci: "d2d4", san: "d4", score: 25, rank: 2 }, masterName: "Morphy" });
   Coach.renderRound(el, named, { lang: "en" });
-  assert.ok(text(first(el, "co-compare")).includes("Morphy's move was the engine's number 2 choice."));
+  assert.ok(text(first(el, "co-compare")).includes("Morphy's move was the engine's 2nd choice."));
   const own = makeContext(env, [makeAnswer(env, { uci: "e2e4", san: "e4" })], { master: { uci: "d2d4", san: "d4", score: 25, rank: 2 }, masterName: "" });
   Coach.renderRound(el, own, { lang: "en" });
-  assert.ok(text(first(el, "co-compare")).includes("The move from your game was the engine's number 2 choice."));
+  assert.ok(text(first(el, "co-compare")).includes("The move from your game was the engine's 2nd choice."));
   const out = makeContext(env, [makeAnswer(env, { uci: "e2e4", san: "e4" })], { master: { uci: "c2c3", san: "c3", score: -40 }, masterName: "" });
   Coach.renderRound(el, out, { lang: "en" });
   assert.ok(/from your game was not among the engine's top choices/.test(text(first(el, "co-compare"))));
@@ -1128,11 +1128,11 @@ test("a duel summary keeps the two players apart: their own points, hits and mov
   sameData(players[1].segments.map((segment) => segment.code).sort(), ["bad", "blunder"], "each has their own mix, not the merged one");
   Coach.renderSummary(el, summary, { lang: "en" });
   const hero = text(first(el, "co-sum-hero"));
-  assert.ok(!/points/i.test(hero) && !/hits/i.test(hero), `no merged points or hits over two people: ${hero}`);
+  assert.ok(!/points/i.test(hero) && !/hits|correct/i.test(hero), `no merged points or hits over two people: ${hero}`);
   assert.ok(hero.includes("Ana wins") && hero.includes("1 min"), "the winner, the time");
   const cards = all(el, "co-sum-duelist");
   assert.strictEqual(cards.length, 2);
-  assert.ok(text(cards[0]).includes("2 of 2 hits") && text(cards[1]).includes("0 of 2 hits"), "hits per player");
+  assert.ok(text(cards[0]).includes("2 of 2 correct") && text(cards[1]).includes("0 of 2 correct"), "hits per player");
   assert.ok(text(cards[0]).includes("+150 XP") && text(cards[0]).includes("First steps"), "what Ana earned, on Ana's card");
   assert.ok(!text(cards[1]).includes("First steps"));
   assert.strictEqual(all(cards[0], "co-seg").length, 1, "a bar of her own");
@@ -1205,8 +1205,10 @@ test("the quality glyph is never tiny and the scroll region has an inset focus r
   const glyph = /\.co-glyph \{([^}]*)\}/.exec(css);
   assert.ok(glyph && /font-size:\s*max\(0\.6875rem/.test(glyph[1]), "at least 11px: it was 0.5em of the parent, 7.5px in the legend");
   assert.ok(!/font-size:\s*0\.5em/.test(glyph[1]));
+  // The ring is drawn inside the clipped panel through the --focus-ring-offset custom property (an outline-offset declared here never applied,
+  // see the PL-4 test below), and the fade does not cut it.
   const ring = /\.co-scroll:focus-visible \{([^}]*)\}/.exec(css);
-  assert.ok(ring && /outline-offset:\s*-\d/.test(ring[1]) && /mask-image:\s*none/.test(ring[1]), "the ring is drawn inside the clipped panel and the fade does not cut it");
+  assert.ok(ring && /--focus-ring-offset:\s*-\d/.test(ring[1]) && /mask-image:\s*none/.test(ring[1]), "the ring is drawn inside the clipped panel and the fade does not cut it");
 });
 
 test("every move the coach shows goes through Ludus.chess.localizeSan: Spanish letters for Spanish readers, the stored SAN stays English", () => {
@@ -1229,7 +1231,8 @@ test("every move the coach shows goes through Ludus.chess.localizeSan: Spanish l
   assert.ok(text(first(el, "co-hero-verdict")).includes("Cf3"), "and in the sentence that names it");
   const lineText = text(first(el, "co-lines"));
   assert.ok(lineText.includes("Cf3") && lineText.includes("Ab5"), `the line and its moves: ${lineText}`);
-  assert.ok(all(el, "co-line")[0].getAttribute("aria-label").includes("Cf3"));
+  // What a screen reader gets is the move in words, not "C f 3" (Ludus.chess.spokenSan; PL-6 below covers both notation settings).
+  assert.ok(all(el, "co-line")[0].getAttribute("aria-label").includes("caballo a f3") && !all(el, "co-line")[0].getAttribute("aria-label").includes("Cf3"));
   // English readers, and a Spanish page that asks for English notation, see the stored letters.
   Coach.renderRound(el, context, { lang: "en" });
   assert.ok(text(first(el, "co-compare")).includes("Nf3"));
@@ -1251,6 +1254,331 @@ test("every move the coach shows goes through Ludus.chess.localizeSan: Spanish l
   const beto = Object.assign(makeAnswer(env, { uci: "a2a3", san: "a3", name: "Beto", lines }), { playerIndex: 1 });
   Coach.renderDuel(el, makeContext(env, [ana, beto]), { lang: "es" });
   assert.ok(text(all(el, "co-player")[0]).includes("Cf3"));
+});
+
+// ---------- The polish pass on the play screen (PL-1 .. PL-6) ----------
+
+test("verdict: every sentence agrees with the quality ladder of Scoring.qualityLabel and with the only-move rule (PL-1)", () => {
+  ["en", "es"].forEach((lang) => {
+    const { Coach, Ludus } = createEnv({ language: lang });
+    const best = { uci: "e2e4", san: "e4", score: 150 };
+    const sentence = (code) => Coach.verdictText({ best }, { uci: "a2a3", assessment: { qualityCode: code } }, lang);
+    const label = (code) => Ludus.Scoring.qualityLabel(code, lang).toLowerCase();
+    // "Interesting, but X was clearly better" said a positive word for a clear loss: the sentence now says what the label says.
+    const inaccuracy = sentence("interesting");
+    assert.ok(!/interesting|interesante/i.test(inaccuracy), `${lang}: no positive word for a loss: ${inaccuracy}`);
+    assert.ok(inaccuracy.toLowerCase().includes(label("interesting").slice(0, 6)), `${lang}: it names the label (${label("interesting")}): ${inaccuracy}`);
+    assert.ok(inaccuracy.includes("e4"), "and the better move");
+    // A mistake and a serious mistake are called that, in the words of the label.
+    assert.ok(sentence("bad").toLowerCase().includes(label("bad")), `${lang}: ${sentence("bad")}`);
+    assert.ok(sentence("blunder").toLowerCase().includes(label("blunder")), `${lang}: ${sentence("blunder")}`);
+    assert.ok(sentence("dubious").toLowerCase().includes(label("dubious").slice(0, 5)), `${lang}: ${sentence("dubious")}`);
+    // "Clearly better" is for the labels below the inaccuracy: a good move, a very good one and an inaccuracy are not clear losses.
+    ["very_good", "good", "interesting"].forEach((code) => assert.ok(!/clearly|claramente/i.test(sentence(code)), `${lang} ${code}: ${sentence(code)}`));
+    // The sentence of each answer of the ladder is its own (nothing repeats between neighbours).
+    const ladder = ["perfect", "very_good", "good", "interesting", "dubious", "bad", "blunder"].map(sentence);
+    assert.strictEqual(new Set(ladder).size, ladder.length, `${lang}: one sentence per rung`);
+    // The labels the person reads are the ones of Scoring, not a second vocabulary kept here.
+    Coach.QUALITY_CODES.forEach((code) => assert.strictEqual(Coach.qualityInfo(code, lang).label, Ludus.Scoring.qualityLabel(code, lang), `${lang} ${code}`));
+  });
+  // "Great move" is said exactly when Scoring says only move: every other line at least ONLY_MOVE_GAP_PCT of win chance worse.
+  const env = createEnv({ language: "en" });
+  const { Scoring } = env.Ludus;
+  const gap = Scoring.CONSTANTS.ONLY_MOVE_GAP_PCT;
+  const bestScore = 200;
+  let second = bestScore;
+  while (Scoring.winPercent(bestScore) - Scoring.winPercent(second) < gap) second -= 5;
+  const verdictFor = (secondScore) => {
+    const lines = [{ uci: "e2e4", score: bestScore }, { uci: "d2d4", score: secondScore }, { uci: "a2a3", score: secondScore - 300 }];
+    const answer = makeAnswer(env, { uci: "e2e4", san: "e4", lines });
+    const context = makeContext(env, [answer], { best: { uci: "e2e4", san: "e4", score: bestScore }, master: null, masterName: "" });
+    return { answer, key: env.Coach.verdictKey(context, answer).key };
+  };
+  const atGap = verdictFor(second);
+  assert.strictEqual(atGap.answer.assessment.onlyMove, true, "every other line is at least the gap worse");
+  assert.strictEqual(atGap.key, "coach.verdict.great");
+  const justShort = verdictFor(second + 5);
+  assert.strictEqual(justShort.answer.assessment.onlyMove, false, "one step closer is not an only move");
+  assert.notStrictEqual(justShort.key, "coach.verdict.great", "and the sentence about every other move being worse is not shown");
+  ["en", "es"].forEach((lang) => {
+    const { Coach } = createEnv({ language: lang });
+    ["great", "greatEquivalent"].forEach((key) => {
+      const sentence = Coach.TEXT[lang][`coach.verdict.${key}`];
+      assert.ok(/worse|peores/.test(sentence) && !/only (one|move)|única|solo una/i.test(sentence), `${lang} ${key}: says what the rule measures (the others were clearly worse), not "the only move that keeps the position": ${sentence}`);
+    });
+  });
+});
+
+test("every tag Insights can emit has a picture: the kit's, or one drawn here in the same style, always decorative (PL-2)", () => {
+  const { Coach, Ludus } = createEnv({ language: "en" });
+  const kitNames = new Set(Ludus.ui.iconNames());
+  assert.ok(kitNames.size > 20 && Ludus.Insights.TAGS.length >= 22, "the lists exist");
+  ["loses_material", "tactic_available"].forEach((tag) => assert.ok(Ludus.Insights.TAGS.includes(tag), `${tag} is a tag of Insights`));
+  Ludus.Insights.TAGS.concat(["other"]).forEach((tag) => {
+    const found = Coach.insightIconFor(tag);
+    assert.ok(found, `the tag ${tag} has an icon`);
+    // The kit draws nothing for a name it does not have (an empty, invisible svg): the name has to exist there.
+    if (found.source === "kit") assert.ok(kitNames.has(found.name), `${tag}: the kit has no icon called ${found.name}`);
+    const node = Coach.insightIcon(tag, 18);
+    assert.strictEqual(node.getAttribute("aria-hidden"), "true", `${tag}: decorative, the sentence carries the meaning`);
+    assert.strictEqual(node.getAttribute("stroke"), "currentColor", `${tag}: follows the text colour in every theme`);
+    assert.ok(findAll(node, (el) => el.tagName === "PATH" || el.tagName === "CIRCLE" || el.tagName === "RECT").length > 0, `${tag}: something is drawn`);
+    assert.strictEqual(String(node.getAttribute("width")), "18");
+  });
+  assert.strictEqual(Coach.insightIconFor("not_a_tag"), null, "an unknown tag is reported, not hidden");
+  // The two the kit has no picture for are drawn here in the kit's style (24 grid, 1.75 stroke, round joins).
+  ["loses_material", "tactic_available"].forEach((tag) => {
+    assert.strictEqual(Coach.insightIconFor(tag).source, "local");
+    const node = Coach.insightIcon(tag, 18);
+    assert.strictEqual(node.getAttribute("viewBox"), "0 0 24 24");
+    assert.strictEqual(String(node.getAttribute("stroke-width")), "1.75");
+    assert.strictEqual(node.getAttribute("stroke-linecap"), "round");
+    assert.ok(node.classList.contains("ui-icon"));
+  });
+  // And the card puts it next to the sentence: a message of each of the two tags draws its own picture, not the "info" fallback.
+  const env = createEnv({ language: "en" });
+  const el = env.doc.createElement("div");
+  env.doc.body.appendChild(el);
+  ["loses_material", "tactic_available"].forEach((tag) => {
+    const answer = makeAnswer(env, { uci: "a2a3", san: "a3" });
+    answer.insights = { tags: [tag], messages: [{ key: `insight.${tag}`, params: { san: "a3", best: "e4", n: 3 }, tag, raw: { san: "a3", best: "e4", n: 3 } }], conceptIds: [], phase: null, verdict: "unknown", texts: [] };
+    Coach.renderRound(el, makeContext(env, [answer]), { lang: "en" });
+    const icon = first(first(el, "co-insight"), "co-insight-icon");
+    assert.ok(icon, `${tag}: an insight row is drawn`);
+    assert.ok(findAll(icon, (node) => node.tagName === "SVG" && node.classList.contains(`ui-icon-${tag.replace(/_/g, "-")}`)).length === 1, `${tag}: its own picture`);
+  });
+});
+
+test("renderTurn: a long name gets the ellipsis, the side to move is never shortened (PL-3)", () => {
+  ["es", "en"].forEach((lang) => {
+    const env = createEnv({ language: lang });
+    const { Coach, doc } = env;
+    const name = "Maximiliano Alejandro Pe"; // 24 characters, the longest a profile can have
+    assert.strictEqual(name.length, 24);
+    const sentence = lang === "es" ? `${name} juega con las blancas` : `${name} plays White`;
+    const side = lang === "es" ? "juega con las blancas" : "plays White";
+    const el = doc.createElement("span");
+    Coach.renderTurn(el, { text: sentence, name });
+    const nameNode = all(el, "co-turn-name");
+    const sideNode = all(el, "co-turn-side");
+    assert.strictEqual(nameNode.length, 1);
+    assert.strictEqual(sideNode.length, 1);
+    assert.strictEqual(nameNode[0].textContent, name);
+    assert.strictEqual(nameNode[0].getAttribute("title"), name, "the whole name is one hover away");
+    assert.strictEqual(sideNode[0].textContent, side, "the side to move is its own piece of text");
+    assert.strictEqual(el.textContent, sentence, "and what a screen reader reads is the whole sentence, name first, with its spaces");
+    // Drawn again it replaces what was there; a sentence that does not contain the name is shown as it is.
+    Coach.renderTurn(el, { text: sentence, name });
+    assert.strictEqual(all(el, "co-turn-name").length, 1);
+    Coach.renderTurn(el, { text: "Ana plays White", name: "Zed" });
+    assert.strictEqual(el.textContent, "Ana plays White");
+    assert.strictEqual(all(el, "co-turn-name").length, 0);
+    // A template that puts words before the name keeps them too.
+    Coach.renderTurn(el, { text: "Now Ana plays White", name: "Ana" });
+    assert.deepStrictEqual(all(el, "co-turn-side").map((node) => node.textContent), ["Now", "plays White"]);
+    assert.strictEqual(el.textContent, "Now Ana plays White");
+  });
+  // The CSS that makes it so: only the name shrinks and ends in an ellipsis, the side never does.
+  const css = fs.readFileSync(path.join(repoRoot, "css/coach.css"), "utf8");
+  const name = /\.co-turn-name \{([^}]*)\}/.exec(css);
+  const side = /\.co-turn-side \{([^}]*)\}/.exec(css);
+  assert.ok(name && /text-overflow:\s*ellipsis/.test(name[1]) && /min-width:\s*0/.test(name[1]) && /overflow:\s*hidden/.test(name[1]), "the name can shrink to an ellipsis");
+  assert.ok(side && /flex:\s*none/.test(side[1]) && !/ellipsis|overflow/.test(side[1]), "the side keeps its full width");
+  assert.ok(/\.co-turn-text:has\(\.co-turn-name\) \{[^}]*display:\s*flex/.test(css) && /\.co-turn-text:has\(\.co-turn-name\) \{[^}]*text-overflow:\s*clip/.test(css), "the line is a flex row only when it names a player (the old ellipsis no longer eats the side)");
+  // And the game core draws the duel's line through it.
+  const app = fs.readFileSync(path.join(repoRoot, "app.js"), "utf8");
+  assert.ok(/coach\.renderTurn\(roundTurnEl, \{ text: sentence, name: player \}\)/.test(app), "app.js hands the sentence and the name to the coach");
+});
+
+test("focus rings: the play screen sets --focus-ring-offset on the focused state; an outline-offset there never applied (PL-4)", () => {
+  const css = fs.readFileSync(path.join(repoRoot, "css/coach.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const global = fs.readFileSync(path.join(repoRoot, "styles.css"), "utf8");
+  assert.ok(/outline-offset:\s*var\(--focus-ring-offset\)/.test(global), "the global ring reads the variable (the pattern depends on it)");
+  const rules = Array.from(css.matchAll(/([^{}]+)\{([^{}]*)\}/g), (m) => ({ selector: m[1].trim(), body: m[2] }));
+  rules.forEach((rule) => {
+    if (/:focus-visible/.test(rule.selector)) {
+      // (0,2,0) here against (0,3,0) there: the declaration is dead code that looks like it works.
+      assert.ok(!/outline-offset\s*:/.test(rule.body), `${rule.selector} declares an outline-offset that the global :focus-visible rule overrides: set --focus-ring-offset`);
+      assert.ok(!/(^|[;\s])outline\s*:/.test(rule.body), `${rule.selector} does not redeclare the ring`);
+    }
+    // A custom property is inherited: set on a region it would inset the rings of everything inside. It lives on the focused state only.
+    if (/--focus-ring-offset\s*:/.test(rule.body)) assert.ok(/:focus-visible/.test(rule.selector), `${rule.selector} sets --focus-ring-offset outside a :focus-visible state`);
+  });
+  // The elements whose ring was clipped by an overflow:hidden parent draw it inside.
+  [[".co-scroll:focus-visible", -3], [".co-handoff:focus-visible", -6], [".co-expand:focus-visible", -3]].forEach(([selector, offset]) => {
+    const rule = rules.find((entry) => entry.selector === selector);
+    assert.ok(rule, `${selector} has a rule`);
+    const match = /--focus-ring-offset:\s*(-?\d+)px/.exec(rule.body);
+    assert.ok(match && Number(match[1]) === offset, `${selector} draws its ring inside (${offset}px)`);
+  });
+});
+
+test("text: one name per concept, American English, voseo and the right plural forms in what the coach says (PL-5, CNT-025, CNT-029..034)", () => {
+  const { Coach, Ludus } = createEnv({ language: "en" });
+  const en = Object.values(Coach.TEXT.en).join("\n");
+  const es = Object.values(Coach.TEXT.es).join("\n");
+  assert.ok(!/winning chances?|\bodds\b|win probability|chance of winning/i.test(en), "win chance, never winning chances or odds");
+  assert.ok(!/colour|favour|centre|defence|\banalys(e|ed|ing)\b|practis|recognis|licence|judgement|behaviour|\bgrey\b|organis|cancell|levell/i.test(en), "American spelling");
+  assert.ok(!/\bscore\b/i.test(en) && !/puntaje/i.test(es), "points are the 0-10 score of a position; no second word for it");
+  assert.ok(!/\bprecision\b|precisión de los puntos/i.test(en), "accuracy summarises a session");
+  assert.ok(!/\(s\)|\(es\)/.test(en + es), "no (s) hedges: the form follows the number");
+  assert.ok(!/(?<![a-záéíóúüñ])(elige|prueba|selecciona|haz|pulsa|usa|sigue|intenta|entrena|copia|ten|pon|puedes|tienes|quieres|eres|tú)(?![a-záéíóúüñ])/i.test(es), "voseo (elegí, probá, entrená), never the tuteo");
+  // "Points" is the 0-10 score; the difference of two win chances is percentage points.
+  assert.ok(/percentage points?/.test(Coach.TEXT.en["coach.unit.pp.other"]) && /porcentuales/.test(Coach.TEXT.es["coach.unit.pp.other"]));
+  // Quality words only come from Scoring.qualityLabel.
+  assert.ok(!Object.keys(Coach.TEXT.es).some((key) => /^coach\.quality\./.test(key)), "the coach keeps no quality words of its own");
+  // The unit follows the number: exactly one is singular ("1 point", "1 punto"), a half is not.
+  const dots = (lang, points) => {
+    const env = createEnv({ language: lang });
+    return env.Coach.dotsModel({ total: 1, current: 0, rounds: [{ quality: "good", points }], lang }).items[0].label;
+  };
+  assert.ok(/, 1 point$/.test(dots("en", 1)) && /, 1 punto$/.test(dots("es", 1)), `${dots("en", 1)} | ${dots("es", 1)}`);
+  assert.ok(/, 7\.5 points$/.test(dots("en", 7.5)) && /, 7,5 puntos$/.test(dots("es", 7.5)));
+  assert.ok(/, 0\.5 points$/.test(dots("en", 0.5)) && /, 10 puntos$/.test(dots("es", 10)));
+  assert.ok(!/\b1 puntos|\b1 points/.test(dots("en", 1) + dots("es", 1)));
+  const duel = (lang) => createEnv({ language: lang }).Coach.dotsModel({ total: 1, current: 0, rounds: [{ quality: "perfect", points: 10, duel: [{ name: "Ana", points: 1 }, { name: "Beto", points: 4 }] }], lang }).items[0].label;
+  assert.strictEqual(duel("en"), "Position 1: Ana 1 point, Beto 4 points");
+  assert.strictEqual(duel("es"), "Posición 1: Ana 1 punto, Beto 4 puntos");
+  // "0 of 1 positions played" and "1 of 1 hits" were wrong in both languages.
+  const progress = (lang, total, done) => createEnv({ language: lang }).Coach.dotsModel({ total, current: done, rounds: Array.from({ length: done }, () => ({ quality: "good", points: 5 })), lang }).summary;
+  assert.strictEqual(progress("es", 1, 0), "0 de 1 posición jugada");
+  assert.strictEqual(progress("en", 1, 0), "0 of 1 position played");
+  assert.strictEqual(progress("es", 3, 1), "1 de 3 posiciones jugadas");
+  assert.strictEqual(progress("en", 3, 1), "1 of 3 positions played");
+  const hits = (lang, total, hitCount) => {
+    const env = createEnv({ language: lang });
+    const doc = env.doc;
+    const el = doc.createElement("div");
+    doc.body.appendChild(el);
+    const rounds = summaryRounds().slice(0, total).map((round, index) => Object.assign({}, round, { hit: index < hitCount }));
+    const summary = env.Coach.summaryModel({ record: Object.assign({}, RECORD, { positions: total }), rounds, mode: "solo", lang });
+    env.Coach.renderSummary(el, summary, { lang });
+    return text(first(el, "co-sum-stats"));
+  };
+  assert.ok(hits("es", 1, 1).includes("1 de 1 acierto") && !hits("es", 1, 1).includes("aciertos"), hits("es", 1, 1));
+  assert.ok(hits("en", 1, 0).includes("0 of 1 correct"), hits("en", 1, 0));
+  assert.ok(hits("es", 3, 2).includes("2 de 3 aciertos") && hits("en", 3, 2).includes("2 of 3 correct"));
+  // The gap between two win chances: "1 percentage point", not "1 percentage points", and never the bare word "points".
+  const lossNote = (lang, secondScore) => {
+    const env = createEnv({ language: lang });
+    const el = env.doc.createElement("div");
+    env.doc.body.appendChild(el);
+    const lines = [{ uci: "e2e4", score: 100 }, { uci: "a2a3", score: secondScore }];
+    const answer = makeAnswer(env, { uci: "a2a3", san: "a3", lines });
+    env.Coach.renderRound(el, makeContext(env, [answer], { best: { uci: "e2e4", san: "e4", score: 100 }, master: null, masterName: "" }), { lang });
+    return all(first(el, "co-compare"), "co-cmp-note").map(text).find((value) => /\d+%/.test(value)) || "";
+  };
+  const winAt = (cp) => Math.round(Ludus.Scoring.winPercent(cp));
+  // The first score that is outside the tolerance band (it is no "as good as the best") and whose bar is one point of win chance lower.
+  let oneStep = 100;
+  while (winAt(100) - winAt(oneStep) < 1 || Ludus.Scoring.winPercent(100) - Ludus.Scoring.winPercent(oneStep) <= Ludus.Scoring.DEFAULTS.tolerancePct) oneStep -= 1;
+  assert.strictEqual(winAt(100) - winAt(oneStep), 1, "a score one point of win chance below the best");
+  assert.ok(/\(1 percentage point less than/.test(lossNote("en", oneStep)), lossNote("en", oneStep));
+  assert.ok(/\(1 punto porcentual menos que/.test(lossNote("es", oneStep)), lossNote("es", oneStep));
+  assert.ok(/\(\d\d? percentage points less than/.test(lossNote("en", -150)) && /puntos porcentuales menos/.test(lossNote("es", -150)));
+  // English ordinals ("2nd choice"), the plain number in Spanish.
+  const rank = (lang, n) => {
+    const env = createEnv({ language: lang });
+    const el = env.doc.createElement("div");
+    env.doc.body.appendChild(el);
+    const context = makeContext(env, [makeAnswer(env, { uci: "e2e4", san: "e4" })], { master: { uci: "d2d4", san: "d4", score: 25, rank: n }, masterName: "Morphy" });
+    env.Coach.renderRound(el, context, { lang });
+    return text(first(el, "co-compare"));
+  };
+  [[1, "1st"], [2, "2nd"], [3, "3rd"], [4, "4th"], [11, "11th"], [12, "12th"], [13, "13th"], [21, "21st"], [22, "22nd"], [103, "103rd"]].forEach(([n, ordinal]) => {
+    assert.ok(rank("en", n).includes(`the engine's ${ordinal} choice`), `${n} -> ${ordinal}: ${rank("en", n)}`);
+  });
+  assert.ok(rank("es", 2).includes("era la opción 2 del motor"), rank("es", 2));
+  // The sentence that tells the person what to do is the same in the two tables: hints cost "0 points" in both.
+  assert.ok(/0 points\)/.test(Coach.TEXT.en["coach.think.hints"]) && /0 puntos\)/.test(Coach.TEXT.es["coach.think.hints"]));
+});
+
+test("every SAN the coach renders follows the notation setting: letters through localizeSan, spoken forms through spokenSan (PL-6)", () => {
+  const SPOKEN = { es: { Nf3: "caballo a f3", Bb5: "alfil a b5", Nc6: "caballo a c6" }, en: { Nf3: "knight to f3", Bb5: "bishop to b5", Nc6: "knight to c6" } };
+  ["spanish", "english"].forEach((style) => {
+    ["es", "en"].forEach((lang) => {
+      const env = createEnv({ language: lang });
+      const { Coach, doc, Ludus } = env;
+      Ludus.Settings.set("notation.style", style);
+      const nf3 = style === "spanish" ? "Cf3" : "Nf3";
+      const bb5 = style === "spanish" ? "Ab5" : "Bb5";
+      const lines = [{ uci: "g1f3", score: 40 }, { uci: "e2e4", score: 35 }, { uci: "a2a3", score: -20 }];
+      const answer = makeAnswer(env, { uci: "a2a3", san: "a3", lines });
+      const context = makeContext(env, [answer], {
+        best: { uci: "g1f3", san: "Nf3", score: 40 }, master: { uci: "e2e4", san: "e4", score: 35, rank: 2 }, masterName: "Morphy",
+        lines: [
+          { uci: "g1f3", san: "Nf3", score: 40, rank: 1, isBest: true, pvSan: ["Nf3", "Nc6", "Bb5"] },
+          { uci: "e2e4", san: "e4", score: 35, rank: 2, isMaster: true, pvSan: ["e4", "e5"] },
+        ],
+      });
+      const el = doc.createElement("div");
+      doc.body.appendChild(el);
+      Coach.renderRound(el, context, { lang });
+      const other = style === "spanish" ? "Nf3" : "Cf3";
+      const tag = `${style}/${lang}`;
+      // What is written: the verdict, the comparison, the move list and its tokens.
+      assert.ok(text(first(el, "co-hero-verdict")).includes(nf3) && !text(first(el, "co-hero-verdict")).includes(other), `${tag} verdict: ${text(first(el, "co-hero-verdict"))}`);
+      assert.ok(text(first(el, "co-compare")).includes(nf3) && !text(first(el, "co-compare")).includes(other), `${tag} compare`);
+      assert.ok(text(first(el, "co-lines")).includes(nf3) && text(first(el, "co-lines")).includes(bb5), `${tag} lines: ${text(first(el, "co-lines"))}`);
+      assert.ok(all(el, "co-tok").some((node) => node.textContent.includes(bb5)), `${tag} tokens`);
+      assert.ok(all(el, "co-tok").every((node) => !node.textContent.includes(style === "spanish" ? "Bb5" : "Ab5")), `${tag} tokens never mix the alphabets`);
+      // What is read aloud: the move in words in the page language, for either setting (the words are not letters).
+      const lineLabel = all(el, "co-line")[0].getAttribute("aria-label");
+      assert.ok(lineLabel.includes(SPOKEN[lang].Nf3) && !lineLabel.includes(nf3) && !lineLabel.includes(other), `${tag} line aria-label: ${lineLabel}`);
+      const tokenLabels = all(el, "co-tok").map((node) => node.getAttribute("aria-label"));
+      assert.ok(tokenLabels.some((value) => value.includes(SPOKEN[lang].Bb5)) && tokenLabels.some((value) => value.includes(SPOKEN[lang].Nc6)), `${tag} token labels: ${tokenLabels.join(" | ")}`);
+      // The stored move is never touched, and the helpers agree with the chess module.
+      assert.strictEqual(context.best.san, "Nf3");
+      assert.strictEqual(Coach.showSan("Nf3", lang), Ludus.chess.localizeSan("Nf3", lang));
+      assert.strictEqual(Coach.speakSan("Nf3", lang), Ludus.chess.spokenSan("Nf3", lang));
+      // A duel card shows the move of each player the same way.
+      const ana = makeAnswer(env, { uci: "g1f3", san: "Nf3", name: "Ana", lines });
+      const beto = Object.assign(makeAnswer(env, { uci: "a2a3", san: "a3", name: "Beto", lines }), { playerIndex: 1 });
+      Coach.renderDuel(el, makeContext(env, [ana, beto]), { lang });
+      assert.ok(text(all(el, "co-player")[0]).includes(nf3), `${tag} duel card`);
+    });
+  });
+  // Without the helpers (a build that failed to load js/chess.js) the stored text is shown and nothing throws.
+  const env = createEnv({ language: "es" });
+  const chess = env.Ludus.chess;
+  const keep = { localizeSan: chess.localizeSan, spokenSan: chess.spokenSan };
+  delete chess.localizeSan;
+  delete chess.spokenSan;
+  try {
+    assert.strictEqual(env.Coach.showSan("Nf3", "es"), "Nf3");
+    assert.strictEqual(env.Coach.speakSan("Nf3", "es"), "Nf3");
+  } finally {
+    Object.assign(chess, keep);
+  }
+  assert.strictEqual(env.Coach.speakSan("", "es"), "");
+});
+
+test("the game core writes its moves the same way: the confirm button, the reveal buttons and the live-region announcements (PL-6)", () => {
+  const app = fs.readFileSync(path.join(repoRoot, "app.js"), "utf8");
+  // Every place that puts a SAN into a sentence goes through sanForPerson: letters for the eye, words for a live region.
+  [["core.move.confirmSan", false], ["core.move.pending", true], ["core.hint.said.3", true], ["evaluation.bestPrefix", false], ["evaluation.gamePrefix", false]].forEach(([key, spoken]) => {
+    const lines = app.split("\n").filter((line) => line.includes(`t("${key}", {`) && !/^\s*"/.test(line));
+    assert.ok(lines.length >= 1, `${key} is used`);
+    lines.forEach((line) => {
+      assert.ok(spoken ? /sanForPerson\([^)]*, true\)/.test(line) : /sanForPerson\(/.test(line) && !/, true\)/.test(line), `${key}: ${line.trim()}`);
+    });
+  });
+  // And the helper itself, run in the real game core.
+  const env = load();
+  const run = (code) => env.run(code);
+  env.Ludus.i18n.setLanguage("es", { persist: false });
+  run('STATE.language = "es"');
+  assert.strictEqual(run('sanForPerson("Nf3")'), "Cf3", "Spanish readers see Spanish letters");
+  assert.strictEqual(run('sanForPerson("Nf3", true)'), "caballo a f3", "and hear words");
+  env.Ludus.Settings.set("notation.style", "english");
+  assert.strictEqual(run('sanForPerson("Nf3")'), "Nf3", "the notation setting wins over the language");
+  assert.strictEqual(run('sanForPerson("Nf3", true)'), "caballo a f3", "the words follow the language, not the letters");
+  env.Ludus.Settings.set("notation.style", "auto");
+  run('STATE.language = "en"');
+  assert.strictEqual(run('sanForPerson("Nf3")'), "Nf3");
+  assert.strictEqual(run('sanForPerson("Nf3", true)'), "knight to f3");
+  assert.strictEqual(run('sanForPerson("")'), "");
+  assert.strictEqual(run('sanForPerson(undefined)'), undefined);
 });
 
 test("the coach degrades: no kit, no document, no target and empty data never throw", () => {

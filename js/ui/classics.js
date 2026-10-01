@@ -178,7 +178,7 @@
       "classics.card.practised": "{played} de {total} practicadas",
       "classics.progress.label": "Practicadas: {played} de {total}",
       "classics.progress.detail": "Ya practicaste {played} de {total} posiciones de esta partida y superaste {passed}. Precisión media de tu mejor intento: {accuracy}%.",
-      "classics.progress.detail.one": "Ya practicaste 1 de {total} posiciones de esta partida y {passed} superada. Precisión de tu mejor intento: {accuracy}%.",
+      "classics.progress.detail.one": "Ya practicaste 1 de {total} posiciones de esta partida y superaste {passed}. Precisión de tu mejor intento: {accuracy}%.",
       "classics.progress.done": "¡Practicaste todas las posiciones de esta partida! Precisión media de tu mejor intento: {accuracy}%.",
 
       "classics.detail.back": "Todas las partidas",
@@ -278,7 +278,7 @@
 
       "classics.mix.eyebrow": "Random mix",
       "classics.mix.title": "A little of every game",
-      "classics.mix.body": "Positions from different games, in shuffled order: ideal to practise without knowing which theme comes next.",
+      "classics.mix.body": "Positions from different games, in shuffled order: ideal to practice without knowing which theme comes next.",
       "classics.mix.difficulty": "Maximum difficulty",
       "classics.mix.count": "Number of positions",
       "classics.mix.available": "There are {n} positions up to that difficulty.",
@@ -352,11 +352,11 @@
       "classics.card.verified.hint": "The game was compared with public copies and with the rules of chess.",
       "classics.card.more": "+{n}",
       "classics.card.moves": "{n} moves",
-      "classics.card.practised": "{played} of {total} practised",
-      "classics.progress.label": "Practised: {played} of {total}",
-      "classics.progress.detail": "You have practised {played} of {total} positions of this game and passed {passed}. Average accuracy of your best attempts: {accuracy}%.",
-      "classics.progress.detail.one": "You have practised 1 of {total} positions of this game and passed {passed}. Accuracy of your best attempt: {accuracy}%.",
-      "classics.progress.done": "You have practised every position of this game! Average accuracy of your best attempts: {accuracy}%.",
+      "classics.card.practised": "{played} of {total} practiced",
+      "classics.progress.label": "Practiced: {played} of {total}",
+      "classics.progress.detail": "You have practiced {played} of {total} positions of this game and passed {passed}. Average accuracy of your best attempts: {accuracy}%.",
+      "classics.progress.detail.one": "You have practiced 1 of {total} positions of this game and passed {passed}. Accuracy of your best attempt: {accuracy}%.",
+      "classics.progress.done": "You have practiced every position of this game! Average accuracy of your best attempts: {accuracy}%.",
 
       "classics.detail.back": "All the games",
       "classics.detail.result.w": "White wins",
@@ -855,6 +855,7 @@
     DEN: { es: "Dinamarca", en: "Denmark" },
     YUG: { es: "Yugoslavia", en: "Yugoslavia" },
     URS: { es: "URSS", en: "USSR" },
+    RUS: { es: "Rusia", en: "Russia" }, // polgar-kasparov-2002 (PX-2, data fixer: one-line cross-edit)
     ISL: { es: "Islandia", en: "Iceland" },
     LAT: { es: "Letonia", en: "Latvia" },
     UAE: { es: "Emiratos Árabes Unidos", en: "United Arab Emirates" },
@@ -862,7 +863,10 @@
   const CITY_ES = {
     London: "Londres", Paris: "París", Berlin: "Berlín", Vienna: "Viena", Copenhagen: "Copenhague", Belgrade: "Belgrado",
     Moscow: "Moscú", Reykjavik: "Reikiavik", Dubai: "Dubái", "New York": "Nueva York", Lodz: "Łódź", Riga: "Riga", Breslau: "Breslavia",
+    Amsterdam: "Ámsterdam",
   };
+  // The place is spelled the way the event of the same game is ("Łódź tournament"), so a line never has two spellings of one city.
+  const CITY_EN = { Lodz: "Łódź" };
 
   // "London ENG" -> "Londres, Inglaterra" / "London, England". Unknown sites are shown as they are.
   function siteLabel(site, language) {
@@ -870,13 +874,39 @@
     const match = /^(.*?)\s+([A-Z]{3})$/.exec(raw);
     const country = match && COUNTRY[match[2]] ? COUNTRY[match[2]][language === "en" ? "en" : "es"] : "";
     const city = match && country ? match[1] : raw;
-    const shown = language === "es" && CITY_ES[city] ? CITY_ES[city] : city;
+    const names = language === "es" ? CITY_ES : CITY_EN;
+    const shown = Object.prototype.hasOwnProperty.call(names, city) ? names[city] : city;
     return country ? `${shown}, ${country}` : shown;
   }
 
   function cityLabel(site, language) {
     const label = siteLabel(site, language);
     return label.split(",")[0];
+  }
+
+  // What a search or a comparison sees in a place: no case, no accents, "ł" as "l" (normalizeText keeps it).
+  function foldPlace(text) {
+    return normalizeText(text).replace(/ł/g, "l");
+  }
+
+  // Many events are named after their city ("Torneo de Copenhague", "Hastings tournament"): under a game's title the line "event · city · year"
+  // then said the place twice. True when the event already names the city (whole words, so "Bled" is not found inside another word).
+  function eventNamesCity(event, city) {
+    const place = foldPlace(city);
+    return Boolean(place) && ` ${foldPlace(event)} `.includes(` ${place} `);
+  }
+
+  // The parts of the line under the title of a game, in order: the event, the city (left out when the event names it: nothing is lost, the
+  // place is still there once, and the "Place" row of the page still gives city and country), the year.
+  function whereParts(meta, language) {
+    const source = meta && typeof meta === "object" ? meta : {};
+    const event = eventLabel(source.event, language);
+    const city = cityLabel(source.site, language);
+    const parts = [];
+    if (event) parts.push(event);
+    if (city && !eventNamesCity(event, city)) parts.push(city);
+    if (source.year !== undefined && source.year !== null && source.year !== "") parts.push(String(source.year));
+    return parts;
   }
 
   // "1-0" -> "w", "0-1" -> "b", everything else -> "d".
@@ -976,6 +1006,24 @@
 
   function showPly(entry) {
     return entry ? `${entry.moveNumber}${entry.color === "w" ? "." : "..."} ${shownSan(entry.san)}` : "";
+  }
+
+  // The same move for a screen reader, in words ("caballo a f3", "knight to f3"): "Cf3" is read letter by letter. It takes the replayed (English) SAN,
+  // never a localized one (Ludus.chess.spokenSan). The drawn form without the helper. Every accessible name, tooltip and live region of the replay
+  // goes through here; what is drawn goes through shownSan (QA A11Y-016, PB-6).
+  function spokenSan(san) {
+    const chess = L().chess;
+    if (!san || !chess || typeof chess.spokenSan !== "function") return shownSan(san);
+    try {
+      return chess.spokenSan(san, lang());
+    } catch (error) {
+      return shownSan(san);
+    }
+  }
+
+  // "12. Negras: caballo a f6": the name of a move button and, after "Position after", of the board.
+  function spokenMove(entry) {
+    return entry ? t("classics.replay.move.label", { no: entry.moveNumber, side: sideName(entry.color), san: spokenSan(entry.san) }) : "";
   }
 
   // Blurbs and notes quote moves ("24.Txd4!!"): they are re-spelled for the notation setting by the data module (Ludus.Classics.localizeQuotedMoves).
@@ -1677,7 +1725,7 @@
   function onOpenClick(event, id) {
     if (event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || (typeof event.button === "number" && event.button > 0))) return;
     if (event && typeof event.preventDefault === "function") event.preventDefault();
-    openGame(id, { fromList: true });
+    openGame(id, { fromList: true, record: "push" });
   }
 
   function filterChipList() {
@@ -2227,7 +2275,7 @@
       icon("play", { size: 18 }), h("span", { class: "btn-label" }, t("classics.card.train")));
     return h("header", { class: "classics-detail-head" },
       h("div", { class: "classics-detail-top" },
-        h("button", { type: "button", class: "btn btn-ghost btn-sm classics-back", "data-fkey": "back", onclick: () => closeGame() },
+        h("button", { type: "button", class: "btn btn-ghost btn-sm classics-back", "data-fkey": "back", onclick: () => leaveGame() },
           icon("chevron-left", { size: 18 }), h("span", { class: "btn-label" }, t("classics.detail.back"))),
         r.headTrain),
       h("p", { class: "t-eyebrow classics-detail-eyebrow" }, pickText(meta.opening, language), meta.eco ? ` · ${meta.eco}` : ""),
@@ -2235,7 +2283,7 @@
       h("p", { class: "classics-detail-players" },
         sideDot("w"), h("span", null, displayName(meta.white, language)), h("span", { class: "classics-vs" }, t("classics.detail.vs")), sideDot("b"), h("span", null, displayName(meta.black, language))),
       h("p", { class: "classics-detail-where" },
-        `${eventLabel(meta.event, language)} · ${cityLabel(meta.site, language)} · ${meta.year} · `,
+        `${whereParts(meta, language).join(" · ")} · `,
         h("span", { class: `classics-result classics-result-${resultSide(meta.result)}` }, prettyResult(meta.result))));
   }
 
@@ -2319,8 +2367,7 @@
     r.moveButtons = new Map();
     const cell = (entry) => {
       if (!entry) return h("span", { class: "classics-move-empty" });
-      const label = t("classics.replay.move.label", { no: entry.moveNumber, side: sideName(entry.color), san: shownSan(entry.san) })
-        + (entry.training ? `, ${t("classics.replay.move.training")}` : "");
+      const label = spokenMove(entry) + (entry.training ? `, ${t("classics.replay.move.training")}` : "");
       const button = h("button", {
         type: "button",
         class: `classics-move${entry.training ? " is-training" : ""}`,
@@ -2601,7 +2648,7 @@
     if (model && d.board) {
       d.board.render({ fen: fenAt(model, snap.index), from: shown ? shown.from : null, to: shown ? shown.to : null, check: shown ? shown.check : null });
     }
-    const boardLabel = shown ? t("classics.replay.board", { move: showPly(shown) }) : t("classics.replay.board.start");
+    const boardLabel = shown ? t("classics.replay.board", { move: spokenMove(shown) }) : t("classics.replay.board.start");
     const spoken = describeFen(fenAt(model, snap.index), t);
     r.stage.setAttribute("aria-label", spoken ? `${boardLabel}. ${spoken}` : boardLabel);
 
@@ -2668,7 +2715,7 @@
       let text;
       if (!shown) text = t("classics.replay.status.start");
       else {
-        text = t("classics.replay.status", { no: shown.moveNumber, side: sideName(shown.color), san: shownSan(shown.san) });
+        text = t("classics.replay.status", { no: shown.moveNumber, side: sideName(shown.color), san: spokenSan(shown.san) });
         if (snap.atEnd) text += ` ${t("classics.replay.status.end", { result: resultText(meta.result) })}`;
       }
       r.live.textContent = text;
@@ -2686,7 +2733,11 @@
       r.now.appendChild(h("p", { class: "classics-now-hint" }, t("classics.replay.start.hint")));
     } else {
       r.now.appendChild(h("p", { class: "t-eyebrow" }, t(`classics.replay.turn.${shown.color}`, { n: shown.moveNumber })));
-      r.now.appendChild(h("p", { class: "classics-now-move" }, showPly(shown)));
+      // Drawn in the notation the person chose; a screen reader gets the move in words (the eyebrow above already says whose move and which number).
+      const drawnPly = showPly(shown);
+      const spokenPly = spokenSan(shown.san);
+      r.now.appendChild(h("p", { class: "classics-now-move" },
+        spokenPly && spokenPly !== drawnPly ? [h("span", { "aria-hidden": "true" }, drawnPly), " ", h("span", { class: "sr-only" }, spokenPly)] : drawnPly));
     }
     if (note) {
       r.now.appendChild(h("div", { class: "classics-note" },
@@ -2718,20 +2769,80 @@
     return typeof id === "string" && id ? id : null;
   }
 
-  function mirrorHash(id) {
+  // `immediate`: the person just opened or closed a game, so the entry that was written for it gets its address now; otherwise the address waits
+  // until the shell has mirrored the screen id into the hash (it does so on screen:changed) and says whatever view is on show by then.
+  function mirrorHash(id, immediate) {
     const run = () => {
       try {
         if (!state.visible || !root.history || typeof root.history.replaceState !== "function" || !root.location) return;
-        const wanted = buildGameHash(id);
+        const wanted = buildGameHash(immediate ? id : (state.view === "game" ? state.gameId : null));
         if (root.location.hash === wanted) return;
         root.history.replaceState(root.history.state, "", `${root.location.pathname}${root.location.search}${wanted}`);
       } catch (error) {
         // sandboxed frames and file:// can refuse; the hash is only a convenience
       }
     };
-    // After the shell has mirrored the screen id into the hash (it does so on screen:changed).
-    if (typeof root.setTimeout === "function") root.setTimeout(run, 0);
-    else run();
+    if (immediate || typeof root.setTimeout !== "function") run();
+    else root.setTimeout(run, 0);
+  }
+
+  // ----- Browser history: the game page is a sub-state of the screen (QA PB-5) -----
+  //
+  // The gallery is the base state of the classics entry and a game page is { game: id }, so the browser's Back and Forward (a phone's Back gesture)
+  // go between the gallery and a game before they leave the screen, and the page's own "All games" is one step Back. `list: 1` marks a page that was
+  // opened from the gallery entry right below it: only then is "All games" a real Back (a page that a route or a typed address opened has something
+  // else below it, and the button closes it in place). When one of those entries comes back, the router calls onSub(sub). Without a history
+  // (Node, a sandboxed frame) every call here is a no-op and the screen behaves as it always did.
+
+  function gameSub(id, fromList) {
+    if (!id) return null;
+    return fromList ? { game: id, list: 1 } : { game: id };
+  }
+
+  // The router's entry on show ({ id, sub?, depth?, seq }), or null when the entry is not one of its (an address typed by hand made it) or there is no history.
+  function historyEntry() {
+    try {
+      const entry = root.history && root.history.state && root.history.state.ludus;
+      return entry && typeof entry === "object" ? entry : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // The game an entry of this screen says it was left on, null for the gallery and for anything else.
+  function gameOfEntry(entry) {
+    return entry && entry.id === "classics" && entry.sub && typeof entry.sub.game === "string" && entry.sub.game ? entry.sub.game : null;
+  }
+
+  // push: the person opened a game (a new entry); otherwise the entry on show is made to say what the screen shows (an entry that a typed address
+  // made is adopted, so a later push does not overwrite it). A popped entry answers for itself: show() runs before its onSub does.
+  function recordView(push, fromList) {
+    const router = L().router;
+    if (!router || typeof router.pushSub !== "function" || typeof router.replaceSub !== "function") return false;
+    try {
+      if (typeof router.current === "function" && router.current() !== "classics") return false;
+      const id = state.view === "game" ? state.gameId : null;
+      if (push) return router.pushSub(gameSub(id, fromList)) !== false;
+      const entry = historyEntry();
+      if (entry && entry.id !== "classics") return false;
+      if (!entry || gameOfEntry(entry) !== id) router.replaceSub(gameSub(id, false));
+    } catch (error) {
+      // The history is a convenience: the page is shown either way.
+    }
+    return false;
+  }
+
+  // Leaves the entry of a game page for the gallery with one step Back when the gallery is the entry right below it (the history keeps no dead
+  // entry); true when that was done (the router then calls onSub(null)), false when the caller has to close the page itself.
+  function stepBackToGallery() {
+    const router = L().router;
+    const entry = historyEntry();
+    if (!entry || !entry.sub || !entry.sub.list || gameOfEntry(entry) !== state.gameId) return false;
+    try {
+      return Boolean(router && typeof router.popSub === "function" && typeof router.subDepth === "function" && router.subDepth() > 0 && router.popSub());
+    } catch (error) {
+      return false;
+    }
   }
 
   function openGame(id, options) {
@@ -2759,15 +2870,21 @@
       state.prefs.orientation = null;
     }
     state.notice = "";
+    // A game the person opens from the gallery is a new entry of the history (recorded before anything is drawn, so the browser keeps the
+    // gallery's scroll position with the entry it leaves); one that Back or Forward brought here already has its entry.
+    const entry = historyEntry();
+    const fromGallery = state.view === "list" && Boolean(entry && entry.id === "classics" && !entry.sub);
     state.view = "game";
     state.gameId = id;
+    if (opts.record === "push") recordView(true, fromGallery);
     render();
     scrollToTop();
     focusHeading();
-    mirrorHash(id);
+    mirrorHash(id, opts.record === "push");
     return true;
   }
 
+  // `silent`: no scroll or focus to restore. `record: "none"`: the router already moved the entry (Back or Forward landed on the gallery).
   function closeGame(options) {
     const opts = options || {};
     const returning = state.lastOpened;
@@ -2783,7 +2900,15 @@
       jumpTo(state.listScroll || 0);
       if (target && typeof target.focus === "function") target.focus({ preventScroll: true });
     }
+    if (opts.record !== "none") recordView(false);
     mirrorHash(null);
+  }
+
+  // The "All games" button of a game page: one step Back when the gallery is the entry below (the router then closes the page through onSub),
+  // else the page is closed where it stands.
+  function leaveGame() {
+    if (stepBackToGallery()) return;
+    closeGame();
   }
 
   function focusHeading() {
@@ -2825,8 +2950,14 @@
     return false;
   }
 
-  function onHashChange() {
-    const hash = root.location ? root.location.hash : "";
+  function onHashChange(event) {
+    let hash = root.location ? root.location.hash : "";
+    // The address the event is about, not the one in the bar by now: while Back is being handled the shell may already have rewritten the bar to the
+    // plain screen id ("#/classics"), which would read as a person asking for the gallery and close the game Back has just brought back.
+    if (event && typeof event.newURL === "string") {
+      const at = event.newURL.indexOf("#");
+      hash = at < 0 ? "" : event.newURL.slice(at);
+    }
     if (parseGameHash(hash)) {
       if (state.visible && state.view === "game" && state.gameId === parseGameHash(hash)) return;
       goToHash(hash);
@@ -2916,9 +3047,15 @@
       if (router && typeof router.current === "function" && router.current() === "classics") screen.show({});
     },
     show(params) {
+      const wasVisible = state.visible;
       state.visible = true;
       if (!state.mounted) return;
-      const wanted = gameIdFromParams(params);
+      let wanted = gameIdFromParams(params);
+      // A popped entry of this screen says which view it was left on (the router calls show() before its onSub()); anything else that shows the screen
+      // (a tab of the shell, a route without a game) starts on the gallery, and a game the person asked for by name is the one they get.
+      if (!wanted && !wasVisible) wanted = gameOfEntry(historyEntry());
+      // The Classics tab pressed on a game page: back to the gallery, in one step Back when the gallery is the entry below it.
+      const leaving = !wanted && wasVisible && state.view === "game" && stepBackToGallery();
       state.notice = "";
       state.pendingGame = wanted;
       if (state.status === "ready") {
@@ -2929,6 +3066,7 @@
         }
         render();
         if (state.view === "game") focusHeading();
+        if (!leaving) recordView(false);
         return;
       }
       if (!wanted) {
@@ -2940,7 +3078,19 @@
         if (!state.mounted || !state.visible) return;
         applyPendingRoute();
         render();
+        recordView(false);
       });
+    },
+    // Back or Forward landed on one of this screen's entries (Ludus.router calls this with the entry's sub-state: null = the gallery).
+    onSub(sub) {
+      if (!state.mounted || !state.visible) return;
+      const id = sub && typeof sub.game === "string" && sub.game ? sub.game : null;
+      if (id) {
+        if (state.view === "game" && state.gameId === id) return;
+        openGame(id, { record: "none" });
+      } else if (state.view === "game") {
+        closeGame({ record: "none" });
+      }
     },
     hide() {
       state.visible = false;
@@ -2989,6 +3139,8 @@
       localizeMeta,
       siteLabel,
       cityLabel,
+      whereParts,
+      eventNamesCity,
       resultSide,
       prettyResult,
       buildReplayModel,
@@ -2997,6 +3149,8 @@
       nextPlyAt,
       formatPly,
       shownSan,
+      spokenSan,
+      spokenMove,
       showPly,
       buildMoveRows,
       createReplayState,

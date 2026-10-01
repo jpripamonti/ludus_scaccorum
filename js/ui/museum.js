@@ -11,6 +11,8 @@
 //   Ludus.Screens.museum.mount(el)    el = #screen-museum. Idempotent and cheap (the data is local).
 //   Ludus.Screens.museum.show(params) params.tab = timeline | curiosities | school | room. The hash
 //                                     "#/museum/<tab>" does the same (cold start and hashchange).
+//   Ludus.Screens.museum.onSub(sub)   Back / Forward landed on an entry of this screen: sub = { tab } or null (the timeline). Every tab a
+//                                     person moves to is an entry (Ludus.router.pushSub); app.js passes the router's onSub on.
 //   Ludus.Screens.museum.hide()       stops the reading room (its timers) and the observers.
 //   Ludus.Screens.museum.render()     repaints from the current state (also on language:changed).
 //   Ludus.Screens.museum.titleKey     "museum.title", the i18n key of document.title.
@@ -64,8 +66,11 @@
     if (root.console && typeof root.console.error === "function") root.console.error(...args);
   }
 
+  // The singular form lives under "<key>.one" (both languages use one rule: exactly 1 is singular, 0 and the rest are plural).
   function tCount(key, n, params) {
-    return t(n === 1 ? `${key}.one` : key, Object.assign({ n }, params || {}));
+    const i18n = L().i18n;
+    const singular = n === 1 && i18n && typeof i18n.has === "function" && i18n.has(`${key}.one`);
+    return t(singular ? `${key}.one` : key, Object.assign({ n }, params || {}));
   }
 
   // ---------- Text ----------
@@ -118,14 +123,15 @@
       "museum.facts.search.clear": "Borrar la búsqueda",
       "museum.facts.categories": "Categorías",
       "museum.facts.all": "Todas",
-      "museum.facts.surprise": "Sorpréndeme",
+      "museum.facts.surprise": "Sorprendeme",
       "museum.facts.another": "Otra sorpresa",
       "museum.facts.surprise.title": "Una curiosidad para vos",
       "museum.facts.surprise.close": "Cerrar",
       "museum.facts.count": "{shown} de {total} curiosidades",
-      "museum.facts.count.one": "1 de {total} curiosidades",
+      "museum.facts.count.one": "1 curiosidad",
       "museum.facts.more": "Mostrar más",
       "museum.facts.more.n": "Mostrar más ({n} restantes)",
+      "museum.facts.more.n.one": "Mostrar más (1 restante)",
       "museum.facts.empty.title": "No encontramos curiosidades",
       "museum.facts.empty.body": "Probá con otra palabra o elegí otra categoría.",
       "museum.facts.empty.clear": "Ver todas",
@@ -203,9 +209,10 @@
       "museum.facts.surprise.title": "A curiosity for you",
       "museum.facts.surprise.close": "Close",
       "museum.facts.count": "{shown} of {total} curiosities",
-      "museum.facts.count.one": "1 of {total} curiosities",
+      "museum.facts.count.one": "1 curiosity",
       "museum.facts.more": "Show more",
       "museum.facts.more.n": "Show more ({n} left)",
+      "museum.facts.more.n.one": "Show more (1 left)",
       "museum.facts.empty.title": "No curiosities found",
       "museum.facts.empty.body": "Try another word or pick another category.",
       "museum.facts.empty.clear": "Show all",
@@ -343,6 +350,17 @@
     if (!san || !chess || typeof chess.localizeSan !== "function") return san;
     try {
       return chess.localizeSan(san, lang());
+    } catch (error) {
+      return san;
+    }
+  }
+
+  // The same move for a screen reader ("caballo a c7, jaque"): "Cc7+" would be read letter by letter (QA A11Y-016).
+  function spokenMove(san) {
+    const chess = L().chess;
+    if (!san || !chess || typeof chess.spokenSan !== "function") return san;
+    try {
+      return chess.spokenSan(san, lang());
     } catch (error) {
       return san;
     }
@@ -582,7 +600,7 @@
             h("h5", { class: "museum-related-title" }, t("museum.timeline.related")),
             h("ul", { class: "museum-related-list" }, related.map((fact) => h("li", null,
               h("span", { class: "museum-related-year" }, yearLabel(fact)),
-              h("span", { class: "museum-related-text" }, factText(fact, language))))))
+              h("span", { class: "museum-related-text" }, quotedText(factText(fact, language), language))))))
           : null,
         sourceText ? h("p", { class: "museum-source" }, h("span", { class: "museum-source-label" }, t("museum.timeline.source")), ` ${sourceText}`) : null)
       : null;
@@ -795,12 +813,13 @@
     clear(refs.factGrid);
     list.slice(0, shown).forEach((fact) => refs.factGrid.appendChild(factCard(fact)));
     setHidden(refs.factGrid, list.length === 0);
-    refs.factCount.textContent = tCount("museum.facts.count", shown, { shown, total: list.length });
+    // The noun agrees with the total ("1 curiosidad" when a search leaves one, "5 de 5 curiosidades" otherwise).
+    refs.factCount.textContent = tCount("museum.facts.count", list.length, { shown, total: list.length });
     setHidden(refs.factEmpty, list.length !== 0);
     const remaining = list.length - shown;
     setHidden(refs.factMore, remaining <= 0);
     if (remaining > 0) {
-      refs.factMore.querySelector(".btn-label").textContent = t("museum.facts.more.n", { n: remaining });
+      refs.factMore.querySelector(".btn-label").textContent = tCount("museum.facts.more.n", remaining);
     }
     Array.from(refs.factCats.querySelectorAll("button")).forEach((button) => {
       button.setAttribute("aria-pressed", String(button.getAttribute("data-cat") === state.facts.category));
@@ -984,6 +1003,20 @@
     return Insights && typeof Insights.tagLabelKey === "function" ? t(Insights.tagLabelKey(tag)) : String(tag);
   }
 
+  // "Jugada del ejemplo: Cc7+" with the move in nodes of its own: what is drawn goes through the notation setting (localizeSan), what a
+  // screen reader says through the spoken form (spokenSan), and the drawn one is hidden from the reader so it is not said twice.
+  function moveLine(key, san) {
+    const mark = "\u0001";
+    const parts = t(key, { san: mark }).split(mark);
+    return h("span", { class: "museum-concept-move-text" },
+      parts[0],
+      h("span", { "aria-hidden": "true" }, shownSan(san)),
+      // A space before the spoken form keeps copied text readable ("Cc7+ caballo a c7, jaque").
+      " ",
+      h("span", { class: "sr-only" }, spokenMove(san)),
+      parts[1] || "");
+  }
+
   function conceptCard(concept) {
     const ui = L().ui;
     const language = lang();
@@ -1007,7 +1040,7 @@
       h("article", { class: "museum-concept card", "aria-labelledby": `${id}-title` },
         h("div", { class: "museum-concept-board" },
           board,
-          san ? h("p", { class: "museum-concept-move" }, icon("target", { size: 14 }), t("museum.school.best", { san: shownSan(san) })) : null),
+          san ? h("p", { class: "museum-concept-move" }, icon("target", { size: 14 }), moveLine("museum.school.best", san)) : null),
         h("div", { class: "museum-concept-body" },
           h("h3", { class: "museum-concept-title", id: `${id}-title` }, title),
           h("p", { class: "museum-concept-text" }, pickLocalized(concept.body, language)),
@@ -1116,6 +1149,8 @@
         category,
         // The reading only advances while this tab is the one being read.
         onlyWhile: () => state.visible && state.tab === "room",
+        // Moves quoted in a fact are drawn (and announced) in the person's notation, like everywhere else on this screen.
+        formatText: (text, language) => quotedText(text, language),
         onChange: () => updateRoomCounter(),
       });
       state.room.controller.start();
@@ -1196,20 +1231,70 @@
     }
   }
 
-  function mirrorHash(tab) {
+  // ---------- Browser history: the tabs are sub-states of the screen (QA PD-4) ----------
+  //
+  // Every tab a person moves to is one entry of the browser's history (Ludus.router.pushSub), so Back and Forward (a phone's Back gesture
+  // too) walk through the tabs before they leave the screen; when one of those entries comes back the router calls onSub(sub) (app.js passes
+  // it on). The timeline is the base state (no sub), the other tabs are { tab }. A change that is not a step of the person (a route's tab,
+  // a typed hash, the tab the screen is shown on) only rewrites the entry on show (replaceSub) and adds none. Filters, search and the
+  // "more" toggles are not places and write nothing. Without a history (Node, a sandboxed frame) every call is a no-op.
+
+  function tabSub(tab) {
+    return tab === "timeline" ? null : { tab };
+  }
+
+  // The router's entry on show ({ id, sub?, depth?, seq }), or null when the entry is not one of its (an address typed by hand made it) or
+  // there is no history.
+  function historyEntry() {
+    try {
+      const entry = root.history && root.history.state && root.history.state.ludus;
+      return entry && typeof entry === "object" ? entry : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // The tab an entry of this screen says it was left on ("timeline" for the base state), null for anything else.
+  function tabOfEntry(entry) {
+    if (!entry || entry.id !== "museum") return null;
+    return entry.sub && TABS.includes(entry.sub.tab) ? entry.sub.tab : "timeline";
+  }
+
+  // push: the person moved to `tab` (a new entry); replace: the entry on show is made to say `tab` (an entry that a typed address made is
+  // adopted, so a later push does not overwrite it). A popped entry answers for itself: show() runs before its onSub does.
+  function recordTab(tab, push) {
+    const router = L().router;
+    if (!router || typeof router.pushSub !== "function" || typeof router.replaceSub !== "function") return;
+    try {
+      if (typeof router.current === "function" && router.current() !== "museum") return;
+      if (push) {
+        router.pushSub(tabSub(tab));
+        return;
+      }
+      const entry = historyEntry();
+      if (entry && entry.id !== "museum") return;
+      if (tabOfEntry(entry) !== tab) router.replaceSub(tabSub(tab));
+    } catch (error) {
+      // The history is a convenience: the tab is shown either way.
+    }
+  }
+
+  // The address says the tab on show. `immediate`: the person just moved to it, so the entry that was written for it gets its address
+  // now (two quick changes must not leave the earlier entry with the address of the one before it); otherwise it waits until the shell
+  // has mirrored the screen id into the hash (it does so on screen:changed) and says whatever tab is on show by then.
+  function mirrorHash(tab, immediate) {
     const run = () => {
       try {
         if (!state.visible || !root.history || typeof root.history.replaceState !== "function" || !root.location) return;
-        const wanted = buildMuseumHash(tab);
+        const wanted = buildMuseumHash(immediate ? tab : state.tab);
         if (root.location.hash === wanted) return;
         root.history.replaceState(root.history.state, "", `${root.location.pathname}${root.location.search}${wanted}`);
       } catch (error) {
         // sandboxed frames and file:// can refuse; the hash is only a convenience
       }
     };
-    // After the shell has mirrored the screen id into the hash (it does so on screen:changed).
-    if (typeof root.setTimeout === "function") root.setTimeout(run, 0);
-    else run();
+    if (immediate || typeof root.setTimeout !== "function") run();
+    else root.setTimeout(run, 0);
   }
 
   function showTab(tab, options) {
@@ -1237,7 +1322,13 @@
     paintTabs();
     syncDocTitle();
     if (opts.focus && state.tabButtons[next] && typeof state.tabButtons[next].focus === "function") state.tabButtons[next].focus();
-    if (opts.mirror !== false) mirrorHash(next);
+    // opts.record: "push" = the person moved here (one more entry of the history), "replace" = the entry on show must say so.
+    if (opts.record === "push") {
+      if (next !== previous) recordTab(next, true);
+    } else if (opts.record === "replace") {
+      recordTab(next, false);
+    }
+    if (opts.mirror !== false) mirrorHash(next, opts.record === "push" && next !== previous);
   }
 
   function onTabKey(event) {
@@ -1249,7 +1340,7 @@
     else if (event.key === "End") next = TABS[TABS.length - 1];
     if (!next) return;
     if (typeof event.preventDefault === "function") event.preventDefault();
-    showTab(next, { focus: true });
+    showTab(next, { focus: true, record: "push" });
   }
 
   function render() {
@@ -1273,7 +1364,7 @@
           "aria-selected": "false",
           tabindex: "-1",
           "data-tab": tab,
-          onclick: () => showTab(tab),
+          onclick: () => showTab(tab, { record: "push" }),
         }, icon(TAB_ICONS[tab], { size: 20 }), h("span", { class: "museum-tab-label" }, t(`museum.tab.${tab}`)));
         state.tabButtons[tab] = button;
         return button;
@@ -1319,14 +1410,20 @@
     return false;
   }
 
-  function onHashChange() {
-    const hash = root.location ? root.location.hash : "";
+  function onHashChange(event) {
+    let hash = root.location ? root.location.hash : "";
+    // The address the event is about, not the one in the bar by now: while Back is being handled the shell has already rewritten the bar
+    // to the plain screen id ("#/museum"), which would read as a person asking for the timeline and drop the tab Back just restored.
+    if (event && typeof event.newURL === "string") {
+      const at = event.newURL.indexOf("#");
+      hash = at < 0 ? "" : event.newURL.slice(at);
+    }
     const tab = parseMuseumHash(hash);
     if (tab) {
       if (state.visible && state.tab === tab) return;
       goToHash(hash);
     } else if (isMuseumHash(hash) && state.visible && state.tab !== "timeline") {
-      showTab("timeline", { mirror: false });
+      showTab("timeline", { mirror: false, record: "replace" });
     }
   }
 
@@ -1366,8 +1463,35 @@
     show(params) {
       state.visible = true;
       if (!state.mounted) return;
-      const wanted = tabFromParams(params);
-      showTab(wanted || state.tab);
+      // A popped entry says which tab it was left on (its onSub comes right after and says the same); a new one says nothing and gets
+      // the tab this screen was last on (or the one the route asks for), which it then records.
+      const recorded = tabOfEntry(historyEntry());
+      const wanted = tabFromParams(params) || (recorded && recorded !== "timeline" ? recorded : null);
+      showTab(wanted || state.tab, { record: "replace" });
+    },
+    // Back or Forward landed on one of this screen's entries (Ludus.router calls this with the entry's sub-state: null = the timeline).
+    onSub(sub) {
+      if (!state.mounted || !state.visible) return;
+      const doc = getDoc();
+      const container = state.container;
+      const had = Boolean(doc && container && typeof container.contains === "function" && doc.activeElement && container.contains(doc.activeElement));
+      showTab(sub && TABS.includes(sub.tab) ? sub.tab : "timeline", { mirror: false });
+      // The focus was on a tab or inside a tab that is hidden now (a browser drops it on the page only at its next repaint, so the
+      // check is not "is it on the body"): it goes to the tab that is open. A focus anywhere else on the screen stays where it is.
+      const button = state.tabButtons[state.tab];
+      const at = doc ? doc.activeElement : null;
+      const holds = (node, target) => Boolean(node && target && typeof node.contains === "function" && node.contains(target));
+      const open = state.panels[state.tab];
+      const inHiddenPanel = TABS.some((tab) => tab !== state.tab && holds(state.panels[tab], at));
+      const onTab = Boolean(at && typeof at.getAttribute === "function" && at.getAttribute("role") === "tab");
+      const lost = !at || at === doc.body;
+      if (had && !holds(open, at) && (lost || onTab || inHiddenPanel) && button && typeof button.focus === "function") {
+        try {
+          button.focus({ preventScroll: true });
+        } catch (error) {
+          // focus is best effort
+        }
+      }
     },
     hide() {
       state.visible = false;
@@ -1407,7 +1531,10 @@
       uciSquares,
       conceptMoveSan,
       shownSan,
+      spokenMove,
       quotedText,
+      tabSub,
+      tCount,
     },
     TEXT,
     _state: state,

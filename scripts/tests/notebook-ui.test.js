@@ -6,7 +6,7 @@
 // the position built from a card with and without a complete set of lines, where a card comes from, your
 // move against the best one, the box chart geometry, the engine lines as text); and the screen: the empty
 // state, the summary against Profile.notebook.counts, "Review N now" and its session (kind, title, the
-// positions with their card ids and references), the 5 / 10 / 20 picker remembered in storage, "Practise
+// positions with their card ids and references), the 5 / 10 / 20 picker remembered in storage, "Practice
 // anyway" when nothing is due, the weak spots that train one theme, filters, search and sort, the show more
 // button, the stored lines panel, review of one card, the confirmed removal, the lesson dialog, a failing
 // game core, the language switch and the degradation without its modules. The screen never grades a card
@@ -229,7 +229,7 @@ test("text: es and en have the same keys and placeholders, none empty; the title
   assert.strictEqual(env.Ludus.i18n.t("notebook.title", null, "es"), "Cuaderno");
   assert.strictEqual(env.Ludus.i18n.t("notebook.title", null, "en"), "Notebook");
   assert.ok(es["notebook.empty.body"].includes("te equivocás") && es["notebook.sub"].includes("jugás"), "voseo");
-  ["notebook.count", "notebook.next.count", "notebook.review.start", "notebook.due.label", "notebook.when.overdue", "notebook.weak.cards", "notebook.count.of"].forEach((key) => {
+  ["notebook.count", "notebook.next.count", "notebook.review.start", "notebook.due.label", "notebook.when.overdue", "notebook.weak.cards", "notebook.count.of", "notebook.boxes.cards"].forEach((key) => {
     assert.ok(`${key}.one` in es && `${key}.one` in en, `${key} has a singular`);
   });
 });
@@ -305,7 +305,8 @@ test("statuses and filters: status, source, tag, phase, how bad the mistake was,
   assert.strictEqual(ids({ phase: "opening" }), "1");
   assert.strictEqual(ids({ quality: "blunder" }), "1");
   assert.strictEqual(ids({ quality: "dubious" }), "2");
-  assert.strictEqual(ids({ quality: "mild" }), "3", "anything that is not blunder / bad / dubious is mild");
+  assert.strictEqual(ids({ quality: "interesting" }), "3", "anything that is not blunder / bad / dubious is the least severe bucket (an inaccuracy)");
+  assert.strictEqual(ids({ quality: "mild" }), "1,2,3", "the old word is not a bucket any more: ignored like any unknown value");
   assert.strictEqual(ids({ query: "angel" }), "1", "accent-blind");
   assert.strictEqual(ids({ query: "morphy paris" }), "2", "every word must match");
   assert.strictEqual(ids({ query: "1858" }), "2");
@@ -333,8 +334,8 @@ test("quality of a mistake: from the stored round, else from the accuracy bands;
     assert.strictEqual(h.qualityFromAccuracy(Number(accuracy)), code);
   });
   assert.strictEqual(h.qualityFromAccuracy(null), null);
-  assert.strictEqual(h.qualityBucket("brilliant"), "mild");
-  assert.strictEqual(h.qualityBucket(null), "mild");
+  assert.strictEqual(h.qualityBucket("brilliant"), "interesting");
+  assert.strictEqual(h.qualityBucket(null), "interesting");
 });
 
 test("sort: next review, most recent, worst first (never-reviewed cards last); stable by id", () => {
@@ -777,7 +778,7 @@ test("filters and sort: status pills, text, theme, sort; the count reads 'x of y
   pick("notebook-f-source", "all");
   pick("notebook-f-quality", "blunder");
   assert.strictEqual(cardEls(el).length, 8);
-  pick("notebook-f-quality", "mild");
+  pick("notebook-f-quality", "interesting");
   assert.strictEqual(all(el, ".notebook-card").length, 0);
   assert.ok(text(q(el, ".notebook-list-empty")).includes("Ninguna tarjeta coincide"));
   // clear
@@ -794,6 +795,198 @@ test("filters and sort: status pills, text, theme, sort; the count reads 'x of y
   const expected = env.Ludus.Profile.notebook.list({ sort: "created" }).map((c) => c.id);
   deepEq(ids, expected, "the same order Profile gives by creation");
   assert.strictEqual(env.Ludus.storage.get("ludus.notebook.prefs.v1", null).sort, "recent");
+});
+
+// ---------- polish pass: PB-1 quality words, PB-2 search, PB-6 SAN, PB-7 plurals ----------
+
+test("the 'Your move' filter takes its words from Scoring.qualityLabel, in both languages, and keeps none of its own (PB-1, CNT-014)", () => {
+  const env = createEnv();
+  seedCards(env, 3);
+  open(env);
+  const labelsOf = () => all(q(env.el, "#notebook-f-quality"), "option").map((o) => text(o));
+  const scorer = (code) => env.Ludus.Scoring.qualityLabel(code, env.Ludus.i18n.lang());
+  const expected = () => [env.Ludus.i18n.t("notebook.filter.all")].concat(["blunder", "bad", "dubious", "interesting"].map(scorer));
+  deepEq(labelsOf(), expected());
+  deepEq(labelsOf(), ["Todos", "Error grave", "Error", "Dudosa", "Imprecisa"]);
+  assert.strictEqual(text(q(env.el, 'label[for="notebook-f-quality"]')), "Tu jugada");
+  env.Ludus.i18n.setLanguage("en", { persist: false });
+  deepEq(labelsOf(), expected());
+  deepEq(labelsOf(), ["All", "Serious mistake", "Mistake", "Dubious", "Inaccuracy"]);
+  assert.strictEqual(text(q(env.el, 'label[for="notebook-f-quality"]')), "Your move");
+  // The notebook registers no quality words of its own, and the badge of a card says what the filter says.
+  Object.keys(nb(env).TEXT.es).concat(Object.keys(nb(env).TEXT.en)).forEach((key) => assert.ok(!key.startsWith("notebook.quality."), `${key}: the words are the scorer's`));
+  assert.strictEqual(nb(env).helpers.qualityText("blunder"), "Serious mistake");
+  // Choosing "Inaccuracy" shows the cards whose move the scorer calls an inaccuracy (code "interesting"), nothing else.
+  const el2 = createEnv({ language: "en" });
+  seedCards(el2, 4, (i) => ({ qualityCode: ["blunder", "bad", "dubious", "interesting"][i], accuracy: [5, 20, 40, 60][i] }));
+  open(el2);
+  const select = q(el2.el, "#notebook-f-quality");
+  select.value = "interesting";
+  select.dispatch("change");
+  const badges = all(el2.el, ".notebook-card").map((card) => text(q(card, ".q-badge")));
+  assert.strictEqual(badges.length, 1);
+  assert.strictEqual(badges[0].replace(/[^A-Za-z ]/g, "").trim(), "Inaccuracy", "the card badge and the filter option are the same word");
+});
+
+test("without the scorer there is no quality filter instead of a second vocabulary (PB-1)", () => {
+  const env = createEnv({ skip: ["js/scoring.js"] });
+  seedCards(env, 2, () => ({}));
+  open(env);
+  assert.ok(!q(env.el, "#notebook-f-quality"), "the select is left out");
+  assert.ok(q(env.el, "#notebook-f-phase"), "the other filters stay");
+  assert.strictEqual(nb(env).helpers.qualityText("blunder"), "");
+});
+
+test("search matches what the card shows: the Spanish letters, the English ones, your move and the best move, the players and the event (PB-2)", () => {
+  const env = createEnv();
+  const { localizeSan } = env.Ludus.chess;
+  const cards = [
+    { id: "a", box: 0, reviews: 0, due: NOW, bestSan: "Nf3", meta: { players: "Lucía vs Marta", event: "Lichess blitz" } },
+    { id: "b", box: 0, reviews: 0, due: NOW, bestSan: "Qxd5+", meta: { players: "Morphy vs Duke", event: "Casual game" } },
+    { id: "c", box: 0, reviews: 0, due: NOW, bestSan: "e4", meta: {} },
+    { id: "d", box: 0, reviews: 0, due: NOW, bestSan: "Kg1", meta: {} },
+    { id: "e", box: 0, reviews: 0, due: NOW, bestSan: "Rg1", meta: {} },
+  ];
+  const mine = { a: "Bb5", b: "Nc3", c: "O-O", d: "Kh1", e: "Ra1" };
+  const ctx = { now: NOW, sansOf: (card) => [mine[card.id], card.bestSan], showSan: (san) => localizeSan(san, "es"), localize: (meta) => meta };
+  const h = helpers(env);
+  const ids = (query) => h.filterCards(cards, { query }, ctx).map((c) => c.id).join(",");
+  assert.strictEqual(localizeSan("Nf3", "es"), "Cf3");
+  assert.strictEqual(ids("cf3"), "a", "the letter a Spanish page draws for the knight");
+  assert.strictEqual(ids("nf3"), "a", "and the English one it is stored with");
+  assert.strictEqual(ids("dxd5"), "b", "dama (queen)");
+  assert.strictEqual(ids("qxd5"), "b");
+  assert.strictEqual(ids("ab5"), "a", "your move, not only the best one: alfil (bishop)");
+  assert.strictEqual(ids("bb5"), "a");
+  assert.strictEqual(ids("cc3"), "b", "your move: caballo");
+  assert.strictEqual(ids("rg1"), "d,e", "in Spanish R is the king (stored Kg1) and in English the rook (stored Rg1): both are found");
+  assert.strictEqual(ids("th1"), "", "no such move");
+  assert.strictEqual(ids("ta1"), "e", "torre (rook)");
+  assert.strictEqual(ids("e4"), "c");
+  assert.strictEqual(ids("xd5"), "b", "captures and checks are not part of the words typed");
+  assert.strictEqual(ids("morphy"), "b", "the players");
+  assert.strictEqual(ids("blitz"), "a", "the event");
+  assert.strictEqual(ids("marta cf3"), "a", "every word must match");
+  assert.strictEqual(ids("marta cc3"), "", "all of them");
+  // Without a mapper (the English form only) the stored letters still match, as before.
+  assert.strictEqual(h.filterCards(cards, { query: "nf3" }, { now: NOW }).map((c) => c.id).join(), "a");
+  assert.strictEqual(h.filterCards(cards, { query: "cf3" }, { now: NOW }).length, 0, "nothing to translate with: only what is stored");
+});
+
+test("the screen's search: type the move as it is drawn (Spanish letters) or as it is stored; the English page too (PB-2)", () => {
+  const env = createEnv();
+  const cards = seedCards(env, 8);
+  open(env);
+  const withPiece = cards.filter((c) => /^[NBRQK]/.test(c.bestSan));
+  assert.ok(withPiece.length >= 1, "the fixtures have a piece move");
+  const target = withPiece[0];
+  const spanish = env.Ludus.chess.localizeSan(target.bestSan, "es");
+  assert.notStrictEqual(spanish, target.bestSan, "the letters differ");
+  const search = q(env.el, "#notebook-search");
+  const type = (value) => { search.value = value; search.dispatch("input"); env.advance(200); };
+  const shownIds = () => cardEls(env.el).map((c) => c.getAttribute("data-card"));
+  type(spanish.replace(/[+#]/g, ""));
+  assert.ok(shownIds().includes(target.id), "the move as the page draws it finds the card");
+  assert.ok(shownIds().length < 8 || withPiece.length === 8);
+  type(target.bestSan.replace(/[+#]/g, ""));
+  assert.ok(shownIds().includes(target.id), "so does the stored one");
+  // The move of the person (userSan of the round) is searched too.
+  const card0 = cards[0];
+  const round0 = env.Ludus.Profile.rounds().find((r) => r.id === card0.history[0].roundId);
+  const userSpanish = env.Ludus.chess.localizeSan(round0.userSan, "es").replace(/[+#]/g, "");
+  type(userSpanish);
+  assert.ok(shownIds().includes(card0.id), `your move ${userSpanish}`);
+  env.Ludus.i18n.setLanguage("en", { persist: false });
+  nb(env).render();
+  const english = q(env.el, "#notebook-search");
+  english.value = target.bestSan.replace(/[+#]/g, "");
+  english.dispatch("input");
+  env.advance(200);
+  assert.ok(cardEls(env.el).map((c) => c.getAttribute("data-card")).includes(target.id), "English page, English letters");
+});
+
+test("every move on a card is drawn through the notation setting and said in words (PB-6, A11Y-016)", () => {
+  const env = createEnv();
+  seedCards(env, 3);
+  open(env);
+  const card = cardEls(env.el)[0];
+  const fromCard = env.Ludus.Profile.notebook.list({ sort: "due", now: NOW }).find((c) => c.id === card.getAttribute("data-card"));
+  const mine = all(card, ".notebook-san").find((node) => !node.classList.contains("is-best"));
+  const best = q(card, ".notebook-san.is-best");
+  assert.ok(mine && best);
+  const drawn = q(best, '[aria-hidden="true"]');
+  const spoken = q(best, ".sr-only");
+  assert.strictEqual(text(drawn), env.Ludus.chess.localizeSan(fromCard.bestSan, "es"), "drawn in Spanish letters");
+  assert.strictEqual(text(spoken), env.Ludus.chess.spokenSan(fromCard.bestSan, "es"), "said in words");
+  const round0 = env.Ludus.Profile.rounds().find((r) => r.id === fromCard.history[0].roundId);
+  assert.strictEqual(text(q(mine, ".sr-only")), env.Ludus.chess.spokenSan(round0.userSan, "es"));
+  env.Ludus.i18n.setLanguage("en", { persist: false });
+  nb(env).render();
+  const bestEn = q(cardEls(env.el)[0], ".notebook-san.is-best");
+  assert.strictEqual(text(q(bestEn, '[aria-hidden="true"]')), fromCard.bestSan, "English page: the stored letters");
+  assert.strictEqual(text(q(bestEn, ".sr-only")), env.Ludus.chess.spokenSan(fromCard.bestSan, "en"));
+  // The stored lines: the first move of each is drawn and said the same way, whole lines included.
+  const toggle = q(cardEls(env.el)[0], ".notebook-lines-toggle");
+  toggle.click();
+  const pv = q(cardEls(env.el)[0], ".notebook-line-pv");
+  assert.ok(pv && q(pv, '[aria-hidden="true"]') && q(pv, ".sr-only"), "a line has a drawn form and a spoken one");
+  assert.ok(/knight|bishop|rook|queen|king|pawn/.test(text(q(pv, ".sr-only"))), text(q(pv, ".sr-only")));
+  // The lesson dialog: "Jugada del ejemplo: <drawn> <spoken>".
+  env.Ludus.i18n.setLanguage("es", { persist: false });
+  nb(env).render();
+  nb(env).openConcept("fork_available");
+  const line = q(q(env.doc.body, ".notebook-concept-modal"), ".notebook-concept-move");
+  assert.ok(line && q(line, ".sr-only") && q(line, '[aria-hidden="true"]'), "the lesson's move has both forms");
+  assert.ok(text(line).startsWith("Jugada del ejemplo: "), text(line));
+});
+
+test("plurals: a notebook of one card says '0 of 1 card', and the box table names the cards it counts (PB-7)", () => {
+  const env = createEnv();
+  seedCards(env, 1);
+  open(env);
+  const search = q(env.el, "#notebook-search");
+  search.value = "zzzz";
+  search.dispatch("input");
+  env.advance(200);
+  assert.strictEqual(text(q(env.el, ".notebook-count")), "0 de 1 tarjeta", "no '1 tarjetas'");
+  env.Ludus.i18n.setLanguage("en", { persist: false });
+  nb(env).render();
+  assert.strictEqual(text(q(env.el, ".notebook-count")), "0 of 1 card");
+  // Several cards keep the plural noun, and the singular of a count of one is not a plural.
+  const many = createEnv();
+  seedCards(many, 3);
+  open(many);
+  const s2 = q(many.el, "#notebook-search");
+  s2.value = "zzzz";
+  s2.dispatch("input");
+  many.advance(200);
+  assert.strictEqual(text(q(many.el, ".notebook-count")), "0 de 3 tarjetas");
+  const rows = all(many.el, ".notebook-boxes table tbody th").map((th) => text(th));
+  assert.strictEqual(rows[0], "Caja 0, tarjetas nuevas: 3");
+  assert.strictEqual(rows[1], "Caja 1: 0 tarjetas, vuelve cada día");
+  const one = createEnv();
+  seedCards(one, 1);
+  one.Ludus.i18n.setLanguage("en", { persist: false });
+  open(one);
+  const oneRows = all(one.el, ".notebook-boxes table tbody th").map((th) => text(th));
+  assert.strictEqual(oneRows[0], "Box 0, new cards: 1");
+  assert.strictEqual(oneRows[2], "Box 2: 0 cards, comes back every 3 days");
+  assert.strictEqual(many.Ludus.i18n.t("notebook.boxes.cards", { n: 4 }), "4 tarjetas");
+  assert.strictEqual(many.Ludus.i18n.t("notebook.boxes.cards.one"), "1 tarjeta");
+});
+
+test("terminology: American spelling in English, no tuteo in Spanish (PB-7)", () => {
+  const env = createEnv();
+  const { es, en } = nb(env).TEXT;
+  const british = /\b(practis\w*|analys\w*|colour\w*|favour\w*|centre\w*|defence|licence|organis\w*|recognis\w*|catalogue)\b/i;
+  Object.keys(en).forEach((key) => assert.ok(!british.test(en[key]), `${key}: British spelling in "${en[key]}"`));
+  // Second person singular imperatives and verbs of the tú register ("vuelve" is third person here: the card comes back).
+  const tuteo = /\b(elige|prueba|puedes|tienes|quieres|toca|pulsa|haz|mira|selecciona|tú)\b/i;
+  Object.keys(es).forEach((key) => assert.ok(!tuteo.test(es[key]), `${key}: tuteo in "${es[key]}"`));
+  assert.strictEqual(en["notebook.practice.start"], "Practice anyway");
+  assert.strictEqual(en["notebook.empty.own"], "Analyze your games");
+  Object.keys(en).forEach((key) => assert.ok(!/winning chances|win probability|odds/i.test(en[key]), `${key}: one name for win chance`));
+  Object.keys(es).forEach((key) => assert.ok(!/probabilidad de ganar|chances de victoria/i.test(es[key]), key));
 });
 
 test("show more: 12 at a time, the focus goes to the first new card", () => {

@@ -250,8 +250,9 @@ guessing silently, `assess` returns a **provisional** result and says so:
 * mate rules are not applied (unknown), `isBest` is `false`;
 * `cpLoss` is the gap to the worst line plus 80.
 
-The caller should then search that one move (`Engine.analyze({ fen, searchMoves:
-[userUci], movetimeMs })`, take `lines[0]`), call `assess` again with
+The caller should then search that one move on the best line's terms (section 13:
+`Engine.analyze({ fen, searchMoves: [userUci], depth, movetimeMs })` with the depth the
+best line reached, take `lines[0]`), call `assess` again with
 `userScore = Engine.moverScore(line)` and use that result. Showing the
 provisional numbers in the meantime is fine as long as they are visibly marked.
 
@@ -372,10 +373,11 @@ if (await engine.ready()) {
   const ref = await engine.analyze({ fen, movetimeMs: 1500, multiPv: 3 });
   // 2. The user's move, scored against them.
   let a = Ludus.Scoring.assess({ lines: ref.lines, userUci, settings, hintsUsed }, { isSacrifice });
-  // 3. Not among the top lines? Search just that move (right after step 1, so
-  //    the hash table is warm) and score again with the exact number.
+  // 3. Not among the top lines? Search just that move on the best line's terms
+  //    (PF-1, below): the depth the best line reached, and at least its time.
+  //    Score again with the exact number.
   if (a.needsEvaluation) {
-    const one = await engine.analyze({ fen, movetimeMs: 1500, searchMoves: [userUci] });
+    const one = await engine.analyze({ fen, depth: ref.lines[0].depth, movetimeMs: 3000, searchMoves: [userUci] });
     a = Ludus.Scoring.assess({ lines: ref.lines, userUci, userScore: Ludus.Engine.moverScore(one.lines[0]), settings, hintsUsed }, { isSacrifice });
   }
 }
@@ -384,8 +386,36 @@ if (await engine.ready()) {
 * `Engine.moverScore(line)` is `Scoring.encodeScore(line.score)`: the one number
   encoding used everywhere. `line.score` is already from the side to move's
   point of view (that is what UCI reports), so no sign flipping is needed.
-* Use the same `movetimeMs` for the reference and the restricted search so both
-  scores have comparable reliability.
+* **The learner's move is judged on equal terms with the best line (PF-1).** A MultiPV
+  search shares its time among its lines and a single move does not, so "the same
+  `movetimeMs`" is not the same budget: measured with the real engine (Stockfish 18
+  lite, 20 classic positions, 53 learner moves outside the top 3, 1.5 s searches), the
+  single move reached **2.5 plies more** than the best line on average (deeper in 40
+  of 53, shallower in 8, equal in 5; 3 or more plies apart in 25 of 53), and against
+  the offline depth-18 lines of the classics a cold 1.5 s search reached 18 in only 40
+  of 53. So `evaluateRoundAnswers` (`app.js`) searches a move that is not among the
+  lines with `depth` = the depth of the best line (the position's own
+  `reference.depth`, or what the root search reached when the strong engine made it)
+  and `movetimeMs` = a ceiling that is never below the best line's time (twice it,
+  at most 3.5 s, and the whole round stays under the 10 s cap: `plan.moveMovetimeMs`).
+  The search stops at that depth, so the move gets the best line's budget, not more
+  and not less, and it usually finishes sooner than the 1.5 s it used to take (against
+  a runtime best line: mean 0.9 s, median 0.4 s; against the offline depth-18 lines:
+  mean 1.3 s, median 0.9 s; worst case the ceiling; measured on a fast desktop, where
+  a phone reaches fewer plies in the same time, so the old gap was larger there and
+  this has not been measured). A depth is no budget when the best line
+  is a mate (the engine stops at the first mate it finds, at any depth), is under 8
+  plies deep, or was not made by the strong engine: then it is the best line's time,
+  as before. On a device too slow to reach that depth inside the ceiling the move gets the
+  ceiling's depth, which is what it got before at best (never more than twice the time, within
+  the 10 s cap). The move of the game (shown next to the best line) gets the same budget.
+  The backup engine searches the best line and every move to the same fixed depth by
+  construction (`LOCAL_FALLBACK_MAX_DEPTH`). The result of every search is cached by
+  position, move, depth and ceiling, and a request that is already running is joined,
+  so the same move is never searched twice (the answer that is also the move of the
+  game, both players of a duel choosing the same move, a rematch of the same
+  positions). What this does **not** do is remove the search noise: two independent
+  searches of the same move still differ by about 1.8 win% on average (section 15).
 * `res.lines` from the engine is the deepest *complete* MultiPV set (see the
   header of `js/engine.js`), so `lines[0]` is a consistent reference even when a
   search was aborted.
@@ -414,8 +444,10 @@ from Table 1 (the tests assert the target ranges, not the exact quoted digits).
   material settled along the engine's line, section 16), and "only move" is
   measured on the MultiPV lines it is given (with `multiPv: 1` there is no only
   move).
-* Lines of different depths are compared as if equally reliable (for example a
-  fresh `searchMoves` line against the MultiPV lines). Measured on the 28 classic
+* Lines of different depths used to be compared as if equally reliable (a fresh
+  `searchMoves` line against the MultiPV lines); the learner's move is now searched
+  to the depth of the best line (section 13, PF-1), which removes that bias, not the
+  noise of a search of that depth. Measured on the 28 classic
   games (132 answers called mistakes of 3 to 8 win%), two independent 1.5 s
   searches of the same move differ by **1.9 win% on average** (up to 7.6): 10 % of
   those "mistakes" were under 2 % in a second search, and 15 % of the old "solid

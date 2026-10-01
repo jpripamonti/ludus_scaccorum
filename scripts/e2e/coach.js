@@ -34,10 +34,10 @@
 //              exploring the board, the language switch in the middle of a result, a concept dialog, a
 //              skip, the summary (positions reopen, "back to the summary"), share, play again, and the
 //              guard that asks before leaving a running session by the address bar.
-//   duel       Two players on one device, at 1280x800, 390x844 and 844x390: the handoff hides the first answer, the
-//              scoreboard follows the turn, the shared analysis names the winner, the second position starts
-//              covered (the clock waits for a tap), the summary crowns them with one card per player and offers a
-//              rematch.
+//   duel       Two players on one device, at 1280x800, 390x844 and 844x390: every position starts covered (the clock waits
+//              for a tap or Enter) and the players take turns going first, the handoff hides the first answer, the
+//              scoreboard follows the turn, the shared analysis names the winner, the summary crowns them with one card
+//              per player and offers a rematch (which starts covered again, with the first player).
 //   clock      A 5 second clock really runs out (verdict, chip, stopped clock) and an untimed one never does.
 //   own        The own-games flow with the Lichess request answered from a PGN written here: the search
 //              overlay (with its facts carousel) sits on the board at desktop and phone size, the card of
@@ -51,9 +51,18 @@
 //              thinking, result (every quality of answer), duel result and summary states, in both languages, at a
 //              desktop and a phone size, and in the high-contrast setting. A screenshot is taken with the text made
 //              transparent, decoded here (no dependency) and each element's box is compared with its own colour.
+//   polish     The polish pass: a long player name in the duel's "Ana plays White" line gets the ellipsis and the side to move
+//              is never cut (320, 390 and 820 px, both languages, also with the 24 letters of a profile name), and the keyboard
+//              ring of the coach scroll region, the handoff cover, the sheet handle and the header buttons sits inside what
+//              clips it (the --focus-ring-offset pattern of css/system.css) and is never cut by an overflow:hidden parent.
 //   axe        (with LUDUS_AXE) no serious or critical violation in thinking, evaluating, result, duel
 //              result, handoff, summary, a reopened position, the search overlay and the concept dialog, at
 //              four viewports in both languages.
+//   duel-ready (polish PF-2) The cover of a duel position with two names of 24 letters (a duel keeps 20) at 320x568,
+//              390x844, 844x390 and 1280x800 in both languages: it names who goes first and where the device goes, a
+//              long name wraps, every part is inside it, nothing scrolls, the focus is on it (a polite live region says
+//              it once), Space starts the round and the focus goes to the board; then the handoff, and position 2 starts
+//              with the other player.
 //
 // Every scenario fails on any console error, uncaught page error or failed request, and reports the
 // layout findings of all its states together. Exits 0 on success, 1 on the first failed scenario, 2 if
@@ -182,6 +191,15 @@ async function startClassic(page, { count = 3, mode = "solo", names, options, ki
     });
     return JSON.parse(JSON.stringify(window.__positions));
   }, { count, mode, names, options, kind, title });
+}
+
+// A duel starts covered (PF-2): the clock of the player who goes first waits for a tap on the cover. Resolves once the round runs.
+async function startDuel(page, args) {
+  const positions = await startClassic(page, { ...args, mode: "duel" });
+  await waitPhase(page, "handoff");
+  await page.locator("#handoff-overlay").click();
+  await waitPhase(page, "thinking");
+  return positions;
 }
 
 async function playUci(page, uci) {
@@ -796,7 +814,21 @@ async function duelFlow(browser, vp) {
   try {
     await collectEvents(page);
     const positions = await startClassic(page, { count: 2, mode: "duel", names: ["Ana", "Beto"], options: { clock: { mode: "untimed" } } });
+    await waitPhase(page, "handoff");
+    await settle(page, 300);
+
+    step(`${vp.w}x${vp.h}: position 1 starts covered too: who goes first, where the device goes, and no clock yet`);
+    assert.strictEqual(await page.locator("#handoff-overlay").isVisible(), true, "a cover before position 1");
+    assert.ok((await textOf(page, "#handoff-overlay-title")).includes("Ana"), "it names who goes first");
+    assert.match(await textOf(page, "#handoff-overlay-subtitle"), /Pass the device to Ana/, "and says where the device goes");
+    assert.strictEqual(await textOf(page, "#handoff-overlay-eyebrow"), "Position 1 of 2");
+    assert.ok(!(await textOf(page, "#handoff-overlay-eyebrow")).includes("has played"), "nobody has played yet");
+    assert.strictEqual(await evalState(page, "document.activeElement && document.activeElement.id"), "handoff-overlay", "the focus is on the cover");
+    assert.strictEqual(await evalState(page, "Boolean(STATE.roundStartedAt)"), false, "no clock behind the cover");
+    await inspect(ctx, "0-ready", { axe: false });
+    await page.keyboard.press("Enter"); // the cover is a button: Enter (or Space) starts the clock the way a tap does
     await waitPhase(page, "thinking");
+    assert.strictEqual(await evalState(page, "Boolean(STATE.roundStartedAt)"), true, "the keyboard started the round");
     await settle(page);
 
     step(`${vp.w}x${vp.h}: the scoreboard names both players and whose turn it is`);
@@ -841,9 +873,11 @@ async function duelFlow(browser, vp) {
     await waitPhase(page, "handoff");
     await settle(page, 300);
     assert.strictEqual(await page.locator("#handoff-overlay").isVisible(), true, "a cover on the new position");
-    assert.ok((await textOf(page, "#handoff-overlay-title")).includes("Ana"), "it names whose turn it is");
+    // The players take turns going first (PF-2): position 2 starts with the second player.
+    assert.ok((await textOf(page, "#handoff-overlay-title")).includes("Beto"), "it names whose turn it is: Beto goes first this time");
     assert.ok(!(await textOf(page, "#handoff-overlay-eyebrow")).includes("has played"), "and is not the handoff of a player who has moved");
-    assert.strictEqual(await page.locator("#duel-a").getAttribute("aria-current"), "true");
+    assert.strictEqual(await page.locator("#duel-b").getAttribute("aria-current"), "true");
+    assert.strictEqual(await page.locator("#duel-a").getAttribute("aria-current"), null);
     const started = await evalState(page, "STATE.roundStartedAt");
     // (A real touch lands on the cover, which is the tap that starts the round: the board is asked directly.)
     await page.evaluate(() => onSquareClick("e2"));
@@ -854,10 +888,14 @@ async function duelFlow(browser, vp) {
     await page.locator("#handoff-overlay").click();
     await waitPhase(page, "thinking");
     assert.ok((await evalState(page, "STATE.roundStartedAt")) > started, "the tap starts the round");
+    assert.ok((await textOf(page, "#coach-thinking .co-turnbanner")).includes("Beto"), "the panel says it is Beto's turn");
     await playUci(page, positions[1].reference.lines[0].uci);
     await waitPhase(page, "handoff");
+    assert.ok((await textOf(page, "#handoff-overlay-title")).includes("Ana"), "the device goes to Ana after Beto");
+    assert.ok((await textOf(page, "#handoff-overlay-eyebrow")).includes("Beto"), "and the cover says Beto has played");
     await page.locator("#handoff-overlay").click();
     await waitPhase(page, "thinking");
+    assert.ok((await textOf(page, "#coach-thinking .co-turnbanner")).includes("Ana"));
     await playUci(page, positions[1].reference.lines[0].uci);
     await waitResult(page);
     await settle(page, 600);
@@ -875,6 +913,10 @@ async function duelFlow(browser, vp) {
     assert.match(await textOf(page, "#summary-again-btn"), /Rematch/i);
     await inspect(ctx, "5-summary");
     await page.locator("#summary-again-btn").click();
+    // A rematch starts covered like any duel, with the first player again.
+    await waitPhase(page, "handoff");
+    assert.ok((await textOf(page, "#handoff-overlay-title")).includes("Ana"), "the rematch starts with Ana");
+    await page.locator("#handoff-overlay").click();
     await waitPhase(page, "thinking");
     // A rematch is the same duel (mode, names, number of positions); the positions themselves are drawn again (UX-021).
     const same = await page.evaluate(() => STATE.positions.length === 2 && STATE.session.mode === "duel" && STATE.session.names[0] === "Ana" && STATE.session.names[1] === "Beto");
@@ -1400,8 +1442,7 @@ async function contrastFlow(browser, vp, lang, highContrast) {
     await page.evaluate(() => Ludus.game.abort());
 
     // A duel result and the summaries.
-    const duel = await startClassic(page, { count: 1, mode: "duel", names: ["Ana", "Beto"], options: { clock: { mode: "untimed" } } });
-    await waitPhase(page, "thinking");
+    const duel = await startDuel(page, { count: 1, names: ["Ana", "Beto"], options: { clock: { mode: "untimed" } } });
     await playUci(page, duel[0].reference.lines[0].uci);
     await waitPhase(page, "handoff");
     await settle(page, 400);
@@ -1512,8 +1553,7 @@ async function axeFlow(browser, vp, lang) {
     await page.evaluate(() => Ludus.game.abort());
 
     // A duel: the handoff and both results.
-    const duelPositions = await startClassic(page, { count: 1, mode: "duel", names: ["Ana", "Beto"], options: { clock: { mode: "untimed" } } });
-    await waitPhase(page, "thinking");
+    const duelPositions = await startDuel(page, { count: 1, names: ["Ana", "Beto"], options: { clock: { mode: "untimed" } } });
     await axeScan(ctx, "duel-thinking");
     await playUci(page, duelPositions[0].reference.lines[0].uci);
     await waitPhase(page, "handoff");
@@ -1558,6 +1598,272 @@ async function axeScenario(browser) {
   checkIssues("axe", issues);
 }
 
+// ---------- scenario: polish (PL-3, PL-4) ----------
+
+// What the duel's turn line looks like in the page: the name and the side to move, whether either is cut, and whether the line stays inside the screen.
+const turnProbe = (page) => page.evaluate(() => {
+  const el = document.getElementById("round-turn");
+  const nameEl = el.querySelector(".co-turn-name");
+  const sideEl = el.querySelector(".co-turn-side");
+  const line = document.getElementById("round-turn-line");
+  const box = line.getBoundingClientRect();
+  const pad = getComputedStyle(line);
+  const side = sideEl ? sideEl.getBoundingClientRect() : null;
+  return {
+    text: el.textContent,
+    name: nameEl ? nameEl.textContent : "",
+    title: nameEl ? nameEl.getAttribute("title") : "",
+    side: sideEl ? sideEl.textContent : "",
+    nameCut: nameEl ? nameEl.scrollWidth > nameEl.clientWidth + 1 : false,
+    sideCut: sideEl ? sideEl.scrollWidth > sideEl.clientWidth + 1 : true,
+    sideInside: side ? side.right <= box.right - parseFloat(pad.paddingRight) + 0.5 && side.left >= box.left + parseFloat(pad.paddingLeft) - 0.5 : false,
+    pageScroll: document.documentElement.scrollWidth > innerWidth + 1,
+  };
+});
+
+async function polishTurnRun(browser, vp, lang) {
+  const ctx = await open(browser, vp, { lang, tag: `polish-turn-${vp.name}-${lang}` });
+  const { page, context } = ctx;
+  const sideWords = lang === "es" ? /^juega con las blancas$/ : /^plays White$/;
+  try {
+    // The longest name a duel accepts (20 characters, two words and no word wrapping anywhere).
+    await startDuel(page, { count: 2, names: ["Maximiliano Alejandr", "Beto"], options: { clock: { mode: "untimed" } } });
+    await settle(page, 300);
+    let found = await turnProbe(page);
+    step(`${vp.w}x${vp.h} ${lang}: "${found.text}"`);
+    assert.strictEqual(found.name, "Maximiliano Alejandr", "the name of the player to move");
+    assert.strictEqual(found.title, found.name, "the whole name is in its title");
+    assert.match(found.side, sideWords, "the side to move is its own text");
+    assert.strictEqual(found.sideCut, false, "the side to move is never shortened");
+    assert.strictEqual(found.sideInside, true, "and stays inside the line");
+    assert.strictEqual(found.pageScroll, false, "no sideways scroll");
+    await shot(page, `polish-turn-${vp.name}-${lang}`);
+    // The 24 letters a profile name may have, drawn by hand through the same function the game core calls, and a name far longer than that.
+    for (const name of ["Maximiliano Alejandro Pe", "WWWWWWWWWWWWWWWWWWWWWWWW", "Maximiliano Alejandro Pérez de la Fuente Iglesias"]) {
+      await page.evaluate((who) => {
+        const sentence = t("play.turn.duel", { player: who, side: t("play.side.black") });
+        Ludus.Coach.renderTurn(document.getElementById("round-turn"), { text: sentence, name: who });
+      }, name);
+      found = await turnProbe(page);
+      assert.strictEqual(found.name, name);
+      assert.strictEqual(found.sideCut, false, `${name.length} letters: the side to move is never shortened`);
+      assert.strictEqual(found.sideInside, true, `${name.length} letters: the side stays inside the line`);
+      assert.match(found.side, lang === "es" ? /^juega con las negras$/ : /^plays Black$/);
+      assert.ok(found.text.startsWith(name), "what a screen reader reads is the whole sentence");
+      assert.strictEqual(found.pageScroll, false);
+    }
+    // The real flow keeps working: the second player's turn names the second player.
+    await page.evaluate(() => Ludus.game.abort());
+    checkProblems(`polish turn ${vp.name} ${lang}`, ctx.problems);
+  } finally {
+    await context.close();
+  }
+}
+
+// Is the keyboard ring of this element cut by a parent that clips? (The ring's outer edge: border box grown by offset + width.)
+const ringProbe = (page, selector) => page.evaluate((sel) => {
+  const el = document.querySelector(sel);
+  if (!el) return { missing: true };
+  el.focus();
+  const cs = getComputedStyle(el);
+  const width = parseFloat(cs.outlineWidth) || 0;
+  const offset = parseFloat(cs.outlineOffset) || 0;
+  const box = el.getBoundingClientRect();
+  const grow = offset + width;
+  const ring = { l: box.left - grow, t: box.top - grow, r: box.right + grow, b: box.bottom + grow };
+  const cut = [];
+  if (ring.l < -0.5 || ring.t < -0.5 || ring.r > innerWidth + 0.5 || ring.b > innerHeight + 0.5) cut.push("screen");
+  for (let node = el.parentElement; node && node !== document.documentElement; node = node.parentElement) {
+    const style = getComputedStyle(node);
+    const clipsX = style.overflowX !== "visible";
+    const clipsY = style.overflowY !== "visible";
+    if (!clipsX && !clipsY) continue;
+    const rect = node.getBoundingClientRect();
+    const inner = { l: rect.left + (parseFloat(style.borderLeftWidth) || 0), t: rect.top + (parseFloat(style.borderTopWidth) || 0), r: rect.right - (parseFloat(style.borderRightWidth) || 0), b: rect.bottom - (parseFloat(style.borderBottomWidth) || 0) };
+    const sides = [];
+    if (clipsX && ring.l < inner.l - 0.5) sides.push("left");
+    if (clipsX && ring.r > inner.r + 0.5) sides.push("right");
+    if (clipsY && ring.t < inner.t - 0.5) sides.push("top");
+    if (clipsY && ring.b > inner.b + 0.5) sides.push("bottom");
+    if (sides.length) cut.push(`${node.id ? `#${node.id}` : `.${String(node.className).split(" ")[0]}`}:${sides.join("+")}`);
+  }
+  return { visible: el.matches(":focus-visible") && cs.outlineStyle !== "none" && width >= 2, offset, width, cut };
+}, selector);
+
+async function polishRingRun(browser, vp) {
+  const ctx = await open(browser, vp, { lang: "en", tag: `polish-ring-${vp.name}` });
+  const { page, context } = ctx;
+  const expectRing = async (selector, wanted, label) => {
+    await page.keyboard.press("Tab"); // keyboard modality: a script's focus() then matches :focus-visible
+    const found = await ringProbe(page, selector);
+    assert.ok(!found.missing, `${label}: ${selector} exists`);
+    assert.strictEqual(found.visible, true, `${label}: a visible ring`);
+    if (wanted !== null) assert.strictEqual(found.offset, wanted, `${label}: the ring is ${wanted < 0 ? "inside" : "outside"} (outline-offset ${wanted}px, computed ${found.offset}px)`);
+    assert.deepStrictEqual(found.cut, [], `${label}: the ring is not cut by ${found.cut.join(", ")}`);
+    return found;
+  };
+  try {
+    step(`${vp.w}x${vp.h}: the ring of the exit and sound buttons, and of the scroll region while thinking`);
+    await startClassic(page, { count: 2, mode: "solo", options: { clock: { mode: "untimed" } } });
+    await waitPhase(page, "thinking");
+    await settle(page, 400);
+    await expectRing("#restart-btn", null, "exit button");
+    await expectRing("#sound-btn", null, "sound button");
+    // The notes of the position are a tab stop that sits flush inside a panel that clips: -3px, drawn inside.
+    await expectRing("#coach-scroll", -3, "coach scroll region");
+    // The buttons inside the notes keep their own ring (the offset is set on the focused region only: it is inherited otherwise).
+    await page.evaluate(() => document.querySelector("#coach-scroll").blur());
+    const inner = await page.evaluate(() => {
+      const button = document.querySelector("#coach-scroll button, #coach-scroll a[href]");
+      if (!button) return null;
+      document.querySelector("#coach-scroll").setAttribute("data-probe", "1");
+      button.focus();
+      return getComputedStyle(button).outlineOffset;
+    });
+    if (inner !== null) assert.notStrictEqual(inner, "-3px", "a button inside the scroll region does not inherit the inset ring");
+    await shot(page, `polish-ring-scroll-${vp.name}`);
+    // A solo answer: on a phone the sheet handle is as wide as the panel, and its ring is inside too.
+    const positions = await page.evaluate(() => JSON.parse(JSON.stringify(window.__positions)));
+    await playUci(page, positions[0].reference.lines[0].uci);
+    await waitResult(page);
+    await settle(page, 700);
+    if (await page.locator("#coach-expand").isVisible()) await expectRing("#coach-expand", -3, "sheet handle");
+    await page.evaluate(() => Ludus.game.abort());
+
+    step(`${vp.w}x${vp.h}: the ring of the duel's cover is inside it`);
+    const duelPositions = await startDuel(page, { count: 2, names: ["Ana", "Beto"], options: { clock: { mode: "untimed" } } });
+    await settle(page, 300);
+    await playUci(page, duelPositions[0].reference.lines[0].uci);
+    await waitPhase(page, "handoff");
+    await settle(page, 400);
+    await expectRing("#handoff-overlay", -6, "handoff cover");
+    await shot(page, `polish-ring-handoff-${vp.name}`);
+    await page.evaluate(() => Ludus.game.abort());
+    checkProblems(`polish ring ${vp.name}`, ctx.problems);
+  } finally {
+    await context.close();
+  }
+}
+
+async function polishScenario(browser) {
+  console.log("scenario: polish");
+  for (const vp of [{ name: "phone-320", w: 320, h: 568, touch: true }, { name: "phone-390", w: 390, h: 844, touch: true }, { name: "tablet-820", w: 820, h: 1180, touch: true }]) {
+    for (const lang of ["es", "en"]) await polishTurnRun(browser, vp, lang);
+  }
+  for (const vp of [{ name: "laptop-1280", w: 1280, h: 800, touch: false }, { name: "phone-390", w: 390, h: 844, touch: true }, { name: "phone-320", w: 320, h: 568, touch: true }]) {
+    await polishRingRun(browser, vp);
+  }
+}
+
+// ---------- scenario: duel-ready (PF-2) ----------
+
+// What the cover of a duel position looks like in the page: whether every part of it is inside it, whether the button of
+// the cover (the whole cover is one) has a card that fits, and what the focus and the live region say.
+const coverProbe = (page) => page.evaluate(() => {
+  const cover = document.getElementById("handoff-overlay");
+  const box = cover.getBoundingClientRect();
+  const inside = (el) => {
+    const rect = el.getBoundingClientRect();
+    return rect.width === 0 || (rect.left >= box.left - 0.5 && rect.right <= box.right + 0.5 && rect.top >= box.top - 0.5 && rect.bottom <= box.bottom + 0.5);
+  };
+  const parts = ["handoff-overlay-eyebrow", "handoff-overlay-title", "handoff-overlay-subtitle"].map((id) => document.getElementById(id));
+  const cta = cover.querySelector(".co-handoff-cta");
+  const avatar = document.getElementById("handoff-overlay-avatar");
+  const cut = (el) => el.scrollWidth > el.clientWidth + 1;
+  return {
+    visible: !cover.classList.contains("hidden") && box.width > 0,
+    allInside: parts.every(inside) && inside(cta),
+    ctaInside: inside(cta),
+    avatarShown: getComputedStyle(avatar).display !== "none",
+    coverScrolls: cover.scrollHeight > cover.clientHeight + 1,
+    coverCutSideways: cut(cover),
+    anyPartCut: parts.some(cut),
+    pageScroll: document.documentElement.scrollWidth > innerWidth + 1 || document.documentElement.scrollHeight > innerHeight + 1,
+    title: document.getElementById("handoff-overlay-title").textContent,
+    subtitle: document.getElementById("handoff-overlay-subtitle").textContent,
+    eyebrow: document.getElementById("handoff-overlay-eyebrow").textContent,
+    focusId: document.activeElement && document.activeElement.id,
+    live: cover.getAttribute("aria-live"),
+    announce: document.getElementById("play-announce").textContent,
+    ctaSize: cta.getBoundingClientRect().height,
+  };
+});
+
+async function duelReadyRun(browser, vp, lang) {
+  const ctx = await open(browser, vp, { lang, tag: `duel-ready-${vp.name}-${lang}` });
+  const { page, context } = ctx;
+  // 24 letters each: the longest a profile name may have (a duel keeps 20), with and without a space to wrap at.
+  const long = ["Maximiliano Alejandro Pe", "WWWWWWWWWWWWWWWWWWWWWWWW"];
+  const kept = long.map((name) => name.slice(0, 20));
+  const words = lang === "es"
+    ? { ready: "preparate", pass: "Pasale el dispositivo a", played: "ya jugó", position: "Posición 1 de 2" }
+    : { ready: "get ready", pass: "Pass the device to", played: "has played", position: "Position 1 of 2" };
+  try {
+    await collectEvents(page);
+    const positions = await startClassic(page, { count: 2, mode: "duel", names: long, options: { clock: { mode: "untimed" } } });
+    await waitPhase(page, "handoff");
+    await settle(page, 500);
+    const found = await coverProbe(page);
+    step(`${vp.w}x${vp.h} ${lang}: "${found.title}" / "${found.subtitle}"`);
+    assert.strictEqual(found.visible, true, "a cover before position 1");
+    assert.strictEqual(found.title, `${kept[0]}, ${words.ready}`, "it names who goes first (20 letters kept)");
+    assert.ok(found.subtitle.startsWith(`${words.pass} ${kept[0]},`), "it says where the device goes");
+    assert.ok(found.subtitle.includes(kept[1]), "and who waits");
+    assert.strictEqual(found.eyebrow, words.position);
+    assert.strictEqual(found.live, "polite", "the cover is a polite live region");
+    assert.ok(found.announce.includes(found.title), "and the same words are announced once");
+    assert.strictEqual(found.focusId, "handoff-overlay", "the focus is on the cover");
+    assert.strictEqual(found.allInside, true, "every part of the cover is inside it");
+    assert.strictEqual(found.anyPartCut, false, "no part of the cover is cut sideways (a long name wraps)");
+    assert.strictEqual(found.coverCutSideways, false, "the cover does not scroll sideways");
+    assert.strictEqual(found.pageScroll, false, "the page does not scroll");
+    assert.strictEqual(found.coverScrolls, false, "the whole card is on screen: nothing to scroll to reach the tap target");
+    assert.ok(found.ctaSize >= 36, `the call to action is a real target (${Math.round(found.ctaSize)}px)`);
+    await shot(page, `duel-ready-${vp.name}-${lang}`);
+
+    // Space starts the clock like a tap; the focus goes to the board.
+    await page.keyboard.press("Space");
+    await waitPhase(page, "thinking");
+    await settle(page, 200);
+    assert.strictEqual(await evalState(page, "document.activeElement && document.activeElement.classList.contains('square')"), true, "the focus is on the board once the round runs");
+    if (vp.w === 390 || vp.w === 1280) {
+      // The turns alternate: after position 1 the cover of position 2 names the other player, and the device goes back after.
+      await playUci(page, positions[0].reference.lines[0].uci);
+      await waitPhase(page, "handoff");
+      const handoff = await coverProbe(page);
+      assert.strictEqual(handoff.title, lang === "es" ? `Pasale el dispositivo a ${kept[1]}` : `Pass the device to ${kept[1]}`);
+      assert.ok(handoff.eyebrow.includes(kept[0]) && handoff.eyebrow.includes(words.played), `"${handoff.eyebrow}"`);
+      assert.strictEqual(handoff.allInside, true, "the handoff of long names fits too");
+      assert.strictEqual(handoff.focusId, "handoff-overlay");
+      await page.locator("#handoff-overlay").click();
+      await waitPhase(page, "thinking");
+      await playUci(page, positions[0].reference.lines[0].uci);
+      await waitResult(page);
+      await page.locator("#next-btn").click();
+      await waitPhase(page, "handoff");
+      await settle(page, 400);
+      const second = await coverProbe(page);
+      assert.strictEqual(second.title, `${kept[1]}, ${words.ready}`, "position 2 starts with the second player");
+      assert.ok(second.subtitle.startsWith(`${words.pass} ${kept[1]},`));
+      assert.strictEqual(second.allInside, true);
+      assert.strictEqual(second.pageScroll, false);
+      assert.strictEqual(await page.locator("#duel-b").getAttribute("aria-current"), "true", "the scoreboard points at them");
+      await shot(page, `duel-ready-2-${vp.name}-${lang}`);
+    }
+    await page.evaluate(() => Ludus.game.abort());
+    checkProblems(`duel-ready ${vp.name} ${lang}`, ctx.problems);
+  } finally {
+    await context.close();
+  }
+}
+
+async function duelReadyScenario(browser) {
+  console.log("scenario: duel-ready");
+  for (const vp of [{ name: "phone-320", w: 320, h: 568, touch: true }, { name: "phone-390", w: 390, h: 844, touch: true }, { name: "phone-land-844", w: 844, h: 390, touch: true }, { name: "laptop-1280", w: 1280, h: 800, touch: false }]) {
+    for (const lang of ["es", "en"]) await duelReadyRun(browser, vp, lang);
+  }
+}
+
 // ---------- run ----------
 
 const SCENARIOS = [
@@ -1569,7 +1875,9 @@ const SCENARIOS = [
   ["motion", motionScenario],
   ["keyboard", keyboardScenario],
   ["contrast", contrastScenario],
+  ["polish", polishScenario],
   ["axe", axeScenario],
+  ["duel-ready", duelReadyScenario],
 ];
 
 (async () => {

@@ -34,17 +34,39 @@
     try { return window.localStorage.getItem(key); } catch (error) { return null; }
   }
 
-  // Same rule as Ludus.i18n (js/ludus.js): a stored choice wins, then the browser
-  // language; only Spanish-language browsers get Spanish.
-  function language() {
-    var stored = storedValue("ludus.language");
-    if (stored === "es" || stored === "en") return stored;
-    var list = [];
-    try { list = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language]; } catch (error) { list = []; }
-    for (var i = 0; i < list.length; i += 1) {
-      if (String(list[i] || "").toLowerCase().indexOf("es") === 0) return "es";
+  // The very rule of Ludus.i18n (js/ludus.js: normalizeLanguage, languageFromBrowserList and detectInitialLanguage), copied
+  // because this file runs before any module and cannot import: a stored choice wins ("es" or "en" in any case, anything else
+  // stored means Spanish, the app's default); otherwise the first Spanish or English entry of the browser's list decides,
+  // and a list with neither (French, German, Portuguese, an empty one...) gets English. scripts/tests/boot.test.js runs both
+  // implementations over the same table of inputs and fails when they disagree: change them together.
+  function normalizeLanguage(value) {
+    var lower = String(value || "").toLowerCase();
+    return lower === "es" || lower === "en" ? lower : "es";
+  }
+
+  function startsWith(text, prefix) {
+    return text.indexOf(prefix) === 0;
+  }
+
+  function languageFromBrowserList(list) {
+    var languages = Array.isArray(list) ? list : [];
+    for (var i = 0; i < languages.length; i += 1) {
+      var code = String(languages[i] || "").toLowerCase();
+      if (code === "es" || startsWith(code, "es-") || startsWith(code, "es_")) return "es";
+      if (code === "en" || startsWith(code, "en-") || startsWith(code, "en_")) return "en";
     }
     return "en";
+  }
+
+  function language() {
+    var stored = storedValue("ludus.language");
+    if (stored) return normalizeLanguage(stored);
+    try {
+      var nav = window.navigator || {};
+      return languageFromBrowserList(Array.isArray(nav.languages) && nav.languages.length ? nav.languages : [nav.language]);
+    } catch (error) {
+      return "en";
+    }
   }
 
   var TEXT = {

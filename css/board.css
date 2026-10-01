@@ -449,10 +449,10 @@ body.bd-drag-active * {
 .promotion-picker[data-edge="bottom"] .promotion-choice + .promotion-choice { border-top: 0; border-bottom: 1px solid var(--color-hairline, rgba(255, 255, 255, 0.09)); }
 .promotion-choice:hover { background: var(--color-gold-bg, #251500); }
 .promotion-choice:active { background: var(--color-surface-3, #22272d); }
-/* Inside the button (the panel clips what sticks out); more specific than the global focus rule. */
+/* Inside the button (the panel clips what sticks out). The ring is the global one (styles.css); its offset is a custom property
+   because an `outline-offset` here only tied with the global rule (0,3,0 against 0,3,0) and won by file order alone. */
 .promotion-picker .promotion-choice:focus-visible {
-  outline: var(--focus-ring-width, 3px) solid var(--color-info, #53cdff);
-  outline-offset: -5px;
+  --focus-ring-offset: -5px;
   border-radius: var(--radius-md, 10px);
 }
 .promotion-choice-icon {

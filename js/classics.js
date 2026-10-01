@@ -38,7 +38,7 @@
     "brilliancy": { es: "Joya de creación", en: "Brilliancy" },
     "counterattack": { es: "Contraataque", en: "Counterattack" },
     "development": { es: "Desarrollo", en: "Development" },
-    "defence": { es: "Defensa", en: "Defence" },
+    "defence": { es: "Defensa", en: "Defense" },
     "double-check": { es: "Jaque doble", en: "Double check" },
     "endgame-technique": { es: "Técnica de finales", en: "Endgame technique" },
     "exchange-sacrifice": { es: "Sacrificio de calidad", en: "Exchange sacrifice" },
@@ -62,9 +62,11 @@
   };
 
   const KIND_TEXT = {
+    // The sentence of "only move" says what Scoring.assess means by it (ONLY_MOVE_GAP_PCT = 12: every other line is at least that many
+    // percentage points of win chance worse), in the words of the coach ("win chance" / "chances de ganar"); a test keeps the number equal.
     "only-move": {
       label: { es: "Única jugada", en: "Only move" },
-      hint: { es: "Las alternativas son claramente peores: una sola jugada saca lo mejor de la posición.", en: "The alternatives are clearly worse: one move gets the most out of the position." },
+      hint: { es: "Cualquier otra jugada cede al menos 12 puntos porcentuales de chances de ganar: solo una saca lo mejor de la posición.", en: "Every other move gives up at least 12 percentage points of win chance: only one move gets the most out of the position." },
     },
     "tactic": {
       label: { es: "Táctica", en: "Tactic" },
@@ -76,7 +78,9 @@
     },
     "quiet": {
       label: { es: "Jugada tranquila", en: "Quiet move" },
-      hint: { es: "Una decisión posicional sin capturas ni jaques inmediatos.", en: "A positional decision without immediate captures or checks." },
+      // Not "without captures or checks": about a fifth of the quiet positions of the data (18 of 83) are won by a capture or a check, so the
+      // sentence only claims what the classification does (no mate within six, no forcing move that clearly beats the others).
+      hint: { es: "Una decisión de plan o de estructura, sin una combinación a la vista.", en: "A decision about plans or structure, with no combination in sight." },
     },
     "endgame": {
       label: { es: "Final", en: "Endgame" },
@@ -227,7 +231,13 @@
         if (!QUOTED_MOVE.test(core)) break;
         words.push({ text: core, start: offset, end: offset + core.length });
         ply += 1;
-        if (core.length !== body.length) break; // punctuation after a move closes the run
+        // Punctuation after a move closes the run. The cursor moves past that word first: left on its own move number
+        // ("27.Bxe5, and") the next anchor search would find the same number again and the move would be listed twice
+        // (polish PX-2, data fixer: tiny cross-edit, regression test in scripts/tests/classics.test.js).
+        if (core.length !== body.length) {
+          cursor += word[0].length;
+          break;
+        }
         cursor += word[0].length;
         while (/\s/.test(source[cursor] || "")) cursor += 1;
       }

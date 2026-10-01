@@ -13,6 +13,8 @@
 //               :has() / container queries gets the "too old" notice (es and en)
 //   skip link   on the landing it lands on the landing's <main>, and the next Tab is the start button
 //   rings       the keyboard ring of every tab stop of every screen (and the landing) is inside every clipping ancestor
+//   offsets     a ring offset declared on a :focus-visible rule is the one the control computes (slider flush, promotion choice and
+//               board square inside, segmented choice inside, dock button the global 2px): the --focus-ring-offset pattern
 //   obscured    on a phone no Tab stop ends under the fixed tab bar
 //   forced      forced-colors: the selected language, segmented choice and current tab differ from their siblings; bars show
 //   dots        the legal-move dot has >= 3:1 against its own square in the six board themes, with and without high contrast
@@ -276,6 +278,59 @@ async function checkRings(browser) {
   assert.deepStrictEqual(result.problems, [], "landing: every ring is complete (the footer language switch draws its ring inside the pill)");
   await landing.context.close();
   step("the keyboard ring of the header, the language switch and every segmented choice is fully visible");
+}
+
+// A ring offset declared as `.x:focus-visible { outline-offset: N }` loses to the global ring rule (styles.css, specificity 0,3,0); the
+// offset has to travel as --focus-ring-offset (polish-layout PL-B). What a control computes when the KEYBOARD focuses it is what counts.
+async function checkRingOffsets(browser) {
+  console.log("focus ring offsets");
+  const offsetOf = (page, selector) => page.evaluate((sel) => {
+    // The first one that is on screen (a settings section that is folded away holds hidden sliders).
+    const el = Array.from(document.querySelectorAll(sel)).find((candidate) => candidate.getBoundingClientRect().width > 0);
+    el.focus();
+    return { focusVisible: el.matches(":focus-visible"), offset: getComputedStyle(el).outlineOffset, width: getComputedStyle(el).outlineWidth };
+  }, selector);
+  // 1. A slider is drawn flush (0), as its rule always meant; it used to compute the global 2px.
+  {
+    const { context, page } = await newPage(browser, { lang: "en" });
+    await boot(page, "#/settings");
+    await page.waitForTimeout(400);
+    await page.keyboard.press("Shift");
+    const slider = await offsetOf(page, ".slider");
+    assert.strictEqual(slider.focusVisible, true, "the slider is focus-visible after a key press");
+    assert.strictEqual(slider.offset, "0px", `the slider ring is flush (computed ${slider.offset})`);
+    // A segmented control keeps its ring inside the pill.
+    const seg = await page.evaluate(() => {
+      const el = document.querySelector(".segmented > *");
+      if (!el) return null;
+      el.focus();
+      return { offset: getComputedStyle(el).outlineOffset, visible: el.matches(":focus-visible") };
+    });
+    if (seg && seg.visible) assert.strictEqual(seg.offset, "-3px", `a segmented choice keeps the ring inside (computed ${seg.offset})`);
+    await context.close();
+  }
+  // 2. On the play screen: the promotion choices draw the ring inside the button (-5px), the dock and the squares keep theirs.
+  {
+    const { context, page } = await newPage(browser, { lang: "en", w: 844, h: 390, touch: true });
+    await boot(page);
+    await page.evaluate(async () => {
+      await Ludus.Classics.load();
+      const game = Ludus.Classics.list()[0];
+      await Ludus.game.startSession({ kind: "classic", title: "t", positions: Ludus.Classics.positions(game.id, { count: 1 }), options: { clock: { mode: "untimed" } } });
+    });
+    await page.waitForFunction(() => document.querySelector("#game-layout").getAttribute("data-phase") === "thinking");
+    await page.keyboard.press("Shift");
+    const hint = await offsetOf(page, "#hint-btn");
+    assert.strictEqual(hint.offset, "2px", `a dock button keeps the global ring (computed ${hint.offset})`);
+    const squareRing = await offsetOf(page, "#board .square[tabindex='0']");
+    assert.strictEqual(squareRing.offset, "-3px", `a board square draws its ring inside (computed ${squareRing.offset})`);
+    await page.evaluate(() => { const picker = document.getElementById("promotion-picker"); picker.classList.remove("hidden"); picker.hidden = false; });
+    const promo = await offsetOf(page, "#promotion-choice-q");
+    assert.strictEqual(promo.focusVisible, true);
+    assert.strictEqual(promo.offset, "-5px", `a promotion choice draws its ring inside the button (computed ${promo.offset})`);
+    await context.close();
+  }
+  step("slider (flush), segmented choice, board square, dock button and promotion choice compute the ring offset they declare");
 }
 
 async function checkObscured(browser) {
@@ -548,7 +603,7 @@ async function checkWizard(browser) {
   step("the wizard has the heading, eyebrow and card of the design system");
 }
 
-// LUDUS_ONLY=wizard,tabs runs just those groups (boot, skip, rings, obscured, forced, dots, targets, reflow, tabs, storage, wizard, framing).
+// LUDUS_ONLY=wizard,tabs runs just those groups (boot, skip, rings, offsets, obscured, forced, dots, targets, reflow, tabs, storage, wizard, framing).
 async function main() {
   const only = (process.env.LUDUS_ONLY || "").split(",").map((name) => name.trim()).filter(Boolean);
   const wanted = (name) => !only.length || only.includes(name);
@@ -557,6 +612,7 @@ async function main() {
     if (wanted("boot")) await checkBoot(browser);
     if (wanted("skip")) await checkSkipLink(browser);
     if (wanted("rings")) await checkRings(browser);
+    if (wanted("offsets")) await checkRingOffsets(browser);
     if (wanted("obscured")) await checkObscured(browser);
     if (wanted("forced")) await checkForcedColors(browser);
     if (wanted("dots")) await checkLegalDots(browser);

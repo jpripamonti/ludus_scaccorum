@@ -10,7 +10,7 @@
   <meta name="description" content="Entrenador de ajedrez gratuito y sin registro: aprendé de tus errores y de partidas clásicas, y ganá más puntos cuanto más cerca juegues de la mejor jugada del motor." />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Scaccorum" />
-  <meta name="ludus-version" content="55981a739e84" />
+  <meta name="ludus-version" content="828d9118dbde" />
   <link rel="manifest" href="./manifest.json" />
   <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/svg+xml" href="assets/brand/favicon.svg" />
@@ -25,19 +25,19 @@
   <!-- Boot guards (js/boot.js): a tiny synchronous same-origin script that runs before the first paint. It marks
        returning visitors (no landing flash), hides the app when it is framed and shows a notice on browsers too old
        for the app; it is the only script that is not at the end of <body>. -->
-  <script src="js/boot.js?v=55981a739e84"></script>
-  <link rel="stylesheet" href="styles.css?v=55981a739e84" />
-  <link rel="stylesheet" href="css/system.css?v=55981a739e84" />
-  <link rel="stylesheet" href="css/shell.css?v=55981a739e84" />
-  <link rel="stylesheet" href="css/board.css?v=55981a739e84" />
-  <link rel="stylesheet" href="css/coach.css?v=55981a739e84" />
-  <link rel="stylesheet" href="css/home.css?v=55981a739e84" />
-  <link rel="stylesheet" href="css/classics.css?v=55981a739e84" />
-  <link rel="stylesheet" href="css/notebook.css?v=55981a739e84" />
-  <link rel="stylesheet" href="css/progress.css?v=55981a739e84" />
-  <link rel="stylesheet" href="css/museum.css?v=55981a739e84" />
-  <link rel="stylesheet" href="css/settings.css?v=55981a739e84" />
-  <link rel="stylesheet" href="css/account.css?v=55981a739e84" />
+  <script src="js/boot.js?v=828d9118dbde"></script>
+  <link rel="stylesheet" href="styles.css?v=828d9118dbde" />
+  <link rel="stylesheet" href="css/system.css?v=828d9118dbde" />
+  <link rel="stylesheet" href="css/shell.css?v=828d9118dbde" />
+  <link rel="stylesheet" href="css/board.css?v=828d9118dbde" />
+  <link rel="stylesheet" href="css/coach.css?v=828d9118dbde" />
+  <link rel="stylesheet" href="css/home.css?v=828d9118dbde" />
+  <link rel="stylesheet" href="css/classics.css?v=828d9118dbde" />
+  <link rel="stylesheet" href="css/notebook.css?v=828d9118dbde" />
+  <link rel="stylesheet" href="css/progress.css?v=828d9118dbde" />
+  <link rel="stylesheet" href="css/museum.css?v=828d9118dbde" />
+  <link rel="stylesheet" href="css/settings.css?v=828d9118dbde" />
+  <link rel="stylesheet" href="css/account.css?v=828d9118dbde" />
 </head>
 
 <body class="mode-citizen">
@@ -62,8 +62,9 @@
       <div class="sh-right">
         <div class="sh-status" id="shell-status"></div>
         <div id="language-switch" class="language-switch" role="radiogroup" aria-label="Language / Idioma">
-          <button id="language-btn-es" type="button" class="language-switch-btn" role="radio" aria-checked="true" tabindex="0">ES</button>
-          <button id="language-btn-en" type="button" class="language-switch-btn" role="radio" aria-checked="false" tabindex="-1">EN</button>
+          <!-- polish-corecopy: each button is named in its own language (the visible "ES" / "EN" is an abbreviation a screen reader spells out). -->
+          <button id="language-btn-es" type="button" class="language-switch-btn" role="radio" aria-checked="true" tabindex="0" lang="es" aria-label="Español">ES</button>
+          <button id="language-btn-en" type="button" class="language-switch-btn" role="radio" aria-checked="false" tabindex="-1" lang="en" aria-label="English">EN</button>
         </div>
       </div>
     </div>
@@ -420,33 +421,33 @@
     </div>
   </div>
 
-  <script src="config.js?v=55981a739e84"></script>
-  <script src="js/ludus.js?v=55981a739e84"></script>
-  <script src="js/chess.js?v=55981a739e84"></script>
-  <script src="js/pgn.js?v=55981a739e84"></script>
-  <script src="js/engine.js?v=55981a739e84"></script>
-  <script src="js/scoring.js?v=55981a739e84"></script>
-  <script src="js/insights.js?v=55981a739e84"></script>
-  <script src="js/concepts.js?v=55981a739e84"></script>
-  <script src="js/settings.js?v=55981a739e84"></script>
-  <script src="js/profile.js?v=55981a739e84"></script>
-  <script src="js/facts.js?v=55981a739e84"></script>
-  <script src="js/reader.js?v=55981a739e84"></script>
-  <script src="js/audio.js?v=55981a739e84"></script>
-  <script src="js/auth.js?v=55981a739e84"></script>
-  <script src="js/classics.js?v=55981a739e84"></script>
-  <script src="js/ui/kit.js?v=55981a739e84"></script>
-  <script src="js/ui/shell.js?v=55981a739e84"></script>
-  <script src="js/ui/board.js?v=55981a739e84"></script>
-  <script src="js/ui/coach.js?v=55981a739e84"></script>
-  <script src="js/ui/home.js?v=55981a739e84"></script>
-  <script src="js/ui/classics.js?v=55981a739e84"></script>
-  <script src="js/ui/notebook.js?v=55981a739e84"></script>
-  <script src="js/ui/progress.js?v=55981a739e84"></script>
-  <script src="js/ui/museum.js?v=55981a739e84"></script>
-  <script src="js/ui/settings.js?v=55981a739e84"></script>
-  <script src="js/ui/account.js?v=55981a739e84"></script>
-  <script src="app.js?v=55981a739e84"></script>
+  <script src="config.js?v=828d9118dbde"></script>
+  <script src="js/ludus.js?v=828d9118dbde"></script>
+  <script src="js/chess.js?v=828d9118dbde"></script>
+  <script src="js/pgn.js?v=828d9118dbde"></script>
+  <script src="js/engine.js?v=828d9118dbde"></script>
+  <script src="js/scoring.js?v=828d9118dbde"></script>
+  <script src="js/insights.js?v=828d9118dbde"></script>
+  <script src="js/concepts.js?v=828d9118dbde"></script>
+  <script src="js/settings.js?v=828d9118dbde"></script>
+  <script src="js/profile.js?v=828d9118dbde"></script>
+  <script src="js/facts.js?v=828d9118dbde"></script>
+  <script src="js/reader.js?v=828d9118dbde"></script>
+  <script src="js/audio.js?v=828d9118dbde"></script>
+  <script src="js/auth.js?v=828d9118dbde"></script>
+  <script src="js/classics.js?v=828d9118dbde"></script>
+  <script src="js/ui/kit.js?v=828d9118dbde"></script>
+  <script src="js/ui/shell.js?v=828d9118dbde"></script>
+  <script src="js/ui/board.js?v=828d9118dbde"></script>
+  <script src="js/ui/coach.js?v=828d9118dbde"></script>
+  <script src="js/ui/home.js?v=828d9118dbde"></script>
+  <script src="js/ui/classics.js?v=828d9118dbde"></script>
+  <script src="js/ui/notebook.js?v=828d9118dbde"></script>
+  <script src="js/ui/progress.js?v=828d9118dbde"></script>
+  <script src="js/ui/museum.js?v=828d9118dbde"></script>
+  <script src="js/ui/settings.js?v=828d9118dbde"></script>
+  <script src="js/ui/account.js?v=828d9118dbde"></script>
+  <script src="app.js?v=828d9118dbde"></script>
 </body>
 
 </html>

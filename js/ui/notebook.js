@@ -1,7 +1,7 @@
 // Screen "notebook": the mistake notebook with spaced repetition (Leitner boxes).
 //   Summary      cards due now, total, cleared and new, the next review date, a small chart of the five boxes and the
 //                big action "Review N now" (N = 5 / 10 / 20 per session); when nothing is due it says when the next
-//                card comes back and offers to practise anyway with the cards of the lowest boxes
+//                card comes back and offers to practice anyway with the cards of the lowest boxes
 //   Weak spots   the themes (Ludus.Insights tags) that repeat in the cards, each with "Train this weakness"
 //   Cards        filters (status, origin, theme, phase, how bad the mistake was, text) and sort; every card has a
 //                mini board (side to move at the bottom, arrow on the best move), where it comes from, your move
@@ -122,6 +122,8 @@
       "notebook.boxes.new": "Nueva",
       "notebook.boxes.day": "{n} d",
       "notebook.boxes.aria": "Caja {n}: {count}, vuelve {interval}",
+      "notebook.boxes.cards": "{n} tarjetas",
+      "notebook.boxes.cards.one": "1 tarjeta",
       "notebook.boxes.aria.new": "Caja 0, tarjetas nuevas: {count}",
       "notebook.boxes.interval": "cada {n} días",
       "notebook.boxes.interval.one": "cada día",
@@ -156,7 +158,7 @@
       "notebook.filter.source": "Origen",
       "notebook.filter.tag": "Tema",
       "notebook.filter.phase": "Fase",
-      "notebook.filter.quality": "Tu error",
+      "notebook.filter.quality": "Tu jugada",
       "notebook.filter.all": "Todos",
       "notebook.filter.allTags": "Todos los temas",
       "notebook.filter.allPhases": "Todas",
@@ -170,14 +172,11 @@
       "notebook.phase.opening": "Apertura",
       "notebook.phase.middlegame": "Medio juego",
       "notebook.phase.endgame": "Final",
-      "notebook.quality.blunder": "Error grave",
-      "notebook.quality.bad": "Error",
-      "notebook.quality.dubious": "Dudosa",
-      "notebook.quality.mild": "Leve",
       "notebook.count": "{n} tarjetas",
       "notebook.count.one": "1 tarjeta",
       "notebook.count.of": "{n} de {total} tarjetas",
       "notebook.count.of.one": "1 de {total} tarjetas",
+      "notebook.count.of.single": "{n} de 1 tarjeta",
       "notebook.more": "Mostrar más",
       "notebook.more.n": "Mostrar más ({n} restantes)",
       "notebook.list.empty.title": "Ninguna tarjeta coincide",
@@ -259,7 +258,7 @@
       "notebook.empty.title": "Your notebook is still empty",
       "notebook.empty.body": "Whenever you get a position wrong we save it here and show it to you again later. Play a few positions to start filling it.",
       "notebook.empty.classics": "Play classic games",
-      "notebook.empty.own": "Analyse your games",
+      "notebook.empty.own": "Analyze your games",
       "notebook.empty.how": "How it works",
       "notebook.empty.step1.title": "You slip",
       "notebook.empty.step1.body": "A move below 70% accuracy saves the position.",
@@ -284,8 +283,8 @@
       "notebook.review.size": "Positions per session",
       "notebook.review.size.n": "{n} positions",
       "notebook.review.hint": "Every review you pass moves the card up a box; one you fail sends it back to box 1.",
-      "notebook.practice.start": "Practise anyway",
-      "notebook.practice.hint": "Practising early counts as a review too: if you pass it, the card moves up a box.",
+      "notebook.practice.start": "Practice anyway",
+      "notebook.practice.hint": "Practicing early counts as a review too: if you pass it, the card moves up a box.",
       "notebook.stat.total": "Cards",
       "notebook.stat.cleared": "Cleared",
       "notebook.stat.cleared.hint": "In box 3 or higher",
@@ -296,6 +295,8 @@
       "notebook.boxes.new": "New",
       "notebook.boxes.day": "{n} d",
       "notebook.boxes.aria": "Box {n}: {count}, comes back {interval}",
+      "notebook.boxes.cards": "{n} cards",
+      "notebook.boxes.cards.one": "1 card",
       "notebook.boxes.aria.new": "Box 0, new cards: {count}",
       "notebook.boxes.interval": "every {n} days",
       "notebook.boxes.interval.one": "every day",
@@ -330,7 +331,7 @@
       "notebook.filter.source": "Origin",
       "notebook.filter.tag": "Theme",
       "notebook.filter.phase": "Phase",
-      "notebook.filter.quality": "Your mistake",
+      "notebook.filter.quality": "Your move",
       "notebook.filter.all": "All",
       "notebook.filter.allTags": "All themes",
       "notebook.filter.allPhases": "All",
@@ -344,14 +345,11 @@
       "notebook.phase.opening": "Opening",
       "notebook.phase.middlegame": "Middlegame",
       "notebook.phase.endgame": "Endgame",
-      "notebook.quality.blunder": "Serious mistake",
-      "notebook.quality.bad": "Mistake",
-      "notebook.quality.dubious": "Dubious",
-      "notebook.quality.mild": "Mild",
       "notebook.count": "{n} cards",
       "notebook.count.one": "1 card",
       "notebook.count.of": "{n} of {total} cards",
       "notebook.count.of.one": "1 of {total} cards",
+      "notebook.count.of.single": "{n} of 1 card",
       "notebook.more": "Show more",
       "notebook.more.n": "Show more ({n} left)",
       "notebook.list.empty.title": "No card matches",
@@ -444,7 +442,9 @@
   const STATUSES = ["all", "due", "new", "learning", "cleared"];
   const SORTS = ["due", "recent", "worst"];
   const PHASES = ["opening", "middlegame", "endgame"];
-  const QUALITY_FILTERS = ["blunder", "bad", "dubious", "mild"];
+  // The "Your move" filter: the quality codes of Ludus.Scoring, worst first. Their words come from Scoring.qualityLabel only (the coach, the
+  // progress screen and the classics say the same), so this file keeps no quality words of its own (QA CNT-014).
+  const QUALITY_FILTERS = ["blunder", "bad", "dubious", "interesting"];
   const SOURCES = ["own", "classic", "daily", "notebook"];
   const PREFS_KEY = "ludus.notebook.prefs.v1";
   const UCI_RE = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
@@ -560,10 +560,25 @@
     return "blunder";
   }
 
-  // blunder | bad | dubious | mild: how bad the mistake that created the card was.
+  // blunder | bad | dubious | interesting: how bad the mistake that created the card was. A card is made by a move that missed the pass
+  // mark, so the least severe bucket is the Scoring code "interesting" (an inaccuracy); anything better than that (a move that only just
+  // missed it) is counted there too instead of getting a bucket of its own.
   function qualityBucket(code) {
     if (code === "blunder" || code === "bad" || code === "dubious") return code;
-    return "mild";
+    return "interesting";
+  }
+
+  // The word of a quality code, from the one source (Ludus.Scoring.qualityLabel). "" when the scorer is missing: the filter is then left out
+  // rather than worded a second way.
+  function qualityText(code) {
+    const Scoring = L().Scoring;
+    if (!Scoring || typeof Scoring.qualityLabel !== "function") return "";
+    try {
+      const label = Scoring.qualityLabel(code, lang());
+      return typeof label === "string" && label && label !== `quality.${code}` ? label : "";
+    } catch (error) {
+      return "";
+    }
   }
 
   // The history entry of the mistake that created the card: the one in box 0 (a review can never send a card
@@ -622,8 +637,9 @@
     return f.status !== "all" || Boolean(normalizeText(f.query)) || moreFiltersActive(f) > 0;
   }
 
-  // ctx: { now, qualityOf(card) -> code | null, tagLabel(tag) -> text, localize(meta) -> meta } (the last one so the text
-  // the card shows is also what the search finds).
+  // ctx: { now, qualityOf(card) -> code | null, tagLabel(tag) -> text, localize(meta) -> meta, sansOf(card) -> [English SAN],
+  // showSan(san) -> the SAN as drawn } (the last three so that the text the card shows is also what the search finds: a Spanish page draws
+  // "Cf3" for the stored "Nf3", and a person types what they read; the English form still matches, so does the text of the players and event).
   function filterCards(cards, filters, ctx) {
     const f = cleanFilters(filters);
     const c = ctx || {};
@@ -644,7 +660,9 @@
         const meta = card.meta || {};
         const labels = typeof c.tagLabel === "function" ? (card.tags || []).map((tag) => c.tagLabel(tag)).join(" ") : (card.tags || []).join(" ");
         const shown = typeof c.localize === "function" ? c.localize(meta) || meta : meta;
-        const hay = normalizeText([meta.players, meta.event, shown.players, shown.event, meta.site, meta.year, meta.eco, card.bestSan, labels].join(" "));
+        const sans = (typeof c.sansOf === "function" ? c.sansOf(card) : [card.bestSan]).filter((san) => typeof san === "string" && san);
+        const drawn = typeof c.showSan === "function" ? sans.map((san) => c.showSan(san)) : [];
+        const hay = normalizeText([meta.players, meta.event, shown.players, shown.event, meta.site, meta.year, meta.eco, sans.join(" "), drawn.join(" "), labels].join(" "));
         if (!words.every((word) => hay.includes(word))) return false;
       }
       return true;
@@ -870,6 +888,27 @@
     }
   }
 
+  // The same move for a screen reader, in words ("caballo a f3", "knight to f3"): "Cf3" is read letter by letter. Takes the stored English SAN
+  // (Ludus.chess.spokenSan); the drawn form without the helper.
+  function spokenSan(san) {
+    const chess = L().chess;
+    if (!san || !chess || typeof chess.spokenSan !== "function") return shownSan(san);
+    try {
+      return chess.spokenSan(san, lang());
+    } catch (error) {
+      return shownSan(san);
+    }
+  }
+
+  // A move in a node of its own: what is drawn goes through the notation setting (shownSan) and is hidden from a screen reader, which gets the
+  // spoken form from a twin that is only there for it, so it is never said twice and never spelled out. Plain text without the helper.
+  function sanNode(san, className) {
+    const drawn = shownSan(san);
+    const spoken = spokenSan(san);
+    if (!spoken || spoken === drawn) return h("span", { class: className }, drawn);
+    return h("span", { class: className }, h("span", { "aria-hidden": "true" }, drawn), " ", h("span", { class: "sr-only" }, spoken));
+  }
+
   // "14. Qxd5 Nc6 15. Bxc6" from the FEN, the UCI moves and Ludus.chess; UCI text when the moves do not replay.
   // `show` (optional) maps each English SAN to what the person reads (the notation setting); the default is the SAN as it is.
   function formatPv(fen, pv, chessApi, show) {
@@ -1086,8 +1125,15 @@
     return move ? move.quality : null;
   }
 
+  // The two moves a card shows on its face, as stored (English letters): yours and the best one.
+  function sansOfCard(card) {
+    const mine = yourMoveOf(card, state.rounds);
+    const best = card.bestSan || (Array.isArray(card.lines) && card.lines[0] && card.lines[0].san) || "";
+    return [mine && mine.san, best];
+  }
+
   function filterContext() {
-    return { now: state.now, qualityOf: qualityOfCard, tagLabel, localize: localizeMeta };
+    return { now: state.now, qualityOf: qualityOfCard, tagLabel, localize: localizeMeta, sansOf: sansOfCard, showSan: shownSan };
   }
 
   function visibleCards() {
@@ -1164,6 +1210,13 @@
     }
   }
 
+  // "Jugada del ejemplo: Cc7+" with the move in a node of its own (drawn through the notation setting, said in words, see sanNode).
+  function conceptMoveLine(san) {
+    const mark = "\u0001";
+    const parts = t("notebook.concept.best", { san: mark }).split(mark);
+    return h("span", { class: "notebook-concept-move-text" }, parts[0], sanNode(san, "notebook-concept-san"), parts[1] || "");
+  }
+
   // Opens the lessons that explain a theme in a dialog. `options.train` adds "Train this weakness" (only when the
   // notebook has cards of that theme). Resolves to the modal handle, or null when there is no kit.
   function openConcept(tag, options) {
@@ -1195,7 +1248,7 @@
             // One lesson named like the dialog itself: the heading would only say it twice.
             concepts.length === 1 && normalizeText(title) === normalizeText(tagLabel(tag)) ? null : h("h3", { class: "notebook-concept-title" }, title),
             h("p", { class: "notebook-concept-body" }, copy ? copy.body : ""),
-            san ? h("p", { class: "notebook-concept-move" }, icon("lightbulb", { size: 16 }), t("notebook.concept.best", { san: shownSan(san) })) : null));
+            san ? h("p", { class: "notebook-concept-move" }, icon("lightbulb", { size: 16 }), conceptMoveLine(san)) : null));
       })
       : [h("p", { class: "notebook-concept-none" }, t("notebook.concept.none"))];
     const actions = [];
@@ -1274,7 +1327,7 @@
       rows.push(h("div", { class: "notebook-move is-yours" },
         h("dt", { class: "notebook-move-label" }, mine.san ? t("notebook.card.yours") : t("notebook.card.yours.unknown")),
         h("dd", { class: "notebook-move-value" },
-          mine.san ? h("span", { class: "notebook-san" }, shownSan(mine.san)) : null,
+          mine.san ? sanNode(mine.san, "notebook-san") : null,
           mine.quality && ui && typeof ui.qualityBadge === "function" ? ui.qualityBadge(mine.quality) : null,
           yourMeta.length ? h("span", { class: "notebook-move-meta" }, yourMeta.join(" · ")) : null)));
     }
@@ -1282,7 +1335,7 @@
     rows.push(h("div", { class: "notebook-move is-best" },
       h("dt", { class: "notebook-move-label" }, t("notebook.card.best")),
       h("dd", { class: "notebook-move-value" },
-        bestSan ? h("span", { class: "notebook-san is-best" }, shownSan(bestSan)) : h("span", { class: "notebook-move-meta" }, t("notebook.card.best.pending")))));
+        bestSan ? sanNode(bestSan, "notebook-san is-best") : h("span", { class: "notebook-move-meta" }, t("notebook.card.best.pending")))));
     return h("dl", { class: "notebook-moves" }, rows);
   }
 
@@ -1303,10 +1356,15 @@
         h("h4", { class: "notebook-panel-title" }, t("notebook.lines.title")),
         lines.length
           ? h("ol", { class: "notebook-lines" }, lines.map((line, index) => {
-            const first = formatPv(card.fen, line.pv && line.pv.length ? line.pv : [line.uci], undefined, shownSan);
+            const moves = line.pv && line.pv.length ? line.pv : [line.uci];
+            const first = formatPv(card.fen, moves, undefined, shownSan);
+            const spoken = formatPv(card.fen, moves, undefined, spokenSan);
             return h("li", { class: "notebook-line" },
               h("span", { class: "notebook-line-eval", "aria-label": `${t("notebook.lines.rank", { n: index + 1 })}: ${evalText(line.score)}` }, evalText(line.score)),
-              h("span", { class: "notebook-line-pv" }, first));
+              // Drawn in the notation the person chose, said in words (a line of "Nxd5 Nc6 Bxc6" is not spelled out letter by letter).
+              spoken && spoken !== first
+                ? h("span", { class: "notebook-line-pv" }, h("span", { "aria-hidden": "true" }, first), " ", h("span", { class: "sr-only" }, spoken))
+                : h("span", { class: "notebook-line-pv" }, first));
           }))
           : h("p", { class: "notebook-panel-empty" }, t("notebook.lines.empty"))),
       h("div", { class: "notebook-panel-block" },
@@ -1466,7 +1524,7 @@
       h("caption", null, t("notebook.boxes.title")),
       h("thead", null, h("tr", null, h("th", { scope: "col" }, t("notebook.boxes.col.box")), h("th", { scope: "col" }, t("notebook.boxes.col.cards")))),
       h("tbody", null, summary.byBox.map((count, i) => h("tr", null,
-        h("th", { scope: "row" }, i === 0 ? t("notebook.boxes.aria.new", { count }) : t("notebook.boxes.aria", { n: i, count, interval: tCount("notebook.boxes.interval", leitner[i]) })),
+        h("th", { scope: "row" }, i === 0 ? t("notebook.boxes.aria.new", { count }) : t("notebook.boxes.aria", { n: i, count: tCount("notebook.boxes.cards", count), interval: tCount("notebook.boxes.interval", leitner[i]) })),
         h("td", null, String(count)))))));
     return h("figure", { class: "notebook-boxes", "aria-label": t("notebook.boxes.title") },
       h("figcaption", { class: "notebook-boxes-title" }, t("notebook.boxes.title")),
@@ -1648,7 +1706,10 @@
     const tagOptions = [{ value: "all", label: t("notebook.filter.allTags") }].concat(options.tags.map((row) => ({ value: row.value, label: `${tagLabel(row.value)} (${row.count})` })));
     if (state.filters.tag !== "all" && !options.tags.some((row) => row.value === state.filters.tag)) state.filters.tag = "all";
     const phaseOptions = [{ value: "all", label: t("notebook.filter.allPhases") }].concat(options.phases.map((row) => ({ value: row.value, label: `${t(`notebook.phase.${row.value}`)} (${row.count})` })));
-    const qualityOptions = [{ value: "all", label: t("notebook.filter.all") }].concat(QUALITY_FILTERS.map((value) => ({ value, label: t(`notebook.quality.${value}`) })));
+    // The words of the "Your move" filter are the scorer's (qualityText); without the scorer there is no filter rather than a second vocabulary.
+    const qualityOptions = [{ value: "all", label: t("notebook.filter.all") }].concat(QUALITY_FILTERS.map((value) => ({ value, label: qualityText(value) })));
+    const hasQualityFilter = qualityOptions.every((option) => option.label);
+    if (!hasQualityFilter && state.filters.quality !== "all") state.filters.quality = "all";
     const change = (key) => (value) => {
       state.filters[key] = value;
       state.shown = PAGE_SIZE;
@@ -1663,7 +1724,7 @@
         selectField("notebook-f-source", t("notebook.filter.source"), sourceOptions, state.filters.source, change("source")),
         selectField("notebook-f-tag", t("notebook.filter.tag"), tagOptions, state.filters.tag, change("tag")),
         selectField("notebook-f-phase", t("notebook.filter.phase"), phaseOptions, state.filters.phase, change("phase")),
-        selectField("notebook-f-quality", t("notebook.filter.quality"), qualityOptions, state.filters.quality, change("quality"))));
+        hasQualityFilter ? selectField("notebook-f-quality", t("notebook.filter.quality"), qualityOptions, state.filters.quality, change("quality")) : null));
     const clearButton = h("button", {
       type: "button",
       class: "btn btn-ghost notebook-clear",
@@ -1715,7 +1776,10 @@
     clear(list);
     clear(moreHost);
     const total = state.cards.length;
-    count.textContent = all.length === total ? tCount("notebook.count", all.length) : tCount("notebook.count.of", all.length, { total });
+    // The noun agrees with the total ("1 of 5 cards"), so a notebook of one card needs its own form ("0 of 1 card").
+    count.textContent = all.length === total ? tCount("notebook.count", all.length)
+      : total === 1 ? t("notebook.count.of.single", { n: all.length })
+        : tCount("notebook.count.of", all.length, { total });
     if (!all.length) {
       const ui = L().ui;
       list.appendChild(h("li", { class: "notebook-list-empty" },
@@ -2014,6 +2078,9 @@
       roundedTopPath,
       formatPv,
       shownSan,
+      spokenSan,
+      qualityText,
+      sansOfCard,
     },
     TEXT,
     _state: state,

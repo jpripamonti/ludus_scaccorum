@@ -150,8 +150,8 @@ the CSP, keep those.
 |---|---|---|
 | Browser memory (JS variable) | The Google access token | Never written to storage, gone on reload or sign-out. Lives about one hour. |
 | Browser `localStorage`, key `ludus.auth.v1` | `{ v, signedIn, sub, name, picture, lastSyncAt }` | A non-secret hint so the account chip can be drawn after a reload. No token, no e-mail. |
-| Browser `localStorage`, keys `ludus.profiles.v1`, `ludus.p.<id>.v1` | The learner's profiles and progress | The source of truth on each device. A profile gets a `googleSub` when it is linked to the account. |
-| The user's Google Drive, hidden `appDataFolder` | `ludus-progress-v1.json` | The progress export of the profiles linked to the account (names, colours, rounds with positions and moves, sessions, notebook cards, XP, achievements, daily streak, and the `googleSub`). No e-mail, no token. |
+| Browser `localStorage`, keys `ludus.profiles.v1`, `ludus.p.<id>.v1` | The learner's profiles and progress, including the Lichess / Chess.com usernames and game links of own-game rounds (see "Usernames and game links" below) | The source of truth on each device. A profile gets a `googleSub` when it is linked to the account. |
+| The user's Google Drive, hidden `appDataFolder` | `ludus-progress-v1.json` | The progress export of the profiles linked to the account (names, colours, rounds with positions and moves, sessions, notebook cards, XP, achievements, daily streak, and the `googleSub`). Rounds from the learner's own Lichess / Chess.com games carry the players' usernames (opponents too) and the links to those games. No e-mail, no token. |
 | Google | Sign-in and Drive requests | As with any "Sign in with Google" site, Google sees that this site was used to sign in and receives the Drive calls. |
 | GitHub Pages | Ordinary web-server logs | Same as for anybody visiting the site. Nothing from Drive or the progress goes there. |
 
@@ -169,6 +169,17 @@ account screen is in section 13 of `docs/ARCHITECTURE.md`.
 
 ### Privacy notes
 
+* **Usernames and game links.** When a learner trains with their own Lichess or
+  Chess.com games, every saved round keeps the players' names from the game (the
+  learner's username and the opponent's) and the link to the game, and the
+  session is titled with the learner's username. This is stored in the local
+  profile and notebook, written into every export file, and uploaded to Drive
+  in `ludus-progress-v1.json` once the profile is linked. The app has no server,
+  so none of it is sent to the site owner; it is only on the learner's device,
+  in files the learner downloads, and in the learner's own Drive. The Account
+  screen says so too (the export note and the sync notes). To remove it: delete
+  the profile (or "Delete all my data") in the Account screen, delete the Drive
+  file (see below), and clear the downloaded games in Settings > Privacy.
 * Nothing is requested from Google (not even its script) until the user presses
   the sign-in button. With an empty `googleClientId` the feature does not exist.
 * The access token stays in memory. After a reload the account chip is shown
@@ -184,7 +195,10 @@ account screen is in section 13 of `docs/ARCHITECTURE.md`.
   to adapt: "Ludus Scaccorum runs entirely in your browser. If you choose to sign
   in with Google, the app reads your name, e-mail and photo to show your account,
   and stores your training progress in a hidden file in your own Google Drive that
-  only this app can access. We operate no server and receive none of this data.
+  only this app can access; if you trained with your own Lichess or Chess.com
+  games, that file also holds the usernames of the players in those games
+  (yours and your opponents') and links to the games. We operate no server and
+  receive none of this data.
   You can disconnect the app at any time from your Google Account permissions and
   delete the file from Google Drive settings."
 
@@ -195,7 +209,8 @@ account screen is in section 13 of `docs/ARCHITECTURE.md`.
   reach the Drive data.
 * **A user, data**: Google Drive -> **Settings** -> **Manage apps** -> Ludus
   Scaccorum -> delete the hidden app data. Local progress on each device is not
-  touched. Deleting local data is done from the app's settings.
+  touched. Local data is deleted in the app: Account > delete a profile or
+  "Delete all my data" (usernames and game links go with the profile).
 * **The owner, switching the feature off**: empty `googleClientId` in `config.js`
   and redeploy. Existing users keep their local progress; the stale hint is
   ignored and removed the first time the app looks at it.
@@ -395,8 +410,8 @@ mantenelos.
 |---|---|---|
 | Memoria del navegador (variable JS) | El token de acceso de Google | Nunca se escribe en el almacenamiento; desaparece al recargar o cerrar sesión. Dura cerca de una hora. |
 | `localStorage` del navegador, clave `ludus.auth.v1` | `{ v, signedIn, sub, name, picture, lastSyncAt }` | Una pista no secreta para poder dibujar el chip de la cuenta después de recargar. Sin token, sin correo. |
-| `localStorage` del navegador, claves `ludus.profiles.v1`, `ludus.p.<id>.v1` | Los perfiles y el progreso de quien entrena | Es la fuente de verdad en cada dispositivo. Un perfil recibe un `googleSub` cuando se vincula a la cuenta. |
-| Google Drive de la persona, `appDataFolder` oculta | `ludus-progress-v1.json` | La exportación del progreso de los perfiles vinculados a la cuenta (nombres, colores, rondas con posiciones y jugadas, sesiones, tarjetas del cuaderno, XP, logros, racha diaria y el `googleSub`). Sin correo, sin token. |
+| `localStorage` del navegador, claves `ludus.profiles.v1`, `ludus.p.<id>.v1` | Los perfiles y el progreso de quien entrena, incluidos los usuarios de Lichess / Chess.com y los enlaces a las partidas de las rondas con partidas propias (ver "Usuarios y enlaces a partidas" más abajo) | Es la fuente de verdad en cada dispositivo. Un perfil recibe un `googleSub` cuando se vincula a la cuenta. |
+| Google Drive de la persona, `appDataFolder` oculta | `ludus-progress-v1.json` | La exportación del progreso de los perfiles vinculados a la cuenta (nombres, colores, rondas con posiciones y jugadas, sesiones, tarjetas del cuaderno, XP, logros, racha diaria y el `googleSub`). Las rondas de las partidas propias de Lichess / Chess.com llevan los usuarios de los jugadores (también los de los rivales) y los enlaces a esas partidas. Sin correo, sin token. |
 | Google | Pedidos de inicio de sesión y de Drive | Como en cualquier sitio con "Iniciar sesión con Google", Google sabe que se usó este sitio para iniciar sesión y recibe las llamadas a Drive. |
 | GitHub Pages | Logs normales de servidor web | Igual que para cualquier visita al sitio. Nada de Drive ni del progreso pasa por ahí. |
 
@@ -415,6 +430,18 @@ de cuenta está en la sección 13 de `docs/ARCHITECTURE.md`.
 
 ### Notas de privacidad
 
+* **Usuarios y enlaces a partidas.** Cuando alguien entrena con sus propias
+  partidas de Lichess o Chess.com, cada ronda guardada conserva los nombres de
+  los jugadores de esa partida (el usuario de quien entrena y el del rival) y el
+  enlace a la partida, y la sesión lleva como título el usuario de quien entrena.
+  Esto queda en el perfil y el cuaderno locales, se escribe en cada archivo de
+  exportación y se sube a Drive en `ludus-progress-v1.json` cuando el perfil está
+  vinculado. La app no tiene servidor: nada de esto le llega al dueño del sitio;
+  solo está en el dispositivo, en los archivos que la persona descarga y en su
+  propio Drive. La pantalla de Cuenta también lo dice (la nota de exportación y
+  las de sincronización). Para quitarlo: borrar el perfil (o "Borrar todos mis
+  datos") en la pantalla de Cuenta, borrar el archivo de Drive (ver más abajo) y
+  borrar las partidas descargadas en Ajustes > Privacidad.
 * No se le pide nada a Google (ni siquiera su script) hasta que la persona toca
   el botón. Con `googleClientId` vacío, la función no existe.
 * El token de acceso queda en memoria. Después de recargar se muestra el chip de
@@ -431,8 +458,10 @@ de cuenta está en la sección 13 de `docs/ARCHITECTURE.md`.
   sirve de base: "Ludus Scaccorum funciona por completo en tu navegador. Si
   elegís iniciar sesión con Google, la app lee tu nombre, correo y foto para
   mostrar tu cuenta, y guarda tu progreso de entrenamiento en un archivo oculto
-  de tu propio Google Drive al que solo puede acceder esta app. No operamos ningún
-  servidor y no recibimos nada de estos datos. Podés desconectar la app en
+  de tu propio Google Drive al que solo puede acceder esta app; si entrenaste con
+  tus propias partidas de Lichess o Chess.com, ese archivo también incluye los
+  usuarios de los jugadores de esas partidas (el tuyo y los de tus rivales) y los
+  enlaces a ellas. No operamos ningún servidor y no recibimos nada de estos datos. Podés desconectar la app en
   cualquier momento desde los permisos de tu Cuenta de Google y borrar el archivo
   desde la configuración de Google Drive."
 
@@ -444,7 +473,8 @@ de cuenta está en la sección 13 de `docs/ARCHITECTURE.md`.
 * **Una persona usuaria, los datos**: Google Drive -> **Configuración** ->
   **Administrar aplicaciones** -> Ludus Scaccorum -> borrar los datos ocultos de
   la app. El progreso local de cada dispositivo no se toca; los datos locales se
-  borran desde los ajustes de la app.
+  borran en la app: Cuenta > borrar un perfil o "Borrar todos mis datos" (los
+  usuarios y los enlaces a partidas se van con el perfil).
 * **El dueño, para apagar la función**: vaciá `googleClientId` en `config.js` y
   volvé a desplegar. Quien ya usaba la app conserva su progreso local; la pista
   vieja se ignora y se borra la primera vez que la app la mira.

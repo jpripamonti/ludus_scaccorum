@@ -21,7 +21,7 @@
 // i18n key or "undefined / NaN" on screen, and that document.title follows the screen):
 //   1  landing            a first visit; the language follows the browser
 //   2  home               the start button, the hub
-//   3  classics           the gallery of 28 games
+//   3  classics           the gallery of every game in the library
 //   4  a game             open "The Opera Game", replay a few moves, a training position shows its cue; "Try this
 //                         position" starts a one-position session and leaving it asks for confirmation
 //   5  training           2 positions: the best move by DRAG (mouse on desktop, touch on the phone), then the worst
@@ -354,10 +354,10 @@ async function journeyFlow(browser, vp, lang) {
     await goTo(journey, "home");
 
     // ----- 3. classics -----
-    say(journey, "3 classics: the gallery of 28 games");
+    say(journey, "3 classics: the gallery of the whole library");
     await goTo(journey, "classics");
     await page.waitForSelector(".classics-grid .classics-item", { timeout: 15000 });
-    assert.strictEqual(await page.locator(".classics-item").count(), 28);
+    assert.strictEqual(await page.locator(".classics-item").count(), await page.evaluate(() => Ludus.Classics.list().length));
     await checkTitle(journey, "classics", "home");
     await stage(journey, "classics-gallery", { screen: "classics" });
 
@@ -568,7 +568,7 @@ async function journeyFlow(browser, vp, lang) {
     await page.locator(".duel-count-input[value=\"5\"]").evaluate((input) => input.click());
     await dialog.locator(".modal-actions .btn-primary").click();
     await waitForScreen(page, "game");
-    await waitPhase(page, "thinking");
+    await waitPhase(page, "handoff"); // polish-flow PF-2: a duel starts covered (the first player's clock waits for a tap)
     const dueled = await evalIn(page, () => { const s = Ludus.game.session(); return { mode: s.mode, names: s.names, profileIds: s.profileIds, positions: s.positions }; });
     assert.strictEqual(dueled.mode, "duel");
     assert.deepStrictEqual(dueled.profileIds, [first.id, second.id]);
@@ -582,6 +582,8 @@ async function journeyFlow(browser, vp, lang) {
       await Ludus.game.startSession({ kind: "classic", title: "Duel", mode: "duel", names, profileIds, positions: window.__positions });
       return JSON.parse(JSON.stringify(window.__positions));
     }, { id: GAME, names: dueled.names, profileIds: dueled.profileIds });
+    await waitPhase(page, "handoff"); // polish-flow PF-2: every duel position starts covered, the first one included
+    await page.locator("#handoff-overlay").click();
     await waitPhase(page, "thinking");
     assert.strictEqual(await page.locator("#duel-score").isVisible(), true, "the duel scoreboard is on screen");
     await stage(journey, "duel-p1", { screen: "game" });

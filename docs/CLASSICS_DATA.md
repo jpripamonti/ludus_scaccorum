@@ -16,7 +16,7 @@ contract is in `docs/ARCHITECTURE.md` section 14.
 | `data/classics/verification.json` | Generated. Per game: input hash, ply count, engine sanity result (blunder list, final-position check). |
 | `data/classics/.cache/` | Git-ignored raw Stockfish output (resumable, deterministic rebuilds). |
 | `scripts/build-classics.js` | The builder (`--check`, `--analyze`, `--candidates` modes). |
-| `js/data/classics.data.js` | Generated, committed: `Ludus.ClassicsData` (about 250 KB, budget 700 KB). Loaded lazily by `Ludus.Classics.load()`. |
+| `js/data/classics.data.js` | Generated, committed: `Ludus.ClassicsData` (about 270 KB, budget 700 KB). Loaded lazily by `Ludus.Classics.load()`. |
 | `js/classics.js` | `Ludus.Classics`: loader and selector (list, get, positions, random, daily, story). |
 | `scripts/tests/classics.test.js` | Validates the data, the selector and the build tooling. Part of `npm test`. |
 
@@ -61,7 +61,7 @@ contract is in `docs/ARCHITECTURE.md` section 14.
    inputs (PGN and notes hashes) or by another builder version.
 
 Bump `BUILDER_VERSION` in `scripts/build-classics.js` whenever the selection logic or
-the output shape changes (3: the data carries `names` and `events`).
+the output shape changes (3: the data carries `names` and `events`; 4: `phase` comes from `Insights.gamePhase`).
 
 Other modes: `--check` (no engine: PGNs replay, data not stale), `--analyze` (engine sanity
 report only, needs no notes) and `--candidates` (adds a table of every protagonist move with
@@ -86,7 +86,7 @@ A game is included only if all four hold.
 4. **No corrupted score.** A Stockfish pass (depth 12, MultiPV 3) over every position
    of the game must not show a stream of blunders: at most 6 eval drops of 300 cp or
    more. Isolated famous blunders (and the sacrifices of the romantic era, which the
-   engine calls errors) are fine and are listed in `verification.json`. All 28 games are
+   engine calls errors) are fine and are listed in `verification.json`. All 29 games are
    under the limit without overrides (the worst has 5, all in repetition and mate-score
    noise of one game).
 
@@ -182,7 +182,21 @@ A review of the finished app (findings CNT-017 to CNT-020 and CNT-028) asked for
 
 **Not verified:** the exact day of `spassky-bronstein-1960` and `tal-larsen-1965`; the month of `reti-tartakower-1910` and `polugaevsky-nezhmetdinov-1958`; the time control of `kasparov-anand-1995-riga`; all the "Facts" sources remain search summaries.
 
-**Not done (DEFERRED):** the library has no game played by a woman (all 28 games are men's; Menchik and the Polgar sisters appear only in the facts). A good candidate is Judit Polgar-Kasparov, Russia vs the Rest of the World, Moscow, 9 September 2002 (a rapid game, PGN Mentor's `Kasparov.pgn`, C67, 42 moves). Adding one needs a second independent copy of the score, a cold engine pass for the new game (a minute or two), and coordinated edits of tests that hard-code 28 games and 248 positions (`scripts/tests/classics-ui.test.js`, `scripts/tests/insights.test.js`). The daily challenge would also change for every date.
+**Done later (PX-2, see "Polish pass" below):** the library now has a game played by a woman, Judit Polgar-Kasparov, Moscow 2002.
+
+## Polish pass (2026-10-01, data fixer polish-data)
+
+**PX-1: one game-phase classifier.** `phaseOf` in `scripts/build-classics.js` now calls `Insights.gamePhase` (`js/insights.js`, loaded in Node after `js/chess.js`) instead of carrying its own copy of the rule, which lacked the "four pieces or fewer" clause. Seven of the 248 positions were middlegames by the copy and endgames by the app: `lasker-bauer-1889` ply 66, `botvinnik-capablanca-1938` plies 62 and 64, `carlsen-nepomniachtchi-2021-g6` plies 160, 196, 248 and 266. Because `classify` puts `endgame` before `tactic`, `only-move` and `quiet`, their `kind` became `endgame` as well (three tactics, two quiet moves, one only-move; the first of them, 32.Qg5+ in Botvinnik-Capablanca, has two queens and two knights left). The choice of positions and every difficulty were unchanged. `BUILDER_VERSION` is now 4. The phase counts of the 248 positions went from 36 / 201 / 11 to 36 / 194 / 18 (opening / middlegame / endgame); with the new game they are 36 / 199 / 25. `scripts/tests/classics.test.js` asserts that the stored `phase` of every position equals `Insights.gamePhase(fen)`, so a change to the rule fails the test until the data is rebuilt. The consumers read the stored field only (`Ludus.Classics.positions` -> `Position.phase`, the notebook phase filter, the progress by-phase chart) and their tests pass unchanged.
+
+**PX-2: a game by a woman, Judit Polgar - Garry Kasparov** (`polgar-kasparov-2002`; Russia vs Rest of the World, Moscow, round 5, 9 September 2002, rapid 25 minutes plus 10 seconds a move, Berlin Defence, C67, 1-0 in 42 moves). It is the first game of the library played by a woman. What was checked:
+
+* The score (84 plies) is identical move for move, replayed with `js/chess.js`, in five public files of two lineages: PGN Mentor (`github.com/rozim/ChessData`, `PgnMentor/Kasparov.pgn`; the same text is in `github.com/BD-Chess/bd-chessdb` and `github.com/Pranav-Bhatlapenumarthi/KibitzAI`) and a ChessBase-style export with `ECO C67t` and `EventDate 2002.09.08` (`github.com/ology/Chess-Inspector`, `github.com/LuisGoeppel/ChessFX`). A web search result for the opening moves returned the same full score. Every copy gives the date as 2002.09.09 and round 5.
+* The facts (event, round, 9 September, rapid time control, Berlin Defence, "her first win against Kasparov") come from web search summaries of the chessgames.com page of the game, a chess.com article and the olimpbase.org page of the match. `WebFetch` was refused for chessgames.com and chessbase.com again, so no page was opened (the limits above apply).
+* The engine pass found no corrupted score (no eval drop of 300 cp or more at depth 12) and the final position is clearly decided (White +3.59 at depth 18 after 42...Kc8). The build picked 12 training positions (5 quiet, 7 endgame by the phase rule; two moments, 24.Bf4 and 39.Rcc7, written from the board only and replay-checked by the quoted-move test).
+* Dropped: a summary said Kasparov resigned "two pawns down". The material trace shows 4 pawns against 3 after 42...Kc8 (both white rooks on the seventh rank, which is why the engine sees +3.59), so the blurb does not say it, and a test fails if "two pawns" comes back. "The first time a woman beat the world number one" is in the summaries but not confirmed on a page, so the blurb says it "is usually presented as" that, in both languages.
+* Not verified: the opening name beyond "Berlin Defence" and the ECO code C67 (both as the PGN files and the chessgames summary give them), the nickname the chessgames page carries (not used), and any annotation of the game: no commentary was used.
+* Consequences: the library has 29 games and 260 positions (255 eligible for the daily challenge, which is a fixed shuffled list and so changed for every date: the position of a given day differs from before; a completed day stays completed because completion is stored per date). Tests that counted games now read the count from the data (`scripts/tests/classics-ui.test.js`, `scripts/e2e/learn.js`, `scripts/e2e/walkthrough.js`); the screen's table of country codes gained `RUS` (`js/ui/classics.js`).
+* A latent bug found with this game's notes and fixed in `js/classics.js` (`quotedMoveRuns`): a quoted run that ends on a numbered move followed by punctuation ("27.Bxe5, and") was found a second time from its own move number, so a re-spelled text showed the move twice ("27.Bxe5Bxe5"). A regression test covers it, and another asserts that no text of the library lists a quoted move twice.
 
 ## Display names, events and quoted moves
 
@@ -201,12 +215,12 @@ One entry per person and per event, so the two languages spell each one a single
 
 **Quoted moves and notation (CNT-006, data side).** Blurbs and moment notes quote moves ("15.Bxh7+ Kxh7 16.Qxh5+"). Each language spells the pieces its own way in the stored text: Spanish `R D T A C` (rey, dama, torre, alfil, caballo; in Spanish `R` can only be the king), English `K Q R B N`; castling, pawn moves, `x`, `+`, `#` and `=` are the same. The Spanish facts (`js/facts.js`) follow the same rule. Tests replay every quoted move from the game's own position (`scripts/tests/classics.test.js`, "texts: every quoted move replays legally...") and check that both languages quote the same moves. A person who picked another notation in Settings (`notation.style`) gets the quotes re-spelled by `Ludus.Classics.localizeQuotedMoves(text, textLang)`, which finds the quoted runs (`Ludus.Classics.quotedMoveRuns(text)`) and writes each move with `Ludus.chess.localizeSan`; screens that show a blurb or note should pass it through this function (`textLang` is the language the text was written in). Without the function the text is still right for the default setting.
 
-**The daily challenge pool (CNT-022, data side).** `Classics.daily` indexes a fixed shuffled list of the eligible positions (243 of the 248: forced mates in one are skipped), so the same position comes back after 243 days and "always different" is false. A larger pool helps: each game adds 6 to 12 positions (days before a repeat), so about 15 more games would cover a year. The copy ("without repeating for months") is the screens' owner's.
+**The daily challenge pool (CNT-022, data side).** `Classics.daily` indexes a fixed shuffled list of the eligible positions (255 of the 260: forced mates in one are skipped), so the same position comes back after 255 days and "always different" is false. A larger pool helps: each game adds 6 to 12 positions (days before a repeat), so about 15 more games would cover a year. The copy ("without repeating for months") is the screens' owner's.
 
 ## Data shape (`Ludus.ClassicsData`)
 
 ```js
-{ v: 1, engine: "Stockfish 18 lite (depth 18)", depth: 18, builtAt: "<ISO>", builder: 3,
+{ v: 1, engine: "Stockfish 18 lite (depth 18)", depth: 18, builtAt: "<ISO>", builder: 4,
   inputs: { notes: "<hash>", games: { "<id>": "<hash of the PGN>" } },
   names:  { "<raw PGN White/Black tag>": { es, en } },       // display forms, see "Display names"
   events: { "<raw PGN Event tag>": { es, en } },
@@ -218,7 +232,7 @@ One entry per person and per event, so the two languages spell each one a single
       ply,                                    // 0-based index of the master's move
       fen,                                    // position BEFORE that move (= replay of moves[0..ply-1])
       uci, san,                               // the master's move
-      kind, phase, difficulty,                // see below
+      kind, phase, difficulty,                // see below; phase is Insights.gamePhase(fen)
       note?: {es,en},                         // hand-written moment
       ms, mpv,                                // engine score of the master's move and its PV (uci, <= 8 plies)
       lines: [{ uci, san, score, pv }]        // depth 18, MultiPV 5, best first
@@ -232,7 +246,7 @@ One entry per person and per event, so the two languages spell each one a single
   position `difficulty` (1-3) are computed from the engine data, not hand-set:
   * `sacrifice`: the master's PV shows the mover giving up at least two pawns of
     material that stays given up over the last two exchanges (or ends in mate);
-  * `endgame`: at most 24 points of non-pawn material on the board;
+  * `endgame`: the position's phase is `endgame` by `Insights.gamePhase` (non-pawn material 16 or less, or four pieces or fewer, or no queens and 26 or less; see "Polish pass");
   * `tactic`: mate within 6, or a forcing move (capture, check, promotion) whose
     alternatives are at least 8 win-percent worse;
   * `only-move`: best line at least 12 win-percent better than the second line (the
@@ -259,7 +273,7 @@ that data before the final choice.
 ## Using the library from a screen
 
 ```js
-await Ludus.Classics.load();                       // lazy: js/data/classics.data.js, ~250 KB, idempotent
+await Ludus.Classics.load();                       // lazy: js/data/classics.data.js, ~270 KB, idempotent
 Ludus.Classics.list();                             // metadata only, chronological
 Ludus.Classics.get("opera-1858");                  // full frozen record (moves, positions, sources)
 Ludus.Classics.positions("opera-1858", { count: 6, maxDifficulty: 2, shuffle: false });
@@ -305,7 +319,7 @@ reference lines are Stockfish 18 lite output (`vendor/`, GPL, see `THIRD_PARTY_N
 
 ## Games
 
-All 28 games passed the standard: they replay legally, the finals agree with the results,
+All 29 games passed the standard: they replay legally, the finals agree with the results,
 the headline facts were confirmed (see each game's `sources` in `notes.json`) and the
 engine pass found no corrupted score. "Copies that agree" counts the other public files
 whose moves are identical to the stored score (see "Known discrepancies" for the
@@ -340,12 +354,13 @@ depth 12 pass (famous blunders and mate-score noise included). Sorted chronologi
 | `kasparov-anand-1995-riga` | Garry Kasparov - Viswanathan Anand, Tal Memorial, Riga LAT, 1995 (1-0) | White | 8 (0) | PGN Mentor + 2 | 0 | decided |
 | `deepblue-kasparov-1997-g6` | Deep Blue - Garry Kasparov, IBM Man-Machine match, New York USA, 1997 (1-0) | White | 6 (1) | PGN Mentor + 3 | 0 | decided |
 | `kasparov-topalov-1999` | Garry Kasparov - Veselin Topalov, Hoogovens, Wijk aan Zee NED, 1999 (1-0) | White | 12 (3) | PGN Mentor + 5 | 2 | decided |
+| `polgar-kasparov-2002` | Judit Polgar - Garry Kasparov, Russia vs Rest of the World, Moscow RUS, 2002 (1-0) | White | 12 (2) | PGN Mentor + 4 (two lineages) | 0 | decided |
 | `aronian-anand-2013` | Levon Aronian - Viswanathan Anand, Tata Steel, Wijk aan Zee NED, 2013 (0-1) | Black | 7 (1) | PGN Mentor + 2 | 1 | decided |
 | `carlsen-nepomniachtchi-2021-g6` | Magnus Carlsen - Ian Nepomniachtchi, World Championship match, Dubai UAE, 2021 (1-0) | White | 12 (0) | PGN Mentor + 2 | 0 | decided |
 
 ## Considered and not included
 
-No game was dropped for failing the verification standard. The list stops at 28 to keep
+No game was dropped for failing the verification standard. The list stops at 29 to keep
 exactness ahead of volume. These were considered and left out for now, none of them
 cross-checked: Karpov-Kasparov 1985 game 24 and Kasparov-Anand 1995 game 10 (both are in
 PGN Mentor), Carlsen-Caruana 2018 (round 13.1 in the collection) and Ding-Gukesh 2024 game 14

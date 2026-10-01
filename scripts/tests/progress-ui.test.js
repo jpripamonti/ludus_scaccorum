@@ -790,7 +790,10 @@ test("achievements: the whole catalogue, unlocked with the date, locked with the
   assert.ok(/: [\d,]+ de \d+$/.test(bar.getAttribute("aria-label")), bar.getAttribute("aria-label"));
   assert.ok(text(locked).includes("Bloqueado"), "locked is said in words too (screen readers)");
   assert.ok(all(locked, ".sr-only").some((n) => text(n).startsWith("Bloqueado")));
-  assert.ok(!/%|de todos los jugadores|players/.test(text(q(el, ".progress-ach-card"))), "no rarity, no invented numbers");
+  // polish-corecopy (PC-1): a description may state its own threshold ("más de 80% de precisión"); what must not appear is a rarity or a
+  // percentage of its own, so the descriptions are taken out of the text before it is searched.
+  const withoutDescriptions = all(q(el, ".progress-ach-card"), ".progress-ach-desc").reduce((acc, node) => acc.split(text(node)).join(""), text(q(el, ".progress-ach-card")));
+  assert.ok(!/%|de todos los jugadores|players/.test(withoutDescriptions), "no rarity, no invented numbers");
   const filter = (name) => q(el, `.progress-ach-filter [data-filter="${name}"]`);
   // QA VIS-002 / CNT-027: the longest label of the control is short enough for a 320px phone ("Desbloqueados" collided with its neighbour).
   assert.deepStrictEqual(["all", "done", "todo"].map((name) => text(filter(name))), ["Todos", "Logrados", "Pendientes"]);

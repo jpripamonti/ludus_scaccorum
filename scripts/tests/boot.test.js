@@ -32,7 +32,7 @@ function makeElement(tag) {
   return el;
 }
 
-// options: stored (localStorage content), languages, framed, topThrows, supports(fn), noCss, noFetch, bodyReady
+// options: stored (localStorage content), languages (or a whole navigator object), framed, topThrows, supports(fn), noCss, noFetch, bodyReady
 function run(options = {}) {
   const root = makeElement("html");
   const head = makeElement("head");
@@ -64,7 +64,7 @@ function run(options = {}) {
   const win = {
     setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; },
     document,
-    navigator: { languages: options.languages || ["en-US"], language: (options.languages || ["en-US"])[0] },
+    navigator: options.navigator || { languages: options.languages || ["en-US"], language: (options.languages || ["en-US"])[0] },
     self,
     Promise,
     fetch: options.noFetch ? undefined : function fetch() {},
@@ -180,6 +180,96 @@ function run(options = {}) {
   assert.ok(es.textOf(es.body.children[0]).includes("Tu navegador es demasiado viejo"));
   const fr = run({ supports: () => false, languages: ["fr-FR"] });
   assert.ok(fr.textOf(fr.body.children[0]).includes("Your browser is too old"), "only Spanish browsers get Spanish");
+}
+
+// ---------- PC-4: the page language before the app loads is the one the app will pick ----------
+
+{
+  // js/ludus.js decides the language of the app (Ludus.i18n.lang()); js/boot.js has to pick the same one for its notices because it
+  // runs earlier and cannot import. Both are run over the same table of inputs. A browser says its languages in navigator.languages (a list)
+  // and, where that is empty or missing, in navigator.language (one string); a stored choice (ludus.language) wins over both.
+  const ludusSource = fs.readFileSync(path.join(repoRoot, "js", "ludus.js"), "utf8");
+  function appLanguage(navigator, stored, storageThrows) {
+    const storage = {
+      getItem(key) {
+        if (storageThrows) throw new Error("SecurityError");
+        return Object.prototype.hasOwnProperty.call(stored || {}, key) ? stored[key] : null;
+      },
+      setItem() {},
+    };
+    const context = vm.createContext({ navigator, localStorage: storage, console });
+    vm.runInContext(ludusSource, context, { filename: "js/ludus.js" });
+    return context.Ludus.i18n.lang();
+  }
+  function bootLanguage(navigator, stored, storageThrows) {
+    // The language shows in the notice a framed page gets, the only visible output of boot.js.
+    const framed = run({ framed: true, navigator, stored, storageThrows });
+    const text = framed.textOf(framed.body.children[0]);
+    if (text.includes("Abrir Ludus Scaccorum")) return "es";
+    if (text.includes("Open Ludus Scaccorum")) return "en";
+    throw new Error(`no notice language in: ${text}`);
+  }
+  const nav = (languages, language) => ({ languages, language });
+  const table = [
+    ["es-AR", nav(["es-AR"], "es-AR"), null, "es"],
+    ["es", nav(["es"], "es"), null, "es"],
+    ["en-US, es: the first of the two supported languages wins", nav(["en-US", "es"], "en-US"), null, "en"],
+    ["fr, es-MX: a language that is neither is skipped", nav(["fr-FR", "es-MX"], "fr-FR"), null, "es"],
+    ["fr", nav(["fr"], "fr"), null, "en"],
+    ["pt-BR, de", nav(["pt-BR", "de"], "pt-BR"), null, "en"],
+    ["an empty list and no language", nav([], undefined), null, "en"],
+    ["no list and no language", nav(undefined, undefined), null, "en"],
+    ["no list, language ES-ar (any case)", nav(undefined, "ES-ar"), null, "es"],
+    ["an empty list falls back to language", nav([], "es-ES"), null, "es"],
+    ["ast (Asturian) is not Spanish", nav(["ast"], "ast"), null, "en"],
+    ["est (Estonian) is not Spanish: only 'es' and 'es-*' are", nav(["est"], "est"), null, "en"],
+    ["es_AR (an underscore)", nav(["es_AR"], "es_AR"), null, "es"],
+    ["a null entry", nav([null, "es"], null), null, "es"],
+    ["a list that is not a list", nav("es-AR", "es-AR"), null, "es"],
+    ["stored en beats a Spanish browser", nav(["es-AR"], "es-AR"), { "ludus.language": "en" }, "en"],
+    ["stored es beats an English browser", nav(["en-US"], "en-US"), { "ludus.language": "es" }, "es"],
+    ["stored value in capitals", nav(["en-US"], "en-US"), { "ludus.language": "ES" }, "es"],
+    ["stored value that is no language means the default (Spanish)", nav(["en-US"], "en-US"), { "ludus.language": "fr" }, "es"],
+    ["an empty stored value is no choice", nav(["en-US"], "en-US"), { "ludus.language": "" }, "en"],
+  ];
+  table.forEach(([label, navigator, stored, expected]) => {
+    const app = appLanguage(navigator, stored, false);
+    const boot = bootLanguage(navigator, stored, false);
+    assert.strictEqual(app, expected, `js/ludus.js: ${label}`);
+    assert.strictEqual(boot, app, `js/boot.js and js/ludus.js agree: ${label}`);
+  });
+  // Blocked storage: the browser's language decides, in both.
+  assert.strictEqual(bootLanguage(nav(["es-AR"], "es-AR"), null, true), "es");
+  assert.strictEqual(bootLanguage(nav(["fr"], "fr"), null, true), "en");
+  assert.strictEqual(appLanguage(nav(["es-AR"], "es-AR"), null, true), "es");
+  // A navigator that throws on access is English in both (no guess).
+  const throwing = {};
+  Object.defineProperty(throwing, "languages", { get() { throw new Error("no"); } });
+  assert.strictEqual(bootLanguage(throwing, null, false), "en");
+}
+
+// ---------- PC-3: the language buttons are named, and the landing says what own-game rounds keep ----------
+
+{
+  // "ES" / "EN" alone are read out letter by letter: each button is named in its own language, with that language as its lang.
+  const button = (id) => new RegExp(`<button id="${id}"[^>]*>`).exec(html)[0];
+  assert.ok(/lang="es"/.test(button("language-btn-es")) && /aria-label="Español"/.test(button("language-btn-es")));
+  assert.ok(/lang="en"/.test(button("language-btn-en")) && /aria-label="English"/.test(button("language-btn-en")));
+  // The privacy card of the landing (js/ui/home.js) says, in both languages, what is stored, that nothing reaches the authors and how to delete it.
+  const home = fs.readFileSync(path.join(repoRoot, "js", "ui", "home.js"), "utf8");
+  const card = (lang) => {
+    const block = home.split(lang === "es" ? "  es: {" : "  en: {")[1];
+    return /"ld\.private\.b\.body": "([^"]*)"/.exec(block)[1];
+  };
+  const es = card("es");
+  const en = card("en");
+  assert.ok(/usuario/.test(es) && /rivales/.test(es) && /enlace/.test(es) && /servidor/.test(es) && /nos llega/.test(es) && /Cuenta/.test(es), es);
+  assert.ok(/username/.test(en) && /opponents/.test(en) && /link/.test(en) && /no server/.test(en) && /reaches us/.test(en) && /Account/.test(en), en);
+  // README and the Google notes say it too, in both languages.
+  const readme = fs.readFileSync(path.join(repoRoot, "README.md"), "utf8");
+  const google = fs.readFileSync(path.join(repoRoot, "docs", "GOOGLE_SIGNIN.md"), "utf8");
+  ["**Usernames and game links.**", "**Usuarios y enlaces a partidas.**"].forEach((heading) => assert.ok(google.includes(heading), `GOOGLE_SIGNIN.md: ${heading}`));
+  assert.ok(/Usernames and game links/.test(readme) && /Usuarios y enlaces a partidas/.test(readme), "README.md says it in both languages");
 }
 
 // ---------- the file itself ----------

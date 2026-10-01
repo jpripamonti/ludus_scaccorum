@@ -16,6 +16,7 @@ const ROOT = path.resolve(__dirname, "..", "..");
 require(path.join(ROOT, "js", "ludus.js"));
 const chessApi = require(path.join(ROOT, "js", "chess.js"));
 require(path.join(ROOT, "js", "pgn.js"));
+const Insights = require(path.join(ROOT, "js", "insights.js"));
 const Classics = require(path.join(ROOT, "js", "classics.js"));
 const builder = require(path.join(ROOT, "scripts", "build-classics.js"));
 const data = require(path.join(ROOT, "js", "data", "classics.data.js"));
@@ -164,6 +165,8 @@ test("data: training positions match the replayed game and their reference lines
       assert.strictEqual(p.uci, moveToUci(objs[p.ply]), `${where}: uci differs from the game`);
       assert.ok(KINDS.includes(p.kind), `${where}: kind ${p.kind}`);
       assert.ok(PHASES.includes(p.phase), `${where}: phase ${p.phase}`);
+      // PX-1: the stored phase is the app's one classifier applied to this position, never a second rule.
+      assert.strictEqual(p.phase, Insights.gamePhase(p.fen), `${where}: phase differs from Insights.gamePhase (rebuild the data)`);
       assert.ok([1, 2, 3].includes(p.difficulty), `${where}: difficulty`);
       if (p.note) assert.ok(isText(p.note, 10, 320), `${where}: note`);
 
@@ -398,6 +401,34 @@ test("Classics.story lists every ply with position flags", async () => {
   assert.ok(story.plies.some((e) => e.note), "the Immortal Game has hand-written moments");
 });
 
+test("kind hints: the 'only move' sentence says what Scoring means by it, in the coach's words; no hint claims what the data does not (PB-4, CNT-004)", () => {
+  const Scoring = require(path.join(ROOT, "js", "scoring.js"));
+  const gap = String(Scoring.CONSTANTS.ONLY_MOVE_GAP_PCT);
+  assert.strictEqual(gap, "12");
+  ["es", "en"].forEach((lang) => {
+    const hint = Classics.kindHint("only-move", lang);
+    assert.ok(hint.includes(gap), `${lang}: the sentence carries the threshold of Scoring (${gap}): ${hint}`);
+    assert.ok(/percentage points|puntos porcentuales/.test(hint), `${lang}: the unit is the coach's (percentage points of win chance)`);
+    assert.ok(lang === "en" ? /win chance/.test(hint) && !/winning chances|odds|probability/i.test(hint) : /chances de ganar/.test(hint), `${lang}: one name for win chance`);
+    assert.ok(lang === "en" ? /every other move/i.test(hint) : /cualquier otra jugada/i.test(hint), `${lang}: EVERY other move, as onlyMove is defined`);
+    assert.ok(!/only one move keeps|solo una jugada mantiene/i.test(hint), `${lang}: it does not say the move keeps the advantage (the runner-up may still be winning)`);
+  });
+  // The data and the scorer use the same threshold: a position of kind "only-move" has its best line at least that much better than the second.
+  const WIN = Scoring.winPercent;
+  data.games.forEach((game) => game.positions.filter((p) => p.kind === "only-move").forEach((p) => {
+    if (p.lines.length < 2) return;
+    const second = Math.max(...p.lines.slice(1).map((line) => line.score));
+    assert.ok(WIN(p.lines[0].score) - WIN(second) >= Scoring.CONSTANTS.ONLY_MOVE_GAP_PCT - 1e-6, `${game.id}@${p.ply}: an only move beats every other line by ${gap} points`);
+  }));
+  // "Quiet" positions do include captures and checks: its sentence must not deny them.
+  const quietWithForcing = data.games.some((game) => game.positions.some((p) => p.kind === "quiet" && /[x+#]/.test(p.san)));
+  assert.ok(quietWithForcing, "the data has quiet positions won by a capture or a check");
+  ["es", "en"].forEach((lang) => assert.ok(!/capturas ni jaques|without immediate captures/i.test(Classics.kindHint("quiet", lang)), `${lang}: the quiet sentence does not deny captures`));
+  // American spelling in the English labels.
+  assert.strictEqual(Classics.themeLabel("defence", "en"), "Defense");
+  Classics.KINDS.forEach((k) => assert.ok(!/\b(practis|analys|defence|colour|centre)/i.test(Classics.kindHint(k, "en") + Classics.kindLabel(k, "en")), k));
+});
+
 test("Classics registers Spanish and English labels", () => {
   Classics.registerI18n();
   const i18n = global.Ludus.i18n;
@@ -468,6 +499,16 @@ test("builder: material, phase and sacrifice detection", () => {
   assert.strictEqual(builder.phaseOf(new Chess()), "opening");
   assert.strictEqual(builder.phaseOf(new Chess("8/8/4k3/8/8/4K3/4P3/8 w - - 0 1")), "endgame");
   assert.strictEqual(builder.phaseOf(new Chess("r2q1rk1/pp2bppp/2n1pn2/3p4/3P4/2N1PN2/PP2BPPP/R2Q1RK1 w - - 0 12")), "middlegame");
+  // PX-1: the builder asks Insights.gamePhase. Four pieces left (two queens and two knights) is an
+  // endgame there although 24 points of non-pawn material is not by the material rule alone; the
+  // builder's old private copy called this middlegame (Botvinnik-Capablanca 1938, 32.Qg5+).
+  const fourPieces = new Chess("8/p5kp/1p2Pn2/3pQ2p/2pP4/qnP5/6PP/6K1 w - - 0 32");
+  assert.strictEqual(Insights.gamePhase(fourPieces), "endgame");
+  assert.strictEqual(builder.phaseOf(fourPieces), "endgame", "phaseOf follows Insights.gamePhase");
+  [new Chess(), new Chess("8/8/4k3/8/8/4K3/4P3/8 w - - 0 1"), fourPieces,
+    new Chess("r1bq1rk1/pp2bppp/2n1pn2/2pp4/3P1B2/2PBPN2/PP1N1PPP/R2QK2R w KQ - 0 14")].forEach((chess) => {
+    assert.strictEqual(builder.phaseOf(chess), Insights.gamePhase(chess));
+  });
   // Opera Game, move 16: Qb8+! Nxb8 Rd8# is a queen sacrifice ending in mate
   assert.ok(!builder.isSacrifice("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", ["e2e4", "e7e5", "g1f3", "b8c6"]));
   const opera = replayFromStart(["e4", "e5", "Nf3", "d6", "d4", "Bg4", "dxe5", "Bxf3", "Qxf3", "dxe5", "Bc4", "Nf6", "Qb3", "Qe7", "Nc3", "c6", "Bg5", "b5", "Nxb5", "cxb5", "Bxb5+", "Nbd7", "O-O-O", "Rd8", "Rxd7", "Rxd7", "Rd1", "Qe6", "Bxd7+", "Nxd7"]);
@@ -568,7 +609,7 @@ test("build --check detects illegal moves and stale data (on a scratch copy)", (
   try {
     fs.mkdirSync(path.join(tmp, "scripts"), { recursive: true });
     fs.copyFileSync(path.join(ROOT, "scripts", "build-classics.js"), path.join(tmp, "scripts", "build-classics.js"));
-    ["ludus.js", "chess.js", "pgn.js"].forEach((f) => {
+    ["ludus.js", "chess.js", "pgn.js", "insights.js"].forEach((f) => { // insights.js: the builder's phase classifier (PX-1)
       fs.mkdirSync(path.join(tmp, "js"), { recursive: true });
       fs.copyFileSync(path.join(ROOT, "js", f), path.join(tmp, "js", f));
     });
@@ -720,6 +761,18 @@ test("texts: Spanish notation is unambiguous and Classics.localizeQuotedMoves re
     assert.deepStrictEqual(Classics.quotedMoveRuns(text), [], text);
     assert.strictEqual(Classics.localizeQuotedMoves(text, "es", { lang: "en" }), text);
   });
+  // PX-2: a run that ends on a numbered move followed by punctuation ("27.Axe5, y") is one run. It used to be found a
+  // second time from its own move number, and the re-spelled text then carried the last move twice ("27.Bxe5Bxe5").
+  const closing = "En la partida siguió 24...Axf5 25.gxf5 fxe5 26.Te1 Ad6 27.Axe5, y las blancas recuperaron el peón.";
+  assert.deepStrictEqual(Classics.quotedMoveRuns(closing).map((run) => [run.ply, run.words.map((w) => w.text).join(" ")]), [[47, "Axf5 gxf5 fxe5 Te1 Ad6 Axe5"]]);
+  if (typeof Chess2.localizeSan === "function") {
+    assert.strictEqual(Classics.localizeQuotedMoves(closing, "es", { lang: "en" }), "En la partida siguió 24...Bxf5 25.gxf5 fxe5 26.Re1 Bd6 27.Bxe5, y las blancas recuperaron el peón.");
+  }
+  // ...and no text of the library has two runs that share a word
+  data.games.forEach((g) => gameTexts(g).forEach((item) => {
+    const starts = Classics.quotedMoveRuns(item.text).flatMap((run) => run.words.map((w) => w.start));
+    assert.strictEqual(new Set(starts).size, starts.length, `${item.where}: a quoted move is listed twice`);
+  }));
   // every Spanish letter maps to a different English one: the quote can always be read back
   assert.strictEqual(new Set(Object.values(ES_TO_EN)).size, 5);
 });
@@ -767,7 +820,8 @@ test("texts: dates are never finer than what was confirmed", () => {
     "botvinnik-capablanca-1938": "1938.11.22", "byrne-fischer-1956": "1956.10.17", "spassky-bronstein-1960": "1960.02.??",
     "tal-larsen-1965": "1965.08.??", "larsen-spassky-1970": "1970.03.31", "fischer-spassky-1972-g6": "1972.07.23",
     "karpov-kasparov-1985-g16": "1985.10.15", "short-timman-1991": "1991.10.21", "deepblue-kasparov-1997-g6": "1997.05.11",
-    "kasparov-topalov-1999": "1999.01.20", "aronian-anand-2013": "2013.01.15", "carlsen-nepomniachtchi-2021-g6": "2021.12.03",
+    "kasparov-topalov-1999": "1999.01.20", "polgar-kasparov-2002": "2002.09.09", "aronian-anand-2013": "2013.01.15",
+    "carlsen-nepomniachtchi-2021-g6": "2021.12.03",
   };
   data.games.forEach((g) => {
     const yearOnly = `${g.year}.??.??`;
@@ -799,6 +853,34 @@ test("texts: claims that were corrected stay corrected (Marshall attack, Kasparo
   assert.ok(!/antologad|anthologised/.test(game("polugaevsky-nezhmetdinov-1958").blurb.es + game("polugaevsky-nezhmetdinov-1958").blurb.en), "the unsourced 'most anthologised' claim is gone");
   // the Réti game is a casual game (Tartakower called it a Freipartie), not a tournament called "Vienna"
   assert.strictEqual(game("reti-tartakower-1910").event, "Casual game");
+});
+
+test("texts: the Polgar-Kasparov game (PX-2) is the library's game by a woman and keeps its claims to what was checked", () => {
+  const pk = data.games.find((g) => g.id === "polgar-kasparov-2002");
+  assert.ok(pk, "the library has Polgar-Kasparov, Moscow 2002");
+  assert.strictEqual(pk.white, "Judit Polgar");
+  assert.strictEqual(pk.black, "Garry Kasparov");
+  assert.strictEqual(pk.result, "1-0");
+  assert.strictEqual(pk.protagonist, "w", "the learner plays Polgar's side");
+  assert.strictEqual(pk.moves.length, 84, "42 moves, ending 42.Rxg7 Kc8");
+  assert.strictEqual(pk.moves[0], "e4");
+  assert.strictEqual(pk.moves[83], "Kc8");
+  // The score agrees with every public copy that was compared (docs/CLASSICS_DATA.md): spot-check the moves the notes quote.
+  assert.deepStrictEqual(pk.moves.slice(14, 16), ["Qxd8+", "Kxd8"], "queens come off on move 8");
+  assert.strictEqual(pk.moves[46], "Bf4");
+  assert.strictEqual(pk.moves[76], "Rcc7");
+  assert.strictEqual(pk.moves[82], "Rxg7");
+  // A search summary said Kasparov resigned "two pawns down"; the board shows 4 pawns against 3 (and both rooks on the 7th),
+  // so no text may say two pawns.
+  const { chess } = replay(pk);
+  const count = (piece) => chess.board.filter((p) => p === piece).length;
+  assert.strictEqual(count("P"), 4);
+  assert.strictEqual(count("p"), 3);
+  gameTexts(pk).forEach((item) => assert.ok(!/dos peones|two pawns/i.test(item.text), `${item.where}: the board shows one pawn, not two`));
+  // The "first woman to beat the world number one" claim comes from search summaries only: it must stay hedged.
+  assert.ok(/suele presentarse/.test(pk.blurb.es) && /usually presented/.test(pk.blurb.en), "the 'first woman' claim is hedged in both languages");
+  assert.deepStrictEqual(data.names["Judit Polgar"], { es: "Judit Polgár", en: "Judit Polgár" });
+  assert.strictEqual(Classics.displayEvent("Russia vs Rest of the World", "es"), "Rusia contra el Resto del Mundo");
 });
 
 // ---------------------------------------------------------------- runner

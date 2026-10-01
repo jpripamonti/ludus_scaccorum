@@ -16,7 +16,7 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 const { load, localScripts } = require("./_load.js");
-const { createFakeDom, FakeElement } = require("./_fakedom.js");
+const { createFakeDom, FakeElement, createThrowingLocalStorage } = require("./_fakedom.js");
 
 // The fake elements' style is a bare object; app.js sets CSS custom properties.
 Object.defineProperty(FakeElement.prototype, "style", {
@@ -138,8 +138,12 @@ function createFakeEngine(table, options = {}) {
           } else {
             lines = known.lines.slice(0, multiPv).map((candidate) => ({ uci: candidate.uci, value: candidate.mate !== undefined ? { mate: candidate.mate } : candidate.cp, pv: candidate.pv }));
           }
+          // A search that was given a depth stops there (the way UCI does); the others report what the test says
+          // (options.rootDepth for MultiPV, options.moveDepth for a single move), 14 by default.
+          const asked = /\bdepth (\d+)/.exec(line);
+          const reported = asked ? Number(asked[1]) : (searchMoves ? options.moveDepth : options.rootDepth) || 14;
           lines.forEach((candidate, index) => {
-            emit(`info depth 14 seldepth 18 multipv ${index + 1} ${scoreText(candidate.value)} nodes 12000 nps 400000 time 30 pv ${candidate.pv.join(" ")}`);
+            emit(`info depth ${reported} seldepth 18 multipv ${index + 1} ${scoreText(candidate.value)} nodes 12000 nps 400000 time 30 pv ${candidate.pv.join(" ")}`);
           });
           emit(`bestmove ${lines.length ? lines[0].uci : "(none)"}`);
         }
@@ -208,7 +212,7 @@ function makeEnv(options = {}) {
       errors.push(args.map((arg) => (arg && arg.stack ? arg.stack : String(arg))).join(" "));
     },
   };
-  const dom = createFakeDom({ languages: options.languages || ["en"], storageMap: options.storageMap });
+  const dom = createFakeDom({ languages: options.languages || ["en"], storageMap: options.storageMap, localStorage: options.localStorage });
   // The very first session of a profile has no clock (first-run behaviour, tested on its own): every other test
   // plays as someone who has been here before.
   if (!options.firstRun) dom.storageMap.set("ludus.firstRun.v1", "1");
@@ -676,6 +680,146 @@ test("a position that brings its lines is scored against them; a move outside th
   assertClean(t);
 });
 
+// ---------- PF-1: the learner's move is judged on the best line's terms ----------
+
+// "go movetime 1500 depth 16 searchmoves g7g5" -> { movetime: 1500, depth: 16, searchmoves: ["g7g5"] }
+function parseGo(line) {
+  const out = { movetime: null, depth: null, searchmoves: null };
+  const movetime = /\bmovetime (\d+)/.exec(line);
+  const depth = /\bdepth (\d+)/.exec(line);
+  const searchIndex = line.indexOf(" searchmoves ");
+  if (movetime) out.movetime = Number(movetime[1]);
+  if (depth) out.depth = Number(depth[1]);
+  if (searchIndex >= 0) out.searchmoves = line.slice(searchIndex + " searchmoves ".length).split(" ");
+  return out;
+}
+
+test("PF-1: a move outside the lines is searched to the depth of the best line, with at least its time", async () => {
+  const t = makeEnv({ engineOptions: { rootDepth: 16, moveDepth: 22 } });
+  const { Ludus, events, engine } = t;
+  // No lines of its own: the round searches the root with MultiPV (the best line reaches depth 16) and then the move.
+  await Ludus.game.startSession({ kind: "classic", title: "Terms", positions: [position(t, 1)] });
+  click(t, "g7", "g5"); // not among the lines
+  await waitForResult(t);
+  const gos = engine.goCommands().map(parseGo);
+  const roots = gos.filter((go) => !go.searchmoves);
+  const moves = gos.filter((go) => go.searchmoves && go.searchmoves[0] === "g7g5");
+  assert.strictEqual(roots.length, 1, "one MultiPV search for the best line");
+  assert.strictEqual(roots[0].depth, null, "the best line is searched for a time");
+  assert.strictEqual(moves.length, 1, "and the move once");
+  assert.strictEqual(moves[0].depth, 16, "to the depth the best line reached, not to the depth a single move could reach in the same time");
+  assert.ok(moves[0].movetime >= roots[0].movetime, `never a smaller time ceiling (${moves[0].movetime} against ${roots[0].movetime})`);
+  assert.ok(moves[0].movetime <= 3500, "and never past the longest search a round allows");
+  assert.strictEqual(events.rounds[0].userUci, "g7g5");
+  assert.ok(events.rounds[0].points <= 2.5, "and the score is still the move's own");
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+test("PF-1: a position's own lines carry their depth: the answer and the move of the game are searched to it", async () => {
+  const t = makeEnv();
+  const { Ludus, engine } = t;
+  const reference = {
+    depth: 18,
+    origin: "precomputed",
+    lines: [
+      { uci: "e2e4", san: "e4", score: 30, pv: ["e2e4", "e7e5"] },
+      { uci: "d2d4", san: "d4", score: 25, pv: ["d2d4", "d7d5"] },
+    ],
+  };
+  await Ludus.game.startSession({ kind: "classic", title: "Ref", positions: [position(t, 0, { reference, gameMoveUci: "g1f3", gameMoveSan: "Nf3", bestMoveUci: "e2e4" })] });
+  click(t, "a2", "a4");
+  await waitForResult(t);
+  const gos = engine.goCommands().map(parseGo);
+  assert.ok(!gos.some((go) => !go.searchmoves), "no reference search: the lines came with the position");
+  const answer = gos.find((go) => go.searchmoves && go.searchmoves[0] === "a2a4");
+  const game = gos.find((go) => go.searchmoves && go.searchmoves[0] === "g1f3");
+  assert.strictEqual(answer.depth, 18, "the learner's move reaches the depth the offline pass gave the best line");
+  assert.strictEqual(game.depth, 18, "and so does the move of the game, shown next to it");
+  assert.ok(answer.movetime >= 1000 && answer.movetime <= 3500, `a ceiling, not the budget (${answer.movetime})`);
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+test("PF-1: a depth is no budget when the best line is a mate or only a few plies deep: then it is the time, as before", async () => {
+  // Mate: the engine stops at the first mate it finds, at any depth.
+  const mate = makeEnv();
+  const mateFen = "7k/5Q2/6K1/8/8/8/8/8 w - - 0 1";
+  await mate.Ludus.game.startSession({ kind: "classic", title: "Mate", positions: [{ fen: mateFen, source: "classic" }] });
+  click(mate, "f7", "f1");
+  await waitForResult(mate);
+  const mateMove = mate.engine.goCommands().map(parseGo).find((go) => go.searchmoves && go.searchmoves[0] === "f7f1");
+  assert.ok(mateMove, "the move was searched");
+  assert.strictEqual(mateMove.depth, null, "no depth to match when the best line is a forced mate");
+  assert.ok(mateMove.movetime > 0);
+  await mate.Ludus.game.abort();
+  assertClean(mate);
+
+  // Too shallow to be a budget (a slow device that got to 6 plies).
+  const slow = makeEnv({ engineOptions: { rootDepth: 6 } });
+  await slow.Ludus.game.startSession({ kind: "classic", title: "Slow", positions: [position(slow, 1)] });
+  click(slow, "g7", "g5");
+  await waitForResult(slow);
+  const slowMove = slow.engine.goCommands().map(parseGo).find((go) => go.searchmoves && go.searchmoves[0] === "g7g5");
+  assert.strictEqual(slowMove.depth, null, "6 plies is not a depth worth matching");
+  await slow.Ludus.game.abort();
+  assertClean(slow);
+});
+
+test("PF-1: a move is never searched twice: the move of the game that is the answer, and the same round played again", async () => {
+  const t = makeEnv();
+  const { Ludus, engine } = t;
+  const searchesOf = (uci) => engine.goCommands().map(parseGo).filter((go) => go.searchmoves && go.searchmoves[0] === uci).length;
+  // The person plays the move that was played in the game, and it is not among the lines: one search serves the answer and the master's eval.
+  const play = async () => {
+    await Ludus.game.startSession({ kind: "classic", title: "Once", positions: [position(t, 1, { gameMoveUci: "g7g5", gameMoveSan: "g5" })] });
+    click(t, "g7", "g5");
+    await waitForResult(t);
+  };
+  await play();
+  assert.strictEqual(searchesOf("g7g5"), 1, "the answer and the move of the game are one search");
+  const roots = engine.goCommands().map(parseGo).filter((go) => !go.searchmoves).length;
+  assert.strictEqual(roots, 1);
+  await Ludus.game.abort();
+  // The same position and the same move in another session (a rematch, a review): the engine is not asked again.
+  await play();
+  assert.strictEqual(searchesOf("g7g5"), 1, "the same position and move are answered from the cache");
+  assert.strictEqual(engine.goCommands().map(parseGo).filter((go) => !go.searchmoves).length, roots, "and so is the best line");
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+test("PF-1: the backup engine searches the best line and the learner's move to the same fixed depth", async () => {
+  const t = makeEnv({ engineOptions: { failStart: true } });
+  const { Ludus, fens } = t;
+  await Ludus.game.startSession({ kind: "classic", title: "Local", positions: [position(t, 1)] });
+  await waitFor(() => Ludus.game.isUsingFallbackEngine(), "the fallback");
+  const best = await Ludus.game.analyzePosition(fens[1], { multiPv: 3, movetimeMs: 300 });
+  const move = await Ludus.game.analyzePosition(fens[1], { searchMoves: ["g7g5"], depth: 16, movetimeMs: 600 });
+  assert.strictEqual(best.source, "local");
+  assert.strictEqual(move.source, "local");
+  assert.strictEqual(best.depth, move.depth, "the same depth for both, whatever depth was asked of the strong engine");
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+test("PF-1: the ceiling of a move's search is never below the best line's time and the whole round stays under the hard cap", async () => {
+  const t = makeEnv();
+  const { Ludus } = t;
+  for (const strength of ["fast", "balanced", "deep"]) {
+    Ludus.Settings.set("engine.strength", strength);
+    for (const answers of [1, 2]) {
+      for (const lines of [false, true]) {
+        const plan = state(t, `getRoundEvaluationPlan(new Chess(), ${lines ? '{ reference: { depth: 18, lines: [{ uci: "e2e4", score: 30, pv: ["e2e4"] }] } }' : "{}"}, ${answers})`);
+        assert.ok(plan.moveMovetimeMs >= plan.movetimeMs, `${strength}/${answers}/${lines}: ${plan.moveMovetimeMs} < ${plan.movetimeMs}`);
+        assert.ok(plan.moveMovetimeMs <= 3500, `${strength}: the longest search a round allows`);
+        assert.ok(plan.totalBudgetMs <= 10000, `${strength}/${answers}/${lines}: the round's ceiling is ${plan.totalBudgetMs}`);
+      }
+    }
+  }
+  assertClean(t);
+});
+
 test("mates: missing a forced mate costs points and says why; playing the mate is worth ten", async () => {
   const t = makeEnv();
   const { Ludus, events } = t;
@@ -846,11 +990,35 @@ test("duel: two players are scored against the same reference in one pass, one r
   assert.deepStrictEqual(events.started[0].names, ["Ana", "Beto"]);
   assert.strictEqual(state(t, "duelPlayerName(0)"), "Ana");
 
+  // The first position starts covered too (PF-2): the clock of the player who goes first waits for a tap, the board ignores
+  // the touch, and the cover says who goes first, that the device goes to them and that nobody has played yet.
+  assert.strictEqual(state(t, "STATE.ui.phase"), "duel_ready");
+  assert.strictEqual(state(t, "STATE.duel.readyWait"), true);
+  assert.strictEqual(state(t, "STATE.duel.firstPlayer"), 0, "the first player of the duel starts the first position");
+  await delay(60); // the live region is refilled 30 ms after it is emptied
+  assert.strictEqual(state(t, "document.getElementById('game-layout').dataset.phase"), "handoff");
+  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-title").textContent'), "Ana, get ready");
+  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-eyebrow").textContent'), "Position 1 of 2");
+  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-subtitle").textContent'), "Pass the device to Ana, who goes first this time. Beto waits without looking. The clock starts when you tap the screen.");
+  assert.strictEqual(state(t, 'document.getElementById("play-announce").textContent').startsWith("Position 1 of 2. Ana, get ready. Pass the device to Ana"), true, "a screen reader is told, politely, once");
+  const roundOneStarted = state(t, "STATE.roundStartedAt");
+  click(t, "e2", "e4");
+  assert.strictEqual(state(t, "STATE.roundSubmitted"), false, "a touch on the covered board is ignored");
+  assert.strictEqual(state(t, "STATE.roundStartedAt"), roundOneStarted, "the round has not started behind the cover");
+  env.run("revealDuelSecondTurn()");
+  assert.strictEqual(state(t, "STATE.ui.phase"), "playing");
+  assert.strictEqual(state(t, "STATE.duel.readyWait"), false);
+  assert.ok(state(t, "STATE.roundStartedAt") > roundOneStarted, "the tap starts the round (and its clock)");
+
   // Player 1 plays the best move: nothing is evaluated yet, the board is handed over.
   click(t, "e2", "e4");
   await waitFor(() => state(t, "STATE.ui.phase") === "handoff_ready", "the handoff");
+  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-title").textContent'), "Pass the device to Beto");
+  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-eyebrow").textContent'), "Ana has played");
   assert.strictEqual(events.rounds.length, 0, "nothing is announced until both have played");
-  assert.strictEqual(engine.goCommands().length, 0, "and the engine has not been asked yet");
+  // The engine may already be searching the position (the reference search starts while the first player thinks, behind the
+  // cover too), but nobody's move has been searched: nothing is scored until both have played.
+  assert.ok(engine.goCommands().every((line) => !line.includes("searchmoves")), "no move was asked of the engine yet");
 
   // Player 2 blunders.
   env.run("revealDuelSecondTurn()");
@@ -889,18 +1057,22 @@ test("duel: two players are scored against the same reference in one pass, one r
   assert.strictEqual(state(t, "duelReviewPlayers().length >= 0"), true);
   assert.ok(state(t, "duelReviewPlayers().every((player) => player.profileId && player.name)"), "only profile players can review");
 
-  // Second position, then the end.
+  // Second position, then the end. The players take turns going first (PF-2): this time it is Beto, so his clock is the one
+  // that waits for a tap, the cover names him, and Ana is the one who is handed the device after he has played.
+  assert.deepStrictEqual(state(t, "STATE.resultView.context.answers.map((answer) => answer.name)"), ["Ana", "Beto"], "the cards are in player order");
   await env.context.nextPosition();
-  assert.strictEqual(state(t, "STATE.duel.currentPlayer"), 0);
-  // From the second position on the first player's clock waits for a tap: the position is covered, the board ignores
-  // the touch, nothing runs, and the cover says whose turn it is (and not, like the handoff, that somebody has played).
+  assert.strictEqual(state(t, "STATE.duel.firstPlayer"), 1, "the second player starts the second position");
+  assert.strictEqual(state(t, "STATE.duel.currentPlayer"), 1);
   assert.strictEqual(state(t, "STATE.ui.phase"), "duel_ready");
   assert.strictEqual(state(t, "STATE.duel.readyWait"), true);
   const startedBefore = state(t, "STATE.roundStartedAt");
   await delay(15);
   assert.strictEqual(state(t, "document.getElementById('game-layout').dataset.phase"), "handoff");
-  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-title").textContent'), "Ana, get ready");
+  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-title").textContent'), "Beto, get ready");
   assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-eyebrow").textContent'), "Position 2 of 2");
+  assert.ok(state(t, 'document.getElementById("handoff-overlay-subtitle").textContent').startsWith("Pass the device to Beto, who goes first this time. Ana waits without looking."));
+  assert.strictEqual(state(t, 'document.getElementById("duel-b").getAttribute("aria-current")'), "true", "the scoreboard points at who goes first");
+  assert.strictEqual(state(t, 'document.getElementById("duel-a").getAttribute("aria-current")'), null);
   click(t, "e7", "e5");
   assert.strictEqual(state(t, "STATE.roundSubmitted"), false, "a touch on the covered board is ignored");
   assert.strictEqual(state(t, "STATE.roundStartedAt"), startedBefore, "the round has not started behind the cover");
@@ -910,9 +1082,20 @@ test("duel: two players are scored against the same reference in one pass, one r
   assert.ok(state(t, "STATE.roundStartedAt") > startedBefore, "the tap starts the round (and its clock)");
   click(t, "e7", "e5");
   await waitFor(() => state(t, "STATE.ui.phase") === "handoff_ready", "the handoff");
+  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-title").textContent'), "Pass the device to Ana", "Beto went first, so Ana is next");
+  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-eyebrow").textContent'), "Beto has played");
   env.run("revealDuelSecondTurn()");
+  assert.strictEqual(state(t, "STATE.duel.currentPlayer"), 0, "Ana moves second");
+  assert.strictEqual(state(t, 'document.getElementById("duel-a").getAttribute("aria-current")'), "true");
   click(t, "e7", "e5");
   await waitForResult(t);
+  // However the turns went, the answers, the scores and the records belong to the same people in the same places.
+  assert.deepStrictEqual(state(t, "STATE.resultView.context.answers.map((answer) => answer.name)"), ["Ana", "Beto"]);
+  assert.deepStrictEqual(state(t, "STATE.resultView.context.answers.map((answer) => answer.playerIndex)"), [0, 1]);
+  assert.deepStrictEqual(events.rounds.slice(2).map((round) => round.profileId), [linked, null], "Ana's round is hers, Beto's is a guest's, although Beto went first");
+  assert.ok(state(t, "STATE.resultView.context.rewards[0] !== null && STATE.resultView.context.rewards[1] === null"), "the profile's rewards are on Ana's card");
+  assert.strictEqual(state(t, "STATE.duel.scores[0]"), 20);
+  assert.strictEqual(state(t, "STATE.duel.hits[1]"), 1, "Beto's best move in position 2");
   await env.context.nextPosition();
   assert.strictEqual(events.completed.length, 1);
   const record = events.completed[0];
@@ -927,6 +1110,91 @@ test("duel: two players are scored against the same reference in one pass, one r
   assert.ok(state(t, 'document.getElementById("result-overlay-points").textContent').includes("Winner: Ana"), "the winner logic works on the 0..10 scale");
   assert.strictEqual(Ludus.Profile.sessions().length, 1, "recorded for the linked profile");
   assert.strictEqual(Ludus.Profile.sessions()[0].duel.me, 0);
+  assertClean(t);
+});
+
+test("PF-2: the players take turns going first, every position starts covered, and the answers stay with their players", async () => {
+  const t = makeEnv();
+  const { Ludus, env, events, engine } = t;
+  const cover = t.dom.document.getElementById("handoff-overlay");
+  let focused = 0;
+  cover.focus = () => { focused += 1; };
+  await Ludus.game.startSession({
+    kind: "classic",
+    title: "Turns",
+    mode: "duel",
+    names: ["Ana", "Beto"],
+    profileIds: [null, null],
+    positions: [position(t, 0), position(t, 1), position(t, 2)],
+    options: { clock: { mode: "untimed" } },
+  });
+  // Both play the same moves in every position; in the second one it is a move outside the lines (-200 cp).
+  const moves = [["e2", "e4"], ["g7", "g5"], ["g1", "f3"]];
+  const firsts = [];
+  for (let index = 0; index < 3; index += 1) {
+    const first = state(t, "STATE.duel.firstPlayer");
+    const names = ["Ana", "Beto"];
+    firsts.push(first);
+    assert.strictEqual(state(t, "STATE.ui.phase"), "duel_ready", `position ${index + 1} starts covered`);
+    assert.strictEqual(state(t, "STATE.duel.currentPlayer"), first);
+    await delay(15);
+    assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-title").textContent'), `${names[first]}, get ready`, "the cover names who goes first");
+    assert.ok(state(t, 'document.getElementById("handoff-overlay-subtitle").textContent').startsWith(`Pass the device to ${names[first]}, who goes first this time. ${names[1 - first]} waits without looking.`));
+    assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-avatar").textContent'), ["A", "B"][first], "and the avatar is theirs");
+    assert.ok(focused >= 1, "the focus goes to the cover: a tap, Enter or Space starts the clock");
+    focused = 0;
+    env.run("revealDuelSecondTurn()");
+    click(t, ...moves[index]);
+    await waitFor(() => state(t, "STATE.ui.phase") === "handoff_ready", "the handoff");
+    assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-title").textContent'), `Pass the device to ${names[1 - first]}`);
+    env.run("revealDuelSecondTurn()");
+    assert.strictEqual(state(t, "STATE.duel.currentPlayer"), 1 - first, "the other player moves second");
+    click(t, ...moves[index]);
+    await waitForResult(t);
+    assert.deepStrictEqual(state(t, "STATE.resultView.context.answers.map((answer) => answer.name)"), ["Ana", "Beto"], "the cards are always Ana's then Beto's");
+    if (index < 2) await env.context.nextPosition();
+  }
+  assert.deepStrictEqual(firsts, [0, 1, 0], "they take turns, starting with the first player of the duel");
+  assert.deepStrictEqual(state(t, "STATE.session.records.map((record) => record.playerIndex)"), [0, 1, 0, 1, 0, 1], "every record belongs to the same player in every position");
+  assert.strictEqual(events.rounds.length, 6);
+  assert.strictEqual(state(t, "STATE.duel.scores[0]"), state(t, "STATE.duel.scores[1]"), "the same moves score the same for either player, whoever went first");
+  // The move outside the lines that both players made is searched once, whoever went first (PF-1).
+  assert.strictEqual(engine.goCommands().filter((line) => line.includes("searchmoves g7g5")).length, 1);
+
+  // A new duel starts with the first player again, in the other language too.
+  await Ludus.game.startSession({ kind: "classic", title: "Again", mode: "duel", names: ["Ana", "Beto"], positions: [position(t, 0), position(t, 1)], options: { clock: { mode: "untimed" } } });
+  assert.strictEqual(state(t, "STATE.duel.firstPlayer"), 0);
+  Ludus.i18n.setLanguage("es");
+  await delay(15);
+  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-title").textContent'), "Ana, preparate");
+  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-subtitle").textContent'), "Pasale el dispositivo a Ana, que empieza esta vez. Beto espera sin mirar. El reloj arranca cuando toques la pantalla.");
+  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-eyebrow").textContent'), "Posición 1 de 2");
+  Ludus.i18n.setLanguage("en");
+  await Ludus.game.abort();
+  assertClean(t);
+});
+
+test("PF-2: a long name wraps in the cover and nothing about whose turn it is depends on how long it is", async () => {
+  const t = makeEnv();
+  const { Ludus, env } = t;
+  const long = ["Maximiliano Alejandro Pe", "WWWWWWWWWWWWWWWWWWWWWWWW"]; // 24 letters, the longest a profile name may be (a duel keeps 20)
+  await Ludus.game.startSession({ kind: "classic", title: "Long", mode: "duel", names: long, positions: [position(t, 0), position(t, 1)], options: { clock: { mode: "untimed" } } });
+  const kept = state(t, "STATE.session.names");
+  assert.deepStrictEqual(kept, [long[0].slice(0, 20), long[1].slice(0, 20)], "a duel keeps 20 letters of a name");
+  await delay(60);
+  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-title").textContent'), `${kept[0]}, get ready`);
+  assert.ok(state(t, 'document.getElementById("handoff-overlay-subtitle").textContent').includes(`Pass the device to ${kept[0]}`));
+  assert.ok(state(t, 'document.getElementById("handoff-overlay-subtitle").textContent').includes(`${kept[1]} waits without looking`));
+  assert.ok(state(t, 'document.getElementById("play-announce").textContent').includes(kept[0]), "the announcement names the player too");
+  env.run("revealDuelSecondTurn()");
+  click(t, "e2", "e4");
+  await waitFor(() => state(t, "STATE.ui.phase") === "handoff_ready", "the handoff");
+  env.run("revealDuelSecondTurn()");
+  click(t, "g2", "g4");
+  await waitForResult(t);
+  await env.context.nextPosition();
+  assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-title").textContent'), `${kept[1]}, get ready`, "the second player goes first in the second position");
+  await Ludus.game.abort();
   assertClean(t);
 });
 
@@ -1497,7 +1765,7 @@ test("CNT-023/024/025/030: the hint names its piece with its article; plurals; n
   assert.strictEqual(env.run('t("provider.usingCachedBase", { provider: "Lichess", user: "ana", games: 12 }, "es")'), "Usamos la base guardada de Lichess para ana: 12 partidas.");
   assert.strictEqual(env.run('t("provider.throttleWait", { seconds: 1 }, "en")'), "Please wait 1 second before downloading again, so we do not overload the service.");
   assert.strictEqual(env.run('t("provider.throttleHourly", { max: 12, minutes: 5 }, "es")'), "Ya se descargaron partidas 12 veces en la última hora. Probá de nuevo en unos 5 minutos.");
-  assert.strictEqual(env.run('t("provider.throttleHourly", { max: 12, minutes: 1 }, "es")'), "Ya se descargaron partidas 12 veces en la última hora. Probá de nuevo en unos 1 minuto.");
+  assert.strictEqual(env.run('t("provider.throttleHourly", { max: 12, minutes: 1 }, "es")'), "Ya se descargaron partidas 12 veces en la última hora. Probá de nuevo en 1 minuto.", "a form of a plural may carry the number itself (PC-1)");
   // No "(s)" hedge and no English jargon left in the dictionary, and no contraction in English.
   const dictionary = env.run("TRANSLATIONS");
   ["es", "en"].forEach((lang) => Object.entries(dictionary[lang]).forEach(([key, text]) => {
@@ -1507,6 +1775,176 @@ test("CNT-023/024/025/030: the hint names its piece with its article; plurals; n
   Object.entries(dictionary.en).forEach(([key, text]) => assert.ok(!/\b\w+n't\b|\b(we|you|they)'(re|ll|ve)\b/i.test(text), `en ${key} uses a contraction: ${text}`));
   // Both languages have the same keys (nothing is written in one language only).
   assert.deepStrictEqual(Object.keys(dictionary.es).sort(), Object.keys(dictionary.en).sort());
+});
+
+test("PC-4: app.js picks the language the way js/ludus.js and js/boot.js do", async () => {
+  // The same table scripts/tests/boot.test.js runs through js/boot.js and js/ludus.js: first es*/en* entry of the list wins, anything else is English,
+  // a stored choice wins (and an unknown stored value means the default, Spanish).
+  const table = [
+    [{ languages: ["es-AR"], language: "es-AR" }, null, "es"],
+    [{ languages: ["es"], language: "es" }, null, "es"],
+    [{ languages: ["en-US", "es"], language: "en-US" }, null, "en"],
+    [{ languages: ["fr-FR", "es-MX"], language: "fr-FR" }, null, "es"],
+    [{ languages: ["fr"], language: "fr" }, null, "en"],
+    [{ languages: [], language: undefined }, null, "en"],
+    [{ languages: undefined, language: undefined }, null, "en"],
+    [{ languages: undefined, language: "ES-ar" }, null, "es"],
+    [{ languages: [], language: "es-ES" }, null, "es"],
+    [{ languages: ["ast"], language: "ast" }, null, "en"],
+    [{ languages: ["est"], language: "est" }, null, "en"],
+    [{ languages: ["es_AR"], language: "es_AR" }, null, "es"],
+    [{ languages: ["es-AR"], language: "es-AR" }, "en", "en"],
+    [{ languages: ["en-US"], language: "en-US" }, "es", "es"],
+    [{ languages: ["en-US"], language: "en-US" }, "ES", "es"],
+    [{ languages: ["en-US"], language: "en-US" }, "fr", "es"],
+  ];
+  table.forEach(([navigator, stored, expected]) => {
+    const t = makeEnv();
+    t.dom.storageMap.delete("ludus.language");
+    if (stored) t.dom.storageMap.set("ludus.language", stored);
+    t.dom.navigator.languages = navigator.languages;
+    t.dom.navigator.language = navigator.language;
+    assert.strictEqual(t.env.run("detectInitialLanguage()"), expected, JSON.stringify([navigator, stored]));
+  });
+});
+
+test("PC-1/CNT-029..034: one wording for the strings of app.js (win chance, points, American spelling, vos, ellipsis, plurals)", async () => {
+  // Every string app.js puts on screen: its own dictionary and the "core." block it registers in the shared one, read from the source
+  // (the two blocks are plain "key": "text" lines under "  es: {" / "  en: {").
+  const source = fs.readFileSync(path.join(__dirname, "..", "..", "app.js"), "utf8").split("\n");
+  const strings = { es: {}, en: {} };
+  let language = null;
+  source.forEach((line) => {
+    if (/^  es: \{$/.test(line)) language = "es";
+    else if (/^  en: \{$/.test(line)) language = "en";
+    else if (/^  \},?$/.test(line) || /^\};$/.test(line) || /^\}\);$/.test(line)) language = null;
+    const match = language && /^ {4}"([A-Za-z0-9_.]+)": ("(?:[^"\\]|\\.)*"),$/.exec(line);
+    if (match) strings[language][match[1]] = JSON.parse(match[2]);
+  });
+  assert.ok(Object.keys(strings.es).length > 300 && Object.keys(strings.en).length > 300, "the dictionaries were found");
+  assert.deepStrictEqual(Object.keys(strings.es).sort(), Object.keys(strings.en).sort(), "both languages have the same keys");
+  const tokens = (text) => Array.from(new Set(Array.from(text.replace(/\{(\w+)\?(?:[^|{}]|\{\w+\})*\|(?:[^{}]|\{\w+\})*\}/g, "{$1}").matchAll(/\{(\w+)\}/g)).map((match) => match[1]))).sort();
+  Object.keys(strings.es).forEach((key) => {
+    const es = strings.es[key];
+    const en = strings.en[key];
+    assert.deepStrictEqual(tokens(es), tokens(en), `${key}: both languages use the same placeholders`);
+    // Spanish: voseo, no English left over, one ellipsis character, no "(s)", "solo" without the accent, "7 %" without the space.
+    assert.ok(!/\b(elige|prueba|tú|tienes|puedes|quieres|toca|vuelve|ingresa|selecciona|usted)\b/i.test(es), `es ${key}: tuteo in "${es}"`);
+    assert.ok(!/\(s\)|\.\.\.|sólo|fallback|\bonline\b| %/i.test(es), `es ${key}: "${es}"`);
+    assert.ok(!/\b(Omitir|Omití|Comenzar)\b/.test(es), `es ${key}: "Saltear" and "Empezar" are the words of the rest of the app: "${es}"`);
+    assert.ok(!/\b1 (posiciones|partidas|días|aciertos|segundos|minutos)\b/.test(es), `es ${key}: plural of one in "${es}"`);
+    assert.ok(!/\bPrecisi[oó]n\b \(0/.test(es), `es ${key}: the 0-10 score of a position is "puntos", accuracy is the percentage: "${es}"`);
+    // English: American spelling, no contraction, one name for the win chance, "points" for the score.
+    assert.ok(!/colour|analyse|analysing|favour|centre|defence|licence|practise|recognise|organis|prioritis|judgement|cancell/i.test(en), `en ${key}: American English in "${en}"`);
+    assert.ok(!/\b\w+n't\b|\b(we|you|they)'(re|ll|ve)\b/i.test(en), `en ${key}: no contraction in "${en}"`);
+    assert.ok(!/winning chances|win probability|\bodds\b|\bPrecision\b|\(s\)|\.\.\.|half way|carry on/i.test(en), `en ${key}: "${en}"`);
+  });
+  // The words of the two buttons the person presses most, in both languages.
+  assert.strictEqual(strings.es["buttons.startSession"], "Empezar sesión");
+  assert.strictEqual(strings.es["buttons.skipMove"], "Saltear (0 pts)");
+  assert.strictEqual(strings.en["scoring.system.simple.label"], "Points (0 to 10)");
+  assert.strictEqual(strings.es["scoring.system.simple.label"], "Puntos (0 a 10)");
+  assert.strictEqual(strings.es["core.engine.downloading"], "Descargando el motor de análisis: {pct}%");
+});
+
+test("PC-2: the exit and resume questions never say 'saved' when the profile's storage failed", async () => {
+  const askExit = async (t) => {
+    let asked = null;
+    t.env.context.showConfirmModal = async (options) => { asked = options; return false; };
+    await t.env.context.confirmRestartToSetup();
+    return asked && asked.body;
+  };
+  // Storage works: the promise is true and stays.
+  const good = makeEnv();
+  await good.Ludus.game.startSession({ kind: "classic", title: "Fine", positions: [position(good, 0), position(good, 1)], options: { clock: { mode: "untimed" } } });
+  await playAndWait(good, "e2", "e4");
+  assert.ok(/stays saved in your progress/.test(await askExit(good)), "when it was saved, the exit question says so");
+  await good.Ludus.game.abort();
+
+  // The browser refuses to store from now on (a full quota): the question says that the answers go with the session.
+  const bad = makeEnv();
+  bad.dom.localStorage.setItem = () => { throw new Error("QuotaExceededError"); };
+  await bad.Ludus.game.startSession({ kind: "classic", title: "Lost", positions: [position(bad, 0), position(bad, 1)], options: { clock: { mode: "untimed" } } });
+  await playAndWait(bad, "e2", "e4");
+  const exitBody = await askExit(bad);
+  assert.ok(/is not saving your progress/.test(exitBody) && !/saved in your progress/.test(exitBody), exitBody);
+  bad.env.run('setLanguage("es")');
+  const exitEs = await askExit(bad);
+  assert.ok(/no está guardando tu progreso/.test(exitEs) && /volvés/.test(exitEs) && !/queda guardado/.test(exitEs), exitEs);
+  bad.env.run('setLanguage("en")');
+
+  // The tab keeps what is needed to resume, and whether it was saved.
+  const sessionMap = new Map();
+  const fakeSessionStorage = {
+    getItem: (key) => (sessionMap.has(key) ? sessionMap.get(key) : null),
+    setItem: (key, value) => { sessionMap.set(key, String(value)); },
+    removeItem: (key) => { sessionMap.delete(key); },
+  };
+  const first = makeEnv();
+  first.dom.window.sessionStorage = fakeSessionStorage;
+  await first.Ludus.game.startSession({ kind: "classic", title: "Interrupted", positions: [position(first, 0), position(first, 1), position(first, 2)], options: { clock: { mode: "untimed" } } });
+  await playAndWait(first, "e2", "e4");
+  assert.strictEqual(JSON.parse(sessionMap.get("ludus.sessionProgress.v1")).unsaved, "", "saved: the record says so");
+  await first.Ludus.game.abort();
+
+  const resumeBody = async (record, options = {}) => {
+    sessionMap.set("ludus.sessionProgress.v1", JSON.stringify(record));
+    const next = makeEnv(options);
+    next.dom.window.sessionStorage = fakeSessionStorage;
+    let asked = null;
+    next.env.context.showConfirmModal = async (opts) => { asked = opts; return false; };
+    await next.env.context.offerSessionResume();
+    return { asked, next };
+  };
+  const base = { v: 1, at: Date.now(), id: "s_r", kind: "classic", title: "Interrupted", mode: "solo", options: {}, answered: 1, total: 3, remaining: [position(first, 1), position(first, 2)], unsaved: "" };
+  const okAsk = (await resumeBody(base)).asked;
+  assert.ok(/you answered 1 of 3 positions\. That is already saved in your progress\. Do you want to continue with the 2 that are left\?/.test(okAsk.body), okAsk.body);
+  // One position left: singular, not "the 1 that are left".
+  const one = (await resumeBody(Object.assign({}, base, { remaining: [position(first, 2)] }))).asked;
+  assert.ok(/continue with the one that is left\?/.test(one.body) && !/1 that are/.test(one.body), one.body);
+  // The old page's Profile saw the write fail: never "already saved".
+  const lost = (await resumeBody(Object.assign({}, base, { unsaved: "quota" }))).asked;
+  assert.ok(!/already saved/.test(lost.body) && /may not have been saved: browser storage is full/.test(lost.body), lost.body);
+  const blockedBefore = (await resumeBody(Object.assign({}, base, { unsaved: "blocked" }))).asked;
+  assert.ok(!/already saved/.test(blockedBefore.body) && /does not let this site store data/.test(blockedBefore.body) && /only kept in this tab while it stays open/.test(blockedBefore.body), blockedBefore.body);
+  // The new page cannot store anything (private tab): the record looked fine, the storage now says no.
+  const blockedNow = (await resumeBody(base, { localStorage: createThrowingLocalStorage() })).asked;
+  assert.ok(blockedNow && !/already saved/.test(blockedNow.body) && /does not let this site store data/.test(blockedNow.body), blockedNow && blockedNow.body);
+  // Spanish, voseo, same honesty.
+  const es = await resumeBody(Object.assign({}, base, { unsaved: "blocked" }), { languages: ["es-AR"] });
+  assert.ok(/respondiste 1 de 3 posiciones\. Pero no se guardó: este navegador no deja guardar datos en este sitio/.test(es.asked.body) && /solo se conserva en esta pestaña/.test(es.asked.body) && /¿Seguís con las 2 que faltan\?/.test(es.asked.body) && !/ya está guardado/.test(es.asked.body), es.asked.body);
+  const esOne = (await resumeBody(Object.assign({}, base, { remaining: [position(first, 2)] }), { languages: ["es-AR"] })).asked;
+  assert.ok(/¿Seguís con la que falta\?/.test(esOne.body), esOne.body);
+  // The note of a session that cannot be rebuilt (a duel, the own games) says the same.
+  const duel = await resumeBody({ v: 1, at: Date.now(), id: "s_d", kind: "classic", title: "Duel", mode: "duel", options: {}, answered: 2, total: 5, remaining: null, unsaved: "quota" });
+  assert.ok(duel.next.events.toasts.some((entry) => /answered 2 of 5/.test(entry.message) && /may not have been saved/.test(entry.message) && !/already saved/.test(entry.message)), JSON.stringify(duel.next.events.toasts));
+  const duelOk = await resumeBody({ v: 1, at: Date.now(), id: "s_d", kind: "classic", title: "Duel", mode: "duel", options: {}, answered: 2, total: 5, remaining: null });
+  assert.ok(duelOk.next.events.toasts.some((entry) => /answered 2 of 5\. That is already saved in your progress\./.test(entry.message)), JSON.stringify(duelOk.next.events.toasts));
+});
+
+test("PC-1: a plural may carry its number; the clock says '1 second', not '1 seconds'", async () => {
+  const t = makeEnv();
+  const { env } = t;
+  assert.strictEqual(env.run('interpolate("{n?1 minuto|unos {n} minutos}", { n: 1 })'), "1 minuto");
+  assert.strictEqual(env.run('interpolate("{n?1 minuto|unos {n} minutos}", { n: 5 })'), "unos 5 minutos");
+  assert.strictEqual(env.run('interpolate("{n} {n?día|días}", { n: 1 })'), "1 día", "the older form is unchanged");
+  assert.strictEqual(env.run('interpolate("{n} {n?día|días}", { n: 0 })'), "0 días");
+  assert.strictEqual(env.run('interpolate("{a?x|y {b}} {b}", { a: 2, b: "<i>" })'), "y <i> <i>", "values stay plain text");
+  assert.strictEqual(env.run('t("provider.completingBlitz", { count: 3, preferred: "Rápido", remaining: 1 }, "es")'), "Descargamos 3 partidas de ritmo Rápido. Completando con Blitz (falta 1)…");
+  assert.strictEqual(env.run('t("provider.completingBlitz", { count: 3, preferred: "Rápido", remaining: 4 }, "es")'), "Descargamos 3 partidas de ritmo Rápido. Completando con Blitz (faltan 4)…");
+  assert.strictEqual(env.run('t("core.clock.resumed.one", {}, "es")'), "El reloj sigue: te queda 1 segundo.");
+  assert.strictEqual(env.run('t("core.clock.resumed", { seconds: 12 }, "es")'), "El reloj sigue: te quedan 12 segundos.");
+  assert.strictEqual(env.run('t("core.clock.resumed.one", {}, "en")'), "The clock is running again: 1 second left.");
+  // The real thing: the page comes back with one second left.
+  await t.Ludus.game.startSession({ kind: "classic", title: "Lock", positions: [position(t, 0), position(t, 1)], options: { clock: { mode: "timed", seconds: 60 } } });
+  t.dom.document.visibilityState = "hidden";
+  env.run("onPageVisibilityChange()");
+  env.run("STATE.timer.remainingAtPause = 1000");
+  t.dom.document.visibilityState = "visible";
+  env.run("onPageVisibilityChange()");
+  await delay(60);
+  assert.strictEqual(state(t, 'document.getElementById("play-announce").textContent'), "The clock is running again: 1 second left.");
+  await t.Ludus.game.abort();
 });
 
 test("PERF-015: the clock paints what changed and only that; it ticks once per displayed second", async () => {
