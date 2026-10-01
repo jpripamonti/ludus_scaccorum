@@ -385,11 +385,12 @@ async function notebookScenario(browser) {
 
   step("text, theme, phase, origin and quality filters combine and can be cleared");
   const someone = (await page.evaluate(() => Ludus.Profile.notebook.list({}).map((c) => c.meta.players).filter(Boolean)))[0];
-  const word = someone.split(/\s+/)[0].replace(/[^\p{L}\d]/gu, "");
+  // The first run of letters or digits (an opponent called "Marta_92" must not become "Marta92", which no card contains).
+  const word = (someone.match(/[\p{L}\d]{3,}/u) || [""])[0];
   await page.locator("#notebook-search").fill(word.toLowerCase());
   await page.waitForFunction((n) => document.querySelectorAll(".notebook-card").length <= n, counts.total);
   const expectedText = await page.evaluate((w) => Ludus.Profile.notebook.list({}).filter((c) => `${c.meta.players || ""} ${c.meta.event || ""}`.toLowerCase().includes(w.toLowerCase())).length, word);
-  assert.ok(expectedText >= 1);
+  assert.ok(expectedText >= 1, `the text filter finds its own word: ${JSON.stringify({ someone, word })}`);
   await page.waitForFunction((n) => /of \d+ cards|^\d+ cards?$/.test(document.querySelector(".notebook-count").textContent) && document.querySelector(".notebook-count").textContent.trim().startsWith(String(n)), expectedText, { timeout: 5000 }).catch(() => {});
   assert.ok(!(await page.locator(".notebook-clear").isHidden()), "clear filters appears");
   await page.locator(".notebook-clear").click();
