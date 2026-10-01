@@ -1173,6 +1173,13 @@ test("PF-2: the players take turns going first, every position starts covered, a
   assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-subtitle").textContent'), "Pasale el dispositivo a Ana, que empieza esta vez. Beto espera sin mirar. El reloj arranca cuando toques la pantalla.");
   assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-eyebrow").textContent'), "Posición 1 de 2");
   Ludus.i18n.setLanguage("en");
+  // A rematch flips who goes first (REG-DUEL-1): with an odd number of positions the same person must not start once more every time,
+  // and a duel started from the setup (no flip asked) still starts with the first player.
+  await Ludus.game.startSession({ kind: "classic", title: "Rematch", mode: "duel", names: ["Ana", "Beto"], positions: [position(t, 0), position(t, 1)], options: { clock: { mode: "untimed" } }, duelStartOffset: 1 });
+  assert.strictEqual(state(t, "STATE.duel.firstPlayer"), 1, "the rematch starts with the other player");
+  assert.strictEqual(state(t, "duelFirstPlayerFor(1)"), 0, "and they still take turns from position to position");
+  await Ludus.game.startSession({ kind: "classic", title: "Fresh", mode: "duel", names: ["Ana", "Beto"], positions: [position(t, 0), position(t, 1)], options: { clock: { mode: "untimed" } } });
+  assert.strictEqual(state(t, "STATE.duel.firstPlayer"), 0, "a new duel does not inherit the flip");
   await Ludus.game.abort();
   assertClean(t);
 });

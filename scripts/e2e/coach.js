@@ -1011,9 +1011,10 @@ async function duelFlow(browser, vp) {
     assert.match(await textOf(page, "#summary-again-btn"), /Rematch/i);
     await inspect(ctx, "5-summary");
     await page.locator("#summary-again-btn").click();
-    // A rematch starts covered like any duel, with the first player again.
+    // A rematch starts covered like any duel, and the OTHER player goes first: with an odd number of positions the same person
+    // would otherwise go first once more every time (REG-DUEL-1).
     await waitPhase(page, "handoff");
-    assert.ok((await textOf(page, "#handoff-overlay-title")).includes("Ana"), "the rematch starts with Ana");
+    assert.ok((await textOf(page, "#handoff-overlay-title")).includes("Beto"), "the rematch starts with Beto, who did not start the first duel");
     await page.locator("#handoff-overlay").click();
     await waitPhase(page, "thinking");
     // A rematch is the same duel (mode, names, number of positions); the positions themselves are drawn again (UX-021).
