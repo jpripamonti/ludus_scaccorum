@@ -274,8 +274,8 @@
   // The eras of the timeline: [from, to] inclusive, `to` null = open ended.
   const ERAS = [
     { id: "e0", from: null, to: 999 },
-    { id: "e1", from: 1000, to: 1499 },
-    { id: "e2", from: 1500, to: 1799 },
+    { id: "e1", from: 1000, to: 1474 },
+    { id: "e2", from: 1475, to: 1799 },
     { id: "e3", from: 1800, to: 1885 },
     { id: "e4", from: 1886, to: 1947 },
     { id: "e5", from: 1948, to: 1989 },

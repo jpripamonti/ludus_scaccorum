@@ -555,7 +555,8 @@
     const tone = /^[a-z][a-z-]*$/.test(String(opts.tone || "")) ? opts.tone : gaugeTone(ratio);
     const centre = size / 2;
     const rotate = `rotate(135 ${fmt(centre)} ${fmt(centre)})`;
-    const shown = Number.isInteger(value) ? String(value) : String(Math.round(value * 10) / 10);
+    const plain = Number.isInteger(value) ? String(value) : String(Math.round(value * 10) / 10);
+    const shown = lang() === "es" ? plain.replace(".", ",") : plain;
     const track = h("svg:circle", {
       class: "gauge-track", cx: fmt(centre), cy: fmt(centre), r: fmt(radius), fill: "none", "stroke-width": stroke,
       "stroke-linecap": "round", "stroke-dasharray": `${fmt(sweep)} ${fmt(circumference)}`, transform: rotate,

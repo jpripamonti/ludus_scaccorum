@@ -225,7 +225,7 @@
       "coach.card.created": "Guardada en tu cuaderno para repasarla {when}.",
       "coach.card.pass": "Repaso aprobado: la vas a volver a ver {when}.",
       "coach.card.fail": "Todavía cuesta: esta posición vuelve al principio y la repasás {when}.",
-      "coach.card.cleared": "¡Dominada! Esta posición sale de tu repaso.",
+      "coach.card.cleared": "¡Superada! Esta posición ya cuenta como dominada y vuelve cada vez más espaciada.",
       "coach.card.when.now": "ahora mismo",
       "coach.card.when.today": "hoy",
       "coach.card.when.tomorrow": "mañana",
@@ -403,7 +403,7 @@
       "coach.card.created": "Saved to your notebook, to review {when}.",
       "coach.card.pass": "Review passed: you will see it again {when}.",
       "coach.card.fail": "Still tricky: it goes back to the start and you review it {when}.",
-      "coach.card.cleared": "Mastered! This position leaves your review.",
+      "coach.card.cleared": "Cleared! This position now counts as mastered and comes back at longer and longer intervals.",
       "coach.card.when.now": "right now",
       "coach.card.when.today": "today",
       "coach.card.when.tomorrow": "tomorrow",
@@ -537,7 +537,7 @@
   // A number with its unit in the right form: "1 point" / "7.5 points", "1 punto" / "7,5 puntos" (never "1 puntos"). Only exactly one is
   // singular. kind: "points" (the 0-10 score of a position) or "pp" (percentage points of win chance).
   function unitText(kind, value, lang) {
-    const singular = Math.abs(Number(value)) === 1;
+    const singular = Math.abs(Math.round(Number(value) * 10) / 10) === 1;
     return t(`coach.unit.${kind}.${singular ? "one" : "other"}`, { n: formatNumber(value, lang) }, lang);
   }
 

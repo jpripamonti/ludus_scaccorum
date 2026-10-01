@@ -199,12 +199,13 @@ test("gauge: text alternative, clamped value, tone by ratio, arc reaches its tar
   const { ui } = createEnv();
   const g = ui.gauge({ value: 7.5, max: 10, label: "Puntos", size: 120 });
   assert.strictEqual(g.getAttribute("role"), "img");
-  assert.strictEqual(g.getAttribute("aria-label"), "Puntos: 7.5 de 10");
+  // Spanish writes its decimals with a comma, on the face of the gauge and in its text alternative (C-02).
+  assert.strictEqual(g.getAttribute("aria-label"), "Puntos: 7,5 de 10");
   assert.ok(g.classList.contains("gauge-good"));
   const arc = findAll(g, byClass("gauge-arc"))[0];
   const sweep = Number(arc.getAttribute("stroke-dasharray").split(" ")[0]);
   assert.ok(Math.abs(Number(arc.getAttribute("stroke-dashoffset")) - sweep * 0.25) < 0.05, "75% of the arc is drawn");
-  assert.strictEqual(findAll(g, byClass("gauge-value"))[0].textContent, "7.5");
+  assert.strictEqual(findAll(g, byClass("gauge-value"))[0].textContent, "7,5");
   assert.ok(ui.gauge({ value: 10 }).classList.contains("gauge-perfect"));
   assert.ok(ui.gauge({ value: 1 }).classList.contains("gauge-blunder"));
   assert.ok(ui.gauge({ value: 5 }).classList.contains("gauge-dubious"));

@@ -196,7 +196,10 @@ test("eras and grouping: the 36 real milestones land in ordered eras, none lost"
   assert.strictEqual(h.eraOfYear(600), "e0");
   assert.strictEqual(h.eraOfYear(999), "e0");
   assert.strictEqual(h.eraOfYear(1000), "e1");
-  assert.strictEqual(h.eraOfYear(1499), "e1");
+  // The 1475-1497 milestones (the modern queen and bishop, Lucena) belong to the era named "modern chess" (C-07).
+  assert.strictEqual(h.eraOfYear(1474), "e1");
+  assert.strictEqual(h.eraOfYear(1475), "e2");
+  assert.strictEqual(h.eraOfYear(1499), "e2");
   assert.strictEqual(h.eraOfYear(1500), "e2");
   assert.strictEqual(h.eraOfYear(1851), "e3");
   assert.strictEqual(h.eraOfYear(1886), "e4");

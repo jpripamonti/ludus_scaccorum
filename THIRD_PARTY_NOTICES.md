@@ -47,10 +47,11 @@ Operational requirement: keep these files in the third-party inventory, keep `NO
 ## Landing artwork
 
 - Files shipped:
-  - `assets/landing/maestro.webp` — approximately 170 KB, 2816x1504, used by every browser that supports WebP.
-  - `assets/landing/maestro.jpg` — approximately 383 KB, 2816x1504, fallback for browsers without WebP.
+  - `assets/landing/maestro.webp` — approximately 135 KB, 2596x1314, used by every browser that supports WebP.
+  - `assets/landing/maestro.jpg` — approximately 358 KB, 2596x1314, fallback for browsers without WebP.
   - `assets/landing/maestro-1280.webp` and `assets/landing/maestro-2000.webp` — downscaled WebP copies of the same image (about 1280 and 2000 px wide) for phones and laptops, chosen by the landing CSS; same origin and licence as the original.
 - Original: the 7.2 MB PNG the image was delivered as (`assets/landing/maestro.png`, 2816x1504) was removed from the working tree on 2026-08-25 because shipping it cost every first visit roughly 7 MB for a fallback almost no browser used. It remains available in git history at commit `0d44645c730e3bec932b852a9c99c8540d0de8e2` (`git show 0d44645:assets/landing/maestro.png > maestro.png`) and is the source both shipped files were derived from.
+- Crop: on 2026-10-01 the shipped variants were cropped (220 px from the right edge and 190 px from the bottom of the 2816x1504 original) so the generator's four-point sparkle mark, which sat in the bottom-right corner over the open book, no longer shows on the landing page. The image is still AI-generated and is disclosed as such here; the uncropped original is in git history (see above).
 - Origin: created for this project. The project owner generated the image with Google Gemini; it was not taken from a stock library, another artist, or any other external source. Confirmed by the project owner on 2026-08-25.
 - License/source: no third-party license applies. Google's Generative AI Additional Terms state that Google does not claim ownership of content generated with its consumer AI tools, so redistributing this image as part of Ludus Scaccorum is permitted.
 - Caveat worth keeping on record: in several jurisdictions (the United States among them) an image produced entirely by an AI tool, with no substantial human authorship, may not attract copyright protection at all. That does not restrict this project's use of it, but the project should not assume exclusive rights over the image or license it to others as an original work.

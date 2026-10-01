@@ -1032,7 +1032,7 @@ go through `Classics.localizeQuotedMoves` like the museum's.
   visitors only it injects the hero preload (`imagesrcset` + `media`, the very candidates of `.ld-hero-bg` in `css/home.css`: keep the two lists in
   step). `scripts/tests/_load.js` leaves it out of the modules it loads; `scripts/tests/boot.test.js` runs it in a bare context.
 * **Hero photograph**: `assets/landing/maestro-1280.webp` (phones at 1x), `maestro-2000.webp` (desktop at 1x, phones at 2x) and the original
-  `maestro.webp` (2816 px: 2x desktops, 3x phones); the JPEG stays the fallback. `sw.js` still precaches only `maestro.webp`.
+  `maestro.webp` (2596 px, cropped from the 2816 px original to remove the generator's corner mark: 2x desktops, 3x phones); the JPEG stays the fallback. `sw.js` still precaches only `maestro.webp`.
 * **Storage warning**: `Ludus.shell` paints a persistent, dismissible banner (`#shell-banner`, a polite live region that exists from the start, hidden
   on the landing and on the play screen) when `Profile.storageStatus().ok` is false, from `storage:failed` and from every shell repaint: "blocked"
   (nothing is ever saved: private tab, site data blocked) or "quota" (full: with a way to Account to download a copy). A dismissed reason stays

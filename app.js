@@ -1338,6 +1338,8 @@ const STATE = {
     // position while the first one's clock ran, and that advantage must not always be the same person's.
     currentPlayer: 0,
     firstPlayer: 0,
+    // 0 or 1: a rematch flips it, so with an odd number of positions the same person does not go first once more every time.
+    startOffset: 0,
     roundResults: [null, null],
     handoffReady: false,
     // The cover of a new duel position is up and the first player's clock has not started yet.
@@ -1753,7 +1755,8 @@ function currentUiPlayerIndex() {
 // The players of a duel take turns going first (PF-2): position 1 starts the first player, position 2 the second one, and
 // so on. Whoever goes second has watched the position while the other's clock ran, so the advantage is shared.
 function duelFirstPlayerFor(index) {
-  return Math.abs(Math.round(Number(index) || 0)) % 2 === 0 ? 0 : 1;
+  const offset = STATE.duel.startOffset === 1 ? 1 : 0;
+  return (Math.abs(Math.round(Number(index) || 0)) + offset) % 2 === 0 ? 0 : 1;
 }
 
 // The player who moves second in the position on screen.
@@ -2583,8 +2586,8 @@ function formatClock(remainingMs) {
 function resetDuelState() {
   STATE.duel.scores = [0, 0];
   STATE.duel.hits = [0, 0];
-  STATE.duel.currentPlayer = 0;
-  STATE.duel.firstPlayer = 0;
+  STATE.duel.firstPlayer = duelFirstPlayerFor(0);
+  STATE.duel.currentPlayer = STATE.duel.firstPlayer;
   STATE.duel.roundResults = [null, null];
   STATE.duel.handoffReady = false;
   STATE.duel.readyWait = false;
@@ -7701,7 +7704,7 @@ async function replaySession(options) {
     }
   }
   try {
-    await startSession({ kind, title, mode, names: names || undefined, profileIds: profileIds || undefined, positions, options: session.options });
+    await startSession({ kind, title, mode, names: names || undefined, profileIds: profileIds || undefined, positions, options: session.options, duelStartOffset: isDuelMode() && STATE.duel.startOffset !== 1 ? 1 : 0 });
   } catch (error) {
     console.warn("[Ludus] the new session could not start", error);
     showToast(t("core.start.failed"), { kind: "error" });
@@ -7829,6 +7832,7 @@ async function nextPosition() {
   }
   const resultSnapshot = captureResultViewSnapshot();
   hideResultOverlay();
+  if (coachScrollEl) coachScrollEl.scrollTop = 0;
 
   if (isDuelMode()) {
     // Whoever goes first in the NEXT position is the one the scoreboard points at while it is being found.
@@ -8325,6 +8329,7 @@ async function startSession(config = {}) {
 
   applyGameFormat(mode);
   if (names) STATE.duel.players = names;
+  STATE.duel.startOffset = cfg.duelStartOffset === 1 ? 1 : 0;
   resetDuelState();
   applySessionOptions(cfg.options);
   // The very first session has no clock (unless a screen asked for one): see isFirstRun().

@@ -1475,7 +1475,7 @@ button.co-concept { min-height: 44px; }
 .co-sum-gauge { display: grid; place-items: center; }
 .co-sum-copy { display: grid; gap: var(--space-2); min-width: 0; }
 .co-sum-copy .co-eyebrow { margin: 0; }
-.co-sum-title { margin: 0; font-family: var(--font-display); font-size: var(--text-3xl); font-weight: 650; line-height: 1.05; letter-spacing: -0.01em; text-wrap: balance; }
+.co-sum-title { margin: 0; overflow-wrap: anywhere; font-family: var(--font-display); font-size: var(--text-3xl); font-weight: 650; line-height: 1.05; letter-spacing: -0.01em; text-wrap: balance; }
 .co-sum-sub { margin: 0; color: var(--color-text-muted); font-size: var(--text-base); }
 .co-sum-stats { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin: var(--space-2) 0 0; }
 .co-sum-stat { display: grid; gap: 2px; margin: 0; }
