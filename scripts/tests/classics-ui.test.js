@@ -465,7 +465,7 @@ test("display: names, events, sites, results in both languages", async () => {
     });
   });
   // Without the data tables (the classics data not loaded yet) the local fallbacks give the SAME forms as the data, for every tag of every
-  // game, in both languages (they used to drift: "Semifinal del Torneo de Candidatos" against "Match de semifinales de Candidatos").
+  // game, in both languages (they used to drift: "Semifinal del Torneo de Candidatos" against "Match de semifinales de Candidatos"; now "Semifinal de Candidatos" in both).
   const fromData = {};
   Ludus.Classics.list().forEach((g) => {
     ["es", "en"].forEach((lang) => {
@@ -836,6 +836,14 @@ test("daily strip: pending shows the play button (through the home screen when t
   const done = q(el, ".classics-daily");
   assert.ok(done.classList.contains("is-done") && text(done).includes("¡Desafío de hoy completado!") && text(done).includes("88%"));
   assert.strictEqual(findAll(done, byFkey("daily-play")).length, 0);
+  // Tomorrow's position is "another one", not a new one (the cycle repeats): the words of the home card (home.daily.body.done), in both languages.
+  const dailyText = Ludus.Screens.classics.TEXT;
+  ["es", "en"].forEach((lang) => {
+    const body = dailyText[lang]["classics.daily.body.done"];
+    assert.ok(!/nueva|new position/i.test(body), `${lang}: "${body}" must not promise a new position`);
+  });
+  assert.ok(/te espera otra posición/.test(dailyText.es["classics.daily.body.done"]) && /another position is waiting/.test(dailyText.en["classics.daily.body.done"]));
+  assert.ok(text(done).includes("te espera otra posición"), text(done));
 
   // Without the home screen the strip starts the daily session itself (same position, with its date key).
   const solo = createEnv();
@@ -1204,7 +1212,7 @@ test("language: the gallery and the game page re-render in place (filters and po
   deepEq(cardIds(el), ["paulsen-morphy-1857", "opera-1858"]);
   assert.strictEqual(text(q(el, ".classics-count")), `2 of ${LIBRARY_SIZE} games`);
   assert.ok(text(one(el, (n) => n.getAttribute("data-game") === "opera-1858")).includes("The Opera Game"));
-  assert.ok(text(one(el, (n) => n.getAttribute("data-game") === "opera-1858")).includes("Philidor Defence") || text(one(el, (n) => n.getAttribute("data-game") === "opera-1858")).toLowerCase().includes("philidor defence"));
+  assert.ok(text(one(el, (n) => n.getAttribute("data-game") === "opera-1858")).includes("Philidor Defense") || text(one(el, (n) => n.getAttribute("data-game") === "opera-1858")).toLowerCase().includes("philidor defense")); // polish RD-1 (data fixer r2-data): American English in the data
   Ludus.router.show("classics", { game: "opera-1858" });
   await flush();
   assert.ok(text(q(el, ".classics-train-how")).startsWith("You play White"));
@@ -1678,7 +1686,7 @@ test("where line: the place is named once, for every game in both languages, and
   assert.strictEqual(h.whereParts({ event: "New York", site: "New York USA", year: 1918 }, "es").join(" · "), "Torneo de Nueva York · 1918", "a city of two words");
   // An event that does not name the place keeps the city; a place that merely shares letters with the event is not a repeat.
   assert.strictEqual(h.whereParts({ event: "World Championship match", site: "Reykjavik ISL", year: 1972 }, "en").join(" · "), "World Championship match · Reykjavik · 1972");
-  assert.strictEqual(h.whereParts({ event: "Candidates semifinal match", site: "Bled YUG", year: 1965 }, "es").join(" · "), "Match de semifinales de Candidatos · Bled · 1965");
+  assert.strictEqual(h.whereParts({ event: "Candidates semifinal match", site: "Bled YUG", year: 1965 }, "es").join(" · "), "Semifinal de Candidatos · Bled · 1965"); // polish RD-2 (data fixer r2-data): was "Match de semifinales de Candidatos"
   assert.strictEqual(h.eventNamesCity("Torneo de Bledsoe", "Bled"), false, "whole words only");
   assert.strictEqual(h.eventNamesCity("Torneo de Bled", "Bled"), true);
   assert.strictEqual(h.eventNamesCity("Anything", ""), false);

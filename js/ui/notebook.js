@@ -242,7 +242,7 @@
       "notebook.error.game": "El juego no está disponible en este momento.",
 
       "notebook.concept.example": "Ejemplo en el tablero",
-      "notebook.concept.best": "Jugada del ejemplo: {san}",
+      "notebook.concept.best": "Jugada de ejemplo: {san}",
       "notebook.concept.none": "Todavía no tenemos una lección sobre este tema.",
       "notebook.concept.school": "Ver la escuela de ajedrez",
       "notebook.concept.chip": "Ver la lección: {tag}",
@@ -415,7 +415,7 @@
       "notebook.error.game": "The game is not available right now.",
 
       "notebook.concept.example": "Example on the board",
-      "notebook.concept.best": "Move of the example: {san}",
+      "notebook.concept.best": "Example move: {san}",
       "notebook.concept.none": "We do not have a lesson about this theme yet.",
       "notebook.concept.school": "Open the chess school",
       "notebook.concept.chip": "Open the lesson: {tag}",
@@ -1210,7 +1210,7 @@
     }
   }
 
-  // "Jugada del ejemplo: Cc7+" with the move in a node of its own (drawn through the notation setting, said in words, see sanNode).
+  // "Jugada de ejemplo: Cc7+" ("Example move: Nc7+") with the move in a node of its own (drawn through the notation setting, said in words, see sanNode).
   function conceptMoveLine(san) {
     const mark = "\u0001";
     const parts = t("notebook.concept.best", { san: mark }).split(mark);

@@ -60,7 +60,7 @@ const { Chess, uciToMove, moveToUci, moveToSan } = chessApi;
 
 // Bump when the selection/classification logic or the output shape changes:
 // `--check` treats data built by another version as stale.
-const BUILDER_VERSION = 4; // 4: `phase` comes from Insights.gamePhase (3: the data carries `names` and `events`)
+const BUILDER_VERSION = 5; // 5: captures, checks and promotions that are not tactics get the kind "forcing", not "quiet" (4: `phase` comes from Insights.gamePhase; 3: the data carries `names` and `events`)
 const DATA_VERSION = 1;
 const QUICK = { depth: 12, multipv: 3 };
 const MID = { depth: 16, multipv: 3 };   // candidate detection (deep combinations are invisible at depth 12)
@@ -394,7 +394,7 @@ async function runJobs(jobs, cache, concurrency, label) {
     console.log(`[${label}] ${seen.size} positions, all cached`);
     return;
   }
-  console.log(`[${label}] ${seen.size} positions, ${todo.length} to analyse with ${concurrency} engine process(es)`);
+  console.log(`[${label}] ${seen.size} positions, ${todo.length} to analyze with ${concurrency} engine process(es)`);
   const started = Date.now();
   let done = 0;
   let lastLog = 0;
@@ -596,6 +596,9 @@ function classify(c) {
   else if ((mateLine && mateIn(c.best) <= 6) || (forcing && c.gapPct >= 8)) kind = "tactic";
   else if (c.gapPct >= ONLY_MOVE_GAP_PCT) kind = "only-move";
   else if (c.fullmove <= 10) kind = "opening";
+  // A capture, a check or a promotion that no combination stands behind (the alternatives are within 8 win percent) used to be filed
+  // under "quiet", which is untrue of the move; it has its own kind (polish RD-3, builder 5).
+  else if (forcing) kind = "forcing";
   else kind = "quiet";
   return { kind, sacrifice, mateLine };
 }
@@ -652,7 +655,7 @@ function pickPositions(cands, target, forced) {
     const c = pool.find((x) => x.ply === ply);
     if (c) take(c);
   });
-  // Neighbouring positions are penalised; a run of forced-mate moves is penalised harder so a
+  // Neighboring positions are penalized; a run of forced-mate moves is penalized harder so a
   // finish like "mate in 4, 3, 2, 1" does not eat the whole selection.
   const penalty = (c) => chosen.reduce((sum, s) => {
     const distance = Math.abs(s.ply - c.ply);
@@ -830,7 +833,7 @@ async function main() {
     try {
       notesFile = loadNotes();
     } catch (error) {
-      console.log("(no usable notes.json yet: analysing the scores only)");
+      console.log("(no usable notes.json yet: analyzing the scores only)");
     }
   } else {
     notesFile = loadNotes();

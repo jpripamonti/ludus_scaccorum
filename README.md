@@ -25,7 +25,7 @@ Everything runs in your browser. There is no server: Stockfish (WebAssembly) ana
 - **Classic games**: ~29 famous games (Morphy, Anderssen, Capablanca, Fischer, Kasparov, Carlsen...) with a story, an interactive replay and training positions. You play the master's side and are scored against the engine's best move; the master's move and its story are revealed afterwards.
 - **Review**: your notebook of past mistakes, scheduled with spaced repetition.
 - **Daily challenge**: one classic position per day, with a streak.
-- **Duel**: two people share one device, take turns on the same position and compare points. Each can use their own local profile.
+- **Duel**: two people share one device, play the same positions and compare points. Who goes first alternates from one position to the next, and each position starts covered until the player who goes first taps, so the other player cannot peek at it beforehand; the first move stays hidden when the device changes hands. Each can use their own local profile.
 - **History and curiosities**: a timeline, 100+ short facts and a small chess school of core ideas (fork, pin, zugzwang...). Facts are shown with enough time to read them.
 
 ### Configurable
@@ -99,7 +99,7 @@ GPL-3.0-or-later, see [LICENSE](./LICENSE). The project bundles Stockfish.js / S
 - **Partidas clásicas**: unas 29 partidas famosas (Morphy, Anderssen, Capablanca, Fischer, Kaspárov, Carlsen...) con su historia, repetición interactiva y posiciones de entrenamiento. Jugás del lado del maestro y te puntúa contra la mejor jugada del motor; después se revela la jugada del maestro y su historia.
 - **Repaso**: tu cuaderno de errores con repetición espaciada.
 - **Desafío diario**: una posición clásica por día, con racha.
-- **Duelo**: dos personas comparten el dispositivo, se turnan en la misma posición y comparan puntos. Cada una puede usar su perfil local.
+- **Duelo**: dos personas comparten el dispositivo, juegan las mismas posiciones y comparan puntos. Quién empieza se alterna de una posición a la siguiente y cada posición arranca tapada hasta que toca quien juega primero, así la otra persona no puede espiarla de antemano; la jugada del primero queda oculta cuando se pasan el dispositivo. Cada una puede usar su perfil local.
 - **Historia y curiosidades**: línea de tiempo, más de 100 datos breves y una pequeña escuela de ajedrez (horquilla, clavada, zugzwang...). Los datos se muestran con tiempo suficiente para leerlos.
 
 ### Configurable

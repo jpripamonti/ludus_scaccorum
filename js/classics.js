@@ -29,7 +29,7 @@
 
   const DATA_PATH = "js/data/classics.data.js";
   const DATA_VERSION = 1;
-  const KINDS = ["only-move", "tactic", "sacrifice", "quiet", "endgame", "opening"];
+  const KINDS = ["only-move", "tactic", "forcing", "sacrifice", "quiet", "endgame", "opening"];
   const MAX_COUNT = 200;
 
   // Controlled vocabulary for notes.json "themes" (the build/test reject others).
@@ -76,11 +76,17 @@
       label: { es: "Sacrificio", en: "Sacrifice" },
       hint: { es: "Se entrega material a cambio de un ataque o de una ventaja mayor.", en: "Material is given up for an attack or a bigger advantage." },
     },
+    // "forcing" (builder 5): the master's move is a capture, a check or a promotion but the engine sees no combination behind it (the
+    // runner-up is within 8 win percent), so it is neither a "tactic" nor "quiet". Before builder 5 these 18 positions of 83 were called
+    // "quiet", which the move itself contradicted.
+    "forcing": {
+      label: { es: "Jugada forzante", en: "Forcing move" },
+      hint: { es: "Una captura, un jaque o una coronación sin una combinación a la vista: quedan otras jugadas buenas cerca.", en: "A capture, a check or a promotion with no combination in sight: other good moves stay close." },
+    },
+    // True for every position of the kind (a test replays the move): no capture and no check.
     "quiet": {
       label: { es: "Jugada tranquila", en: "Quiet move" },
-      // Not "without captures or checks": about a fifth of the quiet positions of the data (18 of 83) are won by a capture or a check, so the
-      // sentence only claims what the classification does (no mate within six, no forcing move that clearly beats the others).
-      hint: { es: "Una decisión de plan o de estructura, sin una combinación a la vista.", en: "A decision about plans or structure, with no combination in sight." },
+      hint: { es: "Sin capturas ni jaques: una decisión de plan o de estructura, sin una combinación a la vista.", en: "No captures or checks: a decision about plans or structure, with no combination in sight." },
     },
     "endgame": {
       label: { es: "Final", en: "Endgame" },

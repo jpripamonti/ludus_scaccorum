@@ -144,7 +144,7 @@
       "museum.school.all": "Todas las lecciones",
       "museum.school.related": "Errores que ayuda a evitar",
       "museum.school.related.filter": "Ver lecciones sobre: {name}",
-      "museum.school.best": "Jugada del ejemplo: {san}",
+      "museum.school.best": "Jugada de ejemplo: {san}",
       "museum.school.board": "Ejemplo de {title}",
       "museum.school.count": "{n} lecciones",
       "museum.school.count.one": "1 lección",
@@ -225,7 +225,7 @@
       "museum.school.all": "All lessons",
       "museum.school.related": "Mistakes it helps to avoid",
       "museum.school.related.filter": "Show lessons about: {name}",
-      "museum.school.best": "Move of the example: {san}",
+      "museum.school.best": "Example move: {san}",
       "museum.school.board": "Example of {title}",
       "museum.school.count": "{n} lessons",
       "museum.school.count.one": "1 lesson",
@@ -1003,7 +1003,7 @@
     return Insights && typeof Insights.tagLabelKey === "function" ? t(Insights.tagLabelKey(tag)) : String(tag);
   }
 
-  // "Jugada del ejemplo: Cc7+" with the move in nodes of its own: what is drawn goes through the notation setting (localizeSan), what a
+  // "Jugada de ejemplo: Cc7+" ("Example move: Nc7+") with the move in nodes of its own: what is drawn goes through the notation setting (localizeSan), what a
   // screen reader says through the spoken form (spokenSan), and the drawn one is hidden from the reader so it is not said twice.
   function moveLine(key, san) {
     const mark = "\u0001";

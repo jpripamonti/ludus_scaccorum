@@ -432,10 +432,10 @@ test("create: the dialog asks for a name and a colour, refuses an empty name, cr
   assert.strictEqual(qa(modal, ".account-swatch-input").length, Ludus.Profile.constants.PALETTE.length);
   assert.strictEqual(qa(modal, ".account-swatch-input").filter((radio) => radio.checked).length, 1, "a colour is preselected");
   assert.strictEqual(qa(modal, "[role=\"radiogroup\"]").length, 1);
-  // QA A11Y-026: the swatches are named by colour, every one differently, never "Colour 3".
+  // QA A11Y-026: the swatches are named by color, every one differently, never "Color 3".
   const swatchNames = qa(modal, ".account-swatch-input").map((radio) => radio.getAttribute("aria-label"));
   assert.strictEqual(new Set(swatchNames).size, swatchNames.length, "distinct names");
-  assert.ok(swatchNames.every((name) => !/^Colour \d+$/.test(name)), `named by colour: ${swatchNames.join(", ")}`);
+  assert.ok(swatchNames.every((name) => !/^Colou?r \d+$/.test(name)), `named by color:${swatchNames.join(", ")}`);
   assert.deepStrictEqual(swatchNames.slice(0, 3), ["Green", "Brown", "Blue"]);
   // empty name: stays open with an alert, nothing created
   modalButton(env, "primary").click();

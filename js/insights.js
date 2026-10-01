@@ -140,7 +140,7 @@
   const MAX_MESSAGES = 3;
   const MAX_MATE_MESSAGES = 2;
   // Two independent 1.5 s searches of the same move differ by 1.9 win% on
-  // average (measured on the 28 classic games, docs/SCORING.md section 15), so a
+  // average (measured in the QA audit on the classic games, docs/SCORING.md section 15), so a
   // sentence that says "as good as the best move" needs a margin: under 1.5
   // points it is called solid (8% of those were more than 3.5 worse in a second
   // search, against 15% with the old 3-point line); between 1.5 and 3 the move is
@@ -297,15 +297,15 @@
       "insight.loses_material": "After {san}, the engine's line looks like it costs you material: about {n} points. Check what your opponent can capture or attack.",
       "insight.king_safety.pawn": "Moving the pawn on {sq} may weaken the shelter around your king.",
       "insight.king_safety.king": "{san} walks the king out of its shelter, which may leave it exposed.",
-      "insight.king_safety.castle": "{best} castles: the king is still in the centre, and getting it to safety looks urgent.",
+      "insight.king_safety.castle": "{best} castles: the king is still in the center, and getting it to safety looks urgent.",
       "insight.development.castle": "{best} castles: it tucks the king away and connects the rooks. That usually comes early.",
       "insight.development.twice": "{san} moves a piece that has already left home while others sit at home; {best} looks more useful.",
       "insight.development.first": "Development first: {best} brings another piece into play, which is usually worth more than other moves here.",
       "insight.open_file": "{best} puts the rook on the open {file}-file, where it can become active.",
       "insight.open_file.seventh": "{best} uses the open {file}-file to put the rook on the seventh rank, where it attacks pawns from behind.",
       "insight.outpost": "{best} puts the knight on {sq}: a pawn protects it and no enemy pawn can attack it there.",
-      "insight.trade_when_ahead": "You are ahead in material: {best} trades pieces, and trades usually favour the side that is ahead.",
-      "insight.endgame.king": "In endgames the king is usually an active piece: {best} brings it toward the centre.",
+      "insight.trade_when_ahead": "You are ahead in material: {best} trades pieces, and trades usually favor the side that is ahead.",
+      "insight.endgame.king": "In endgames the king is usually an active piece: {best} brings it toward the center.",
       "insight.endgame.passed": "{best} pushes the passed pawn on {sq}; passed pawns are usually worth advancing in endgames.",
       "insight.quiet_best.saves": "{best} is a quiet move that seems to rescue your {piece} on {sq}, which was in danger.",
       "insight.quiet_best.threat": "{best} is a quiet move that seems to threaten {targetDef} on {sq}.",

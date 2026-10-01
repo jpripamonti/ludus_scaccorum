@@ -51,7 +51,7 @@
       id: "origins-persia-chatrang", cat: "origins", year: 600, approx: true,
       es: "Al llegar a Persia, el juego pasó a llamarse chatrang. El texto en persa medio Chatrang-nāmag cuenta que un emisario indio lo llevó a la corte del rey Cosroes I. Es una historia legendaria, pero muestra cómo se recordaba su origen.",
       en: "In Persia the game became chatrang. The Middle Persian text Chatrang-nāmag tells how an Indian envoy brought it to the court of King Khosrow I. It is a legendary tale, but it shows how the game's origin was remembered.",
-      source: "Chatrang-nāmag (Middle Persian text) as summarised in Wikipedia 'Chatrang' and Murray, A History of Chess",
+      source: "Chatrang-nāmag (Middle Persian text) as summarized in Wikipedia 'Chatrang' and Murray, A History of Chess",
     },
     {
       id: "origins-etymology-ajedrez", cat: "origins",
@@ -92,7 +92,7 @@
     {
       id: "origins-old-pieces", cat: "origins",
       es: "Antes de fines del siglo XV la dama era una pieza débil que se movía una casilla en diagonal, y el alfil saltaba de a dos casillas en diagonal. Con las reglas modernas el juego se volvió mucho más dinámico.",
-      en: "Before the late 15th century the queen was a weak piece that moved one square diagonally, and the bishop leapt exactly two squares diagonally. The modern rules made the game far more dynamic.",
+      en: "Before the late 15th century the queen was a weak piece that moved one square diagonally, and the bishop leaped exactly two squares diagonally. The modern rules made the game far more dynamic.",
       source: "Encyclopaedia Britannica, 'Chess'; Murray, A History of Chess (1913)",
     },
     {
@@ -136,7 +136,7 @@
     {
       id: "rules-elo-expected", cat: "rules",
       es: "En el sistema Elo, una diferencia de 200 puntos significa que el favorito espera sumar cerca del 76% de los puntos. Con 100 puntos de diferencia, alrededor del 64%.",
-      en: "In the Elo system, a 200-point rating gap means the favourite is expected to score about 76% of the points. With a 100-point gap, about 64%.",
+      en: "In the Elo system, a 200-point rating gap means the favorite is expected to score about 76% of the points. With a 100-point gap, about 64%.",
       source: "Elo expected-score formula E = 1 / (1 + 10^(-d/400)); the two figures were computed from it",
     },
     {
@@ -172,7 +172,7 @@
     {
       id: "rules-castling", cat: "rules",
       es: "El enroque es la única jugada en la que se mueven dos piezas a la vez. Se fue formando en Europa durante siglos y sus reglas actuales se terminaron de uniformar recién a fines del siglo XIX.",
-      en: "Castling is the only move in which two pieces move at once. It took shape in Europe over centuries, and its present rules were only standardised in the late 19th century.",
+      en: "Castling is the only move in which two pieces move at once. It took shape in Europe over centuries, and its present rules were only standardized in the late 19th century.",
       source: "Wikipedia 'Castling' (history section); Murray, A History of Chess (1913)",
     },
     {
@@ -196,21 +196,21 @@
     {
       id: "rules-chess960", cat: "rules", year: 1996,
       es: "Bobby Fischer anunció en 1996, en Buenos Aires, el ajedrez aleatorio (Chess960): las piezas de la fila trasera se sortean con algunas restricciones (alfiles en colores opuestos, rey entre las torres), y hay 960 posiciones iniciales posibles.",
-      en: "Bobby Fischer announced Fischer Random Chess (Chess960) in Buenos Aires in 1996: the back-rank pieces are shuffled within a few restrictions (bishops on opposite colours, king between the rooks), giving 960 possible starting positions.",
+      en: "Bobby Fischer announced Fischer Random Chess (Chess960) in Buenos Aires in 1996: the back-rank pieces are shuffled within a few restrictions (bishops on opposite colors, king between the rooks), giving 960 possible starting positions.",
       source: "Wikipedia 'Chess960'; FIDE Fischer Random Chess history page",
     },
 
     // ===== champions =====
     {
       id: "champions-steinitz-1886", cat: "champions", year: 1886,
-      es: "En 1886, Wilhelm Steinitz venció a Johannes Zukertort por 12,5 a 7,5 en el primer match por el título mundial reconocido como oficial. Se jugó en Nueva York, San Luis y Nueva Orleans.",
+      es: "En 1886, Wilhelm Steinitz venció a Johannes Zukertort por 12,5 a 7,5 en el primer encuentro por el título mundial reconocido como oficial. Se jugó en Nueva York, San Luis y Nueva Orleans.",
       en: "In 1886 Wilhelm Steinitz beat Johannes Zukertort 12.5-7.5 in the first World Championship match regarded as official. It was played in New York, St. Louis and New Orleans.",
       source: "Wikipedia 'World Chess Championship 1886'; Chess.com, 'Steinitz: the official World Chess Champion'",
     },
     {
       id: "champions-lasker-reign", cat: "champions", year: 1894,
       es: "Emanuel Lasker fue campeón mundial de 1894 a 1921, casi 27 años: el reinado más largo de un campeón mundial oficial.",
-      en: "Emanuel Lasker was world champion from 1894 to 1921, nearly 27 years: the longest reign of any officially recognised world champion.",
+      en: "Emanuel Lasker was world champion from 1894 to 1921, nearly 27 years: the longest reign of any officially recognized world champion.",
       source: "Wikipedia 'Emanuel Lasker'; Chess.com, '27 years as world champion'",
     },
     {
@@ -221,7 +221,7 @@
     },
     {
       id: "champions-capablanca-unbeaten", cat: "champions", year: 1924,
-      es: "José Raúl Capablanca pasó unos ocho años, de 1916 a 1924, sin perder una partida de torneo o match: 63 seguidas, según los registros. Lo derrotó Richard Réti en el torneo de Nueva York de 1924.",
+      es: "José Raúl Capablanca pasó unos ocho años, de 1916 a 1924, sin perder una partida de torneo o de encuentro: 63 seguidas, según los registros. Lo derrotó Richard Réti en el torneo de Nueva York de 1924.",
       en: "José Raúl Capablanca went about eight years, from 1916 to 1924, without losing a tournament or match game: 63 in a row, according to the records. Richard Réti beat him at New York 1924.",
       source: "Wikipedia 'New York 1924 chess tournament'; ChessBase report on New York 1924, round 5",
     },
@@ -233,14 +233,14 @@
     },
     {
       id: "champions-alekhine-died", cat: "champions", year: 1946,
-      es: "Alexander Alekhine es el único campeón mundial que murió siendo campeón: falleció en Estoril, Portugal, en 1946, mientras se negociaba un match con Botvinnik.",
+      es: "Alexander Alekhine es el único campeón mundial que murió siendo campeón: falleció en Estoril, Portugal, en 1946, mientras se negociaba un encuentro con Botvinnik.",
       en: "Alexander Alekhine is the only world champion to die while still holding the title. He died in Estoril, Portugal, in 1946, while a match with Botvinnik was being negotiated.",
       source: "Wikipedia 'Alexander Alekhine'; ChessBase, 'Alekhine's death'",
     },
     {
       id: "champions-botvinnik-1948", cat: "champions", year: 1948,
       es: "Tras la muerte de Alekhine, la FIDE organizó en 1948 un torneo entre cinco grandes maestros en La Haya y Moscú. Lo ganó Mikhail Botvinnik, que se convirtió así en campeón mundial.",
-      en: "After Alekhine's death, FIDE organised a five-player tournament in The Hague and Moscow in 1948. Mikhail Botvinnik won it and became world champion.",
+      en: "After Alekhine's death, FIDE organized a five-player tournament in The Hague and Moscow in 1948. Mikhail Botvinnik won it and became world champion.",
       source: "Wikipedia 'World Chess Championship 1948'; New In Chess, 'World Chess Championship 1948'",
     },
     {
@@ -257,7 +257,7 @@
     },
     {
       id: "champions-bronstein-1951", cat: "champions", year: 1951,
-      es: "En 1951, David Bronstein empató 12 a 12 el match por el título con Botvinnik, y por reglamento el campeón conservó la corona. Tras 22 partidas, Bronstein iba arriba por 11,5 a 10,5.",
+      es: "En 1951, David Bronstein empató 12 a 12 el encuentro por el título con Botvinnik, y por reglamento el campeón conservó la corona. Tras 22 partidas, Bronstein iba arriba por 11,5 a 10,5.",
       en: "In 1951 David Bronstein drew the title match with Botvinnik 12-12, and under the rules the champion kept the crown. After 22 games Bronstein had been ahead 11.5-10.5.",
       source: "Wikipedia 'World Chess Championship 1951'; Chessentials, 'Botvinnik - Bronstein 1951'",
     },
@@ -271,7 +271,7 @@
       id: "champions-fischer-1972", cat: "champions", year: 1972,
       es: "En 1972, en Reikiavik, Bobby Fischer venció a Boris Spassky por 12,5 a 8,5 y fue el primer campeón mundial nacido en Estados Unidos. Ese año llegó a un rating de 2785, el más alto de la historia hasta entonces.",
       en: "In 1972, in Reykjavik, Bobby Fischer beat Boris Spassky 12.5-8.5 and became the first American-born world champion. That year he reached a rating of 2785, the highest in history up to then.",
-      source: "Encyclopaedia Britannica, 'Bobby Fischer'; History.com; Wikipedia 'World Chess Championship 1972' and 'Wilhelm Steinitz' (naturalised US citizen in 1888)",
+      source: "Encyclopaedia Britannica, 'Bobby Fischer'; History.com; Wikipedia 'World Chess Championship 1972' and 'Wilhelm Steinitz' (naturalized US citizen in 1888)",
     },
     {
       id: "champions-fischer-streak", cat: "champions", year: 1971,
@@ -281,7 +281,7 @@
     },
     {
       id: "champions-karpov-1975", cat: "champions", year: 1975,
-      es: "En 1975, Fischer no defendió su título por desacuerdos con la FIDE sobre las condiciones del match, y Anatoli Kárpov fue proclamado campeón sin jugar.",
+      es: "En 1975, Fischer no defendió su título por desacuerdos con la FIDE sobre las condiciones del encuentro, y Anatoli Kárpov fue proclamado campeón sin jugar.",
       en: "In 1975 Fischer did not defend his title after disagreements with FIDE over the match conditions, and Anatoly Karpov was declared champion without playing.",
       source: "Wikipedia 'World Chess Championship 1975'; Encyclopaedia Britannica, 'Bobby Fischer'",
     },
@@ -293,7 +293,7 @@
     },
     {
       id: "champions-1984-halted", cat: "champions", year: 1985,
-      es: "El match de 1984-85 entre Kárpov y Kaspárov, a seis victorias, se suspendió sin resultado tras más de cinco meses y 48 partidas, con Kárpov arriba por 5 a 3.",
+      es: "El encuentro de 1984-85 entre Kárpov y Kaspárov, a seis victorias, se suspendió sin resultado tras más de cinco meses y 48 partidas, con Kárpov arriba por 5 a 3.",
       en: "The 1984-85 Karpov-Kasparov match, played to six wins, was halted without a result after more than five months and 48 games, with Karpov ahead 5-3.",
       source: "Wikipedia 'World Chess Championship 1984'; Timman, The Longest Game",
     },
@@ -306,7 +306,7 @@
     {
       id: "champions-kramnik-2000", cat: "champions", year: 2000,
       es: "En Londres 2000, Vladimir Krámnik venció a Kaspárov por 8,5 a 6,5 sin perder ninguna partida (2 victorias y 13 tablas), apoyado en la sólida Defensa Berlinesa.",
-      en: "In London 2000 Vladimir Kramnik beat Kasparov 8.5-6.5 without losing a single game (2 wins and 13 draws), relying on the solid Berlin Defence.",
+      en: "In London 2000 Vladimir Kramnik beat Kasparov 8.5-6.5 without losing a single game (2 wins and 13 draws), relying on the solid Berlin Defense.",
       source: "ChessBase, '25 years ago: Kramnik beats Kasparov'; Encyclopaedia Britannica",
     },
     {
@@ -354,7 +354,7 @@
     {
       id: "champions-morphy", cat: "champions", year: 1857,
       es: "Paul Morphy se recibió de abogado en Luisiana a los 19 años, todavía sin edad para ejercer. En 1857 ganó el primer Congreso de Ajedrez de Estados Unidos y en 1858 viajó a Europa, donde venció a los mejores del momento.",
-      en: "Paul Morphy earned his law degree in Louisiana at 19, still too young to practise. In 1857 he won the first American Chess Congress and in 1858 he travelled to Europe, where he beat the leading players of the day.",
+      en: "Paul Morphy earned his law degree in Louisiana at 19, still too young to practice. In 1857 he won the first American Chess Congress and in 1858 he traveled to Europe, where he beat the leading players of the day.",
       source: "Wikipedia 'Paul Morphy'; Encyclopaedia Britannica, 'Paul Charles Morphy'",
     },
     {
@@ -371,13 +371,13 @@
     },
     {
       id: "champions-rubinstein-1912", cat: "champions", year: 1912,
-      es: "En 1912, Akiba Rubinstein ganó varios torneos importantes y desafió a Lasker por el título. El match se acordó para el otoño de 1914, pero la Primera Guerra Mundial lo canceló.",
-      en: "In 1912 Akiba Rubinstein won several major tournaments and challenged Lasker for the title. The match was agreed for autumn 1914, but the First World War cancelled it.",
+      es: "En 1912, Akiba Rubinstein ganó varios torneos importantes y desafió a Lasker por el título. El encuentro se acordó para el otoño de 1914, pero la Primera Guerra Mundial lo canceló.",
+      en: "In 1912 Akiba Rubinstein won several major tournaments and challenged Lasker for the title. The match was agreed for autumn 1914, but the First World War canceled it.",
       source: "Wikipedia 'Akiba Rubinstein'; Chess.com player biography",
     },
     {
       id: "champions-keres", cat: "champions", year: 1962,
-      es: "Paul Keres terminó segundo, o compartió el segundo puesto, en los torneos de Candidatos de 1953, 1956, 1959 y 1962, pero nunca jugó un match por el título mundial. Se lo llamó «el eterno segundo».",
+      es: "Paul Keres terminó segundo, o compartió el segundo puesto, en los torneos de Candidatos de 1953, 1956, 1959 y 1962, pero nunca jugó un encuentro por el título mundial. Se lo llamó «el eterno segundo».",
       en: "Paul Keres finished second, or shared second place, in the Candidates tournaments of 1953, 1956, 1959 and 1962, but never played a world championship match. He was nicknamed “the eternal second”.",
       source: "Wikipedia 'Paul Keres'; chess24 'Paul Keres VI: the eternal second'",
     },
@@ -389,20 +389,20 @@
     },
     {
       id: "champions-korchnoi-stateless", cat: "champions", year: 1978,
-      es: "Tras huir de la Unión Soviética en 1976, Viktor Kórchnoi compitió sin nacionalidad a fines de los años 70, incluido el match por el título de 1978. Más tarde se hizo ciudadano suizo.",
+      es: "Tras huir de la Unión Soviética en 1976, Viktor Kórchnoi compitió sin nacionalidad a fines de los años 70, incluido el encuentro por el título de 1978. Más tarde se hizo ciudadano suizo.",
       en: "After leaving the Soviet Union in 1976, Viktor Korchnoi competed as a stateless player in the late 1970s, including the 1978 title match. He later became a Swiss citizen.",
-      source: "Wikipedia 'Viktor Korchnoi'; Swissinfo obituary (2016); the year of the naturalisation differs between sources, so the text gives none",
+      source: "Wikipedia 'Viktor Korchnoi'; Swissinfo obituary (2016); the year of the naturalization differs between sources, so the text gives none",
     },
     {
       id: "champions-korchnoi-yogurt", cat: "champions", year: 1978,
-      es: "En el match de 1978, el equipo de Kórchnoi protestó por un yogur de arándanos que le llevaron a Kárpov en plena partida: temían que fuera una señal en clave. Se reglamentó qué yogur y a qué hora podía servirse.",
+      es: "En el encuentro de 1978, el equipo de Kórchnoi protestó por un yogur de arándanos que le llevaron a Kárpov en plena partida: temían que fuera una señal en clave. Se reglamentó qué yogur y a qué hora podía servirse.",
       en: "In the 1978 match Korchnoi's team protested a blueberry yogurt delivered to Karpov mid-game, fearing it was a coded signal. Rules were then set for which yogurt could be served, and when.",
       source: "Wikipedia 'World Chess Championship 1978'; Philippine press retrospectives (Inquirer, Cover Story)",
     },
     {
       id: "champions-smyslov-singer", cat: "champions", year: 1957,
       es: "Vasili Smyslov, campeón mundial en 1957-58, era barítono: en 1950 se presentó a una audición del Teatro Bolshói y más tarde dio conciertos de canto.",
-      en: "Vasily Smyslov, world champion in 1957-58, was a baritone: in 1950 he auditioned for the Bolshoi Theatre and later gave singing concerts.",
+      en: "Vasily Smyslov, world champion in 1957-58, was a baritone: in 1950 he auditioned for the Bolshoi Theater and later gave singing concerts.",
       source: "Wikipedia 'Vasily Smyslov'; FIDE Museum, 'Smyslov's concert setlist'",
     },
     {
@@ -475,7 +475,7 @@
     },
     {
       id: "machines-deepblue-1996", cat: "machines", year: 1996,
-      es: "En febrero de 1996, Deep Blue le ganó la primera partida a Kaspárov en Filadelfia: la primera derrota de un campeón mundial vigente ante una computadora con ritmo de torneo. Kaspárov igual ganó el match, 4 a 2.",
+      es: "En febrero de 1996, Deep Blue le ganó la primera partida a Kaspárov en Filadelfia: la primera derrota de un campeón mundial vigente ante una computadora con ritmo de torneo. Kaspárov igual ganó el encuentro, 4 a 2.",
       en: "In February 1996 Deep Blue won the first game against Kasparov in Philadelphia: the first loss by a reigning world champion to a computer at tournament time controls. Kasparov still won the match, 4-2.",
       source: "Wikipedia 'Deep Blue versus Garry Kasparov'; History.com, 'Kasparov loses chess game to computer'",
     },
@@ -487,7 +487,7 @@
     },
     {
       id: "machines-advanced-chess", cat: "machines", year: 1998,
-      es: "En 1998, en León (España), Kaspárov y Topalov jugaron el primer match de «ajedrez avanzado», en el que cada uno usaba una computadora durante la partida. Terminó 3 a 3.",
+      es: "En 1998, en León (España), Kaspárov y Topalov jugaron el primer encuentro de «ajedrez avanzado», en el que cada uno usaba una computadora durante la partida. Terminó 3 a 3.",
       en: "In 1998, in León (Spain), Kasparov and Topalov played the first “advanced chess” match, in which each used a computer during the game. It ended 3-3.",
       source: "Wikipedia 'Advanced chess'; The Week in Chess 171 and 188 (1998); ChessBase, 'A hand for Topalov'",
     },
@@ -505,7 +505,7 @@
     },
     {
       id: "machines-alphazero", cat: "machines", year: 2017,
-      es: "En diciembre de 2017, DeepMind presentó AlphaZero, que aprendió ajedrez jugando contra sí misma, sin libros de aperturas. En un match de 100 partidas contra Stockfish 8 ganó 28 y empató 72; las condiciones del match se discutieron.",
+      es: "En diciembre de 2017, DeepMind presentó AlphaZero, que aprendió ajedrez jugando contra sí misma, sin libros de aperturas. En un encuentro de 100 partidas contra Stockfish 8 ganó 28 y empató 72; las condiciones del encuentro se discutieron.",
       en: "In December 2017 DeepMind presented AlphaZero, which learned chess by playing against itself, with no opening books. In a 100-game match against Stockfish 8 it won 28 and drew 72; the match conditions were debated.",
       source: "DeepMind preprint (Dec 2017) and Science paper (Dec 2018); Wikipedia 'AlphaZero'; ChessBase report",
     },
@@ -538,14 +538,14 @@
     {
       id: "openings-ruy-lopez", cat: "openings", year: 1561,
       es: "La Apertura Española, o Ruy López, lleva el nombre del sacerdote Ruy López de Segura, que la analizó en su libro de 1561, publicado en Alcalá de Henares.",
-      en: "The Ruy Lopez opening is named after the Spanish priest Ruy López de Segura, who analysed it in his book of 1561, published in Alcalá de Henares.",
+      en: "The Ruy Lopez opening is named after the Spanish priest Ruy López de Segura, who analyzed it in his book of 1561, published in Alcalá de Henares.",
       source: "Wikipedia 'Ruy Lopez' and 'Ruy López de Segura'; his Libro de la invención liberal y arte del juego del axedrez (1561)",
     },
     {
       id: "openings-sicilian", cat: "openings", year: 1594,
       es: "La Defensa Siciliana (1.e4 c5) ya la analizaron autores italianos como Giulio Polerio (manuscrito de 1594) y, a comienzos del siglo XVII, Gioachino Greco. Hoy es una de las respuestas más populares a 1.e4.",
-      en: "The Sicilian Defence (1.e4 c5) was already analysed by Italian authors such as Giulio Polerio (manuscript of 1594) and, in the early 17th century, Gioachino Greco. Today it is one of the most popular replies to 1.e4.",
-      source: "Wikipedia 'Sicilian Defence' (Polerio's 1594 manuscript analysed it without using the name; Greco's analysis is from 1623, after Salvio 1604 and Carrera c. 1617)",
+      en: "The Sicilian Defense (1.e4 c5) was already analyzed by Italian authors such as Giulio Polerio (manuscript of 1594) and, in the early 17th century, Gioachino Greco. Today it is one of the most popular replies to 1.e4.",
+      source: "Wikipedia 'Sicilian Defence' (Polerio's 1594 manuscript analyzed it without using the name; Greco's analysis is from 1623, after Salvio 1604 and Carrera c. 1617)",
     },
     {
       id: "openings-queens-gambit", cat: "openings", year: 1500, approx: true,
@@ -568,7 +568,7 @@
     {
       id: "openings-philidor", cat: "openings", year: 1749,
       es: "François-André Philidor, también compositor de óperas, escribió en 1749 que «los peones son el alma del ajedrez». La Defensa Philidor (1.e4 e5 2.Cf3 d6) lleva su nombre.",
-      en: "François-André Philidor, who was also an opera composer, wrote in 1749 that “the pawns are the soul of chess”. The Philidor Defence (1.e4 e5 2.Nf3 d6) is named after him.",
+      en: "François-André Philidor, who was also an opera composer, wrote in 1749 that “the pawns are the soul of chess”. The Philidor Defense (1.e4 e5 2.Nf3 d6) is named after him.",
       source: "Wikipedia 'François-André Danican Philidor'; FIDE Museum, 'L'Analyse des Échecs'; Britannica 'Development of theory'",
     },
     {
@@ -580,7 +580,7 @@
     {
       id: "openings-berlin-wall", cat: "openings", year: 2000,
       es: "La Defensa Berlinesa (1.e4 e5 2.Cf3 Cc6 3.Ab5 Cf6) se consideraba pasiva hasta que Krámnik la usó con éxito contra Kaspárov en 2000. Desde entonces es un arma sólida y muy respetada en la élite.",
-      en: "The Berlin Defence (1.e4 e5 2.Nf3 Nc6 3.Bb5 Nf6) was seen as passive until Kramnik used it successfully against Kasparov in 2000. Since then it has been a solid, much-respected weapon at the top.",
+      en: "The Berlin Defense (1.e4 e5 2.Nf3 Nc6 3.Bb5 Nf6) was seen as passive until Kramnik used it successfully against Kasparov in 2000. Since then it has been a solid, much-respected weapon at the top.",
       source: "ChessBase, '25 years ago: Kramnik beats Kasparov'; Encyclopaedia Britannica",
     },
     {
@@ -606,14 +606,14 @@
     {
       id: "culture-london-1851", cat: "culture", year: 1851,
       es: "El torneo de Londres de 1851, el primer torneo internacional, se organizó junto con la Gran Exposición. Fue por eliminación directa y lo ganó Adolf Anderssen, que venció a Staunton en las semifinales.",
-      en: "The London 1851 tournament, the first international tournament, was organised alongside the Great Exhibition. It was a knockout event won by Adolf Anderssen, who beat Staunton in the semi-final.",
+      en: "The London 1851 tournament, the first international tournament, was organized alongside the Great Exhibition. It was a knockout event won by Adolf Anderssen, who beat Staunton in the semifinal.",
       source: "Chess.com, 'London 1851: the first international chess tournament'; Wikipedia 'London 1851 chess tournament'",
     },
     {
       id: "culture-name-latin", cat: "culture", year: 1300, approx: true,
       es: "«Ludus scaccorum» es latín medieval para «juego de ajedrez». La expresión aparece, en formas como «ludo scaccorum», en el título de la obra de Cessolis (hacia 1300) y da nombre a este entrenador.",
       en: "“Ludus scaccorum” is medieval Latin for “game of chess”. The phrase appears, in forms such as “ludo scaccorum”, in the title of Cessolis's work (around 1300) and gives this trainer its name.",
-      source: "Manuscript catalogues (Yale Beinecke, British Library) listing 'Liber de moribus hominum et officiis nobilium super ludo scacchorum'",
+      source: "Manuscript catalogs (Yale Beinecke, British Library) listing 'Liber de moribus hominum et officiis nobilium super ludo scacchorum'",
     },
     {
       id: "culture-caissa", cat: "culture", year: 1763,
@@ -698,7 +698,7 @@
     {
       id: "records-najdorf-blindfold", cat: "records", year: 1947,
       es: "En 1947, en San Pablo, Miguel Najdorf jugó a ciegas 45 partidas simultáneas durante unas 23 horas: ganó 39, empató 4 y perdió 2. Fue el récord reconocido hasta 2011.",
-      en: "In 1947, in São Paulo, Miguel Najdorf played 45 blindfold games at once over about 23 hours: he won 39, drew 4 and lost 2. It stood as the recognised record until 2011.",
+      en: "In 1947, in São Paulo, Miguel Najdorf played 45 blindfold games at once over about 23 hours: he won 39, drew 4 and lost 2. It stood as the recognized record until 2011.",
       source: "Guinness World Records; ChessBase, 'Remembering Miguel Najdorf'; Wikipedia 'Blindfold chess'",
     },
     {
@@ -766,7 +766,7 @@
     {
       id: "mind-chunks", cat: "mind", year: 1973,
       es: "Chase y Simon (1973) vieron que esa ventaja casi desaparece si las piezas están ubicadas al azar: los expertos no memorizan casillas, sino patrones conocidos que reconocen de un vistazo.",
-      en: "Chase and Simon (1973) found that this advantage all but disappears when the pieces are placed at random: experts do not memorise squares, they recognise familiar patterns at a glance.",
+      en: "Chase and Simon (1973) found that this advantage all but disappears when the pieces are placed at random: experts do not memorize squares, they recognize familiar patterns at a glance.",
       source: "Chase & Simon, 'Perception in chess', Cognitive Psychology 4 (1973)",
     },
     {
@@ -784,13 +784,13 @@
     {
       id: "mind-kotov", cat: "mind", year: 1971,
       es: "El gran maestro Alexander Kotov describió en 1971 un error común: calcular una y otra vez las mismas variantes y, sin tiempo, terminar jugando otra jugada sin analizar. Se lo conoce como «síndrome de Kotov».",
-      en: "Grandmaster Alexander Kotov described a common error in 1971: analysing the same variations again and again and then, short of time, playing a different move without checking it. It is called “Kotov syndrome”.",
+      en: "Grandmaster Alexander Kotov described a common error in 1971: analyzing the same variations again and again and then, short of time, playing a different move without checking it. It is called “Kotov syndrome”.",
       source: "Kotov, Think Like a Grandmaster (Batsford, 1971); Wikipedia 'Alexander Kotov'",
     },
     {
       id: "mind-transfer", cat: "mind", year: 2016,
       es: "Un metaanálisis de 2016 (Sala y Gobet) encontró que enseñar ajedrez a chicos mejora algo su rendimiento en matemática. Los autores advierten que faltan estudios con buenos grupos de control.",
-      en: "A 2016 meta-analysis (Sala and Gobet) found that teaching chess to children modestly improves their maths performance. The authors warn that studies with good control groups are still lacking.",
+      en: "A 2016 meta-analysis (Sala and Gobet) found that teaching chess to children modestly improves their math performance. The authors warn that studies with good control groups are still lacking.",
       source: "Sala & Gobet, 'Do the benefits of chess instruction transfer to academic and cognitive skills? A meta-analysis', Educational Research Review (2016)",
     },
     {
@@ -869,7 +869,7 @@
       id: "tl-ruy-lopez", year: 1561,
       title: { es: "Ruy López publica su libro", en: "Ruy López publishes his book" },
       es: "El sacerdote Ruy López de Segura publica en Alcalá de Henares su libro de ajedrez, donde analiza la apertura que hoy lleva su nombre.",
-      en: "The priest Ruy López de Segura publishes his chess book in Alcalá de Henares, analysing the opening that now bears his name.",
+      en: "The priest Ruy López de Segura publishes his chess book in Alcalá de Henares, analyzing the opening that now bears his name.",
       source: "Wikipedia 'Ruy López de Segura'",
     },
     {
@@ -918,14 +918,14 @@
       id: "tl-steinitz-1886", year: 1886,
       title: { es: "Primer campeón oficial", en: "First official champion" },
       es: "Wilhelm Steinitz vence a Zukertort y es considerado el primer campeón mundial oficial. Populariza un juego más posicional y científico.",
-      en: "Wilhelm Steinitz beats Zukertort and is regarded as the first official world champion. He popularises a more positional, scientific style.",
+      en: "Wilhelm Steinitz beats Zukertort and is regarded as the first official world champion. He popularizes a more positional, scientific style.",
       source: "Wikipedia 'World Chess Championship 1886'; Chess.com on Steinitz",
     },
     {
       id: "tl-lasker-1894", year: 1894,
       title: { es: "Lasker, campeón", en: "Lasker becomes champion" },
       es: "Emanuel Lasker le gana el título a Steinitz. Lo conservará hasta 1921, el reinado más largo de un campeón mundial oficial.",
-      en: "Emanuel Lasker takes the title from Steinitz. He will keep it until 1921, the longest reign of any officially recognised champion.",
+      en: "Emanuel Lasker takes the title from Steinitz. He will keep it until 1921, the longest reign of any officially recognized champion.",
       source: "Wikipedia 'Emanuel Lasker'",
     },
     {
@@ -967,7 +967,7 @@
       id: "tl-botvinnik-1948", year: 1948,
       title: { es: "La FIDE toma el título", en: "FIDE takes over the title" },
       es: "Tras la muerte de Alekhine, la FIDE organiza un torneo mundial en La Haya y Moscú. Lo gana Botvinnik y comienza la era de dominio soviético.",
-      en: "After Alekhine's death, FIDE organises a world championship tournament in The Hague and Moscow. Botvinnik wins it, beginning the era of Soviet dominance.",
+      en: "After Alekhine's death, FIDE organizes a world championship tournament in The Hague and Moscow. Botvinnik wins it, beginning the era of Soviet dominance.",
       source: "Wikipedia 'World Chess Championship 1948'; New In Chess",
     },
     {
@@ -987,9 +987,9 @@
     {
       id: "tl-fischer-1972", year: 1972,
       title: { es: "Fischer, campeón", en: "Fischer becomes champion" },
-      es: "En Reikiavik, Bobby Fischer vence a Boris Spassky en un match seguido por todo el mundo y es el primer campeón mundial nacido en Estados Unidos.",
+      es: "En Reikiavik, Bobby Fischer vence a Boris Spassky en un encuentro seguido por todo el mundo y es el primer campeón mundial nacido en Estados Unidos.",
       en: "In Reykjavik, Bobby Fischer beats Boris Spassky in a match followed around the world and becomes the first American-born world champion.",
-      source: "Encyclopaedia Britannica, 'Bobby Fischer'; History.com; Wikipedia 'Wilhelm Steinitz' (naturalised US citizen in 1888)",
+      source: "Encyclopaedia Britannica, 'Bobby Fischer'; History.com; Wikipedia 'Wilhelm Steinitz' (naturalized US citizen in 1888)",
     },
     {
       id: "tl-kasparov-1985", year: 1985,
@@ -1001,14 +1001,14 @@
     {
       id: "tl-deepblue-1996", year: 1996,
       title: { es: "Deep Blue gana una partida", en: "Deep Blue wins a game" },
-      es: "En Filadelfia, Deep Blue le gana una partida a Kaspárov con ritmo de torneo, algo inédito. Kaspárov igual gana el match 4 a 2.",
+      es: "En Filadelfia, Deep Blue le gana una partida a Kaspárov con ritmo de torneo, algo inédito. Kaspárov igual gana el encuentro 4 a 2.",
       en: "In Philadelphia, Deep Blue beats Kasparov in a game at tournament time controls, a first. Kasparov still wins the match 4-2.",
       source: "Wikipedia 'Deep Blue versus Garry Kasparov'; History.com",
     },
     {
       id: "tl-deepblue-1997", year: 1997,
-      title: { es: "Deep Blue gana el match", en: "Deep Blue wins the match" },
-      es: "En Nueva York, Deep Blue vence a Kaspárov por 3,5 a 2,5. Es la primera vez que una computadora gana un match a un campeón mundial vigente con ritmo de torneo.",
+      title: { es: "Deep Blue gana el encuentro", en: "Deep Blue wins the match" },
+      es: "En Nueva York, Deep Blue vence a Kaspárov por 3,5 a 2,5. Es la primera vez que una computadora gana un encuentro a un campeón mundial vigente con ritmo de torneo.",
       en: "In New York, Deep Blue beats Kasparov 3.5-2.5. It is the first time a computer wins a match against a reigning world champion at standard tournament time controls.",
       source: "IBM Archives, 'Deep Blue'; Wikipedia 'Deep Blue versus Garry Kasparov'",
     },

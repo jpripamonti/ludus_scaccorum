@@ -203,11 +203,14 @@ function loadApp(dom, consoleSpy, screenStubs) {
 
 function makeEnv(options = {}) {
   const errors = [];
+  const warnings = [];
   const consoleSpy = {
     log() {},
     info() {},
     debug() {},
-    warn() {},
+    warn(...args) {
+      warnings.push(args.map((arg) => (arg && arg.message ? arg.message : String(arg))).join(" "));
+    },
     error(...args) {
       errors.push(args.map((arg) => (arg && arg.stack ? arg.stack : String(arg))).join(" "));
     },
@@ -234,7 +237,7 @@ function makeEnv(options = {}) {
     events.sounds.push(name);
     return true;
   };
-  return { env, dom, Ludus, engine, events, errors, fens: built.fens, table: built.table };
+  return { env, dom, Ludus, engine, events, errors, warnings, fens: built.fens, table: built.table };
 }
 
 function delay(ms) {
@@ -1177,10 +1180,10 @@ test("PF-2: the players take turns going first, every position starts covered, a
 test("PF-2: a long name wraps in the cover and nothing about whose turn it is depends on how long it is", async () => {
   const t = makeEnv();
   const { Ludus, env } = t;
-  const long = ["Maximiliano Alejandro Pe", "WWWWWWWWWWWWWWWWWWWWWWWW"]; // 24 letters, the longest a profile name may be (a duel keeps 20)
+  const long = ["Maximiliano Alejandro Pe", "WWWWWWWWWWWWWWWWWWWWWWWW"]; // 24 letters, the longest a profile name may be (RC-2: a duel keeps all of them)
   await Ludus.game.startSession({ kind: "classic", title: "Long", mode: "duel", names: long, positions: [position(t, 0), position(t, 1)], options: { clock: { mode: "untimed" } } });
   const kept = state(t, "STATE.session.names");
-  assert.deepStrictEqual(kept, [long[0].slice(0, 20), long[1].slice(0, 20)], "a duel keeps 20 letters of a name");
+  assert.deepStrictEqual(kept, long, "a duel keeps the whole name of a profile");
   await delay(60);
   assert.strictEqual(state(t, 'document.getElementById("handoff-overlay-title").textContent'), `${kept[0]}, get ready`);
   assert.ok(state(t, 'document.getElementById("handoff-overlay-subtitle").textContent').includes(`Pass the device to ${kept[0]}`));
@@ -2751,6 +2754,200 @@ test("COR-006/COR-013: a mistake is a loss of WIN CHANCE, confirmed by a proper 
   assert.strictEqual(confirmed.reference.lines[0].uci, "d2d4");
   env.context.analyzePosition = realAnalyze;
   void engine; void fens;
+});
+
+test("RC-1/UX-006: a failure inside the game core reaches the person as a plain sentence with what to do, never as a JavaScript message", async () => {
+  const internal = "Cannot read properties of undefined (reading 'lines')";
+  for (const language of ["en", "es"]) {
+    const en = language === "en";
+    const sentence = (toasts) => toasts.map((entry) => entry.message).join(" | ");
+    const plainSentence = (message) => !/Cannot read|undefined|TypeError|properties|reading|null\b/.test(message) && /[.]$/.test(message);
+
+    // 1. The evaluation of a round throws: the board goes back to the start of the round and the toast says what to do.
+    const round = makeEnv({ languages: [language] });
+    await round.Ludus.game.startSession({ kind: "classic", title: "Boom", positions: [position(round, 0), position(round, 1)], options: { clock: { mode: "untimed" } } });
+    round.env.context.evaluateRoundAnswers = async () => { throw new TypeError(internal); };
+    click(round, "e2", "e4");
+    await waitFor(() => round.events.toasts.length > 0, "the toast of a failed evaluation");
+    const roundToast = round.events.toasts[0];
+    assert.ok(plainSentence(roundToast.message), `${language}: a plain sentence, got "${roundToast.message}"`);
+    assert.strictEqual(roundToast.opts && roundToast.opts.kind, "error");
+    assert.ok(en ? /could not|Try|Play/.test(roundToast.message) : /pudimos|Jug|Prob/.test(roundToast.message), `${language}: says what happened and what to do: "${roundToast.message}"`);
+    assert.ok(round.warnings.some((line) => line.includes(internal)), "the technical detail goes to console.warn only");
+    assert.strictEqual(state(round, "STATE.roundSubmitted"), false, "the person can play the position again");
+    await round.Ludus.game.abort();
+    assertClean(round);
+
+    // 2. "Play again" cannot start: the same.
+    const replay = makeEnv({ languages: [language] });
+    await replay.Ludus.game.startSession({ kind: "classic", title: "Again", positions: [position(replay, 0)], options: { clock: { mode: "untimed" } } });
+    replay.env.run("STATE.sessionPlayed = 1");
+    replay.env.run("STATE.session.completed = true");
+    replay.env.context.startSession = async () => { throw new TypeError(internal); };
+    replay.env.context.drawFreshPositions = async () => { throw new TypeError(internal); };
+    await replay.env.context.replaySession();
+    assert.strictEqual(replay.events.toasts.length, 1, sentence(replay.events.toasts));
+    assert.ok(plainSentence(replay.events.toasts[0].message), `${language}: replay, got "${replay.events.toasts[0].message}"`);
+    assert.ok(replay.warnings.some((line) => line.includes(internal)), "replay: the detail is in the console");
+    assert.strictEqual(replay.events.toasts[0].opts.kind, "error");
+
+    // 3. The reload offer cannot go on with what was left: the same.
+    const sessionMap = new Map();
+    const resume = makeEnv({ languages: [language] });
+    resume.dom.window.sessionStorage = {
+      getItem: (key) => (sessionMap.has(key) ? sessionMap.get(key) : null),
+      setItem: (key, value) => { sessionMap.set(key, String(value)); },
+      removeItem: (key) => { sessionMap.delete(key); },
+    };
+    sessionMap.set("ludus.sessionProgress.v1", JSON.stringify({ v: 1, at: Date.now(), id: "s_r", kind: "classic", title: "Half", mode: "solo", options: {}, answered: 1, total: 3, remaining: [position(resume, 1), position(resume, 2)] }));
+    resume.env.context.showConfirmModal = async () => true;
+    resume.env.context.startSession = async () => { throw new TypeError(internal); };
+    await resume.env.context.offerSessionResume();
+    assert.strictEqual(resume.events.toasts.length, 1, sentence(resume.events.toasts));
+    assert.ok(plainSentence(resume.events.toasts[0].message), `${language}: resume, got "${resume.events.toasts[0].message}"`);
+    assert.ok(resume.warnings.some((line) => line.includes(internal)), "resume: the detail is in the console");
+    assert.notStrictEqual(resume.events.toasts[0].message, replay.events.toasts[0].message, "each failure says what it was about");
+  }
+});
+
+test("RC-2: a duel keeps as many letters of a name as a profile may have, whichever road the name comes in by", async () => {
+  const t = makeEnv();
+  const { env, dom, Ludus } = t;
+  const max = Ludus.Profile.constants.NAME_MAX;
+  assert.strictEqual(max, 24, "the profile's maximum is a shared constant");
+  const long = "Maximiliano Alejandro Pe"; // 24 letters
+  assert.strictEqual(long.length, max);
+  // The profile with the longest name it may have plays a duel: nothing is cut.
+  const profile = Ludus.Profile.create({ name: long });
+  assert.strictEqual(profile.name, long);
+  await Ludus.game.startSession({ kind: "classic", title: "Long", mode: "duel", names: [profile.name, "x".repeat(40)], profileIds: [profile.id, null], positions: [position(t, 0)], options: { clock: { mode: "untimed" } } });
+  assert.deepStrictEqual(state(t, "STATE.session.names"), [long, "x".repeat(max)], "a profile name is whole; a longer name typed by hand is cut at the same limit");
+  await Ludus.game.abort();
+  // The wizard of the person's own games: the inputs, what the wizard collects and what openOwnGamesSetup puts in them.
+  dom.document.getElementById("duel-player-a").value = `${long}ZZZ`;
+  dom.document.getElementById("duel-player-b").value = "  Beto   Ruiz ";
+  assert.deepStrictEqual(state(t, "collectWizardConfig().duelNames"), [long, "Beto Ruiz"]);
+  env.run(`openOwnGamesSetup({ mode: "duel", names: [${JSON.stringify(long + "ZZZ")}, "Beto"] })`);
+  assert.strictEqual(dom.document.getElementById("duel-player-a").value, long);
+  assert.deepStrictEqual(state(t, "STATE.setupWizard.duelNames"), [long, "Beto"]);
+  await Ludus.game.abort();
+  // The static markup says the same, so a slow boot never limits the field to something shorter.
+  const html = fs.readFileSync(path.join(__dirname, "..", "..", "index.html"), "utf8");
+  ["duel-player-a", "duel-player-b"].forEach((id) => {
+    const input = new RegExp(`<input id="${id}"[^>]*>`).exec(html);
+    assert.ok(input && input[0].includes(`maxlength="${max}"`), `${id}: maxlength ${max} in index.html`);
+  });
+  // The duel's own setup dialog (js/ui/home.js) reads the same constant.
+  const homeSource = fs.readFileSync(path.join(__dirname, "..", "..", "js", "ui", "home.js"), "utf8");
+  assert.ok(!/DUEL_NAME_MAX\s*=\s*\d+/.test(homeSource), "home.js has no number of its own for the length of a name");
+});
+
+test("RC-3/CNT-035: the default names of a duel are neutral in Spanish (like the profile's), and follow the language", async () => {
+  const es = makeEnv({ languages: ["es"] });
+  assert.strictEqual(es.env.run("defaultDuelPlayerName(0)"), "Participante 1");
+  assert.strictEqual(es.env.run("defaultDuelPlayerName(1)"), "Participante 2");
+  assert.strictEqual(es.Ludus.Profile.active().name, "Participante", "the profile's default is the same word");
+  assert.deepStrictEqual(state(es, "STATE.setupWizard.duelNames"), ["Participante 1", "Participante 2"]);
+  assert.deepStrictEqual(state(es, "STATE.duel.players"), ["Participante 1", "Participante 2"]);
+  // Nobody typed a name: the session gets the default of the language, and so does the wizard when its fields are empty.
+  await es.Ludus.game.startSession({ kind: "classic", title: "Sin nombres", mode: "duel", positions: [position(es, 0)], options: { clock: { mode: "untimed" } } });
+  assert.deepStrictEqual(state(es, "STATE.session.names"), ["Participante 1", "Participante 2"]);
+  await es.Ludus.game.abort();
+
+  const en = makeEnv({ languages: ["en"] });
+  assert.strictEqual(en.env.run("defaultDuelPlayerName(0)"), "Player 1");
+  en.dom.document.getElementById("duel-player-a").value = "";
+  en.dom.document.getElementById("duel-player-b").value = "   ";
+  en.env.run("readDuelPlayersFromInputs()");
+  assert.deepStrictEqual(state(en, "STATE.duel.players"), ["Player 1", "Player 2"], "an empty field falls back to the default of the language, not to Spanish");
+  // A default that was never edited follows a language change; a typed name stays.
+  en.dom.document.getElementById("duel-player-a").value = "Player 1";
+  en.dom.document.getElementById("duel-player-b").value = "Beto";
+  en.Ludus.i18n.setLanguage("es");
+  await delay(15);
+  assert.strictEqual(en.dom.document.getElementById("duel-player-a").value, "Participante 1");
+  assert.strictEqual(en.dom.document.getElementById("duel-player-b").value, "Beto");
+  // No masculine generic left in the wizard's defaults, and the static markup agrees with them.
+  const source = fs.readFileSync(path.join(__dirname, "..", "..", "app.js"), "utf8");
+  assert.ok(!/"Jugador [12]"/.test(source), "app.js has no 'Jugador 1/2' default");
+  const html = fs.readFileSync(path.join(__dirname, "..", "..", "index.html"), "utf8");
+  assert.ok(/<input id="duel-player-a"[^>]*value="Participante 1"/.test(html) && /<input id="duel-player-b"[^>]*value="Participante 2"/.test(html), "index.html defaults");
+});
+
+test("RC-5: the static text of index.html is the current Spanish text of its data-i18n key, so a slow boot never flashes old copy", async () => {
+  const t = makeEnv({ languages: ["es"] });
+  const html = fs.readFileSync(path.join(__dirname, "..", "..", "index.html"), "utf8");
+  const clean = (text) => String(text).replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
+  const current = (key) => clean(t.env.run(`t(${JSON.stringify(key)}, {}, "es")`));
+  const stale = [];
+  let checked = 0;
+  for (const match of html.matchAll(/<(\w+)([^>]*?)\sdata-i18n="([^"]+)"([^>]*)>([^<]*)</g)) {
+    checked += 1;
+    if (clean(match[5]) !== current(match[3])) stale.push(`${match[3]}: "${clean(match[5])}" is now "${current(match[3])}"`);
+  }
+  for (const attribute of ["placeholder", "title", "aria-label"]) {
+    for (const match of html.matchAll(new RegExp(`<(\\w+)([^>]*?)\\sdata-i18n-${attribute}="([^"]+)"([^>]*)>`, "g"))) {
+      const written = new RegExp(`\\s${attribute}="([^"]*)"`).exec(match[0]);
+      checked += 1;
+      // An attribute that is not written in the markup is fine for a name taken from the visible text; one that is must be current.
+      if (written && clean(written[1]) !== current(match[3])) stale.push(`${attribute} ${match[3]}: "${clean(written[1])}" is now "${current(match[3])}"`);
+    }
+  }
+  assert.ok(checked > 60, `the markup was scanned (${checked} strings)`);
+  assert.deepStrictEqual(stale, [], `static text that app.js rewrites at boot must already say the same: ${stale.join(" | ")}`);
+  // The words the first-paint shows for the two buttons the person presses most.
+  assert.ok(/id="analyze-btn"[^>]*>Empezar sesión</.test(html) && /id="skip-btn-label"[^>]*>Saltear \(0 pts\)</.test(html));
+});
+
+test("RC-4: the consent dialog says everything the landing's privacy card says is kept, in both languages", async () => {
+  for (const language of ["en", "es"]) {
+    const t = makeEnv({ languages: [language] });
+    let asked = null;
+    t.env.context.showConfirmModal = async (options) => { asked = options; return false; };
+    await t.env.context.confirmRemoteFetchConsent("lichess", "magnus");
+    assert.ok(asked, "the dialog is asked");
+    const body = asked.body;
+    // What it always said: who is asked, from where, how long the games are kept, how to delete them, the shared computer.
+    assert.ok(/magnus/.test(body) && /Lichess/.test(body));
+    assert.ok(language === "en" ? /up to 7 days/.test(body) && /Clear saved game data/.test(body) && /shared computer/.test(body) : /hasta 7 días/.test(body) && /Borrar datos guardados de partidas/.test(body) && /computadora compartida/.test(body));
+    // What the profile keeps of a round of the person's own games (the landing: "your username, your opponents' and the link to each game").
+    assert.ok(language === "en"
+      ? /players' names/.test(body) && /link to each game/.test(body) && /Account/.test(body)
+      : /nombres de los jugadores/.test(body) && /enlace de cada partida/.test(body) && /Cuenta/.test(body), `the profile's part is named: ${body}`);
+    assert.ok(body.trim().endsWith(language === "en" ? "Continue?" : "¿Continuar?"), "the question stays last");
+  }
+});
+
+test("RC-7: the evaluation overlay never promises a number of seconds the search may overrun, and says it in the language of the page", async () => {
+  for (const language of ["en", "es"]) {
+    const t = makeEnv({ languages: [language] });
+    const { env, Ludus } = t;
+    const shown = [];
+    const labels = [];
+    const realShow = env.context.showPositionSearchOverlay;
+    env.context.showPositionSearchOverlay = (title, meta, options) => {
+      shown.push({ title, meta, label: options && options.progressLabel, progress: Boolean(options && options.showProgress) });
+      return realShow(title, meta, options);
+    };
+    const realProgress = env.context.setPositionSearchProgress;
+    env.context.setPositionSearchProgress = (ratio, label) => {
+      if (typeof label === "string" && label) labels.push(label);
+      return realProgress(ratio, label);
+    };
+    await Ludus.game.startSession({ kind: "classic", title: "Wait", positions: [position(t, 0), position(t, 1)], options: { clock: { mode: "untimed" } } });
+    await playAndWait(t, "e2", "e4");
+    const evaluating = shown.filter((entry) => entry.progress);
+    assert.ok(evaluating.length >= 1, "the evaluation overlay was shown");
+    evaluating.forEach((entry) => {
+      assert.ok(!/\d/.test(entry.meta), `${language}: no number of seconds in "${entry.meta}" (a ceiling that a slow engine, a retry or the backup engine can overrun is a broken promise)`);
+      assert.ok(language === "en" ? /usually/i.test(entry.meta) && /a few seconds/.test(entry.meta) : /suele/i.test(entry.meta) && /unos segundos/.test(entry.meta), `${language}: says how long it usually takes: "${entry.meta}"`);
+      assert.ok(!/\bmax\b/i.test(entry.meta) && !/\bm[aá]x\b/i.test(entry.meta), "no 'max' in the copy");
+    });
+    assert.ok(labels.length >= 1);
+    labels.forEach((label) => assert.ok(/^\d+% · \d+\.\d s$/.test(label), `${language}: the progress line shows the percentage and what has passed, no total: "${label}"`));
+    await Ludus.game.abort();
+    assertClean(t);
+  }
 });
 
 // ---------- run ----------

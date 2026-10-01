@@ -198,7 +198,10 @@ test("helpers: hash routes, date key, greeting part, duel players, counts", () =
   const defaults = helpers.resolveDuelPlayers([{ kind: "guest", guestName: "" }, { kind: "guest", guestName: "" }], profiles);
   assert.deepStrictEqual(Array.from(defaults.names), ["Participante 1", "Participante 2"]);
   const unknown = helpers.resolveDuelPlayers([{ kind: "profile", profileId: "ghost" }, { kind: "guest", guestName: "x".repeat(60) }], profiles);
-  assert.strictEqual(unknown.names[1].length, 20, "names are capped");
+  // RC-2 (r2-core, marked edit): the cap is the profile's own (Profile.constants.NAME_MAX, 24), so a long profile name is never cut when it plays.
+  assert.strictEqual(unknown.names[1].length, 24, "names are capped at what a profile's name may have");
+  const longProfile = [{ id: "p9", name: "Maximiliano Alejandro Pe" }];
+  assert.strictEqual(helpers.resolveDuelPlayers([{ kind: "profile", profileId: "p9" }, { kind: "guest", guestName: "Ana" }], longProfile).names[0], "Maximiliano Alejandro Pe", "the longest profile name stays whole");
   assert.strictEqual(unknown.profileIds[0], null, "an unknown profile id becomes a guest");
   assert.strictEqual(helpers.resolveDuelPlayers([], profiles).ok, false);
 });
@@ -697,6 +700,60 @@ test("shell: profile chip and popover switch profiles, cap at 4, open the add-pr
   const add = findAll(els.status, byClass("sh-pop-add"))[0];
   assert.ok(add.hasAttribute("disabled"));
   assert.ok(text(add).includes("Máximo 4 perfiles"));
+});
+
+test("shell: the new-profile form says why Profile refused (duplicate name, a code only Profile.errorKey knows, an unknown code), in both languages", async () => {
+  for (const language of ["es", "en"]) {
+    const { Ludus, els, doc } = createEnv({ language });
+    Ludus.Profile.ensureActive();
+    Ludus.Profile.rename(Ludus.Profile.active().id, "Ana");
+    Ludus.shell.mount(els.app);
+    const chip = () => findAll(els.status, byClass("sh-profile-chip"))[0];
+    chip().click();
+    findAll(els.status, byClass("sh-pop-add"))[0].click();
+    const dialog = findAll(doc.body, byClass("modal")).pop();
+    const input = findAll(dialog, (el) => el.tagName === "INPUT")[0];
+    const create = findAll(dialog, (el) => el.classList.contains("btn-primary"))[0];
+    const message = () => text(findAll(dialog, byClass("field-error"))[0]);
+    const generic = Ludus.i18n.t("shell.profile.error.generic");
+    const i18n = (key, params) => Ludus.i18n.t(key, params);
+
+    // The real refusal: the same name with other capitals and spaces.
+    input.value = "  aNA ";
+    create.click();
+    assert.strictEqual(Ludus.Profile.lastError(), "duplicate-name");
+    assert.strictEqual(message(), i18n("profile.import.error.duplicate-name"), `${language}: the taken-name sentence, not the generic one`);
+    assert.notStrictEqual(message(), generic);
+    assert.strictEqual(Ludus.Profile.list().length, 1, "nothing was created");
+
+    // A code the shell has no sentence of its own for (no shell.profile.error.no-such-profile) falls back to Profile.errorKey.
+    assert.ok(!Ludus.i18n.has("shell.profile.error.no-such-profile"), "the premise: the shell has no key for this code");
+    const realCreate = Ludus.Profile.create;
+    const realLastError = Ludus.Profile.lastError;
+    try {
+      Ludus.Profile.create = () => null;
+      Ludus.Profile.lastError = () => "no-such-profile";
+      input.value = "Otra";
+      create.click();
+      assert.strictEqual(message(), i18n("profile.import.error.no-such-profile"), `${language}: the reason Profile names for the code`);
+      assert.notStrictEqual(message(), generic);
+      // The shell's own sentence still wins, with its {max}.
+      Ludus.Profile.lastError = () => "limit";
+      create.click();
+      assert.strictEqual(message(), i18n("shell.profile.error.limit", { max: Ludus.Profile.constants.MAX_PROFILES }));
+      assert.ok(!message().includes("{max}"));
+      // A code nobody has a sentence for (and no code at all) gets the generic line, never a raw key.
+      Ludus.Profile.lastError = () => "never-heard-of-it";
+      create.click();
+      assert.strictEqual(message(), generic);
+      Ludus.Profile.lastError = () => "";
+      create.click();
+      assert.strictEqual(message(), generic);
+    } finally {
+      Ludus.Profile.create = realCreate;
+      Ludus.Profile.lastError = realLastError;
+    }
+  }
 });
 
 test("shell: hash routes navigate (and #/daily starts the challenge), and never while a game is on", async () => {

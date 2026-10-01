@@ -580,7 +580,7 @@ test("chess school: 14 lessons, each with a board, the best-move arrow and its e
     assert.strictEqual(findAll(board, byClass("mb-arrow")).length, 1, "one arrow");
     assert.ok(findAll(board, byClass("mb-hl-best")).length === 1, "the piece to move is marked");
     assert.ok(/Ejemplo de /.test(board.getAttribute("aria-label")), board.getAttribute("aria-label"));
-    assert.ok(text(card).includes("Jugada del ejemplo:"));
+    assert.ok(text(card).includes("Jugada de ejemplo:"));
     assert.ok(text(q(card, ".museum-concept-text")).length > 100);
   });
   assert.ok(text(cards()[0]).includes("Doble ataque (horquilla)") && text(cards()[0]).includes("Cc7+"));
@@ -607,7 +607,7 @@ test("chess school: 14 lessons, each with a board, the best-move arrow and its e
   Ludus.i18n.setLanguage("en", { persist: false });
   const redrawn = findAll(panel(el, "school"), byClass("museum-concept"));
   assert.strictEqual(redrawn.length, filtered, "the filter survives the language switch");
-  assert.ok(text(redrawn[0]).includes("Move of the example:"));
+  assert.ok(text(redrawn[0]).includes("Example move:"));
   assert.ok(text(panel(el, "school")).includes("All lessons"));
 });
 
@@ -824,7 +824,7 @@ test("notation: the example move is drawn through localizeSan and read aloud thr
   let spoken = spokenOf(move(es));
   assert.strictEqual(text(drawn), "Cc7+");
   assert.strictEqual(text(spoken), "caballo a c7, jaque");
-  assert.strictEqual(text(move(es)), "Jugada del ejemplo: Cc7+ caballo a c7, jaque", "the label is read, then the spoken move");
+  assert.strictEqual(text(move(es)), "Jugada de ejemplo: Cc7+ caballo a c7, jaque", "the label is read, then the spoken move");
   assert.ok(!drawn.parentNode.hasAttribute("aria-hidden") && !drawn.parentNode.parentNode.hasAttribute("aria-hidden"), "only the drawn move is hidden from the reader");
   // English letters chosen in Settings on a Spanish page: drawn in English, still spoken in Spanish words.
   es.Ludus.Settings.set("notation.style", "english");
@@ -839,7 +839,7 @@ test("notation: the example move is drawn through localizeSan and read aloud thr
   en.Ludus.router.show("museum", { tab: "school" });
   assert.strictEqual(text(drawnOf(move(en))), "Nc7+");
   assert.strictEqual(text(spokenOf(move(en))), "knight to c7, check");
-  assert.ok(text(move(en)).startsWith("Move of the example: Nc7+"));
+  assert.ok(text(move(en)).startsWith("Example move: Nc7+"));
   en.Ludus.Settings.set("notation.style", "spanish");
   en.Ludus.Screens.museum.render();
   assert.strictEqual(text(drawnOf(move(en))), "Cc7+", "Spanish letters when the setting says so");
@@ -848,7 +848,7 @@ test("notation: the example move is drawn through localizeSan and read aloud thr
   es.Ludus.Settings.set("notation.style", "auto");
   es.Ludus.Screens.museum.render();
   findAll(panel(es.el, "school"), byClass("museum-concept-move")).forEach((paragraph, i) => {
-    assert.ok(text(paragraph).startsWith("Jugada del ejemplo: "), `lesson ${i} keeps its label`);
+    assert.ok(text(paragraph).startsWith("Jugada de ejemplo: "), `lesson ${i} keeps its label`);
     assert.strictEqual(text(drawnOf(paragraph)), es.Ludus.chess.localizeSan(sans[i], "es"), `lesson ${i} drawn`);
     assert.strictEqual(text(spokenOf(paragraph)), es.Ludus.chess.spokenSan(sans[i], "es"), `lesson ${i} spoken`);
   });

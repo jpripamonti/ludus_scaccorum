@@ -617,7 +617,7 @@ test("screen: the engine strength shows the wait it means and the lines note fol
   const lines = q(row(el, "engine.multiPv"), "input[type=\"range\"]");
   lines.value = "1";
   lines.dispatch("input");
-  assert.ok(text(row(el, "engine.multiPv")).includes("cannot recognise"));
+  assert.ok(text(row(el, "engine.multiPv")).includes("cannot recognize"));
   lines.value = "4";
   lines.dispatch("input");
   assert.ok(text(row(el, "engine.multiPv")).includes("With 4 lines"));
@@ -978,7 +978,7 @@ test("copy: the clock note says it is the usual clock, the analysis time says it
   }
   const en = Ludus.Screens.settings.TEXT.en;
   assert.ok(en["settings.ui.lines.many"].includes("“only moves”") && !/only moves are/.test(en["settings.ui.lines.many"]), en["settings.ui.lines.many"]);
-  assert.ok(en["settings.ui.preview.foot"].includes("“only moves” cannot be recognised"), en["settings.ui.preview.foot"]);
+  assert.ok(en["settings.ui.preview.foot"].includes("“only moves” cannot be recognized"), en["settings.ui.preview.foot"]);
   Object.keys(en).forEach((key) => assert.ok(!/winning chance|win probability/i.test(en[key]), `one term for win chance: ${key}`));
   assert.ok(!h || typeof h === "object");
 });

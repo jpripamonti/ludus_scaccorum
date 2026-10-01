@@ -157,7 +157,9 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
   assert.strictEqual(gamePhase({}), "middlegame");
   assert.strictEqual(positionFeatures(Chess.START_FEN).phase, gamePhase(Chess.START_FEN), "positionFeatures uses the same function");
 
-  // The 248 classic training positions: a real spread, and the data's own `phase` field agrees.
+  // The classics data's training positions: a real spread, and the data's own `phase` field IS this classifier's answer
+  // (the build asks Insights.gamePhase, PX-1), so the agreement is exact, not "about 95 %". The counts are read from the
+  // data (it grows with every game added), never hard-coded.
   try {
     delete require.cache[require.resolve(path.join(jsDir, "data", "classics.data.js"))];
     require(path.join(jsDir, "data", "classics.data.js"));
@@ -173,7 +175,7 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
     }));
     assert.ok(total >= 240, `the classics have ${total} positions`);
     assert.ok(counts.opening >= 20 && counts.middlegame >= 100 && counts.endgame >= 8, `a spread of phases: ${JSON.stringify(counts)}`);
-    assert.ok(agree / total >= 0.95, `the classics data phase field agrees on ${agree}/${total}`);
+    assert.strictEqual(agree, total, `the classics data phase field must equal Insights.gamePhase on every position (${agree}/${total}; rebuild the data after changing the classifier)`);
     console.log(`  (gamePhase on the classics: ${JSON.stringify(counts)}, agreement with the data field ${agree}/${total})`);
   } catch (error) {
     if (error && error.code !== "MODULE_NOT_FOUND") throw error;
@@ -538,8 +540,8 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
 // ---------- Regression corpus: what the QA content audit found false (CNT-001, 003, 005, 009, 010, 015) ----------
 
 {
-  // Real positions of the 28 classic games with Stockfish's lines (scripts/tests/_insights_corpus.json):
-  // each one was a false or contradictory sentence before.
+  // Real positions of the classic games with Stockfish's lines (scripts/tests/_insights_corpus.json, a fixed
+  // fixture from the QA audit): each one was a false or contradictory sentence before.
   const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, "_insights_corpus.json"), "utf8"));
   const byId = {};
   fixture.cases.forEach((entry) => { byId[entry.id] = entry; });
@@ -761,6 +763,15 @@ assert.deepStrictEqual(positionFeatures("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").materi
   const median = samples[samples.length >> 1];
   assert.ok(median < 60 && samples[samples.length - 1] < 400, `analysis with engine lines: median ${median.toFixed(1)} ms, max ${samples[samples.length - 1].toFixed(1)} ms`);
   console.log(`  (analyzeChoice with engine lines on ${samples.length} classic positions: median ${median.toFixed(1)} ms, max ${samples[samples.length - 1].toFixed(1)} ms)`);
+}
+
+{
+  // The English of the app is American (scripts/tests/ui-screens-spelling.test.js has the full list for the screens; these
+  // tables are registered by this module, so they are checked here): "center", "favor", "toward".
+  const BRITISH = /\b(?:centre|centres|defence|defences|offence|neighbour\w*|colour\w*|favour\w*|towards|analys(?:e|ed|ing)|practis(?:e|ed|ing)|recognis\w*|organis\w*|grey|whilst|learnt|judgement|behaviour\w*)\b/i;
+  const table = Insights.internals.STRINGS.en;
+  assert.ok(Object.keys(table).length > 80, "the English table is read in full");
+  Object.keys(table).forEach((key) => assert.ok(!BRITISH.test(table[key]), `${key}: British spelling "${(table[key].match(BRITISH) || [])[0]}"`));
 }
 
 console.log("insights.test.js: all assertions passed");

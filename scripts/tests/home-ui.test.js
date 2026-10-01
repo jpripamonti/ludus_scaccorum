@@ -247,6 +247,38 @@ test("notation: moves quoted in the fact card follow the notation setting like e
   assert.strictEqual(quoted("No moves here, only 1984.", "en"), "No moves here, only 1984.");
 });
 
+// ---------- RC-2 / RC-3: the names of a duel ----------
+
+test("duel names: a profile's whole name fits (one shared limit), and nobody is called by the masculine generic", async () => {
+  const env = createEnv({ language: "es" });
+  const { Ludus } = env;
+  const max = Ludus.Profile.constants.NAME_MAX;
+  assert.strictEqual(max, 24, "the limit comes from the profile module");
+  const helpers = Ludus.Screens.home.helpers;
+  const longest = "Maximiliano Alejandro Pe";
+  assert.strictEqual(longest.length, max);
+  const resolved = helpers.resolveDuelPlayers([{ kind: "profile", profileId: "p1" }, { kind: "guest", guestName: `${longest}ZZZ` }], [{ id: "p1", name: longest }]);
+  assert.deepStrictEqual(Array.from(resolved.names), [longest, longest], "a profile name is whole and a typed one is cut at the same limit");
+  // The dialog: the guest fields take as many letters as a profile name, and the placeholders are the neutral default.
+  for (const language of ["es", "en"]) {
+    const page = createEnv({ language });
+    page.Ludus.Screens.home.openDuelSetup();
+    const dialog = findAll(page.doc.body, (el) => el.classList.contains("modal")).pop();
+    assert.ok(dialog, "the dialog opens");
+    const inputs = findAll(dialog, (el) => el.tagName === "INPUT" && (el.getAttribute("id") || "").startsWith("duel-guest"));
+    assert.strictEqual(inputs.length, 2);
+    inputs.forEach((input, index) => {
+      assert.strictEqual(String(input.getAttribute("maxlength")), String(max), `${language}: the field takes ${max} letters`);
+      assert.ok(!/Jugador \d/.test(input.getAttribute("placeholder") || ""), "no 'Jugador 1' placeholder");
+      assert.strictEqual(input.getAttribute("placeholder"), language === "es" ? `Participante ${index + 1}` : `Guest ${index + 1}`);
+    });
+    const none = page.Ludus.Screens.home.helpers.resolveDuelPlayers([{ kind: "guest", guestName: "" }, { kind: "guest", guestName: " " }], []);
+    assert.deepStrictEqual(Array.from(none.names), language === "es" ? ["Participante 1", "Participante 2"] : ["Guest 1", "Guest 2"]);
+  }
+  const source = fs.readFileSync(path.join(repoRoot, "js", "ui", "home.js"), "utf8");
+  assert.ok(!/"Jugador \{n\}"/.test(source), "the unused masculine default string is gone");
+});
+
 runAll().then(() => {
   console.log(`home-ui: ${passed} tests passed`);
 }).catch((error) => {

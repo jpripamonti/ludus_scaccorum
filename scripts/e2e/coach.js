@@ -50,7 +50,9 @@
 //              and images, which is most of this screen): every visible text meets 4.5:1 (3:1 when large) in the
 //              thinking, result (every quality of answer), duel result and summary states, in both languages, at a
 //              desktop and a phone size, and in the high-contrast setting. A screenshot is taken with the text made
-//              transparent, decoded here (no dependency) and each element's box is compared with its own colour.
+//              transparent, decoded here (no dependency) and each element's box is compared with its own colour. A measurement is only
+//              kept if the boxes read before and after the screenshot are the same (the screen did not move in between) and a finding
+//              only counts if a second measurement gives the very same one (RK-1).
 //   polish     The polish pass: a long player name in the duel's "Ana plays White" line gets the ellipsis and the side to move
 //              is never cut (320, 390 and 820 px, both languages, also with the 24 letters of a profile name), and the keyboard
 //              ring of the coach scroll region, the handoff cover, the sheet handle and the header buttons sits inside what
@@ -58,7 +60,11 @@
 //   axe        (with LUDUS_AXE) no serious or critical violation in thinking, evaluating, result, duel
 //              result, handoff, summary, a reopened position, the search overlay and the concept dialog, at
 //              four viewports in both languages.
-//   duel-ready (polish PF-2) The cover of a duel position with two names of 24 letters (a duel keeps 20) at 320x568,
+//   landscape  (polish RK-1, RK-4, RK-5) The short-landscape and small-window regimes (568x320 up to 880x700, both languages): every dock
+//              button has a translated tooltip with its key and keeps its accessible name, the exit button has air over the board, and
+//              the layout probe's new check (a text cut off by an overflow:hidden ancestor, as the verdict card did with its headline) is
+//              clean for all ten qualities of answer at every size; the tooltips follow a language change.
+//   duel-ready (polish PF-2) The cover of a duel position with two names of 24 letters (a duel keeps all 24) at 320x568,
 //              390x844, 844x390 and 1280x800 in both languages: it names who goes first and where the device goes, a
 //              long name wraps, every part is inside it, nothing scrolls, the focus is on it (a polite live region says
 //              it once), Space starts the round and the focus goes to the board; then the handoff, and position 2 starts
@@ -221,6 +227,32 @@ const waitResult = (page) => page.waitForFunction(() => STATE.ui.phase === "resu
 // Settles the entrance animations of a state before a screenshot or a measurement.
 const settle = (page, ms = 450) => page.waitForTimeout(ms);
 
+// RK-1: a fixed wait is not enough under CPU load (the page runs its entrance transitions late, so a probe sampled a text and the card it
+// sits on half way through one: 3.94:1 against 4.6:1 when the machine was idle). Waits until no CSS transition or animation that has an
+// end is running on the page, with a cap, and resolves with what it saw so a test can prove it waited. Animations that never end (a
+// loader's dots) are ignored: there is nothing to wait for.
+function whenQuiet(capMs) {
+  return new Promise((resolve) => {
+    const started = performance.now();
+    const running = () => document.getAnimations().filter((animation) => {
+      if (animation.playState !== "running" && animation.playState !== "pending") return false;
+      const timing = animation.effect && typeof animation.effect.getComputedTiming === "function" ? animation.effect.getComputedTiming() : null;
+      return !(timing && timing.iterations === Infinity);
+    });
+    const poll = () => {
+      const left = running();
+      const waited = Math.round(performance.now() - started);
+      if (!left.length || waited >= capMs) {
+        resolve({ waited, left: left.length, names: left.slice(0, 4).map((animation) => animation.animationName || animation.transitionProperty || "?") });
+        return;
+      }
+      setTimeout(poll, 25);
+    };
+    poll();
+  });
+}
+const quiet = (page, capMs = 1500) => page.evaluate(whenQuiet, capMs);
+
 function checkProblems(label, problems) {
   assert.deepStrictEqual(problems, [], `${label}: the page reported problems:\n  ${problems.join("\n  ")}`);
 }
@@ -295,6 +327,14 @@ function layoutProbe(options) {
     });
   }
 
+  // 3b. RK-5: the exit button is not flush with the board under it (on a phone on its side there were 2px between the button and the board's corner).
+  const exitButton = $("#restart-btn");
+  if (!summaryView && !expandedSheet && isShown(exitButton) && isShown(board)) {
+    const e = rectOf(exitButton);
+    const sharesColumn = Math.min(e.right, boardRect.right) - Math.max(e.left, boardRect.left) > 1.5;
+    if (sharesColumn && boardRect.top >= e.bottom - 1 && boardRect.top - e.bottom < 4) issues.push(`the exit button is flush with the board (${Math.round((boardRect.top - e.bottom) * 10) / 10}px of air)`);
+  }
+
   // 4. Board, dock and panel do not overlap (the phone's expanded sheet covers the board on purpose).
   const layout = $("#game-layout");
   const expanded = layout && layout.dataset.expanded === "true";
@@ -346,6 +386,61 @@ function layoutProbe(options) {
     if (!isShown(el)) return;
     if (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1) issues.push(`${selector} is cut ("${el.textContent.trim()}": ${el.scrollWidth}x${el.scrollHeight} in ${el.clientWidth}x${el.clientHeight})`);
   });
+  // 6b. RK-4: words cut off by an overflow:hidden (or clip) ancestor. The checks above all measure boxes, never the words inside them, so the
+  // hero card of the verdict (overflow: hidden) clipped its headline at 568x320 and nothing noticed. Deliberate cuts are not findings: an
+  // ellipsis, a line clamp, text that only a screen reader reads (its box is a point), and whatever a scroll region cuts on the axis it
+  // scrolls (the climb stops there on that axis: it is scrolled content, and what lies beyond it is the scroller's business).
+  {
+    const reported = new Set();
+    const textWalker = document.createTreeWalker(layout || document.body, NodeFilter.SHOW_TEXT);
+    for (let node = textWalker.nextNode(); node; node = textWalker.nextNode()) {
+      if (!/\S/.test(node.textContent || "")) continue;
+      const host = node.parentElement;
+      if (!host || host.closest("#board, .sr-only, [hidden], .hidden, script, style, svg, .skeleton")) continue;
+      const hostStyle = getComputedStyle(host);
+      if (hostStyle.visibility === "hidden" || hostStyle.display === "none") continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const box = range.getBoundingClientRect();
+      if (box.width < 2 || box.height < 2) continue;
+      let checkX = true;
+      let checkY = true;
+      for (let up = host; up && up !== document.body && up !== de; up = up.parentElement) {
+        const style = getComputedStyle(up);
+        if (Number(style.opacity) === 0 || style.visibility === "hidden") break;
+        if (up.clientWidth <= 2 || up.clientHeight <= 2) {
+          // A box clipped to a point holds text kept for a screen reader; an inline box has no overflow of its own.
+          if (style.overflowX !== "visible" || style.overflowY !== "visible") break;
+          continue;
+        }
+        const cuts = (value) => value === "hidden" || value === "clip";
+        const scrolls = (value) => value === "auto" || value === "scroll";
+        if (scrolls(style.overflowX)) checkX = false;
+        if (scrolls(style.overflowY)) checkY = false;
+        if (!checkX && !checkY) break;
+        const deliberate = style.textOverflow === "ellipsis" || hostStyle.textOverflow === "ellipsis" || (style.webkitLineClamp && style.webkitLineClamp !== "none");
+        if (deliberate) continue;
+        const r = up.getBoundingClientRect();
+        const left = r.left + up.clientLeft;
+        const top = r.top + up.clientTop;
+        const right = left + up.clientWidth;
+        const bottom = top + up.clientHeight;
+        // The box of a text is its font's content area (ascent + descent), taller than a line of small `line-height`: a fifth of its height may
+        // lie outside (empty room above the capitals and under the descenders) without hiding a single stroke.
+        const slackY = Math.max(1, box.height * 0.2);
+        const outX = checkX && cuts(style.overflowX) && (box.right > right + 1 || box.left < left - 1);
+        const outY = checkY && cuts(style.overflowY) && (box.bottom > bottom + slackY || box.top < top - slackY);
+        if (outX || outY) {
+          const key = `${describe(up)}|${node.textContent.trim().slice(0, 24)}`;
+          if (!reported.has(key)) {
+            reported.add(key);
+            issues.push(`text is clipped by the overflow of ${describe(up)}: "${node.textContent.replace(/\s+/g, " ").trim().slice(0, 40)}" is ${px(box)} and only ${px({ left, top, width: right - left, height: bottom - top })} shows`);
+          }
+          break;
+        }
+      }
+    }
+  }
   // A celebration is never a toast over the play screen: the result card lists it.
   const toast = document.querySelector(".toast-stack .toast");
   if (toast && isShown(toast) && /achievement|levelup/.test(toast.className)) issues.push(`a celebration toast is over the play screen ("${toast.textContent.trim().slice(0, 40)}")`);
@@ -438,7 +533,10 @@ async function axeScan(ctx, label, options = {}) {
 }
 
 // The layout probe of a state, its findings kept for the end of the scenario, its screenshot.
+// `quiet: false` is for a state that does not last (the evaluating overlay is only up for 1.2 s and its progress bar never stops moving: waiting for
+// it to be still would wait for the result instead).
 async function inspect(ctx, label, options = {}) {
+  if (options.quiet !== false) await quiet(ctx.page);
   const facts = await ctx.page.evaluate(layoutProbe, options);
   facts.issues.forEach((issue) => ctx.issues.push(`${ctx.tag} ${label}: ${issue}`));
   await shot(ctx.page, `${ctx.tag}-${label}`);
@@ -481,7 +579,7 @@ async function regimeFlow(browser, vp, lang, axeMode) {
     await playUci(page, await weakMove(page));
     await waitPhase(page, "evaluating");
     await settle(page, 250);
-    const evaluating = await inspect(ctx, "3-evaluating");
+    const evaluating = await inspect(ctx, "3-evaluating", { quiet: false });
     assert.strictEqual(await page.locator("#round-result [aria-busy='true'], #coach-thinking [aria-busy='true'], .co-hero-pending").count() > 0, true, "the evaluating state is announced as busy");
     assert.ok(sameRect(thinking.board, evaluating.board), `evaluating moved the board: ${thinking.board} -> ${evaluating.board}`);
 
@@ -621,7 +719,7 @@ async function classicScenario(browser) {
     assert.strictEqual(await page.locator("#hint-btn").isDisabled(), true, "no hint while it is evaluated");
     assert.strictEqual(await page.locator("#skip-btn").isDisabled(), true);
     assert.ok((await page.locator("#coach-thinking .co-hero-pending, #round-result .co-hero-pending, .co-skel").count()) >= 1, "skeletons hold the place of the result");
-    await inspect(ctx, "evaluating");
+    await inspect(ctx, "evaluating", { quiet: false });
     await waitResult(page);
     await settle(page, 700);
     const weak = await page.evaluate(() => JSON.parse(JSON.stringify(STATE.resultView.context)));
@@ -1066,7 +1164,7 @@ async function ownFlow(browser, vp) {
     assert.ok(facts.cancelH >= 43.5 && facts.cancelW >= 43.5, `the cancel button is a real target (${facts.cancelW}x${facts.cancelH})`);
     // A big board tells a story while it waits; a small one keeps to what is happening.
     assert.strictEqual(facts.storyShown, facts.boardHeight > 545, `the story is shown only on a board taller than 545px (board ${facts.boardHeight}px, story ${facts.storyShown})`);
-    await inspect(ctx, "3-searching", { axe: true });
+    await inspect(ctx, "3-searching", { axe: true, quiet: false });
     await page.evaluate(() => hidePositionSearchOverlay());
     await page.locator("#position-search-overlay").waitFor({ state: "hidden", timeout: 5000 });
 
@@ -1344,47 +1442,76 @@ function collectTextBoxes() {
   return out;
 }
 
-// Contrast of every text on screen against the pixels behind it. Returns the findings.
-async function contrastProbe(ctx, label) {
+// The words of one measurement are the same words in the same places: same texts, boxes within half a pixel.
+const sameBoxes = (a, b) => a.length === b.length && a.every((box, index) => box.text === b[index].text
+  && ["left", "top", "right", "bottom"].every((side) => Math.abs(box[side] - b[index][side]) < 0.6));
+
+// One measurement of every text on screen against the pixels behind it: the findings, as text. RK-1: the boxes are read before the screenshot
+// and again after it; if the screen moved in between (a CSS transition, but also the content itself: the "backup engine" notice that the
+// panel shows while Stockfish boots is removed when the engine is ready, which under CPU load happens well after the fixed wait, and shifted
+// the card by 51px between the two reads) the pixels do not belong to the boxes and the measurement is repeated on the settled screen.
+async function contrastMeasure(ctx, label) {
   const { page } = ctx;
-  // A toast floats over the screen and would be measured instead of what it covers (the kit owns its colours).
-  await page.evaluate(() => Ludus.ui.clearToasts());
-  const boxes = await page.evaluate(collectTextBoxes);
-  if (!boxes.length) return [];
-  // The same screen with the text made invisible: what is left is what the text sits on.
-  await page.addStyleTag({ content: "#game-layout, #game-layout * { color: transparent !important; text-shadow: none !important; -webkit-text-fill-color: transparent !important; caret-color: transparent !important; }" }).then((handle) => handle.evaluate((el) => el.setAttribute("data-contrast-probe", "")));
-  const image = decodePng(await page.screenshot({ scale: "css" }));
-  await page.evaluate(() => document.querySelectorAll("style[data-contrast-probe]").forEach((el) => el.remove()));
-  const findings = [];
-  boxes.forEach((box) => {
-    const x0 = Math.max(0, Math.floor(box.left));
-    const x1 = Math.min(image.width, Math.ceil(box.right));
-    const y0 = Math.max(0, Math.floor(box.top));
-    const y1 = Math.min(image.height, Math.ceil(box.bottom));
-    let worst = Infinity;
-    let worstBg = null;
-    const stepX = Math.max(1, Math.floor((x1 - x0) / 24));
-    const stepY = Math.max(1, Math.floor((y1 - y0) / 6));
-    for (let y = y0; y < y1; y += stepY) {
-      for (let x = x0; x < x1; x += stepX) {
-        const at = (y * image.width + x) * image.channels;
-        const bg = [image.data[at], image.data[at + 1], image.data[at + 2]];
-        const alpha = box.color[3] * box.opacity;
-        const fg = [0, 1, 2].map((i) => box.color[i] * alpha + bg[i] * (1 - alpha));
-        const ratio = contrastOf(fg, bg);
-        if (ratio < worst) {
-          worst = ratio;
-          worstBg = bg;
+  const deadline = Date.now() + 12000;
+  for (;;) {
+    // A toast floats over the screen and would be measured instead of what it covers (the kit owns its colours).
+    await page.evaluate(() => Ludus.ui.clearToasts());
+    await quiet(page);
+    const boxes = await page.evaluate(collectTextBoxes);
+    if (!boxes.length) return [];
+    // The same screen with the text made invisible: what is left is what the text sits on. Transitions are off in it, so the change of
+    // colour itself cannot be caught half way either.
+    await page.addStyleTag({ content: "#game-layout, #game-layout * { color: transparent !important; text-shadow: none !important; -webkit-text-fill-color: transparent !important; caret-color: transparent !important; transition: none !important; }" }).then((handle) => handle.evaluate((el) => el.setAttribute("data-contrast-probe", "")));
+    const image = decodePng(await page.screenshot({ scale: "css" }));
+    const after = await page.evaluate(collectTextBoxes);
+    await page.evaluate(() => document.querySelectorAll("style[data-contrast-probe]").forEach((el) => el.remove()));
+    if (!sameBoxes(boxes, after)) {
+      if (Date.now() > deadline) return [`${ctx.tag} ${label}: the panel kept changing for 12 s, so its contrast could not be measured`];
+      await page.waitForTimeout(250);
+      continue;
+    }
+    const findings = [];
+    boxes.forEach((box) => {
+      const x0 = Math.max(0, Math.floor(box.left));
+      const x1 = Math.min(image.width, Math.ceil(box.right));
+      const y0 = Math.max(0, Math.floor(box.top));
+      const y1 = Math.min(image.height, Math.ceil(box.bottom));
+      let worst = Infinity;
+      let worstBg = null;
+      const stepX = Math.max(1, Math.floor((x1 - x0) / 24));
+      const stepY = Math.max(1, Math.floor((y1 - y0) / 6));
+      for (let y = y0; y < y1; y += stepY) {
+        for (let x = x0; x < x1; x += stepX) {
+          const at = (y * image.width + x) * image.channels;
+          const bg = [image.data[at], image.data[at + 1], image.data[at + 2]];
+          const alpha = box.color[3] * box.opacity;
+          const fg = [0, 1, 2].map((i) => box.color[i] * alpha + bg[i] * (1 - alpha));
+          const ratio = contrastOf(fg, bg);
+          if (ratio < worst) {
+            worst = ratio;
+            worstBg = bg;
+          }
         }
       }
-    }
-    const needed = box.large ? 3 : 4.5;
-    if (worst < needed) {
-      const rgb = (c) => `rgb(${c.map((v) => Math.round(v)).join(",")})`;
-      findings.push(`${ctx.tag} ${label}: ${box.name} "${box.text}" has ${worst.toFixed(2)}:1 (needs ${needed}:1; ${rgb(box.color)} on ${rgb(worstBg)})`);
-    }
-  });
-  return findings;
+      const needed = box.large ? 3 : 4.5;
+      if (worst < needed) {
+        const rgb = (c) => `rgb(${c.map((v) => Math.round(v)).join(",")})`;
+        findings.push(`${ctx.tag} ${label}: ${box.name} "${box.text}" has ${worst.toFixed(2)}:1 (needs ${needed}:1; ${rgb(box.color.slice(0, 3))} on ${rgb(worstBg)})`);
+      }
+    });
+    return findings;
+  }
+}
+
+// Contrast of every text on screen against the pixels behind it. Returns the findings. A finding is only real if a second measurement, on
+// the screen settled again, gives the very same one (same text, same colours, same ratio): a text caught on something that was still
+// changing never repeats exactly, a real contrast defect always does.
+async function contrastProbe(ctx, label) {
+  const first = await contrastMeasure(ctx, label);
+  if (!first.length) return first;
+  await ctx.page.waitForTimeout(150);
+  const again = await contrastMeasure(ctx, label);
+  return first.filter((line) => again.includes(line));
 }
 
 // Every state whose text is measured; the panel is scrolled in steps so its whole length is seen.
@@ -1792,9 +1919,9 @@ const coverProbe = (page) => page.evaluate(() => {
 async function duelReadyRun(browser, vp, lang) {
   const ctx = await open(browser, vp, { lang, tag: `duel-ready-${vp.name}-${lang}` });
   const { page, context } = ctx;
-  // 24 letters each: the longest a profile name may have (a duel keeps 20), with and without a space to wrap at.
+  // 24 letters each: the longest a profile name may have, with and without a space to wrap at. A duel keeps all of them (RC-2, r2-core: marked edit, it kept 20 before).
   const long = ["Maximiliano Alejandro Pe", "WWWWWWWWWWWWWWWWWWWWWWWW"];
-  const kept = long.map((name) => name.slice(0, 20));
+  const kept = long.slice();
   const words = lang === "es"
     ? { ready: "preparate", pass: "Pasale el dispositivo a", played: "ya jugó", position: "Posición 1 de 2" }
     : { ready: "get ready", pass: "Pass the device to", played: "has played", position: "Position 1 of 2" };
@@ -1806,7 +1933,7 @@ async function duelReadyRun(browser, vp, lang) {
     const found = await coverProbe(page);
     step(`${vp.w}x${vp.h} ${lang}: "${found.title}" / "${found.subtitle}"`);
     assert.strictEqual(found.visible, true, "a cover before position 1");
-    assert.strictEqual(found.title, `${kept[0]}, ${words.ready}`, "it names who goes first (20 letters kept)");
+    assert.strictEqual(found.title, `${kept[0]}, ${words.ready}`, "it names who goes first (all 24 letters kept)");
     assert.ok(found.subtitle.startsWith(`${words.pass} ${kept[0]},`), "it says where the device goes");
     assert.ok(found.subtitle.includes(kept[1]), "and who waits");
     assert.strictEqual(found.eyebrow, words.position);
@@ -1864,6 +1991,128 @@ async function duelReadyScenario(browser) {
   }
 }
 
+// ---------- scenario: landscape (RK-1, RK-4, RK-5) ----------
+
+// The tooltip of every dock button, its key, and the names the buttons keep. Runs in the page.
+function dockFacts() {
+  return Array.from(document.querySelectorAll("#board-dock .co-dock-btn")).map((button) => {
+    const r = button.getBoundingClientRect();
+    const label = button.querySelector(".btn-label");
+    return {
+      id: button.id,
+      shown: r.width > 1 && r.height > 1 && getComputedStyle(button).display !== "none",
+      title: button.getAttribute("title") || "",
+      key: button.getAttribute("aria-keyshortcuts") || "",
+      name: button.getAttribute("aria-label") || (label ? label.textContent : button.textContent).replace(/\s+/g, " ").trim(),
+      describedby: button.getAttribute("aria-describedby"),
+    };
+  });
+}
+
+async function checkDock(ctx, label, lang) {
+  const { page } = ctx;
+  const facts = await page.evaluate(dockFacts);
+  const expected = lang === "es"
+    ? { "hint-btn": "Pista", "skip-btn": "Saltear esta posición (0 puntos)", "reveal-best-btn": "Mostrar la mejor jugada", "reveal-game-btn": "Mostrar la jugada de la partida", "result-analysis-btn": "Explorar el tablero", "result-analysis-reset-btn": "Volver a la posición", "confirm-move-btn": "Confirmar la jugada" }
+    : { "hint-btn": "Hint", "skip-btn": "Skip this position (0 points)", "reveal-best-btn": "Show the best move", "reveal-game-btn": "Show the move of the game", "result-analysis-btn": "Explore the board", "result-analysis-reset-btn": "Back to the position", "confirm-move-btn": "Confirm your move" };
+  assert.ok(facts.length >= 7, `${label}: the dock has its buttons (${facts.length})`);
+  for (const fact of facts) {
+    assert.ok(expected[fact.id], `${label}: ${fact.id} is a dock button the tooltips know`);
+    assert.strictEqual(fact.title, fact.key ? `${expected[fact.id]} (${fact.key})` : expected[fact.id], `${label}: the tooltip of ${fact.id}`);
+    assert.strictEqual(fact.describedby, null, `${label}: ${fact.id} has a title and no aria-describedby`);
+    // The accessible name is what the button says (or its aria-label): the title only describes. The role query uses the browser's own computation.
+    if (fact.shown) assert.strictEqual(await page.getByRole("button", { name: fact.name, exact: true }).count(), 1, `${label}: ${fact.id} is still named "${fact.name}"`);
+  }
+  return facts;
+}
+
+const LANDSCAPE_SIZES = [
+  [568, 320], [640, 360], [664, 360], [667, 375], [700, 360], [740, 430], [760, 600], [800, 600], [844, 390], [880, 700], [932, 430], [1024, 600],
+];
+
+async function landscapeRun(browser, lang) {
+  const ctx = await open(browser, { name: "phone-land-844", w: 844, h: 390, touch: true }, { lang, tag: `landscape-${lang}`, reducedMotion: true });
+  const { page, context } = ctx;
+  try {
+    await collectEvents(page);
+    await startClassic(page, { count: 2, options: { clock: { mode: "untimed" } } });
+    await waitPhase(page, "thinking");
+    await settle(page, 400);
+    await checkDock(ctx, `${lang} thinking`, lang);
+    for (const [w, h] of LANDSCAPE_SIZES) {
+      await page.setViewportSize({ width: w, height: h });
+      await settle(page, 150);
+      const facts = await inspect(ctx, `thinking@${w}x${h}`, { axe: false });
+      // RK-5: in the regime with the dock beside the board the header's exit button has air over the board's corner.
+      if (w >= 560 && h <= 520) {
+        const air = await page.evaluate(() => document.querySelector("#board").getBoundingClientRect().top - document.querySelector("#restart-btn").getBoundingClientRect().bottom);
+        assert.ok(air >= 5.5, `${lang} ${w}x${h}: the exit button has ${air}px of air over the board`);
+      }
+      assert.ok(facts.board, `${lang} ${w}x${h}: a board`);
+    }
+    await page.setViewportSize({ width: 844, height: 390 });
+    await settle(page, 200);
+    await playUci(page, await weakMove(page));
+    await waitResult(page);
+    await settle(page, 700);
+    await checkDock(ctx, `${lang} result`, lang);
+    // A verdict card whose headline or sentence is cut off by the card's own overflow:hidden is a finding of the layout probe (RK-4): every quality
+    // of answer, because the label decides how wide the headline is ("Inaccuracy" was the one that ran out of room).
+    const codes = await page.evaluate(() => Ludus.Coach.QUALITY_CODES);
+    // "No move" blanks the answer: every other quality starts again from the move that was played.
+    await page.evaluate(() => {
+      const answer = STATE.resultView.context.answers[0];
+      window.__played = { uci: answer.uci, san: answer.san, noMoveReason: answer.noMoveReason };
+    });
+    for (const [w, h] of LANDSCAPE_SIZES) {
+      await page.setViewportSize({ width: w, height: h });
+      await settle(page, 150);
+      for (const code of codes) {
+        await page.evaluate((quality) => {
+          const answer = STATE.resultView.context.answers[0];
+          answer.assessment.qualityCode = quality;
+          Object.assign(answer, window.__played);
+          if (quality === "no_move") Object.assign(answer, { uci: "", san: "", noMoveReason: "manual_skip" });
+          renderResultViewContext();
+        }, code);
+        // What is drawn is the quality asked for (a probe of the wrong card would pass for the wrong reason).
+        assert.strictEqual(await page.locator(".co-hero").first().getAttribute("data-q"), code, `the verdict card shows ${code}`);
+        await inspect(ctx, `result-${code}@${w}x${h}`, { axe: false });
+      }
+    }
+    // The tooltips follow the language of the page, and the shortcuts: with them switched off the keys leave the tooltips.
+    await page.setViewportSize({ width: 844, height: 390 });
+    const other = lang === "es" ? "en" : "es";
+    await page.evaluate((next) => Ludus.i18n.setLanguage(next), other);
+    await settle(page, 300);
+    await checkDock(ctx, `${lang} -> ${other} result`, other);
+    await page.evaluate(() => {
+      Ludus.Settings.set("a11y.shortcuts", false);
+      // app.js writes (or removes) aria-keyshortcuts when it redraws the key legend; the coach's observer follows the attribute.
+      syncShortcutAttributes();
+    });
+    await settle(page, 300);
+    const withoutKeys = await page.evaluate(dockFacts);
+    assert.ok(withoutKeys.every((fact) => fact.key === ""), "app.js removed the keys");
+    withoutKeys.forEach((fact) => assert.ok(!/\([A-Z]\)$/.test(fact.title), `${fact.id}: no key in the tooltip with the shortcuts off (${fact.title})`));
+    checkProblems(ctx.tag, ctx.problems);
+  } finally {
+    await context.close();
+  }
+  return ctx.issues;
+}
+
+async function landscapeScenario(browser) {
+  console.log("scenario: landscape");
+  const issues = [];
+  for (const lang of ["es", "en"]) {
+    const found = await landscapeRun(browser, lang);
+    step(`${lang}: ${LANDSCAPE_SIZES.length} sizes, ${found.length ? `${found.length} finding(s)` : "tooltips, exit air and the verdict card are clean"}`);
+    issues.push(...found);
+  }
+  checkIssues("landscape", issues);
+}
+
 // ---------- run ----------
 
 const SCENARIOS = [
@@ -1878,6 +2127,7 @@ const SCENARIOS = [
   ["polish", polishScenario],
   ["axe", axeScenario],
   ["duel-ready", duelReadyScenario],
+  ["landscape", landscapeScenario],
 ];
 
 (async () => {

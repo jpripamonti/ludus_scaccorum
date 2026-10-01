@@ -261,7 +261,7 @@
       "progress.profiles": "See the progress of",
 
       "progress.level.n": "Level {n} of {max}",
-      "progress.level.bar": "Progress towards the next level",
+      "progress.level.bar": "Progress toward the next level",
       "progress.xp.into": "{a} of {b} XP",
       "progress.xp.next": "{n} XP to {title}",
       "progress.xp.max": "You reached the highest level.",
@@ -313,7 +313,7 @@
       "progress.activity.cell": "{date}: {n} positions",
       "progress.activity.cell.one": "{date}: 1 position",
       "progress.activity.cell.none": "{date}: no practice",
-      "progress.activity.empty": "No practice in these 12 weeks yet. Every position you play colours a day.",
+      "progress.activity.empty": "No practice in these 12 weeks yet. Every position you play colors a day.",
       "progress.activity.cap": "Only your last {n} positions are kept, so the oldest days can look emptier than they were.",
 
       "progress.trend.title": "Accuracy per session",

@@ -340,16 +340,31 @@ async function checkObscured(browser) {
     await boot(page, `#/${route}`);
     await page.waitForTimeout(400);
     const bad = [];
-    for (let i = 0; i < 45; i += 1) {
+    for (let i = 0; i < 45 && bad.length < 3; i += 1) {
       await page.keyboard.press("Tab");
-      // The page scrolls smoothly: measure after it has stopped.
-      await page.evaluate(() => new Promise((resolve) => { let last = -1; let same = 0; const tick = () => { same = scrollY === last ? same + 1 : 0; last = scrollY; same >= 3 ? resolve() : requestAnimationFrame(tick); }; tick(); }));
-      const info = await page.evaluate(() => {
-        const active = document.activeElement;
-        if (!active || active === document.body || active.closest(".sh-tabbar")) return null;
-        const bar = document.querySelector(".sh-tabbar");
-        return { name: (active.getAttribute("aria-label") || active.textContent || active.id || active.tagName).trim().slice(0, 30), bottom: active.getBoundingClientRect().bottom, barTop: bar ? bar.getBoundingClientRect().top : innerHeight };
-      });
+      // The page scrolls smoothly, and on a busy machine the scroll may not even have started a few frames after the key: "scrollY has
+      // not moved for 3 frames" is not proof it is done. So poll (up to 2.5 s) until the focused control ends above the tab bar AND the
+      // scroll has settled, and only then judge; a control that is still under the bar when the time is up is the failure.
+      const info = await page.evaluate(() => new Promise((resolve) => {
+        const started = performance.now();
+        const measure = () => {
+          const active = document.activeElement;
+          if (!active || active === document.body || active.closest(".sh-tabbar")) return null;
+          const bar = document.querySelector(".sh-tabbar");
+          return { name: (active.getAttribute("aria-label") || active.textContent || active.id || active.tagName).trim().slice(0, 30), bottom: active.getBoundingClientRect().bottom, barTop: bar ? bar.getBoundingClientRect().top : innerHeight };
+        };
+        let last = -1;
+        let same = 0;
+        const tick = () => {
+          const now = measure();
+          same = scrollY === last ? same + 1 : 0;
+          last = scrollY;
+          const clear = !now || now.bottom <= now.barTop + 0.5;
+          if ((clear && same >= 3) || performance.now() - started > 2500) resolve(now);
+          else requestAnimationFrame(tick);
+        };
+        tick();
+      }));
       if (info && info.bottom > info.barTop + 0.5) bad.push(`${info.name} (${Math.round(info.bottom)} > ${Math.round(info.barTop)})`);
     }
     assert.deepStrictEqual(bad, [], `${route}: no Tab stop ends under the tab bar`);

@@ -116,10 +116,10 @@
               <div id="duel-config" class="wizard-inline-form hidden">
                 <p class="wizard-help" data-i18n="wizard.step1.duelExplainer">Van a compartir este dispositivo: cada uno juega su turno y comparan el
                   puntaje al final.</p>
-                <label for="duel-player-a" data-i18n="wizard.step1.player1Label">Nombre Jugador 1</label>
-                <input id="duel-player-a" type="text" value="Jugador 1" maxlength="20" autocomplete="off" data-player-default="0" />
-                <label for="duel-player-b" data-i18n="wizard.step1.player2Label">Nombre Jugador 2</label>
-                <input id="duel-player-b" type="text" value="Jugador 2" maxlength="20" autocomplete="off" data-player-default="1" />
+                <label for="duel-player-a" data-i18n="wizard.step1.player1Label">Nombre del participante 1</label>
+                <input id="duel-player-a" type="text" value="Participante 1" maxlength="24" autocomplete="off" data-player-default="0" />
+                <label for="duel-player-b" data-i18n="wizard.step1.player2Label">Nombre del participante 2</label>
+                <input id="duel-player-b" type="text" value="Participante 2" maxlength="24" autocomplete="off" data-player-default="1" />
               </div>
               <p id="wizard-step-error" class="wizard-error hidden" aria-live="polite"></p>
             </section>
@@ -130,9 +130,8 @@
                 encontrar posiciones.</p>
               <details class="wizard-details-help">
                 <summary data-i18n="wizard.step2.howItWorks">¿Cómo funciona?</summary>
-                <p data-i18n="wizard.step2.howItWorksBody">El sistema obtiene tus partidas recientes de partidas a ritmo Lento (Clásico/Rápido). Si no hay
-                  suficientes, puede usar partidas Blitz como respaldo. Se descargan hasta la cantidad necesaria para
-                  generar tus posiciones de entrenamiento.</p>
+                <p data-i18n="wizard.step2.howItWorksBody">Buscamos tus partidas recientes de ritmo lento (clásico y rápido). Si no alcanzan, sumamos
+                  partidas de blitz. Descargamos solo hasta juntar las posiciones que pediste.</p>
               </details>
               <div id="wizard-platform-group" class="wizard-card-grid" role="radiogroup" data-i18n-aria-label="wizard.step2.platformAriaLabel" aria-label="Plataforma">
                 <button id="wizard-provider-lichess" type="button" class="wizard-choice-card" role="radio" data-i18n="wizard.step2.lichess">Lichess</button>
@@ -177,8 +176,8 @@
                 <p id="wizard-clock-note" class="wizard-status" data-i18n="wizard.step3.clockNote">Este tiempo vale solo para esta sesión. Tu reloj de siempre se cambia en Ajustes.</p>
               </div>
 
-              <p id="analysis-status" class="wizard-status" data-i18n="wizard.step3.analysisPrompt">Tocá "Comenzar sesión" para buscar
-                errores.</p>
+              <p id="analysis-status" class="wizard-status" data-i18n="wizard.step3.analysisPrompt">Tocá “Empezar sesión”. Descargamos tus partidas y
+                buscamos tus errores: puede tardar hasta un minuto.</p>
               <p id="analysis-metrics" class="status-line hidden" data-i18n="analysis.metrics.zero">Totales: 0 | Analizadas: 0 | Detectadas: 0</p>
               <div id="analysis-progress-wrap" class="progress hidden" aria-live="polite">
                 <div class="progress-track">
@@ -202,13 +201,13 @@
           <button id="source-back-btn" type="button" class="wizard-secondary-btn" data-i18n="buttons.backHome">Volver al inicio</button>
           <button id="wizard-prev-btn" type="button" class="wizard-secondary-btn hidden" data-i18n="buttons.previous">Anterior</button>
           <button id="wizard-next-btn" type="button" data-i18n="buttons.next">Siguiente</button>
-          <button id="analyze-btn" class="hidden" data-i18n="buttons.startSession">Comenzar sesión</button>
+          <button id="analyze-btn" class="hidden" data-i18n="buttons.startSession">Empezar sesión</button>
         </footer>
 
         <div class="wizard-compat hidden" aria-hidden="true">
           <select id="game-format">
-            <option value="solo" selected data-i18n="compat.gameFormat.solo">Modo Estudio (1 jugador)</option>
-            <option value="duel" data-i18n="compat.gameFormat.duel">Duelo de Caballeros (2 jugadores)</option>
+            <option value="solo" selected data-i18n="compat.gameFormat.solo">Modo estudio (1 jugador)</option>
+            <option value="duel" data-i18n="compat.gameFormat.duel">Modo duelo (2 jugadores)</option>
           </select>
           <select id="online-provider-select">
             <option value="lichess" selected>Lichess</option>
@@ -217,7 +216,7 @@
           <input id="error-threshold" type="number" min="50" max="800" value="80" />
           <input id="analysis-time-ms" type="number" min="50" max="10000" value="400" />
           <select id="scoring-system">
-            <option value="simple_labels_v1" selected data-i18n="scoring.system.simple.label">Etiquetas simples (v1)</option>
+            <option value="simple_labels_v1" selected data-i18n="scoring.system.simple.label">Puntos (0 a 10)</option>
           </select>
           <p id="scoring-system-hint"></p>
           <p id="game-format-hint"></p>
@@ -234,7 +233,7 @@
          data-view: play | summary. data-phase: thinking | evaluating | handoff | result | summary. -->
     <main class="co-play hidden" id="game-layout" data-view="play" data-phase="thinking" data-mode="solo" aria-labelledby="session-title">
       <header class="co-head" id="play-header">
-        <button id="restart-btn" type="button" class="btn btn-ghost co-exit" data-i18n-aria-label="play.exit.aria" data-i18n-title="play.exit.aria">
+        <button id="restart-btn" type="button" class="btn btn-ghost co-exit" data-i18n-aria-label="play.exit.aria" data-i18n-title="play.exit.aria" aria-label="Salir de la sesión" title="Salir de la sesión">
           <svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14.5 6 8.5 12l6 6"/></svg>
           <span class="co-exit-label" data-i18n="play.exit">Salir</span>
         </button>
@@ -244,13 +243,13 @@
         </div>
         <ol id="session-dots" class="co-dots" data-i18n-aria-label="play.dots.aria" aria-label="Progreso de la sesión"></ol>
         <div class="co-head-stats">
-          <div id="play-score" class="co-score" role="group" data-i18n-aria-label="play.score.aria" aria-label="Puntaje">
+          <div id="play-score" class="co-score" role="group" data-i18n-aria-label="play.score.aria" aria-label="Puntaje de la sesión">
             <span class="co-score-label" data-i18n="play.score.label">Puntos</span>
             <span class="co-score-line"><strong id="play-score-value" class="co-score-value">0</strong><span id="play-score-max" class="co-score-max"></span></span>
           </div>
           <div id="duel-score" class="co-duel hidden" role="group" data-i18n-aria-label="play.duel.aria" aria-label="Marcador del duelo">
-            <span id="duel-a" class="co-duel-side"><span id="duel-a-avatar" class="co-duel-avatar" aria-hidden="true">J1</span><span class="co-duel-copy"><span id="duel-a-name" class="co-duel-name"></span><strong id="duel-a-score" class="co-duel-points">0</strong></span></span>
-            <span id="duel-b" class="co-duel-side"><span id="duel-b-avatar" class="co-duel-avatar" aria-hidden="true">J2</span><span class="co-duel-copy"><span id="duel-b-name" class="co-duel-name"></span><strong id="duel-b-score" class="co-duel-points">0</strong></span></span>
+            <span id="duel-a" class="co-duel-side"><span id="duel-a-avatar" class="co-duel-avatar" aria-hidden="true">P1</span><span class="co-duel-copy"><span id="duel-a-name" class="co-duel-name"></span><strong id="duel-a-score" class="co-duel-points">0</strong></span></span>
+            <span id="duel-b" class="co-duel-side"><span id="duel-b-avatar" class="co-duel-avatar" aria-hidden="true">P2</span><span class="co-duel-copy"><span id="duel-b-name" class="co-duel-name"></span><strong id="duel-b-score" class="co-duel-points">0</strong></span></span>
           </div>
           <div id="solo-clock-rail" class="co-clock" role="timer" data-i18n-aria-label="labels.clockTitle" aria-label="Reloj">
             <svg class="co-clock-ring" viewBox="0 0 36 36" aria-hidden="true" focusable="false">
@@ -279,7 +278,7 @@
             <aside id="position-search-overlay" class="co-search hidden">
               <div class="co-search-card">
                 <span class="spinner co-search-spinner" aria-hidden="true"></span>
-                <strong id="position-search-title" class="co-search-title" data-i18n="game.searchingNext">Buscando próxima posición...</strong>
+                <strong id="position-search-title" class="co-search-title" data-i18n="game.searchingNext">Buscando próxima posición…</strong>
                 <span id="position-search-meta" class="co-search-meta"></span>
                 <div id="position-search-progress" class="co-search-progress hidden" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-labelledby="position-search-title" aria-live="off">
                   <div class="co-search-track" aria-hidden="true">
@@ -295,7 +294,7 @@
 
             <button id="handoff-overlay" class="co-handoff hidden" type="button" aria-live="polite">
               <span class="co-handoff-card">
-                <span id="handoff-overlay-avatar" class="co-handoff-avatar" aria-hidden="true">J2</span>
+                <span id="handoff-overlay-avatar" class="co-handoff-avatar" aria-hidden="true">P2</span>
                 <span id="handoff-overlay-eyebrow" class="co-handoff-eyebrow"></span>
                 <span id="handoff-overlay-title" class="co-handoff-title" data-i18n="game.handoff.genericTitle">Cambio de turno</span>
                 <span id="handoff-overlay-subtitle" class="co-handoff-sub" data-i18n="game.handoff.genericSubtitle">Tocá para revelar</span>
@@ -330,9 +329,9 @@
                 <svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
                 <span id="confirm-move-label" class="btn-label" data-i18n="core.move.confirm">Confirmar jugada</span>
               </button>
-              <button id="skip-btn" type="button" class="btn btn-ghost co-dock-btn" data-i18n-aria-label="play.skip.aria">
+              <button id="skip-btn" type="button" class="btn btn-ghost co-dock-btn" data-i18n-aria-label="play.skip.aria" aria-label="Saltear esta posición y sumar 0 puntos">
                 <svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 21V4"/><path d="M6 4.5h11l-2.5 4 2.5 4H6"/></svg>
-                <span id="skip-btn-label" class="btn-label" data-i18n="buttons.skipMove">Omitir (0 pts)</span>
+                <span id="skip-btn-label" class="btn-label" data-i18n="buttons.skipMove">Saltear (0 pts)</span>
               </button>
             </div>
             <div id="board-exploration-actions" class="co-dock-set" role="group" data-i18n-aria-label="result.boardToolsLabel" aria-label="Herramientas del tablero">

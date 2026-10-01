@@ -9,7 +9,7 @@
     "depth": 18,
     "multipv": 5
   },
-  "builderVersion": 4,
+  "builderVersion": 5,
   "games": {
     "alekhine-nimzowitsch-1931": {
       "hash": "1d45036e1026adb6",

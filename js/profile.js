@@ -2946,6 +2946,7 @@
     EXPORT_VERSION,
     MAX_IMPORT_CHARS,
     MAX_PROFILES,
+    NAME_MAX, // RC-2 (r2-core): the one limit of a person's name, read by the duel setup of app.js and home.js
     PROFILE_BUDGET_CHARS,
     CAPS,
     LEITNER_DAYS,

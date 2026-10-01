@@ -179,4 +179,92 @@ assert.deepStrictEqual(Concepts.byTag("no_such_tag"), []);
   assert.ok(!bare.tags.includes("fork_available"));
 }
 
+// ---------- American English (the English of the app is American: scripts/tests/ui-screens-spelling.test.js has the full list) ----------
+
+{
+  const BRITISH = /\b(?:centre|centres|defence|defences|offence|neighbour\w*|colour\w*|favour\w*|towards|analys(?:e|ed|ing)|practis(?:e|ed|ing)|recognis\w*|organis\w*|grey|whilst|learnt|judgement|behaviour\w*)\b/i;
+  all.forEach((concept) => {
+    [concept.title.en, concept.body.en].forEach((text) => assert.ok(!BRITISH.test(text), `${concept.id}: British spelling "${(text.match(BRITISH) || [])[0]}" in the English text`));
+  });
+}
+
+// ---------- Moves quoted in prose follow the notation setting (RT-1) ----------
+
+// The museum prints a lesson's body as it is (js/ui/museum.js) and the coach opens it in a dialog (js/ui/coach.js): neither passes
+// it through Ludus.Classics.localizeQuotedMoves, and that helper only knows numbered runs ("15.Bxh7+") anyway. So a lesson never
+// quotes a piece move ("Nf3" / "Cf3"): the piece-letter spelling would ignore Settings -> Notation. A pawn move ("e4") is the same
+// SAN in both notations and may stay. Facts and timeline entries do quote real moves, in numbered runs, and the museum runs them
+// through the helper: the property below proves the helper changes nothing but the piece letters of those moves, and all of them.
+{
+  const Classics = require(path.join(jsDir, "classics.js"));
+  const Facts = require(path.join(jsDir, "facts.js"));
+  const chessApi = require(path.join(jsDir, "chess.js"));
+  const ES_TO_EN = {};
+  Object.keys(chessApi.SPANISH_LETTERS).forEach((english) => { ES_TO_EN[chessApi.SPANISH_LETTERS[english]] = english; });
+  // A piece move in SAN with either alphabet (English K Q R B N, Spanish R D T A C): the letter, an optional origin hint,
+  // an optional capture, the square, an optional promotion, then check and annotation marks. Whole tokens only.
+  const PIECE_MOVE = /(?<![A-Za-z0-9])[KQRBNDTAC](?:[a-h][1-8]?|[1-8])?x?[a-h][1-8](?:=[KQRBNDTAC])?[+#]?[!?]{0,2}(?![A-Za-z0-9])/g;
+
+  const corpus = [];
+  all.forEach((concept) => ["es", "en"].forEach((lang) => {
+    corpus.push({ where: `concept ${concept.id} title ${lang}`, lang, text: concept.title[lang], lesson: true });
+    corpus.push({ where: `concept ${concept.id} body ${lang}`, lang, text: concept.body[lang], lesson: true });
+  }));
+  Facts.all().forEach((fact) => ["es", "en"].forEach((lang) => corpus.push({ where: `fact ${fact.id} ${lang}`, lang, text: fact.text[lang] })));
+  Facts.timeline().forEach((item) => ["es", "en"].forEach((lang) => {
+    corpus.push({ where: `timeline ${item.id} title ${lang}`, lang, text: item.title[lang] });
+    corpus.push({ where: `timeline ${item.id} text ${lang}`, lang, text: item.text[lang] });
+  }));
+  assert.ok(corpus.length > 400, `the corpus covers every concept, fact and timeline text in both languages (${corpus.length})`);
+
+  // 1. A lesson quotes no piece move at all.
+  corpus.filter((entry) => entry.lesson).forEach((entry) => {
+    const found = entry.text.match(PIECE_MOVE);
+    assert.ok(!found, `${entry.where}: quotes the piece move ${found}; write it with squares ("the knight to f3"), a lesson is printed as it is and could not follow the notation setting`);
+  });
+
+  // 2. Every real move of every text is converted to the other alphabet, and nothing else changes.
+  let converted = 0;
+  corpus.forEach((entry) => {
+    const other = entry.lang === "es" ? "english" : "spanish";
+    const same = entry.lang === "es" ? "spanish" : "english";
+    // the notation the text was written in: no change at all
+    assert.strictEqual(Classics.localizeQuotedMoves(entry.text, entry.lang, { lang: entry.lang, style: same }), entry.text, `${entry.where}: unchanged in its own notation`);
+    const out = Classics.localizeQuotedMoves(entry.text, entry.lang, { lang: entry.lang, style: other });
+    assert.strictEqual(out.length, entry.text.length, `${entry.where}: only letters were swapped`);
+    const letterAt = new Map(); // index -> the letter the move must carry in the other notation
+    let match = PIECE_MOVE.exec(entry.text);
+    while (match) {
+      const swap = (letter) => (entry.lang === "es" ? ES_TO_EN[letter] : chessApi.SPANISH_LETTERS[letter]);
+      letterAt.set(match.index, swap(match[0][0]));
+      const promotion = match[0].indexOf("=");
+      if (promotion >= 0) letterAt.set(match.index + promotion + 1, swap(match[0][promotion + 1]));
+      match = PIECE_MOVE.exec(entry.text);
+    }
+    PIECE_MOVE.lastIndex = 0;
+    for (let i = 0; i < entry.text.length; i += 1) {
+      if (letterAt.has(i)) {
+        assert.strictEqual(out[i], letterAt.get(i), `${entry.where}: the move at ${i} ("${entry.text.slice(Math.max(0, i - 6), i + 8)}") was not converted to ${other} letters (a move quoted outside a numbered run such as "15.Nf3" is out of the helper's reach)`);
+        converted += 1;
+      } else {
+        assert.strictEqual(out[i], entry.text[i], `${entry.where}: "${entry.text.slice(Math.max(0, i - 6), i + 8)}" was altered at ${i} and is not a move`);
+      }
+    }
+  });
+  assert.ok(converted >= 20, `the corpus has real moves to convert (${converted} piece letters), so the property is not vacuous`);
+
+  // 3. Ordinary words that begin with a piece letter, in both languages, survive every setting.
+  const prose = "Cada Dama y cada Rey cuentan. Torre, Alfil, Caballo, Reina, Tablero, Rook, Knight, Queen, King, Bishop, Check, Dad, Ada, Bea, Ana, Beda. "
+    + "La Defensa Alekhine (1.e4 Cf6) es de 1921; Ra1 no es prosa; 18.º campeonato, 1.er Congreso, 2½-2½ y 1-0.";
+  ["spanish", "english"].forEach((style) => ["es", "en"].forEach((lang) => {
+    const out = Classics.localizeQuotedMoves(prose, lang, { lang, style });
+    const words = (text) => text.split(/\s+/);
+    words(prose).forEach((word, index) => {
+      const after = words(out)[index];
+      if (/^[A-Z][a-z]+[,.]?$/.test(word) || /^(?:Dad|Ada|Bea|Ana|Beda)[,.]?$/.test(word)) assert.strictEqual(after, word, `"${word}" is a word, not a move (${lang}, ${style})`);
+    });
+    assert.strictEqual(out.length, prose.length);
+  }));
+}
+
 console.log("concepts.test.js: all assertions passed");

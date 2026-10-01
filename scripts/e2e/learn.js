@@ -710,7 +710,7 @@ async function historyScenario(browser) {
   await page.waitForSelector(".museum-concept");
   assert.strictEqual(await page.locator(".museum-concept").count(), 14);
   assert.strictEqual(await page.locator(".museum-concept svg.mini-board .mb-arrow").count(), 14, "every board shows the arrow");
-  assert.match(await page.locator(".museum-concept").first().innerText(), /Jugada del ejemplo: Cc7\+/);
+  assert.match(await page.locator(".museum-concept").first().innerText(), /Jugada de ejemplo: Cc7\+/);
   await page.locator('#museum-panel-school .museum-pill[data-tag="pin_or_skewer"]').click();
   assert.strictEqual(await page.locator(".museum-concept").count(), 2);
   assert.match(await page.locator("#museum-panel-school .museum-count").innerText(), /2 lecciones/);
@@ -723,7 +723,7 @@ async function historyScenario(browser) {
   await page.evaluate(() => Ludus.i18n.setLanguage("en"));
   await page.waitForFunction(() => /Chess school/.test(document.querySelector("#museum-tab-school").textContent));
   assert.strictEqual(await page.locator("#museum-tab-school").getAttribute("aria-selected"), "true", "the tab is kept");
-  assert.match(await page.locator(".museum-concept").first().innerText(), /Example move|Move of the example/);
+  assert.match(await page.locator(".museum-concept").first().innerText(), /Example move: /);
   checkProblems("history", problems);
   await context.close();
 }

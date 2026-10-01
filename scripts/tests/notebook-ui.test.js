@@ -666,7 +666,7 @@ test("weak spots: the themes of the open cards, each trains only its own cards; 
   assert.ok(modal, "the dialog opens");
   assert.ok(all(modal, ".notebook-concept").length >= 1);
   assert.ok(all(modal, "svg.mini-board").length >= 1, "an example on a board");
-  assert.ok(text(modal).includes("Jugada del ejemplo"));
+  assert.ok(text(modal).includes("Jugada de ejemplo"));
   assert.ok(all(modal, "button").map((b) => text(b)).includes("Ver la escuela de ajedrez"));
 });
 
@@ -931,13 +931,13 @@ test("every move on a card is drawn through the notation setting and said in wor
   const pv = q(cardEls(env.el)[0], ".notebook-line-pv");
   assert.ok(pv && q(pv, '[aria-hidden="true"]') && q(pv, ".sr-only"), "a line has a drawn form and a spoken one");
   assert.ok(/knight|bishop|rook|queen|king|pawn/.test(text(q(pv, ".sr-only"))), text(q(pv, ".sr-only")));
-  // The lesson dialog: "Jugada del ejemplo: <drawn> <spoken>".
+  // The lesson dialog: "Jugada de ejemplo: <drawn> <spoken>".
   env.Ludus.i18n.setLanguage("es", { persist: false });
   nb(env).render();
   nb(env).openConcept("fork_available");
   const line = q(q(env.doc.body, ".notebook-concept-modal"), ".notebook-concept-move");
   assert.ok(line && q(line, ".sr-only") && q(line, '[aria-hidden="true"]'), "the lesson's move has both forms");
-  assert.ok(text(line).startsWith("Jugada del ejemplo: "), text(line));
+  assert.ok(text(line).startsWith("Jugada de ejemplo: "), text(line));
 });
 
 test("plurals: a notebook of one card says '0 of 1 card', and the box table names the cards it counts (PB-7)", () => {

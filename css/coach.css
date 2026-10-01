@@ -743,11 +743,12 @@ body.playing-mode #landing-screen { display: none !important; }
 }
 @media (orientation: landscape) and (min-width: 560px) and (max-height: 520px) {
   /* A phone on its side: the column is as narrow as its words allow, the panel gives up width before the board does, and the board
-     sits 2px under the header (its row is the controls' own 44px). */
+     sits 6px under the header (its row is the controls' own 44px: the exit button stood 2px over the board's corner, RK-5; the 4px
+     it gives are taken from the height-limited boards only, 336 -> 332px at 844x390). */
   .co-play {
     --co-panel-w: clamp(232px, 39vw, 400px);
     --co-side-w: clamp(64px, 10.5vw, 100px);
-    --co-top-gap: 2px;
+    --co-top-gap: 6px;
   }
   .co-turn { gap: 2px; font-size: 0.75rem; }
   .co-turn-king { width: 20px; height: 20px; }
@@ -907,9 +908,10 @@ body.playing-mode #landing-screen { display: none !important; }
 /* A board of a phone held upright and short (320x568): a smaller avatar and type, so the tap target is never pushed out of sight. */
 @container (max-height: 340px) {
   .co-handoff-avatar { width: 44px; height: 44px; margin-bottom: 0; font-size: var(--text-lg); box-shadow: 0 0 0 4px rgba(221, 167, 52, 0.1); }
-  .co-handoff-card { gap: 4px; }
-  .co-handoff-title { font-size: 1.25rem; }
-  .co-handoff-sub { font-size: var(--text-xs); line-height: var(--lh-snug); }
+  /* RC-2 (r2-core, marked edit): a duel keeps the whole 24-letter name of a profile (it kept 20): tighter lines so two names of 24 "W"s still fit. */
+  .co-handoff-card { gap: 2px; }
+  .co-handoff-title { font-size: 1.25rem; line-height: 1; }
+  .co-handoff-sub { font-size: var(--text-xs); line-height: 1.2; }
   .co-handoff-cta { margin-top: var(--space-1); padding: 8px var(--space-5); }
 }
 @container (max-height: 280px) {
@@ -945,7 +947,9 @@ html[data-motion="reduce"] .co-score.is-bump .co-score-value { animation: none; 
   align-content: start;
   min-width: 0;
 }
-.co-result-inner { min-width: 0; }
+/* The column of the analysis is the container the verdict card answers to (RK-4, see "The verdict card stacks" below): the card cannot restyle
+   itself from its own size, and the window's width says nothing about the width the panel really gets. */
+.co-result-inner { min-width: 0; container: co-result / inline-size; }
 .co-result-inner.hidden { display: none; }
 
 /* Entrance: each block rises in turn (never under reduced motion) */
@@ -1574,13 +1578,19 @@ button.co-concept { min-height: 44px; }
   .co-players { gap: var(--space-2); }
 }
 
-/* The narrowest phones on their side (568px: the panel is about 230px): the gauge and the headline cannot share a row (the card's inner width
-   minus the 116px gauge left the headline 84px, and "mistake" ran into the card's edge), so the gauge sits over the words. */
-@media (orientation: landscape) and (min-width: 560px) and (max-width: 640px) and (max-height: 520px) {
+/* The verdict card stacks (RK-4): the gauge over the words, centred, as soon as the column the card sits in is too narrow for both. The
+   card has `overflow: hidden` (its rounded corners and its tinted gradient), so a headline wider than its column was cut off at the card's edge
+   without a sound: "Brilliant" and "Inaccuracy" at 24px need about 130px next to a gauge of 84-92px, and the panel is 232-300px wide in every
+   landscape window under 900px (568x320 up to 880x700), where a media query on the width of the window (it used to stop at 640px) only
+   covered a corner of them. The width of the card is what decides, so the query asks for it, whatever the window. */
+@container co-result (max-width: 279px) {
   .co-hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "gauge" "copy" "chips"; justify-items: center; text-align: center; padding: var(--space-3); }
   .co-hero-title { justify-content: center; }
   .co-chips { justify-content: center; }
 }
+/* Whatever the column, a word that cannot fit on a line of its own breaks instead of running past the edge of a card that clips. */
+.co-hero-copy { grid-template-columns: minmax(0, 1fr); }
+.co-hero-title > span:not(.co-glyph), .co-hero-verdict { overflow-wrap: anywhere; }
 /* Reduced motion: no entrances, no growing bars */
 @media (prefers-reduced-motion: reduce) {
   .co-result > *, .co-thinking > *, .co-sum-hero, .co-bar-fill { animation: none; }

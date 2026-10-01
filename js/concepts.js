@@ -11,7 +11,11 @@
 // (scripts/dev/verify-concepts.js; not part of `npm test`, it needs the engine).
 //
 // The moves in the texts are described with squares ("the knight jumps to c7")
-// instead of SAN letters, so they read the same in Spanish and English.
+// instead of SAN letters, so they read the same in Spanish and English. A pawn
+// move ("e4", "d4") is the same SAN in every notation and may be quoted; a piece
+// move ("Nf3" / "Cf3") may not: the museum and the coach print the body as it
+// is, so a letter would ignore the notation setting (Settings -> Notation).
+// scripts/tests/concepts.test.js fails on any piece-letter move in a lesson.
 (function (root, factory) {
   const api = factory(root);
   root.Ludus = root.Ludus || {};
@@ -81,7 +85,7 @@
       title: { es: "Pieza colgada", en: "Hanging piece" },
       body: {
         es: "Una pieza colgada está atacada y no tiene defensa suficiente, así que se puede capturar gratis (o en un mal cambio). Antes de cada jugada, revisá qué está atacado de los dos lados: lo tuyo y lo del rival. Acá el alfil de d5 no tiene defensa, así que la torre simplemente lo captura.",
-        en: "A hanging piece is attacked without enough defence, so it can be captured for free (or in a bad trade). Before every move, check what is attacked on both sides: yours and your opponent's. Here the bishop on d5 has no defender, so the rook simply takes it.",
+        en: "A hanging piece is attacked without enough defense, so it can be captured for free (or in a bad trade). Before every move, check what is attacked on both sides: yours and your opponent's. Here the bishop on d5 has no defender, so the rook simply takes it.",
       },
       fen: "4k3/8/8/3b4/8/8/8/3RK3 w - - 0 1",
       bestUci: "d1d5",
@@ -114,7 +118,7 @@
       title: { es: "Peón pasado", en: "Passed pawn" },
       body: {
         es: "Un peón pasado no tiene peones rivales delante ni en las columnas vecinas, así que solo las piezas pueden detenerlo. Cuanto más cerca de coronar, más fuerte es, y fuera del alcance del rey rival puede decidir la partida. Acá el peón de a queda fuera del cuadrado que alcanza el rey negro: las blancas lo empujan y coronan; cualquier jugada más lenta deja que el rey lo alcance.",
-        en: "A passed pawn has no enemy pawn in front of it or on the neighbouring files, so only pieces can stop it. It gets stronger the closer it is to promotion, and out of reach of the enemy king it can decide the game. Here the a-pawn is outside the square the black king can reach: White pushes and queens, and any slower move lets the king catch up.",
+        en: "A passed pawn has no enemy pawn in front of it or on the neighboring files, so only pieces can stop it. It gets stronger the closer it is to promotion, and out of reach of the enemy king it can decide the game. Here the a-pawn is outside the square the black king can reach: White pushes and queens, and any slower move lets the king catch up.",
       },
       fen: "8/8/8/P3k3/8/8/8/K7 w - - 0 1",
       bestUci: "a5a6",
@@ -144,10 +148,10 @@
     },
     {
       id: "development_center",
-      title: { es: "Desarrollo y centro", en: "Development and centre" },
+      title: { es: "Desarrollo y centro", en: "Development and center" },
       body: {
-        es: "En la apertura, peleá por el centro con peones, sacá los caballos y alfiles antes de mover dos veces la misma pieza, y enrocá temprano. Las piezas en el centro alcanzan más casillas, y un rey que se queda en el medio es fácil de atacar. Desde la posición inicial, e4 es una buena forma de reclamar el centro y abrir líneas para el alfil y la dama (d4 o Cf3 sirven casi igual: la idea importa más que la jugada exacta).",
-        en: "In the opening, fight for the centre with pawns, bring your knights and bishops out before moving the same piece twice, and castle early. Pieces in the centre reach more squares, and a king that stays in the middle is easy to attack. From the starting position, e4 is a good way to claim the centre and open lines for the bishop and the queen (d4 or Nf3 work almost as well: the idea matters more than the exact move).",
+        es: "En la apertura, peleá por el centro con peones, sacá los caballos y alfiles antes de mover dos veces la misma pieza, y enrocá temprano. Las piezas en el centro alcanzan más casillas, y un rey que se queda en el medio es fácil de atacar. Desde la posición inicial, e4 es una buena forma de reclamar el centro y abrir líneas para el alfil y la dama (d4, o sacar el caballo a f3, sirven casi igual: la idea importa más que la jugada exacta).",
+        en: "In the opening, fight for the center with pawns, bring your knights and bishops out before moving the same piece twice, and castle early. Pieces in the center reach more squares, and a king that stays in the middle is easy to attack. From the starting position, e4 is a good way to claim the center and open lines for the bishop and the queen (d4, or bringing the knight out to f3, works almost as well: the idea matters more than the exact move).",
       },
       fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
       bestUci: "e2e4",
@@ -158,7 +162,7 @@
       title: { es: "Seguridad del rey", en: "King safety" },
       body: {
         es: "Poné tu rey a salvo antes de atacar: enrocá, mantené los peones delante de él y tené cuidado al abrir líneas hacia él. Un rey en el centro puede ser atacado por todas las piezas, así que un tiempo dedicado a enrocar casi siempre vale la pena. Acá las blancas ya sacaron un caballo y un alfil, así que enrocar es un paso natural (hay otras jugadas buenas, pero no conviene dejar el rey en el centro sin motivo).",
-        en: "Put your king in safety before you attack: castle, keep the pawns in front of it, and be careful about opening lines towards it. A king in the centre can be attacked by every piece, so a tempo spent castling is almost always worth it. Here White has already developed a knight and a bishop, so castling is a natural next step (other moves are fine too, but there is no reason to leave the king in the centre).",
+        en: "Put your king in safety before you attack: castle, keep the pawns in front of it, and be careful about opening lines toward it. A king in the center can be attacked by every piece, so a tempo spent castling is almost always worth it. Here White has already developed a knight and a bishop, so castling is a natural next step (other moves are fine too, but there is no reason to leave the king in the center).",
       },
       fen: "r1bqkb1r/pppp1ppp/2n2n2/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
       bestUci: "e1g1",

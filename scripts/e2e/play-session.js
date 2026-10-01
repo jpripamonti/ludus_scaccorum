@@ -239,8 +239,25 @@ async function classicScenario(browser) {
       // The last legal move of the list is rarely a good one.
       return moves.filter((uci) => !known.includes(uci)).pop();
     });
+    // RC-7: what the overlay of the evaluation says while the move is searched (the words it shows are recorded as they change).
+    await page.evaluate(() => {
+      window.__overlayWords = { meta: new Set(), progress: new Set() };
+      const read = () => {
+        const meta = document.getElementById("position-search-meta");
+        const progress = document.getElementById("position-search-progress-label");
+        if (meta && meta.textContent.trim()) window.__overlayWords.meta.add(meta.textContent.trim());
+        if (progress && progress.textContent.trim()) window.__overlayWords.progress.add(progress.textContent.trim());
+      };
+      new MutationObserver(read).observe(document.getElementById("position-search-overlay"), { childList: true, subtree: true, characterData: true });
+    });
     await playUci(page, poor);
     await waitForResult(page);
+    const overlayWords = await page.evaluate(() => ({ meta: Array.from(window.__overlayWords.meta), progress: Array.from(window.__overlayWords.progress) }));
+    assert.ok(overlayWords.meta.length >= 1, "the evaluation overlay said how long it takes");
+    overlayWords.meta.forEach((words) => {
+      assert.ok(/usually takes a few seconds/.test(words) && !/\d/.test(words), `no number of seconds is promised: "${words}"`);
+    });
+    overlayWords.progress.forEach((words) => assert.match(words, /^\d+% · \d+\.\d s$/, "the progress line has what has passed, no ceiling"));
     const context3 = await resultContext(page);
     assert.strictEqual(context3.assessment.needsEvaluation, false, "the move was searched, not estimated");
     assert.ok(context3.assessment.points < 10 && context3.assessment.points >= 0, `points ${context3.assessment.points}`);
@@ -446,6 +463,8 @@ async function ownGamesScenario(browser) {
     assert.strictEqual((await page.locator("#wizard-step-indicator").textContent()).trim(), "Step 1 of 2");
     assert.strictEqual(await page.locator("#wizard-step-2").isVisible(), true);
     assert.strictEqual(await page.locator("#wizard-step-1").isVisible(), false);
+    // RC-2 / RC-3: the duel's name fields take what a profile's name may have and start from the neutral default of the language.
+    assert.deepStrictEqual(await page.evaluate(() => ["duel-player-a", "duel-player-b"].map((id) => [document.getElementById(id).getAttribute("maxlength"), document.getElementById(id).value])), [["24", "Player 1"], ["24", "Player 2"]]);
     await shot(page, "10-wizard-step2");
 
     step("username, count, download with consent");
@@ -463,6 +482,10 @@ async function ownGamesScenario(browser) {
       }).observe(document.body, { childList: true, subtree: true });
     });
     await page.locator("#analyze-btn").click();
+    // RC-4: the consent says what the profile keeps of the person's own games, like the landing's privacy card.
+    await page.locator("#consent-overlay-username-input").waitFor({ state: "visible" });
+    const consentText = await page.locator("#consent-overlay-body").textContent();
+    assert.ok(/players' names and the link to each game/.test(consentText) && /Account/.test(consentText), `the consent names what the profile keeps: "${consentText}"`);
     await page.locator("#consent-overlay-username-input").fill("TestUser");
     await page.locator("#consent-overlay-accept").click();
     await page.waitForFunction(() => Ludus.router.current() === "game", null, { timeout: 120000 });

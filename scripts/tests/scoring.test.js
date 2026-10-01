@@ -1123,6 +1123,44 @@ function buildDocTables() {
   return out.join("\n");
 }
 
+test("labels near a threshold (CNT-013): a pure function of the loss with no hysteresis, so a flip between two searches must come with a small change of points", () => {
+  // Two independent searches of the same move differ by about 1.9 win% on average (docs/SCORING.md section 15), so a move that sits on a
+  // label boundary can read as the neighbouring label in another run. Nothing can be remembered between calls (assess is pure), so what
+  // keeps this honest is that the score is continuous at every boundary: the neighbouring label never comes with a cliff in the points.
+  const order = ["perfect", "very_good", "good", "interesting", "dubious", "bad", "blunder"];
+  ["relaxed", "standard", "strict"].forEach((strictness) => {
+    const settings = { strictness };
+    let previous = null;
+    let flips = 0;
+    for (let cp = 0; cp <= 600; cp += 1) {
+      const result = score(30, 30 - cp, { settings });
+      const again = score(30, 30 - cp, { settings });
+      assert.deepStrictEqual(again, result, `${strictness} ${cp} cp: the same input gives the same label and points (no hidden state)`);
+      assert.ok(order.includes(result.qualityCode), `${strictness} ${cp} cp: ${result.qualityCode}`);
+      if (previous) {
+        assert.ok(order.indexOf(result.qualityCode) >= order.indexOf(previous.qualityCode), `${strictness}: the label never improves as the loss grows (${previous.qualityCode} -> ${result.qualityCode} at ${cp} cp)`);
+        assert.ok(result.points <= previous.points + 1e-9, `${strictness}: points never rise as the loss grows (${cp} cp)`);
+        if (result.qualityCode !== previous.qualityCode) {
+          flips += 1;
+          // one centipawn is about 0.09 win%: the steepest point at a boundary is about 1.1 points per win% (strict)
+          assert.ok(previous.points - result.points <= 0.25, `${strictness}: a flip ${previous.qualityCode} -> ${result.qualityCode} at ${cp} cp costs ${(previous.points - result.points).toFixed(2)} points`);
+        }
+      }
+      previous = result;
+    }
+    assert.strictEqual(flips, 6, `${strictness}: the six boundaries of the ladder were all crossed`);
+  });
+  // The tiers model is a staircase by design ("easier to read, less fine"): a flip moves the points by exactly one step, never more.
+  const steps = [];
+  let before = null;
+  for (let cp = 0; cp <= 600; cp += 1) {
+    const result = score(30, 30 - cp, { settings: { model: "tiers" } });
+    if (before && result.qualityCode !== before.qualityCode) steps.push(before.points - result.points);
+    before = result;
+  }
+  assert.ok(steps.length >= 5 && steps.every((step) => step >= 0 && step <= 2.5 + 1e-9), `tiers: every flip is one step of at most 2.5 points (${steps.join(", ")})`);
+});
+
 // cp loss that costs `loss` win% starting from an equal position (bisection).
 function cpForLoss(loss) {
   let low = 0;

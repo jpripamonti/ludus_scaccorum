@@ -327,8 +327,8 @@ const TRANSLATIONS = {
     "wizard.step1.duel": "Jugar contra alguien",
     "wizard.step1.duelHint": "Se turnan en este mismo dispositivo",
     "wizard.step1.duelExplainer": "Van a compartir este dispositivo: cada uno juega su turno y comparan el puntaje al final.",
-    "wizard.step1.player1Label": "Nombre Jugador 1",
-    "wizard.step1.player2Label": "Nombre Jugador 2",
+    "wizard.step1.player1Label": "Nombre del participante 1",
+    "wizard.step1.player2Label": "Nombre del participante 2",
     "wizard.step2.question": "¿De dónde traemos tus partidas?",
     "wizard.step2.help": "Vamos a descargar partidas públicas del último año para encontrar posiciones.",
     "wizard.step2.howItWorks": "¿Cómo funciona?",
@@ -370,8 +370,8 @@ const TRANSLATIONS = {
     "wizard.status.modeSourceOptions": "Configurá modo, fuente y opciones de análisis.",
     "compat.gameFormat.solo": "Modo estudio (1 jugador)",
     "compat.gameFormat.duel": "Modo duelo (2 jugadores)",
-    "players.default1": "Jugador 1",
-    "players.default2": "Jugador 2",
+    "players.default1": "Participante 1",
+    "players.default2": "Participante 2",
     "players.targetLabel": "Usuario a analizar",
     "players.targetHint": "Usaremos este usuario para seleccionar posiciones.",
     "players.enterUserContinue": "Ingresá el usuario para continuar.",
@@ -386,7 +386,6 @@ const TRANSLATIONS = {
     "scoring.system.simple.description": "Cuanto más cerca esté tu jugada de la mejor del motor, más puntos: hasta 10 por posición.",
     // The quality words ("quality.*") live only in js/scoring.js: one ladder for every screen (CNT-014).
     "common.notAvailable": "No disponible",
-    "common.unknown": "desconocido",
     "common.searching": "Pensando…",
     "common.gameFallback": "Partida",
     "common.playersUnavailable": "Jugadores no disponibles",
@@ -444,7 +443,7 @@ const TRANSLATIONS = {
     "download.cancelled": "Cancelaste la descarga. No guardamos nada.",
     "download.cancelledSearch": "Cancelaste la búsqueda.",
     "download.lastUser": "Usuario recordado en este navegador. Se borra con “Borrar datos guardados de partidas”.",
-    "privacy.remoteFetchConfirm": "Vamos a pedirle a {provider} las partidas públicas de {user}. El pedido sale directo de tu navegador a ese sitio: esta app no tiene servidor propio. Guardamos esas partidas y tu usuario en este navegador hasta 7 días para no descargarlas de nuevo; podés borrarlas con “Borrar datos guardados de partidas”. En una computadora compartida, otra persona podría verlas. ¿Continuar?",
+    "privacy.remoteFetchConfirm": "Vamos a pedirle a {provider} las partidas públicas de {user}. El pedido sale directo de tu navegador a ese sitio: esta app no tiene servidor propio. Guardamos esas partidas y tu usuario en este navegador hasta 7 días para no descargarlas de nuevo; podés borrarlas con “Borrar datos guardados de partidas”. Si entrenás con ellas, tu perfil también guarda los nombres de los jugadores y el enlace de cada partida; eso lo borrás desde Cuenta. En una computadora compartida, otra persona podría verlas. ¿Continuar?",
     "privacy.remoteFetchCancelled": "Consulta cancelada. No se enviaron datos a {provider}.",
     "privacy.remoteFetchTitle": "Consultar partidas públicas",
     "privacy.remoteFetchAccept": "Aceptar",
@@ -499,8 +498,8 @@ const TRANSLATIONS = {
     "game.sessionHintEngineer": "Objetivo de sesión: {target} posiciones. Puntaje: {system}. Detectadas por ahora: {detected}. Analizadas: {analyzed}/{total}.",
     "overlay.evaluatingBoth": "Evaluando jugadas de ambos jugadores…",
     "overlay.evaluatingYours": "Evaluando tu jugada…",
-    "overlay.difficultyBudget": "Dificultad {label} · {budget}",
-    "overlay.progressLabel": "{pct}% · {elapsed} s / {total} s",
+    "overlay.difficultyWait": "Dificultad {label} · suele tardar unos segundos",
+    "overlay.progressLabel": "{pct}% · {elapsed} s",
     "overlay.searchingNext": "Buscando próxima posición…",
     "analysis.metrics.zero": "Totales: 0 | Analizadas: 0 | Detectadas: 0",
     "analysis.metrics.engineer": "Posiciones totales: {total} | Posiciones analizadas: {done} | Posiciones con un error mayor al umbral: {detected}",
@@ -523,7 +522,7 @@ const TRANSLATIONS = {
     "analysis.status.shuffle": "Barajando {games} partidas y buscando la primera posición para {player}…",
     "analysis.status.firstReady": "Primera posición detectada. Ya podés jugar.",
     "analysis.status.failed": "Algo salió mal al analizar tus partidas. Probá de nuevo.",
-    "analysis.status.roundError": "Error al evaluar la ronda: {error}",
+    "analysis.status.roundError": "No pudimos evaluar la jugada. Intentá de nuevo; si se repite, recargá la página.",
     "provider.readyToDownload": "Listo. Tocá “Siguiente”: las partidas se descargan recién cuando empieza la sesión.",
     "provider.baseReady": "Base lista para {username}.{warning}",
     "provider.sourceLoaded": "Fuente: {provider} ({username}) | {games} {games?partida cargada|partidas cargadas}.{warning}",
@@ -678,7 +677,6 @@ const TRANSLATIONS = {
     "scoring.system.simple.description": "The closer your move is to the engine's best, the more points: up to 10 per position.",
     // The quality words ("quality.*") live only in js/scoring.js (see the Spanish dictionary above).
     "common.notAvailable": "Not available",
-    "common.unknown": "unknown",
     "common.searching": "Thinking…",
     "common.gameFallback": "Game",
     "common.playersUnavailable": "Players unavailable",
@@ -736,7 +734,7 @@ const TRANSLATIONS = {
     "download.cancelled": "You canceled the download. Nothing was saved.",
     "download.cancelledSearch": "You canceled the search.",
     "download.lastUser": "Username remembered in this browser. It is removed with “Clear saved game data”.",
-    "privacy.remoteFetchConfirm": "We are going to ask {provider} for the public games of {user}. The request goes straight from your browser to that site: this app has no server of its own. We keep those games and your username in this browser for up to 7 days so we do not download them again; you can delete them with “Clear saved game data”. On a shared computer, someone else could see them. Continue?",
+    "privacy.remoteFetchConfirm": "We are going to ask {provider} for the public games of {user}. The request goes straight from your browser to that site: this app has no server of its own. We keep those games and your username in this browser for up to 7 days so we do not download them again; you can delete them with “Clear saved game data”. If you train with them, your profile also keeps the players' names and the link to each game; you can delete that from Account. On a shared computer, someone else could see them. Continue?",
     "privacy.remoteFetchCancelled": "Request canceled. No data was sent to {provider}.",
     "privacy.remoteFetchTitle": "Fetch public games",
     "privacy.remoteFetchAccept": "Accept",
@@ -791,8 +789,8 @@ const TRANSLATIONS = {
     "game.sessionHintEngineer": "Session target: {target} positions. Scoring: {system}. Found so far: {detected}. Analyzed: {analyzed}/{total}.",
     "overlay.evaluatingBoth": "Evaluating both players' moves…",
     "overlay.evaluatingYours": "Evaluating your move…",
-    "overlay.difficultyBudget": "Difficulty {label} · {budget}",
-    "overlay.progressLabel": "{pct}% · {elapsed} s / {total} s",
+    "overlay.difficultyWait": "Difficulty {label} · usually takes a few seconds",
+    "overlay.progressLabel": "{pct}% · {elapsed} s",
     "overlay.searchingNext": "Searching for the next position…",
     "analysis.metrics.zero": "Totals: 0 | Analyzed: 0 | Found: 0",
     "analysis.metrics.engineer": "Total positions: {total} | Analyzed positions: {done} | Positions with a mistake above the threshold: {detected}",
@@ -815,7 +813,7 @@ const TRANSLATIONS = {
     "analysis.status.shuffle": "Shuffling {games} games and looking for the first position for {player}…",
     "analysis.status.firstReady": "First position found. You can start playing now.",
     "analysis.status.failed": "Something went wrong while analyzing your games. Try again.",
-    "analysis.status.roundError": "Error while evaluating the round: {error}",
+    "analysis.status.roundError": "We could not evaluate the move. Try again; if it keeps happening, reload the page.",
     "provider.readyToDownload": "Looks good. Tap “Next”: games are only downloaded when the session starts.",
     "provider.baseReady": "Base ready for {username}.{warning}",
     "provider.sourceLoaded": "Source: {provider} ({username}) | {games} {games?game|games} loaded.{warning}",
@@ -885,6 +883,8 @@ Ludus.i18n.register({
     "core.resume.continue": "Seguir",
     "core.resume.discard": "Ahora no",
     "core.resume.note": "Tu última sesión se interrumpió. Respondiste {answered} de {total}. {saved}",
+    "core.resume.failed": "No pudimos retomar la sesión interrumpida. Podés empezar una nueva desde el inicio.",
+    "core.start.failed": "No pudimos empezar la sesión. Probá de nuevo; si se repite, volvé al inicio y elegí otra opción.",
     "core.engine.unsupported": "Este navegador no puede usar el motor fuerte: analizamos con uno más simple, que mira menos a fondo.",
     "core.engine.offline": "Sin conexión: por ahora analizamos con el motor de respaldo, que mira menos a fondo.",
     "core.engine.downloading": "Descargando el motor de análisis: {pct}%",
@@ -944,6 +944,8 @@ Ludus.i18n.register({
     "core.resume.continue": "Continue",
     "core.resume.discard": "Not now",
     "core.resume.note": "Your last session was interrupted. You answered {answered} of {total}. {saved}",
+    "core.resume.failed": "We could not pick the interrupted session back up. You can start a new one from the start.",
+    "core.start.failed": "We could not start the session. Try again; if it keeps happening, go back to the start and pick another option.",
     "core.engine.unsupported": "This browser cannot run the strong engine: we analyze with a simpler one, which looks less deeply.",
     "core.engine.offline": "You are offline: for now we analyze with the backup engine, which looks less deeply.",
     "core.engine.downloading": "Downloading the analysis engine: {pct}%",
@@ -1179,7 +1181,9 @@ function preferredLocale() {
   return normalizeLanguage(STATE?.language || detectInitialLanguage());
 }
 
-const DUEL_DEFAULT_PLAYERS = ["Jugador 1", "Jugador 2"];
+// Neutral like the profile's own default ("Participante"): "Jugador" was the masculine generic (CNT-035). The English default
+// ("Player 1") comes from the dictionary; these are what the state holds before a language is applied.
+const DUEL_DEFAULT_PLAYERS = ["Participante 1", "Participante 2"];
 // The chess primitives and the PGN helpers live in js/chess.js and js/pgn.js
 // (loaded before this file, see index.html and docs/ARCHITECTURE.md).
 const { Chess, files, uciToMove, moveToUci, moveToSan, sanToMove } = Ludus.chess;
@@ -1380,6 +1384,8 @@ function shouldTranslatePlayerName(value, index) {
 function syncLocalizedPlayerDefaults() {
   [duelPlayerAEl, duelPlayerBEl].forEach((inputEl, index) => {
     if (!inputEl) return;
+    // The field takes what a profile's name may have (the markup says the same number before the script runs).
+    inputEl.setAttribute("maxlength", String(playerNameMax()));
     if (shouldTranslatePlayerName(inputEl.value, index)) {
       inputEl.value = defaultDuelPlayerName(index);
     }
@@ -1682,6 +1688,14 @@ function sanitizePlayerName(value, fallback) {
   return cleaned || fallback;
 }
 
+// How many letters a duel player's name keeps: as many as a profile's name may have (Profile.constants.NAME_MAX), so the name of
+// a profile that plays is never cut in silence (RC-2). 24 is the same number, for a page without the profile module.
+function playerNameMax() {
+  const profile = ludusModule("Profile");
+  const max = profile && profile.constants ? Number(profile.constants.NAME_MAX) : NaN;
+  return Number.isFinite(max) && max >= 1 ? Math.floor(max) : 24;
+}
+
 function duelPlayerName(index) {
   const fallback = defaultDuelPlayerName(index);
   return sanitizePlayerName(STATE.duel.players[index], fallback);
@@ -1747,7 +1761,7 @@ function duelSecondPlayer() {
   return STATE.duel.firstPlayer === 1 ? 0 : 1;
 }
 
-function initialsFromName(value, fallback = "J") {
+function initialsFromName(value, fallback = "P") {
   const cleaned = String(value || "").trim().replace(/\s+/g, " ");
   if (!cleaned) return fallback;
   const bits = cleaned.split(" ").filter(Boolean);
@@ -2431,7 +2445,7 @@ function renderPlayHeader() {
         duelNameEls[index].textContent = name;
         duelNameEls[index].title = name;
       }
-      if (duelAvatarEls[index]) duelAvatarEls[index].textContent = initialsFromName(name, index === 0 ? "J1" : "J2");
+      if (duelAvatarEls[index]) duelAvatarEls[index].textContent = initialsFromName(name, index === 0 ? "P1" : "P2");
       if (duelPointsEls[index]) duelPointsEls[index].textContent = formatPoints(STATE.duel.scores[index] || 0);
       if (duelSideEls[index]) {
         duelSideEls[index].classList.toggle("is-active", index === active);
@@ -2629,8 +2643,8 @@ function setWizardClockMode(mode) {
 
 function readDuelPlayersFromInputs() {
   STATE.duel.players = [
-    sanitizePlayerName(duelPlayerAEl ? duelPlayerAEl.value : "", DUEL_DEFAULT_PLAYERS[0]),
-    sanitizePlayerName(duelPlayerBEl ? duelPlayerBEl.value : "", DUEL_DEFAULT_PLAYERS[1]),
+    sanitizePlayerName(duelPlayerAEl ? duelPlayerAEl.value : "", defaultDuelPlayerName(0)),
+    sanitizePlayerName(duelPlayerBEl ? duelPlayerBEl.value : "", defaultDuelPlayerName(1)),
   ];
   if (duelPlayerAEl) duelPlayerAEl.value = STATE.duel.players[0];
   if (duelPlayerBEl) duelPlayerBEl.value = STATE.duel.players[1];
@@ -3005,8 +3019,8 @@ function sanitizeWizardUsername(value) {
 
 function collectWizardConfig() {
   const mode = normalizeGameFormat(STATE.setupWizard.mode);
-  const playerA = String(duelPlayerAEl ? duelPlayerAEl.value : STATE.setupWizard.duelNames[0] || "").trim().replace(/\s+/g, " ").slice(0, 20);
-  const playerB = String(duelPlayerBEl ? duelPlayerBEl.value : STATE.setupWizard.duelNames[1] || "").trim().replace(/\s+/g, " ").slice(0, 20);
+  const playerA = String(duelPlayerAEl ? duelPlayerAEl.value : STATE.setupWizard.duelNames[0] || "").trim().replace(/\s+/g, " ").slice(0, playerNameMax());
+  const playerB = String(duelPlayerBEl ? duelPlayerBEl.value : STATE.setupWizard.duelNames[1] || "").trim().replace(/\s+/g, " ").slice(0, playerNameMax());
   const platform = getRemoteProviderModeFromUi();
   const username = sanitizeWizardUsername(onlineUserInputEl ? onlineUserInputEl.value : STATE.setupWizard.username);
   const sessionSize = clamp(Number(sessionSizeEl ? sessionSizeEl.value : STATE.setupWizard.sessionSize) || DEFAULT_CITIZEN_SESSION_SIZE, 1, 200);
@@ -3669,8 +3683,8 @@ function openOwnGamesSetup(options = {}) {
   const opts = options && typeof options === "object" ? options : {};
   const mode = opts.mode === "duel" || opts.mode === "solo" ? opts.mode : null;
   const names = Array.isArray(opts.names) ? opts.names : [];
-  const nameA = sanitizePlayerName(names[0], "").slice(0, 20);
-  const nameB = sanitizePlayerName(names[1], "").slice(0, 20);
+  const nameA = sanitizePlayerName(names[0], "").slice(0, playerNameMax());
+  const nameB = sanitizePlayerName(names[1], "").slice(0, playerNameMax());
   if (mode === "duel") {
     if (nameA && duelPlayerAEl) duelPlayerAEl.value = nameA;
     if (nameB && duelPlayerBEl) duelPlayerBEl.value = nameB;
@@ -6654,7 +6668,6 @@ async function resolveRound(move, options = {}) {
         setPositionSearchProgress(ratio, t("overlay.progressLabel", {
           pct: Math.round(ratio * 100),
           elapsed: (elapsedTotalMs / 1000).toFixed(1),
-          total: (plan.totalBudgetMs / 1000).toFixed(1),
         }));
       },
     });
@@ -6676,7 +6689,9 @@ async function resolveRound(move, options = {}) {
     hideHandoffOverlay();
     hideResultOverlay();
     restoreBoardToRoundStart();
-    showToast(t("analysis.status.roundError", { error: error.message || t("common.unknown") }), { kind: "error" });
+    // What went wrong (a JavaScript message) is for the console; the person gets what happened and what to do (UX-006).
+    console.warn("[Ludus] the round could not be evaluated", error);
+    showToast(t("analysis.status.roundError"), { kind: "error" });
     STATE.roundSubmitted = false;
     skipBtn.disabled = false;
     nextBtn.disabled = true;
@@ -6849,7 +6864,7 @@ function handoffTexts() {
     title: t("game.handoff.title", { player: second }),
     subtitle: t("game.handoff.subtitle", { other: first }),
     eyebrow: t("play.handoff.eyebrow", { name: first }),
-    avatar: initialsFromName(second, `J${duelSecondPlayer() + 1}`),
+    avatar: initialsFromName(second, `P${duelSecondPlayer() + 1}`),
   };
 }
 
@@ -6906,17 +6921,17 @@ function beginRoundEvaluationOverlay(plan) {
   const evaluationTitle = isDuelMode()
     ? t("overlay.evaluatingBoth")
     : t("overlay.evaluatingYours");
-  const budgetLabel = `${(plan.totalBudgetMs / 1000).toFixed(1)}s max`;
+  // No number of seconds is promised: plan.totalBudgetMs is the time the searches are given, and what the person waits for also
+  // holds a retry, the backup engine or the engine's start (RC-7). "A few seconds" is what it usually is.
   showPositionSearchOverlay(
     evaluationTitle,
-    t("overlay.difficultyBudget", { label: t(`difficulty.${plan.label}`), budget: budgetLabel }),
+    t("overlay.difficultyWait", { label: t(`difficulty.${plan.label}`) }),
     {
       showProgress: true,
       progressRatio: 0,
       progressLabel: t("overlay.progressLabel", {
         pct: 0,
         elapsed: "0.0",
-        total: (plan.totalBudgetMs / 1000).toFixed(1),
       }),
       facts: true,
       factsDelayMs: OVERLAY_FACTS_DELAY_MS,
@@ -7688,7 +7703,8 @@ async function replaySession(options) {
   try {
     await startSession({ kind, title, mode, names: names || undefined, profileIds: profileIds || undefined, positions, options: session.options });
   } catch (error) {
-    showToast(error && error.message ? error.message : t("common.unknown"), { kind: "error" });
+    console.warn("[Ludus] the new session could not start", error);
+    showToast(t("core.start.failed"), { kind: "error" });
   }
 }
 
@@ -7880,7 +7896,7 @@ function readyTexts() {
     title: t("game.ready.title", { player: first }),
     subtitle: t("game.ready.subtitle", { player: first, other: second }),
     eyebrow: t("play.ready.eyebrow", { current: STATE.index + 1, total: soloSessionTarget() }),
-    avatar: initialsFromName(first, `J${STATE.duel.firstPlayer + 1}`),
+    avatar: initialsFromName(first, `P${STATE.duel.firstPlayer + 1}`),
   };
 }
 
@@ -8185,7 +8201,8 @@ async function offerSessionResume() {
   try {
     await startSession({ kind: record.kind, title: record.title, mode: "solo", positions: remaining, options: record.options });
   } catch (error) {
-    showToast(error && error.message ? error.message : t("common.unknown"), { kind: "error" });
+    console.warn("[Ludus] the interrupted session could not be resumed", error);
+    showToast(t("core.resume.failed"), { kind: "error" });
   }
 }
 
@@ -8295,7 +8312,7 @@ async function startSession(config = {}) {
   if (!positions.length) throw new Error("Ludus.game.startSession: there are no playable positions");
   const mode = cfg.mode === "duel" ? "duel" : "solo";
   const names = mode === "duel"
-    ? [0, 1].map((index) => sanitizePlayerName(Array.isArray(cfg.names) ? cfg.names[index] : "", defaultDuelPlayerName(index)).slice(0, 20))
+    ? [0, 1].map((index) => sanitizePlayerName(Array.isArray(cfg.names) ? cfg.names[index] : "", defaultDuelPlayerName(index)).slice(0, playerNameMax()))
     : null;
   const profileIds = mode === "duel"
     ? [0, 1].map((index) => (Array.isArray(cfg.profileIds) && typeof cfg.profileIds[index] === "string" ? cfg.profileIds[index] : null))

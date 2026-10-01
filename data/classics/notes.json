@@ -200,7 +200,7 @@
       "en": "Bled tournament"
     },
     "Candidates semifinal match": {
-      "es": "Match de semifinales de Candidatos",
+      "es": "Semifinal de Candidatos",
       "en": "Candidates semifinal match"
     },
     "Casual game": {
@@ -220,7 +220,7 @@
       "en": "Hoogovens tournament"
     },
     "IBM Man-Machine match": {
-      "es": "Match hombre contra máquina de IBM",
+      "es": "Duelo hombre contra máquina de IBM",
       "en": "IBM Man-Machine match"
     },
     "Interpolis": {
@@ -256,7 +256,7 @@
       "en": "USSR vs Rest of the World"
     },
     "World Championship match": {
-      "es": "Match por el Campeonato Mundial",
+      "es": "Campeonato Mundial",
       "en": "World Championship match"
     }
   },
@@ -272,7 +272,7 @@
       },
       "opening": {
         "es": "Defensa Philidor",
-        "en": "Philidor Defence"
+        "en": "Philidor Defense"
       },
       "themes": [
         "development",
@@ -555,7 +555,7 @@
       },
       "opening": {
         "es": "Defensa Tarrasch (Gambito de Dama declinado)",
-        "en": "Tarrasch Defence (Queen's Gambit Declined)"
+        "en": "Tarrasch Defense (Queen's Gambit Declined)"
       },
       "themes": [
         "queen-sacrifice",
@@ -609,7 +609,7 @@
       },
       "opening": {
         "es": "Defensa Caro-Kann",
-        "en": "Caro-Kann Defence"
+        "en": "Caro-Kann Defense"
       },
       "themes": [
         "queen-sacrifice",
@@ -698,11 +698,11 @@
       },
       "blurb": {
         "es": "Jugada el 20 de julio de 1912 en el torneo maestro del Congreso de la DSB en Breslau. Marshall respondió con 23...Dg3!!, que deja la dama atacada de tres maneras distintas sin que las blancas tengan defensa; Levitsky se rindió. Según la leyenda, los espectadores cubrieron el tablero de monedas de oro.",
-        "en": "Played on 20 July 1912 in the masters tournament of the DSB Congress in Breslau. Marshall answered with 23...Qg3!!, leaving his queen attacked three ways with no defence for White; Levitsky resigned. According to legend, the spectators showered the board with gold coins."
+        "en": "Played on 20 July 1912 in the masters tournament of the DSB Congress in Breslau. Marshall answered with 23...Qg3!!, leaving his queen attacked three ways with no defense for White; Levitsky resigned. According to legend, the spectators showered the board with gold coins."
       },
       "opening": {
         "es": "Defensa Francesa",
-        "en": "French Defence"
+        "en": "French Defense"
       },
       "themes": [
         "queen-sacrifice",
@@ -765,11 +765,11 @@
       },
       "blurb": {
         "es": "Jugada en Copenhague en marzo de 1923, en una Defensa India de Dama. Nimzowitsch, con negras, llevó la partida a una posición en la que las blancas, sin estar en jaque, no tenían ninguna jugada útil: tras 25...h6 Sämisch se rindió.",
-        "en": "Played in Copenhagen in March 1923, in a Queen's Indian Defence. Playing Black, Nimzowitsch steered the game into a position where White, though not in check, had no useful move: after 25...h6 Sämisch resigned."
+        "en": "Played in Copenhagen in March 1923, in a Queen's Indian Defense. Playing Black, Nimzowitsch steered the game into a position where White, though not in check, had no useful move: after 25...h6 Sämisch resigned."
       },
       "opening": {
         "es": "Defensa India de Dama",
-        "en": "Queen's Indian Defence"
+        "en": "Queen's Indian Defense"
       },
       "themes": [
         "zugzwang",
@@ -806,7 +806,7 @@
       },
       "opening": {
         "es": "Defensa Holandesa",
-        "en": "Dutch Defence"
+        "en": "Dutch Defense"
       },
       "themes": [
         "endgame-technique",
@@ -848,11 +848,11 @@
       },
       "blurb": {
         "es": "Alekhine ganó el torneo de Bled de 1931 y venció dos veces a Nimzowitsch; esta fue la primera, una miniatura de 19 jugadas en una Defensa Francesa. Las negras capturaron peones con la dama y el rey quedó en el centro, lo que Alekhine castigó con un ataque directo.",
-        "en": "Alekhine won the Bled 1931 tournament and beat Nimzowitsch twice there; this was the first, a 19-move miniature in a French Defence. Black grabbed pawns with the queen and left the king in the centre, which Alekhine punished with a direct attack."
+        "en": "Alekhine won the Bled 1931 tournament and beat Nimzowitsch twice there; this was the first, a 19-move miniature in a French Defense. Black grabbed pawns with the queen and left the king in the center, which Alekhine punished with a direct attack."
       },
       "opening": {
         "es": "Defensa Francesa (Variante Winawer)",
-        "en": "French Defence (Winawer Variation)"
+        "en": "French Defense (Winawer Variation)"
       },
       "themes": [
         "attack",
@@ -866,7 +866,7 @@
       "sources": [
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Bled1931.pgn)",
         "Score identical move for move in github.com/AlwaysLearningNewStuff/Chess, github.com/gbtami/JvR-archive (www.endgame.nl/bled1931.pgn) and github.com/chris-moreton/rivalchess-pgn (Bled1931.pgn)",
-        "Facts (Bled 1931, French Defence, won in 19 moves, Alekhine won both games against Nimzowitsch): web search summaries of https://www.chess.com/blog/kahns/a-century-of-chess-bled-1931 and https://en.wikipedia.org/wiki/Bled_1931_chess_tournament",
+        "Facts (Bled 1931, French Defense, won in 19 moves, Alekhine won both games against Nimzowitsch): web search summaries of https://www.chess.com/blog/kahns/a-century-of-chess-bled-1931 and https://en.wikipedia.org/wiki/Bled_1931_chess_tournament",
         "Fact-check note (2026-09-30): both wins over Nimzowitsch re-confirmed (19 moves, then 36 moves; Alekhine did not lose a game at Bled)"
       ],
       "moments": [
@@ -891,7 +891,7 @@
       },
       "opening": {
         "es": "Defensa Nimzoindia (Sistema Botvinnik)",
-        "en": "Nimzo-Indian Defence (Botvinnik system)"
+        "en": "Nimzo-Indian Defense (Botvinnik system)"
       },
       "themes": [
         "piece-sacrifice",
@@ -946,7 +946,7 @@
       },
       "opening": {
         "es": "Defensa India Antigua (Variante Ucraniana)",
-        "en": "Old Indian Defence (Ukrainian Variation)"
+        "en": "Old Indian Defense (Ukrainian Variation)"
       },
       "themes": [
         "queen-sacrifice",
@@ -960,7 +960,7 @@
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Polugaevsky.pgn)",
         "Score identical move for move in github.com/jcarolus/android-chess, github.com/anandjoshi91/cdn-assets and github.com/tsoj/chessattackingscore",
         "Facts (Sochi 1958, RSFSR Championship, Old Indian Ukrainian Variation, queen sacrifice, white king driven to a5): web search summaries of https://www.chess.com/article/chasing-the-king-part-2 and https://chessdailynews.com/?p=5969",
-        "Fact-check note (2026-09-30): 'queen and almost his whole army' (the material trace shows the queen only) and 'one of the most anthologised' (unsourced) were dropped; the 18th edition and the name 'Nezhmetdinov's Immortal' were re-confirmed; the month is not sourced, so the date is year-only"
+        "Fact-check note (2026-09-30): 'queen and almost his whole army' (the material trace shows the queen only) and 'one of the most anthologized' (unsourced) were dropped; the 18th edition and the name 'Nezhmetdinov's Immortal' were re-confirmed; the month is not sourced, so the date is year-only"
       ],
       "moments": [
         {
@@ -976,7 +976,7 @@
           "san": "Nexd3+",
           "note": {
             "es": "Captura con jaque descubierto del alfil: 29...Cexd3+ 30.Rc4 d5+ persigue al rey hacia la banda de dama.",
-            "en": "A capture with a discovered check from the bishop: 29...Nexd3+ 30.Kc4 d5+ chases the king towards the queenside."
+            "en": "A capture with a discovered check from the bishop: 29...Nexd3+ 30.Kc4 d5+ chases the king toward the queenside."
           }
         }
       ]
@@ -992,7 +992,7 @@
       },
       "opening": {
         "es": "Gambito de Rey (Defensa Moderna)",
-        "en": "King's Gambit (Modern Defence)"
+        "en": "King's Gambit (Modern Defense)"
       },
       "themes": [
         "romantic",
@@ -1030,7 +1030,7 @@
       },
       "opening": {
         "es": "Defensa Grünfeld",
-        "en": "Grünfeld Defence"
+        "en": "Grünfeld Defense"
       },
       "themes": [
         "queen-sacrifice",
@@ -1079,12 +1079,12 @@
         "en": "Tal versus Larsen, Bled 1965"
       },
       "blurb": {
-        "es": "Décima y decisiva partida de la semifinal de Candidatos de 1965 en Bled (del 23 de julio al 8 de agosto), con el match empatado. Tal, con blancas, ganó con un ataque en una Siciliana Scheveningen y se llevó la eliminatoria frente a Bent Larsen.",
+        "es": "Décima y decisiva partida de la semifinal de Candidatos de 1965 en Bled (del 23 de julio al 8 de agosto), con el encuentro igualado. Tal, con blancas, ganó con un ataque en una Siciliana Scheveningen y se llevó la eliminatoria frente a Bent Larsen.",
         "en": "The tenth and decisive game of the 1965 Candidates semifinal in Bled (23 July to 8 August), with the match level. Playing White in a Sicilian Scheveningen, Tal won with an attack and took the match against Bent Larsen."
       },
       "opening": {
         "es": "Defensa Siciliana (Scheveningen)",
-        "en": "Sicilian Defence (Scheveningen)"
+        "en": "Sicilian Defense (Scheveningen)"
       },
       "themes": [
         "attack",
@@ -1108,7 +1108,7 @@
         "en": "Larsen versus Spassky, Belgrade 1970"
       },
       "blurb": {
-        "es": "Partida del tablero 1 del match URSS contra el Resto del Mundo (Belgrado, marzo de 1970). Larsen abrió con 1.b3 y Spassky ganó en 17 jugadas: sacrificó un caballo y una torre para lanzar su peón de h hasta coronar en f1.",
+        "es": "Partida del tablero 1 del encuentro URSS contra el Resto del Mundo (Belgrado, marzo de 1970). Larsen abrió con 1.b3 y Spassky ganó en 17 jugadas: sacrificó un caballo y una torre para lanzar su peón de h hasta coronar en f1.",
         "en": "A board-one game from the USSR versus Rest of the World match (Belgrade, March 1970). Larsen opened 1.b3 and Spassky won in 17 moves: he sacrificed a knight and a rook to push his h-pawn all the way to promotion on f1."
       },
       "opening": {
@@ -1155,12 +1155,12 @@
         "en": "Fischer versus Spassky, game 6 (Reykjavik 1972)"
       },
       "blurb": {
-        "es": "Sexta partida del match por el título mundial de 1972 en Reikiavik, jugada el 23 de julio. Fischer abandonó su 1.e4 habitual y abrió con 1.c4, llegando a un Gambito de Dama declinado contra Spassky. Ganó en 41 jugadas con una técnica tan limpia que Spassky se unió al aplauso del público.",
+        "es": "Sexta partida del encuentro por el título mundial de 1972 en Reikiavik, jugada el 23 de julio. Fischer abandonó su 1.e4 habitual y abrió con 1.c4, llegando a un Gambito de Dama declinado contra Spassky. Ganó en 41 jugadas con una técnica tan limpia que Spassky se unió al aplauso del público.",
         "en": "Game six of the 1972 World Championship match in Reykjavik, played on 23 July. Fischer set aside his usual 1.e4 and opened 1.c4, reaching a Queen's Gambit Declined against Spassky. He won in 41 moves with technique so clean that Spassky joined the audience in applauding."
       },
       "opening": {
         "es": "Gambito de Dama declinado (Defensa Tartakower)",
-        "en": "Queen's Gambit Declined (Tartakower Defence)"
+        "en": "Queen's Gambit Declined (Tartakower Defense)"
       },
       "themes": [
         "positional",
@@ -1184,12 +1184,12 @@
         "en": "Karpov versus Kasparov, game 16 (1985)"
       },
       "blurb": {
-        "es": "Partida 16 del match por el título mundial de 1985 en Moscú, jugada el 15 de octubre. Kaspárov, con negras en una Siciliana Taimanov, colocó un caballo en d3 tras un gambito de peón y las piezas de Kárpov no lograron coordinarse. Con esta victoria tomó la delantera del match; suele considerarse una de las mejores partidas de ese match.",
+        "es": "Partida 16 del encuentro por el título mundial de 1985 en Moscú, jugada el 15 de octubre. Kaspárov, con negras en una Siciliana Taimanov, colocó un caballo en d3 tras un gambito de peón y las piezas de Kárpov no lograron coordinarse. Con esta victoria tomó la delantera del encuentro; suele considerarse una de las mejores partidas de ese encuentro.",
         "en": "Game 16 of the 1985 World Championship match in Moscow, played on 15 October. Playing Black in a Sicilian Taimanov, Kasparov planted a knight on d3 after a pawn gambit and Karpov's pieces never managed to coordinate. The win gave him the lead in the match; it is often considered one of the best games of that match."
       },
       "opening": {
         "es": "Defensa Siciliana (Variante Taimanov)",
-        "en": "Sicilian Defence (Taimanov Variation)"
+        "en": "Sicilian Defense (Taimanov Variation)"
       },
       "themes": [
         "positional",
@@ -1203,7 +1203,7 @@
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Kasparov.pgn)",
         "Score identical move for move in github.com/anandjoshi91/cdn-assets (karpov_kasparov_1985.pgn), github.com/RTS-Technology-Solutions/rts-chess-engine and github.com/DHTMLGoodies/dhtmlchess",
         "Facts (game 16, Moscow, 15 October 1985, Sicilian Taimanov, 16...Nd3 and 17.Nab1, Kasparov took the lead): web search summaries of https://books.chessbase.com/de/modern-classics/karpov-kasparov-1985 and https://csmonitor.com/1985/1106/lchs06.html",
-        "Fact-check note (2026-09-30): 'took the lead in game 16' re-checked: Wikipedia's match summary (Kasparov equalised in game 11, led from game 16) and the Christian Science Monitor headline 'The game that gave the lead to challenger Kasparov'; 'the best game' softened"
+        "Fact-check note (2026-09-30): 'took the lead in game 16' re-checked: Wikipedia's match summary (Kasparov equalized in game 11, led from game 16) and the Christian Science Monitor headline 'The game that gave the lead to challenger Kasparov'; 'the best game' softened"
       ],
       "moments": [
         {
@@ -1231,11 +1231,11 @@
       },
       "blurb": {
         "es": "Jugada el 20 de enero de 1999 en la cuarta ronda del torneo Hoogovens de Wijk aan Zee, en una Defensa Pirc. Con 24.Txd4!! Kaspárov inició un ataque de sacrificios y jaques que llevó al rey de Topalov desde c7 hasta d1, atravesando todo el tablero. Suele nombrársela entre las mejores partidas de ataque de su carrera.",
-        "en": "Played on 20 January 1999 in round four of the Hoogovens tournament in Wijk aan Zee, in a Pirc Defence. With 24.Rxd4!! Kasparov began an attack of sacrifices and checks that drove Topalov's king from c7 all the way to d1, across the whole board. It is widely counted among the finest attacking games of his career."
+        "en": "Played on 20 January 1999 in round four of the Hoogovens tournament in Wijk aan Zee, in a Pirc Defense. With 24.Rxd4!! Kasparov began an attack of sacrifices and checks that drove Topalov's king from c7 all the way to d1, across the whole board. It is widely counted among the finest attacking games of his career."
       },
       "opening": {
         "es": "Defensa Pirc",
-        "en": "Pirc Defence"
+        "en": "Pirc Defense"
       },
       "themes": [
         "exchange-sacrifice",
@@ -1286,11 +1286,11 @@
       },
       "blurb": {
         "es": "Jugada el 21 de octubre de 1991 en la cuarta ronda del torneo Interpolis de Tilburg, en una Defensa Alekhine. Nigel Short, tras dominar el medio juego, paseó su rey desde g1 hasta g5 con las damas y las torres todavía en el tablero, y Jan Timman se rindió. Es quizás la marcha de rey más famosa de la historia reciente.",
-        "en": "Played on 21 October 1991 in round four of the Interpolis tournament in Tilburg, in an Alekhine's Defence. After dominating the middlegame, Nigel Short walked his king from g1 up to g5 with queens and rooks still on the board, and Jan Timman resigned. It is perhaps the most famous king walk in recent history."
+        "en": "Played on 21 October 1991 in round four of the Interpolis tournament in Tilburg, in an Alekhine's Defense. After dominating the middlegame, Nigel Short walked his king from g1 up to g5 with queens and rooks still on the board, and Jan Timman resigned. It is perhaps the most famous king walk in recent history."
       },
       "opening": {
         "es": "Defensa Alekhine",
-        "en": "Alekhine's Defence"
+        "en": "Alekhine's Defense"
       },
       "themes": [
         "king-walk",
@@ -1303,7 +1303,7 @@
       "sources": [
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Short.pgn)",
         "Score identical move for move in github.com/anandjoshi91/cdn-assets, github.com/jcarolus/android-chess and github.com/RTS-Technology-Solutions/rts-chess-engine",
-        "Facts (21 October 1991, round 4, Tilburg, Alekhine's Defence, king walk, 34.Kg5 and resignation): web search summaries of https://books.chessbase.com/de/modern-classics/short-timman-1991 and https://www.freepressjournal.in/weekend/chess-a-walk-to-remember-short-vs-timman"
+        "Facts (21 October 1991, round 4, Tilburg, Alekhine's Defense, king walk, 34.Kg5 and resignation): web search summaries of https://books.chessbase.com/de/modern-classics/short-timman-1991 and https://www.freepressjournal.in/weekend/chess-a-walk-to-remember-short-vs-timman"
       ],
       "moments": [
         {
@@ -1360,12 +1360,12 @@
         "en": "Deep Blue versus Kasparov, game 6"
       },
       "blurb": {
-        "es": "Sexta y última partida del match de revancha de 1997 en Nueva York (11 de mayo), con el marcador 2½-2½. Kaspárov cometió un error de orden de jugadas en la Caro-Kann (7...h6) y Deep Blue respondió con un sacrificio de caballo; el campeón se rindió en 19 jugadas. Fue la primera vez que una máquina venció a un campeón del mundo en un match.",
+        "es": "Sexta y última partida del encuentro de revancha de 1997 en Nueva York (11 de mayo), con el marcador 2½-2½. Kaspárov cometió un error de orden de jugadas en la Caro-Kann (7...h6) y Deep Blue respondió con un sacrificio de caballo; el campeón se rindió en 19 jugadas. Fue la primera vez que una máquina venció a un campeón del mundo en un encuentro.",
         "en": "The sixth and final game of the 1997 rematch in New York (11 May), with the score level at 2½-2½. Kasparov confused a move order in the Caro-Kann (7...h6) and Deep Blue answered with a knight sacrifice; the champion resigned after 19 moves. It was the first time a machine beat a reigning world champion in a match."
       },
       "opening": {
         "es": "Defensa Caro-Kann",
-        "en": "Caro-Kann Defence"
+        "en": "Caro-Kann Defense"
       },
       "themes": [
         "man-vs-machine",
@@ -1388,7 +1388,7 @@
           "san": "Nxe6",
           "note": {
             "es": "Sacrificio de caballo: 8.Cxe6! aprovecha 7...h6. Tras 8...De7 9.O-O fxe6 10.Ag6+ el rey negro queda en el centro y ya no puede enrocar.",
-            "en": "Knight sacrifice: 8.Nxe6! exploits 7...h6. After 8...Qe7 9.O-O fxe6 10.Bg6+ Black's king is stuck in the centre and can no longer castle."
+            "en": "Knight sacrifice: 8.Nxe6! exploits 7...h6. After 8...Qe7 9.O-O fxe6 10.Bg6+ Black's king is stuck in the center and can no longer castle."
           }
         }
       ]
@@ -1399,12 +1399,12 @@
         "en": "Polgár versus Kasparov, Moscow 2002"
       },
       "blurb": {
-        "es": "Quinta ronda del match Rusia contra el Resto del Mundo (Moscú, 9 de septiembre de 2002), a ritmo rápido: 25 minutos más 10 segundos por jugada. Con blancas, Judit Polgár venció a Kaspárov, que eligió la Defensa Berlinesa: cambió las damas en la jugada 8 y atacó con las torres al rey negro, que siguió en el centro. Fue su primera victoria contra Kaspárov y suele presentarse como la primera vez que una mujer le ganaba a quien encabezaba el ranking mundial.",
-        "en": "Round five of the Russia versus Rest of the World match (Moscow, 9 September 2002), played at rapid speed: 25 minutes plus 10 seconds a move. With White, Judit Polgár beat Kasparov, who chose the Berlin Defence: she traded queens on move 8 and attacked the black king, which stayed in the centre, with her rooks. It was her first win against Kasparov and is usually presented as the first time a woman beat the world's top-ranked player."
+        "es": "Quinta ronda del encuentro Rusia contra el Resto del Mundo (Moscú, 9 de septiembre de 2002), a ritmo rápido: 25 minutos más 10 segundos por jugada. Con blancas, Judit Polgár venció a Kaspárov, que eligió la Defensa Berlinesa: cambió las damas en la jugada 8 y atacó con las torres al rey negro, que siguió en el centro. Fue su primera victoria contra Kaspárov y suele presentarse como la primera vez que una mujer le ganaba a quien encabezaba el ranking mundial.",
+        "en": "Round five of the Russia versus Rest of the World match (Moscow, 9 September 2002), played at rapid speed: 25 minutes plus 10 seconds a move. With White, Judit Polgár beat Kasparov, who chose the Berlin Defense: she traded queens on move 8 and attacked the black king, which stayed in the center, with her rooks. It was her first win against Kasparov and is usually presented as the first time a woman beat the world's top-ranked player."
       },
       "opening": {
         "es": "Apertura Española, Defensa Berlinesa",
-        "en": "Ruy Lopez, Berlin Defence"
+        "en": "Ruy Lopez, Berlin Defense"
       },
       "themes": [
         "initiative",
@@ -1417,7 +1417,7 @@
       "sources": [
         "Score: PGN Mentor archive (pgnmentor.com), read from the public mirror github.com/rozim/ChessData (PgnMentor/Kasparov.pgn)",
         "Score identical move for move in github.com/BD-Chess/bd-chessdb and github.com/Pranav-Bhatlapenumarthi/KibitzAI (same lineage), github.com/ology/Chess-Inspector and github.com/LuisGoeppel/ChessFX (another export); a web search result gave the same moves",
-        "Facts (round 5, 9 Sept 2002, rapid 25 min + 10 s, Berlin Defence, first win over Kasparov): web search summaries of https://www.chessgames.com/perl/chessgame?gid=1254283, https://www.chess.com/article/view/judit-polgar-vs-garry-kasparov-1-0 and https://olimpbase.org/2002g/2002in.html",
+        "Facts (round 5, 9 Sept 2002, rapid 25 min + 10 s, Berlin Defense, first win over Kasparov): web search summaries of https://www.chessgames.com/perl/chessgame?gid=1254283, https://www.chess.com/article/view/judit-polgar-vs-garry-kasparov-1-0 and https://olimpbase.org/2002g/2002in.html",
         "Fact-check note (2026-10-01): a search summary said Kasparov resigned 'two pawns down', but the material trace (js/chess.js) shows 4 pawns against 3 after 42...Kc8, so the blurb leaves it out; 'first woman to beat the world no. 1' is hedged ('usually presented as')"
       ],
       "moments": [
@@ -1450,7 +1450,7 @@
       },
       "opening": {
         "es": "Defensa Semieslava (Variante Meran)",
-        "en": "Semi-Slav Defence (Meran Variation)"
+        "en": "Semi-Slav Defense (Meran Variation)"
       },
       "themes": [
         "counterattack",
@@ -1484,7 +1484,7 @@
         "en": "Carlsen versus Nepomniachtchi, game 6 (2021)"
       },
       "blurb": {
-        "es": "Sexta partida del Campeonato del Mundo de 2021 en Dubái, jugada el 3 de diciembre. Con 136 jugadas y casi ocho horas de juego, es la más larga de la historia de los campeonatos del mundo hasta ahora: superó a las 124 de la quinta partida Kórchnoi-Kárpov (Baguio 1978). Carlsen ganó tras una larga lucha y se puso 3½-2½ arriba en el match.",
+        "es": "Sexta partida del Campeonato del Mundo de 2021 en Dubái, jugada el 3 de diciembre. Con 136 jugadas y casi ocho horas de juego, es la más larga de la historia de los campeonatos del mundo hasta ahora: superó a las 124 de la quinta partida Kórchnoi-Kárpov (Baguio 1978). Carlsen ganó tras una larga lucha y se puso 3½-2½ arriba en el encuentro.",
         "en": "Game six of the 2021 World Championship in Dubai, played on 3 December. At 136 moves and nearly eight hours of play it is, so far, the longest game in world championship history, beating the 124 moves of Korchnoi-Karpov game five (Baguio 1978). Carlsen won after a long struggle and went 3½-2½ up in the match."
       },
       "opening": {

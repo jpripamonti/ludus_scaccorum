@@ -447,7 +447,7 @@ PERFT_CASES.forEach(({ name, fen, counts }) => {
     else globalThis.Ludus.Settings = saved;
   }
 
-  // Every SAN of the 28 classic games (and every legal move of a few middlegames): localizing loses
+  // Every SAN of the classics data (and every legal move of a few middlegames): localizing loses
   // nothing (the inverse map restores the English SAN exactly), "R" only ever means the king,
   // and nothing but the piece letters changes.
   const inverse = {};

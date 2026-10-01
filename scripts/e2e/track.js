@@ -388,11 +388,19 @@ async function notebookScenario(browser) {
   // The first run of letters or digits (an opponent called "Marta_92" must not become "Marta92", which no card contains).
   const word = (someone.match(/[\p{L}\d]{3,}/u) || [""])[0];
   await page.locator("#notebook-search").fill(word.toLowerCase());
-  await page.waitForFunction((n) => document.querySelectorAll(".notebook-card").length <= n, counts.total);
   const expectedText = await page.evaluate((w) => Ludus.Profile.notebook.list({}).filter((c) => `${c.meta.players || ""} ${c.meta.event || ""}`.toLowerCase().includes(w.toLowerCase())).length, word);
   assert.ok(expectedText >= 1, `the text filter finds its own word: ${JSON.stringify({ someone, word })}`);
-  await page.waitForFunction((n) => /of \d+ cards|^\d+ cards?$/.test(document.querySelector(".notebook-count").textContent) && document.querySelector(".notebook-count").textContent.trim().startsWith(String(n)), expectedText, { timeout: 5000 }).catch(() => {});
+  // The filter is applied a moment after the typing (and later on a busy machine): wait for exactly the count the list must show
+  // ("3 of 12 cards", "1 of 12 cards", or "12 cards" when the word matches everything), not for a condition that was already true.
+  const countWords = expectedText === counts.total ? (expectedText === 1 ? "1 card" : `${expectedText} cards`) : (expectedText === 1 ? `1 of ${counts.total} cards` : `${expectedText} of ${counts.total} cards`);
+  await page.waitForFunction((wanted) => document.querySelector(".notebook-count").textContent.replace(/\s+/g, " ").trim() === wanted, countWords, { timeout: 5000 });
+  // And the "clear filters" button is on screen (a one-off isHidden() right after the typing races the render).
+  await page.waitForFunction(() => {
+    const clear = document.querySelector(".notebook-clear");
+    return Boolean(clear && !clear.hidden && clear.getClientRects().length > 0);
+  }, null, { timeout: 5000 });
   assert.ok(!(await page.locator(".notebook-clear").isHidden()), "clear filters appears");
+  assert.strictEqual(await total(), countWords, "the count says how many cards the word matches");
   await page.locator(".notebook-clear").click();
   assert.strictEqual(await page.locator("#notebook-search").inputValue(), "");
   // The search finds a move by what the card draws (PB-2): with the Spanish notation the knight is "C...", the stored (English) form still matches.
@@ -420,7 +428,8 @@ async function notebookScenario(browser) {
     const drawn = await page.locator(`.notebook-card[data-card="${pieceCard.id}"] .notebook-san.is-best [aria-hidden="true"]`).first().innerText();
     assert.strictEqual(drawn, spanishBest, "the card draws the move with Spanish letters");
     const spoken = await page.locator(`.notebook-card[data-card="${pieceCard.id}"] .notebook-san.is-best .sr-only`).first().textContent();
-    assert.match(spoken, /^knight (to|takes)/, "and a screen reader gets it in words");
+    // "knight to f3", "knight takes f3", and the two knights that can reach the square: "knight from b, to d7" / "knight from b takes d7".
+    assert.match(spoken, /^knight (from [a-h1-8]+,? )?(to|takes) [a-h][1-8]/, `and a screen reader gets it in words (${pieceCard.bestSan}: ${JSON.stringify(spoken)})`);
     await page.evaluate(() => Ludus.Settings.set("notation.style", "auto"));
     await page.locator("#notebook-search").fill("");
     await page.waitForFunction((n) => document.querySelectorAll(".notebook-card").length === n, Math.min(12, counts.total));
@@ -494,7 +503,7 @@ async function notebookScenario(browser) {
   await modal.waitFor({ state: "visible" });
   assert.ok((await modal.locator(".notebook-concept").count()) >= 1);
   assert.ok((await modal.locator("svg.mini-board .mb-arrow").count()) >= 1, "the example move as an arrow");
-  assert.match(await modal.innerText(), /Move of the example/);
+  assert.match(await modal.innerText(), /Example move: /);
   await page.keyboard.press("Escape");
   await modal.waitFor({ state: "detached" });
   assert.ok(await page.evaluate(() => document.activeElement && document.activeElement.classList.contains("notebook-tag")), "the focus comes back to the chip");

@@ -61,7 +61,7 @@ contract is in `docs/ARCHITECTURE.md` section 14.
    inputs (PGN and notes hashes) or by another builder version.
 
 Bump `BUILDER_VERSION` in `scripts/build-classics.js` whenever the selection logic or
-the output shape changes (3: the data carries `names` and `events`; 4: `phase` comes from `Insights.gamePhase`).
+the output shape changes (3: the data carries `names` and `events`; 4: `phase` comes from `Insights.gamePhase`; 5: a capture, check or promotion that is not a tactic is `forcing`, no longer `quiet`).
 
 Other modes: `--check` (no engine: PGNs replay, data not stale), `--analyze` (engine sanity
 report only, needs no notes) and `--candidates` (adds a table of every protagonist move with
@@ -188,15 +188,25 @@ A review of the finished app (findings CNT-017 to CNT-020 and CNT-028) asked for
 
 **PX-1: one game-phase classifier.** `phaseOf` in `scripts/build-classics.js` now calls `Insights.gamePhase` (`js/insights.js`, loaded in Node after `js/chess.js`) instead of carrying its own copy of the rule, which lacked the "four pieces or fewer" clause. Seven of the 248 positions were middlegames by the copy and endgames by the app: `lasker-bauer-1889` ply 66, `botvinnik-capablanca-1938` plies 62 and 64, `carlsen-nepomniachtchi-2021-g6` plies 160, 196, 248 and 266. Because `classify` puts `endgame` before `tactic`, `only-move` and `quiet`, their `kind` became `endgame` as well (three tactics, two quiet moves, one only-move; the first of them, 32.Qg5+ in Botvinnik-Capablanca, has two queens and two knights left). The choice of positions and every difficulty were unchanged. `BUILDER_VERSION` is now 4. The phase counts of the 248 positions went from 36 / 201 / 11 to 36 / 194 / 18 (opening / middlegame / endgame); with the new game they are 36 / 199 / 25. `scripts/tests/classics.test.js` asserts that the stored `phase` of every position equals `Insights.gamePhase(fen)`, so a change to the rule fails the test until the data is rebuilt. The consumers read the stored field only (`Ludus.Classics.positions` -> `Position.phase`, the notebook phase filter, the progress by-phase chart) and their tests pass unchanged.
 
-**PX-2: a game by a woman, Judit Polgar - Garry Kasparov** (`polgar-kasparov-2002`; Russia vs Rest of the World, Moscow, round 5, 9 September 2002, rapid 25 minutes plus 10 seconds a move, Berlin Defence, C67, 1-0 in 42 moves). It is the first game of the library played by a woman. What was checked:
+**PX-2: a game by a woman, Judit Polgar - Garry Kasparov** (`polgar-kasparov-2002`; Russia vs Rest of the World, Moscow, round 5, 9 September 2002, rapid 25 minutes plus 10 seconds a move, Berlin Defense, C67, 1-0 in 42 moves). It is the first game of the library played by a woman. What was checked:
 
 * The score (84 plies) is identical move for move, replayed with `js/chess.js`, in five public files of two lineages: PGN Mentor (`github.com/rozim/ChessData`, `PgnMentor/Kasparov.pgn`; the same text is in `github.com/BD-Chess/bd-chessdb` and `github.com/Pranav-Bhatlapenumarthi/KibitzAI`) and a ChessBase-style export with `ECO C67t` and `EventDate 2002.09.08` (`github.com/ology/Chess-Inspector`, `github.com/LuisGoeppel/ChessFX`). A web search result for the opening moves returned the same full score. Every copy gives the date as 2002.09.09 and round 5.
-* The facts (event, round, 9 September, rapid time control, Berlin Defence, "her first win against Kasparov") come from web search summaries of the chessgames.com page of the game, a chess.com article and the olimpbase.org page of the match. `WebFetch` was refused for chessgames.com and chessbase.com again, so no page was opened (the limits above apply).
+* The facts (event, round, 9 September, rapid time control, Berlin Defense, "her first win against Kasparov") come from web search summaries of the chessgames.com page of the game, a chess.com article and the olimpbase.org page of the match. `WebFetch` was refused for chessgames.com and chessbase.com again, so no page was opened (the limits above apply).
 * The engine pass found no corrupted score (no eval drop of 300 cp or more at depth 12) and the final position is clearly decided (White +3.59 at depth 18 after 42...Kc8). The build picked 12 training positions (5 quiet, 7 endgame by the phase rule; two moments, 24.Bf4 and 39.Rcc7, written from the board only and replay-checked by the quoted-move test).
 * Dropped: a summary said Kasparov resigned "two pawns down". The material trace shows 4 pawns against 3 after 42...Kc8 (both white rooks on the seventh rank, which is why the engine sees +3.59), so the blurb does not say it, and a test fails if "two pawns" comes back. "The first time a woman beat the world number one" is in the summaries but not confirmed on a page, so the blurb says it "is usually presented as" that, in both languages.
-* Not verified: the opening name beyond "Berlin Defence" and the ECO code C67 (both as the PGN files and the chessgames summary give them), the nickname the chessgames page carries (not used), and any annotation of the game: no commentary was used.
+* Not verified: the opening name beyond "Berlin Defense" and the ECO code C67 (both as the PGN files and the chessgames summary give them), the nickname the chessgames page carries (not used), and any annotation of the game: no commentary was used.
 * Consequences: the library has 29 games and 260 positions (255 eligible for the daily challenge, which is a fixed shuffled list and so changed for every date: the position of a given day differs from before; a completed day stays completed because completion is stored per date). Tests that counted games now read the count from the data (`scripts/tests/classics-ui.test.js`, `scripts/e2e/learn.js`, `scripts/e2e/walkthrough.js`); the screen's table of country codes gained `RUS` (`js/ui/classics.js`).
 * A latent bug found with this game's notes and fixed in `js/classics.js` (`quotedMoveRuns`): a quoted run that ends on a numbered move followed by punctuation ("27.Bxe5, and") was found a second time from its own move number, so a re-spelled text showed the move twice ("27.Bxe5Bxe5"). A regression test covers it, and another asserts that no text of the library lists a quoted move twice.
+
+## Polish pass 2 (2026-10-01, data fixer r2-data)
+
+**RD-1: American English in the English strings.** `js/facts.js` (texts, timeline titles, source hints), `data/classics/notes.json` (names, events, titles, blurbs, opening names, moment notes, sources) and the labels of `js/classics.js` follow American spelling: Defense (every opening name: "French Defense", "Sicilian Defense (Scheveningen)"...), analyzed, organized, recognized, favorite, colors, center, practice (the verb), traveled, canceled, math, toward, semifinal, Bolshoi Theater, leaped. `scripts/tests/_british.js` holds the word list (the `-our`, `-re`, `-ise`/`-yse`, `-ence`, doubled `l` families plus single words) and `scripts/tests/{facts,classics}.test.js` scan every English string with it, so a slip fails the test with the string and the American form. **Left on purpose** (titles and names as published, listed in `KEPT` of that helper with the reason, and the test fails if one is no longer used): "Encyclopaedia Britannica", "Encyclopaedia of Chess Openings", "World Chess Boxing Organisation", the French titles "L'Analyse des Échecs" and "Analyse du jeu des Échecs", and the Wikipedia article title "Sicilian Defence" in a source hint. No quotation in the data contained a British spelling, so no quotation had to be left alone. The docs outside the data keep their own prose. The Spanish texts are untouched by this item.
+
+**RD-2: no English "match" in the Spanish.** See "Display names": three event forms and seven blurbs (Tal-Larsen, Larsen-Spassky, Fischer-Spassky, Karpov-Kasparov, Deep Blue-Kasparov, Polgar-Kasparov, Carlsen-Nepomniachtchi) and 17 Spanish fact and milestone texts of `js/facts.js` said "match"; all say "encuentro" (or "campeonato" / "duelo" in the event names) now, and a test rejects the word in any Spanish event name, blurb or note. The where-line of the classics screen (`whereParts`) names the city once: none of the new forms contains a city, so every game keeps its city and nothing is dropped.
+
+**RD-3: the kind "quiet" was untrue for a fifth of its positions.** 18 of the 86 positions filed as `quiet` were a capture or a check (for example 21...Qxg6 in Aronian-Anand, 13.Nxh4 in Polgar-Kasparov, 26.Qg4+ in Lasker-Bauer), found when the label "Jugada tranquila" was read against the SAN. Builder 5 gives them their own kind, `forcing` ("Jugada forzante" / "Forcing move": a capture, a check or a promotion with no combination in sight, other good moves close). Nothing else moved: the same 260 positions, the same difficulties, phases and lines (compared field by field with the previous data; only `kind` of those 18 positions changed). The `quiet` sentence now says "No captures or checks" and a test replays every quiet SAN to keep it true. Counts of the 260 positions by kind: sacrifice 49, tactic 54, quiet 68, forcing 18, opening 28, endgame 25, only-move 18. Where kinds are shown: the "Position type" filter of the classics gallery and its chips, the "training" chip in the replay cue, the result card of the coach (label and sentence, after the answer) through `Classics.kindLabel` / `kindHint`, so a new code needs no UI change; `signatureOf` in `js/ui/classics.js` ranks kinds for the game card's board (an unknown code ranks last; the 29 signatures are the same with the new kind, checked, so nothing needs to change, and adding `forcing: 4` to its `rank` table would only make that explicit). The notebook filters and the progress chart do not use the kind (they use the tags of `Insights` and the phase), and no stored card or session keeps it (`classicKind` lives in the round context only).
+
+**RD-4: the daily challenge reshuffles when the pool grows.** Documented and deferred, see "The daily challenge pool".
 
 ## Display names, events and quoted moves
 
@@ -207,7 +217,7 @@ names:  { "Garry Kasparov": { es: "Garry Kaspárov", en: "Garry Kasparov" }, ...
 events: { "Tal Memorial": { es: "Memorial Tal", en: "Tal Memorial" }, ... }        // keyed by the raw Event tag
 ```
 
-One entry per person and per event, so the two languages spell each one a single way everywhere. The build fails when a tag has no entry or an entry is unused. For screens (owner of `js/ui/classics.js`: use these instead of the local `NAME_FIX` / `EVENT_TEXT` tables, which stay valid as a fallback while the data is not loaded):
+One entry per person and per event, so the two languages spell each one a single way everywhere. The Spanish forms avoid the English word "match" (polish RD-2): `Candidates semifinal match` is "Semifinal de Candidatos", `World Championship match` is "Campeonato Mundial" and `IBM Man-Machine match` is "Duelo hombre contra máquina de IBM"; the Spanish blurbs and notes say "encuentro" (as do the Spanish facts of `js/facts.js`). `js/ui/classics.js` keeps a fallback table with the same forms (`EVENT_TEXT`), and a test of `classics-ui` compares the two for every game. The build fails when a tag has no entry or an entry is unused. For screens (owner of `js/ui/classics.js`: use these instead of the local `NAME_FIX` / `EVENT_TEXT` tables, which stay valid as a fallback while the data is not loaded):
 
 * `Ludus.Classics.displayName(raw, lang)` and `Ludus.Classics.displayEvent(raw, lang)`: the es/en form of a raw tag; anything unknown (a person's own games, the data not loaded yet) comes back unchanged.
 * `Ludus.Classics.list()` items carry `display: { white: {es, en}, black: {es, en}, event: {es, en} }` next to the raw tags.
@@ -217,10 +227,17 @@ One entry per person and per event, so the two languages spell each one a single
 
 **The daily challenge pool (CNT-022, data side).** `Classics.daily` indexes a fixed shuffled list of the eligible positions (255 of the 260: forced mates in one are skipped), so the same position comes back after 255 days and "always different" is false. A larger pool helps: each game adds 6 to 12 positions (days before a repeat), so about 15 more games would cover a year. The copy ("without repeating for months") is the screens' owner's.
 
+**Caveat: growing the library moves every day (polish RD-4, DEFERRED).** `Classics.daily(dateKey)` is `shuffled(eligible)[days % eligible.length]`. When a game is added `eligible.length` changes, so both the shuffle and the modulus change and *every* date, past and present, gets another position (measured: 0 of 365 dates keep theirs after 12 more positions). What survives: completion is stored per date (`daily.history`), so a finished day, the streak and the best streak are untouched; what changes is *which* position a date shows (a person who opens today's challenge before an update and again after it may see a different position on the same day). This is deliberate for now, because the two properties a stateless function can have are in conflict:
+
+* "any N consecutive days never repeat" (tested: 30 different days in a row; promised by the copy "without repeating for months") needs a permutation of the pool, and a permutation of N items is not the permutation of N+12;
+* "a date keeps its position when the pool grows" is what rendezvous hashing gives (the position of a date is the one with the highest `hash(date, positionId)`; measured: 338 of 365 dates unchanged after +12 positions, the rest take one of the new positions), but every day is then an independent draw and 221 of 300 sample 30-day windows contain a repeat. Ordering the pool by a stable per-position hash and keeping `days % N` does not help at all (0 of 365 dates unchanged, the modulus still moves).
+
+A change that keeps both is possible but not small: rendezvous hashing with an exclusion window (`s(d)` = the highest-weight position that is not among `s(d-1) ... s(d-K)`, K about 120, computed forward from a fixed epoch day and memoized; a scratch simulation over a year with 12 more positions left 93% of the dates unchanged for K = 60, 89% for K = 120 and 80% for K = 200, and no position repeats within K days by construction), a fallback for dates before the epoch, a test for both properties and a decision about K. Until that is built: add games in batches (each batch reshuffles once), and for the screens' owner the cheap mitigation is to keep the id of the position served for a date in the daily record and prefer it over `Classics.daily` when it is still in the data.
+
 ## Data shape (`Ludus.ClassicsData`)
 
 ```js
-{ v: 1, engine: "Stockfish 18 lite (depth 18)", depth: 18, builtAt: "<ISO>", builder: 4,
+{ v: 1, engine: "Stockfish 18 lite (depth 18)", depth: 18, builtAt: "<ISO>", builder: 5,
   inputs: { notes: "<hash>", games: { "<id>": "<hash of the PGN>" } },
   names:  { "<raw PGN White/Black tag>": { es, en } },       // display forms, see "Display names"
   events: { "<raw PGN Event tag>": { es, en } },
@@ -242,7 +259,7 @@ One entry per person and per event, so the two languages spell each one a single
 
 * Scores are centipawns from the point of view of the side to move; mates use the
   encoding of `docs/ARCHITECTURE.md` section 7: `+-(100000 - 1000 * min(50, n))`.
-* `kind` (`only-move | tactic | sacrifice | quiet | endgame | opening`) and the
+* `kind` (`only-move | tactic | forcing | sacrifice | quiet | endgame | opening`) and the
   position `difficulty` (1-3) are computed from the engine data, not hand-set:
   * `sacrifice`: the master's PV shows the mover giving up at least two pawns of
     material that stays given up over the last two exchanges (or ends in mate);
@@ -250,7 +267,11 @@ One entry per person and per event, so the two languages spell each one a single
   * `tactic`: mate within 6, or a forcing move (capture, check, promotion) whose
     alternatives are at least 8 win-percent worse;
   * `only-move`: best line at least 12 win-percent better than the second line (the
-    same threshold as `Scoring`); `opening`: up to move 10, no gap; else `quiet`.
+    same threshold as `Scoring`); `opening`: up to move 10, no gap; then, for the rest,
+    `forcing` when the master's move is a capture, a check or a promotion (the engine sees
+    no combination behind it, otherwise it would be a `tactic`) and `quiet` when it is none
+    of those. So a `quiet` position is never a capture or a check (a test replays the SAN of
+    every one), which is what its label and sentence say (builder 5, polish RD-3).
   * difficulty rises for sacrifices, quiet only-moves and slow mates, and falls for
     mates in one or two and for large-gap captures or checks.
 * `Ludus.Classics` turns a stored position into a `Position` of section 9 (source

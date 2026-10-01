@@ -488,6 +488,33 @@ function play(sans) {
   });
 }
 
+// ---------- American English (polish RD-1) ----------
+
+{
+  const british = require("./_british.js");
+  // The word list itself: it finds the British spellings, leaves the American ones and the words that merely end alike.
+  const words = (text) => british.britishFindings(text).map((finding) => finding.word.toLowerCase()).sort();
+  assert.deepStrictEqual(words("The Sicilian Defence was analysed in the centre."), ["analysed", "centre", "defence"]);
+  assert.deepStrictEqual(words("Her favourite colours, travelled and cancelled; towards the semi-final, memorise it."), ["cancelled", "colours", "favourite", "memorise", "semi-final", "towards", "travelled"]);
+  assert.deepStrictEqual(words("The Sicilian Defense was analyzed in the center; en prise, exercise, treatises, the premises, Marshall's attack, license."), []);
+  assert.deepStrictEqual(words("Encyclopaedia Britannica and the World Chess Boxing Organisation and Wikipedia 'Sicilian Defence'"), [], "titles as published are left alone");
+  assert.deepStrictEqual(words("Encyclopaedia of Chess Openings, a favourite"), ["favourite"], "a kept title does not hide the words around it");
+  // Every English string of the facts and of the timeline (text, title, category label, source hint). The source hints are shown
+  // on the museum screen ("Source: ..."), so they follow the same style; the titles they quote stay as published (KEPT).
+  const entries = [];
+  all.forEach((fact) => {
+    entries.push([`fact ${fact.id} text`, fact.text.en], [`fact ${fact.id} source`, fact.source]);
+  });
+  timeline.forEach((item) => {
+    entries.push([`timeline ${item.id} text`, item.text.en], [`timeline ${item.id} title`, item.title.en], [`timeline ${item.id} source`, item.source]);
+  });
+  Facts.categories().forEach((category) => entries.push([`category ${category.id}`, category.label.en]));
+  british.assertAmerican(assert, entries, "js/facts.js");
+  assert.deepStrictEqual(british.unusedKept(entries), [], "every kept title is still used by a fact (an unused entry hides a future slip: remove it)");
+  // The Spanish sources of the same facts are not scanned (they are not English), and the Spanish never says "Defence".
+  all.forEach((fact) => assert.ok(!/\bDefence\b/.test(fact.text.es), `${fact.id}: the Spanish text has an English word`));
+}
+
 // ---------- The sources document lists every id ----------
 
 {

@@ -23,7 +23,7 @@ const data = require(path.join(ROOT, "js", "data", "classics.data.js"));
 const { Chess, uciToMove, moveToUci, moveToSan, sanToMove } = chessApi;
 
 const DATA_FILE = path.join(ROOT, "js", "data", "classics.data.js");
-const KINDS = ["only-move", "tactic", "sacrifice", "quiet", "endgame", "opening"];
+const KINDS = ["only-move", "tactic", "forcing", "sacrifice", "quiet", "endgame", "opening"];
 const PHASES = ["opening", "middlegame", "endgame"];
 const RESULTS = ["1-0", "0-1", "1/2-1/2"];
 
@@ -420,10 +420,22 @@ test("kind hints: the 'only move' sentence says what Scoring means by it, in the
     const second = Math.max(...p.lines.slice(1).map((line) => line.score));
     assert.ok(WIN(p.lines[0].score) - WIN(second) >= Scoring.CONSTANTS.ONLY_MOVE_GAP_PCT - 1e-6, `${game.id}@${p.ply}: an only move beats every other line by ${gap} points`);
   }));
-  // "Quiet" positions do include captures and checks: its sentence must not deny them.
-  const quietWithForcing = data.games.some((game) => game.positions.some((p) => p.kind === "quiet" && /[x+#]/.test(p.san)));
-  assert.ok(quietWithForcing, "the data has quiet positions won by a capture or a check");
-  ["es", "en"].forEach((lang) => assert.ok(!/capturas ni jaques|without immediate captures/i.test(Classics.kindHint("quiet", lang)), `${lang}: the quiet sentence does not deny captures`));
+  // RD-3 (builder 5): a "quiet" position is never a capture, a check or a promotion any more (it used to be for 18 of 86: the label was
+  // untrue), so its sentence may say "no captures or checks"; those moves have their own kind, "forcing", whose sentence says what they are.
+  const kindOf = (kind) => data.games.flatMap((game) => game.positions.filter((p) => p.kind === kind).map((p) => ({ game, p })));
+  kindOf("quiet").forEach(({ game, p }) => assert.ok(!/[x+#=]/.test(p.san), `${game.id}@${p.ply}: "${p.san}" is called quiet but is a capture, a check or a promotion`));
+  const forcing = kindOf("forcing");
+  assert.ok(forcing.length >= 10, `the data has forcing positions (${forcing.length})`);
+  forcing.forEach(({ game, p }) => assert.ok(/[x+#=]/.test(p.san), `${game.id}@${p.ply}: "${p.san}" is called forcing but is none of capture, check, promotion`));
+  assert.ok(kindOf("quiet").length >= 40, "and plenty of really quiet positions remain");
+  ["es", "en"].forEach((lang) => {
+    assert.ok(lang === "es" ? /Sin capturas ni jaques/.test(Classics.kindHint("quiet", lang)) : /No captures or checks/.test(Classics.kindHint("quiet", lang)), `${lang}: the quiet sentence says what is now true of every quiet position`);
+    assert.ok(lang === "es" ? /captura|jaque/.test(Classics.kindHint("forcing", lang)) : /capture|check/.test(Classics.kindHint("forcing", lang)), `${lang}: the forcing sentence names its moves`);
+    assert.notStrictEqual(Classics.kindLabel("forcing", lang), Classics.kindLabel("tactic", lang), `${lang}: forcing and tactic are told apart`);
+    assert.notStrictEqual(Classics.kindLabel("forcing", lang), "forcing", `${lang}: the forcing label is translated`);
+  });
+  assert.strictEqual(Classics.kindLabel("forcing", "es"), "Jugada forzante");
+  assert.strictEqual(Classics.kindLabel("forcing", "en"), "Forcing move");
   // American spelling in the English labels.
   assert.strictEqual(Classics.themeLabel("defence", "en"), "Defense");
   Classics.KINDS.forEach((k) => assert.ok(!/\b(practis|analys|defence|colour|centre)/i.test(Classics.kindHint(k, "en") + Classics.kindLabel(k, "en")), k));
@@ -579,6 +591,25 @@ test("builder: describeCandidate flags recaptures, checks and few legal moves", 
   assert.strictEqual(builder.acceptableMaster(first, 20), true);
   const off = builder.describeCandidate(game, 0, [{ score: 100, pv: ["d2d4"], depth: 16 }]);
   assert.strictEqual(builder.acceptableMaster(off, 20), false);
+});
+
+test("builder: a capture, check or promotion with no combination behind it is 'forcing', never 'quiet' (RD-3)", () => {
+  const game = builder.loadGame("opera-1858");
+  const lines = (uci) => [{ score: 100, pv: [uci], depth: 16 }];
+  // The features of one candidate, set by hand where the test needs them: a middlegame position, nothing hanging, a small gap.
+  const candidate = (ply, over) => Object.assign(builder.describeCandidate(game, ply, lines(game.moves[ply].uci)), { phase: "middlegame", fullmove: 20, gapPct: 3, seeSacrifice: false, best: 100, second: 90 }, over || {});
+  const capture = candidate(20); // 11.Bxb5+: a capture with check
+  assert.ok(capture.isCapture && capture.isCheck, "the sample move is a capture and a check");
+  assert.strictEqual(builder.classify(capture).kind, "forcing", "a forcing move with the alternatives close behind");
+  assert.strictEqual(builder.classify(Object.assign({}, capture, { gapPct: 9 })).kind, "tactic", "a forcing move that clearly beats the others stays a tactic");
+  assert.strictEqual(builder.classify(Object.assign({}, capture, { fullmove: 8 })).kind, "opening", "an early forcing move is an opening decision");
+  assert.strictEqual(builder.classify(Object.assign({}, capture, { phase: "endgame" })).kind, "endgame", "the phase still comes first");
+  const quiet = candidate(0, { isCapture: false, isCheck: false, isPromotion: false }); // 1.e4
+  assert.strictEqual(builder.classify(quiet).kind, "quiet", "a move that is none of capture, check, promotion is quiet");
+  assert.strictEqual(builder.classify(Object.assign({}, quiet, { gapPct: 15 })).kind, "only-move", "an only move that is quiet stays an only move");
+  assert.strictEqual(builder.classify(Object.assign({}, quiet, { isPromotion: true })).kind, "forcing", "a promotion is forcing too");
+  assert.strictEqual(builder.classify(Object.assign({}, capture, { isCapture: false, isCheck: true })).kind, "forcing", "a check alone is forcing");
+  assert.ok(builder.BUILDER_VERSION >= 5, "the classification changed: the builder version moved with it");
 });
 
 // ------------------------------------------------------------ --check mode
@@ -810,6 +841,40 @@ test("texts: one Spanish spelling per person, and the display tables cover every
   // a position's meta keeps the raw strings too (stored notebook cards carry them)
   const position = Classics.positions("karpov-kasparov-1985-g16", { count: 1, shuffle: false })[0];
   assert.strictEqual(position.meta.players, "Anatoly Karpov vs Garry Kasparov");
+});
+
+test("texts: the English strings are American English (polish RD-1), and the Spanish ones carry no English chess word (RD-2)", () => {
+  const british = require("./_british.js");
+  const entries = [];
+  Object.keys(data.names).forEach((raw) => entries.push([`names "${raw}"`, data.names[raw].en]));
+  Object.keys(data.events).forEach((raw) => entries.push([`events "${raw}"`, data.events[raw].en]));
+  data.games.forEach((g) => {
+    entries.push([`${g.id} title`, g.title.en], [`${g.id} blurb`, g.blurb.en], [`${g.id} opening`, g.opening.en]);
+    g.positions.filter((p) => p.note).forEach((p) => entries.push([`${g.id} note@${p.ply}`, p.note.en]));
+    // The sources are English whatever the page language says, and the screen shows them (lang="en").
+    g.sources.forEach((source, i) => entries.push([`${g.id} source ${i}`, source]));
+  });
+  assert.ok(entries.length > 250, `a sizeable set of strings is scanned (${entries.length})`);
+  british.assertAmerican(assert, entries, "data/classics/notes.json");
+  // The labels this module registers (kinds, themes, difficulty, "You play ...").
+  const labels = [];
+  Classics.KINDS.forEach((k) => labels.push([`kind ${k}`, Classics.kindLabel(k, "en")], [`kindHint ${k}`, Classics.kindHint(k, "en")]));
+  Classics.THEMES.forEach((id) => labels.push([`theme ${id}`, Classics.themeLabel(id, "en")]));
+  [1, 2, 3].forEach((n) => labels.push([`difficulty ${n}`, Classics.difficultyLabel(n, "en")]));
+  ["w", "b"].forEach((side) => labels.push([`playing ${side}`, Classics.playingLabel(side, "en")]));
+  british.assertAmerican(assert, labels, "js/classics.js");
+  // The opening names that read "Defence" in British books are "Defense" here, in every game.
+  const openings = data.games.map((g) => g.opening.en).filter((name) => /\bDefen[cs]e\b/.test(name));
+  assert.ok(openings.length >= 10 && openings.every((name) => /\bDefense\b/.test(name)), `opening names: ${openings.join(" | ")}`);
+  // Spanish events: the English word "match" is not Spanish chess vocabulary (a "match" is an "encuentro" or a "duelo"; the title
+  // contested is a "campeonato"), and one spelling per event: no two Spanish event names are equal.
+  const esEvents = Object.keys(data.events).map((raw) => data.events[raw].es);
+  esEvents.forEach((name) => assert.ok(!/\bmatch(es)?\b/i.test(name), `Spanish event "${name}" uses the English word "match"`));
+  assert.strictEqual(new Set(esEvents).size, esEvents.length, "no two events share a Spanish name");
+  data.games.forEach((g) => {
+    ["title", "blurb"].forEach((field) => assert.ok(!/\bmatch(es)?\b/i.test(g[field].es), `${g.id} ${field}: the Spanish text uses the English word "match"`));
+    g.positions.filter((p) => p.note).forEach((p) => assert.ok(!/\bmatch(es)?\b/i.test(p.note.es), `${g.id} note@${p.ply}: the Spanish text uses the English word "match"`));
+  });
 });
 
 test("texts: dates are never finer than what was confirmed", () => {

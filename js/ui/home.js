@@ -161,7 +161,7 @@
       "duel.intro": "Se turnan en este mismo dispositivo. Gana quien juegue más cerca de la mejor jugada.",
       "duel.fair": "Para que sea justo: se turnan para empezar cada posición. Quien va primero juega con el reloj corriendo y el otro mira para otro lado hasta que le toque. Después se pasan el dispositivo: la jugada del primero queda oculta.",
       "duel.players": "Jugadores",
-      "duel.player": "Jugador {n}",
+      "duel.player": "Participante {n}",
       "duel.who": "¿Quién es el jugador {n}?",
       "duel.guest": "Sin perfil (escribir un nombre)",
       "duel.guestName": "Nombre del jugador {n}",
@@ -429,11 +429,18 @@
     return String(fen || "").split(" ")[1] === "b" ? "b" : "w";
   }
 
-  const DUEL_NAME_MAX = 20;
   const DUEL_COUNTS = [5, 10, 20];
 
+  // A duel player may have a name as long as a profile's (Profile.constants.NAME_MAX; 24 is the same number for a page without
+  // the profile module), so the name of a profile that plays is never cut in silence (RC-2).
+  function duelNameMax() {
+    const profile = L().Profile;
+    const max = profile && profile.constants ? Number(profile.constants.NAME_MAX) : NaN;
+    return Number.isFinite(max) && max >= 1 ? Math.floor(max) : 24;
+  }
+
   function cleanName(value) {
-    return String(value === undefined || value === null ? "" : value).replace(/\s+/g, " ").trim().slice(0, DUEL_NAME_MAX);
+    return String(value === undefined || value === null ? "" : value).replace(/\s+/g, " ").trim().slice(0, duelNameMax());
   }
 
   // rows: [{ kind: "profile" | "guest", profileId, guestName }, x2]
@@ -1260,7 +1267,7 @@
       id: guestId,
       class: "input",
       type: "text",
-      maxlength: DUEL_NAME_MAX,
+      maxlength: duelNameMax(),
       autocomplete: "off",
       spellcheck: "false",
       value: initial.guestName || "",

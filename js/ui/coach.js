@@ -22,6 +22,7 @@
 //     renderRound(el, context, api)   solo result: gauge, verdict, comparison, insights, lines, rewards, fact
 //     renderDuel(el, context, api)    duel result: two player cards, then the shared analysis
 //     renderSummary(el, summary, api) closing summary: hero gauge, breakdown, positions, rewards, actions
+//     syncDockTitles(dock, lang)  the tooltip (title) of every dock button under the board, with its key; kept in step by the coach itself
 //     renderDots(el, model)       the row of progress dots
 //     openConcept(id)             modal with a lesson and a mini board
 //
@@ -154,6 +155,14 @@
       "coach.help.engine": "Stockfish es el programa de ajedrez que juzga las jugadas. La profundidad es cuántas jugadas por delante calculó: más profundidad, más confianza.",
       "coach.theme.title": "Tema de la posición",
       "coach.gauge.label": "puntos",
+      "coach.gauge.aria": "{value} de {max} puntos",
+      "coach.dock.hint": "Pista",
+      "coach.dock.confirm": "Confirmar la jugada",
+      "coach.dock.skip": "Saltear esta posición (0 puntos)",
+      "coach.dock.best": "Mostrar la mejor jugada",
+      "coach.dock.game": "Mostrar la jugada de la partida",
+      "coach.dock.explore": "Explorar el tablero",
+      "coach.dock.reset": "Volver a la posición",
       "coach.chip.hint": "Pista usada (-{pct}%)",
       "coach.chip.revealed": "Jugada revelada",
       "coach.chip.time": "{seconds} s",
@@ -181,6 +190,7 @@
       "coach.verdict.allows_mate": "Esta jugada le permite un mate forzado al rival. Antes de mover, revisá sus jaques. Era mejor {best}.",
       "coach.verdict.missed_mate": "Había un mate forzado y no lo jugaste: {best}.",
       "coach.verdict.missedMateWinning": "Seguías ganando ({eval}), pero había un mate forzado: {best}. Un mate perdido cuesta puntos igual.",
+      "coach.verdict.slowerMate": "Seguís ganando: tu jugada también lleva a un mate, pero tarda más. {best} llegaba antes.",
       "coach.label.missedMate": "Mate perdido",
       "coach.verdict.timeout": "Se acabó el tiempo antes de que movieras. La mejor era {best}.",
       "coach.verdict.skip": "Salteaste esta posición. La mejor era {best}.",
@@ -323,6 +333,14 @@
       "coach.help.engine": "Stockfish is the chess program that judges the moves. Depth is how many moves ahead it looked: the deeper, the more reliable.",
       "coach.theme.title": "Theme of the position",
       "coach.gauge.label": "points",
+      "coach.gauge.aria": "{value} out of {max} points",
+      "coach.dock.hint": "Hint",
+      "coach.dock.confirm": "Confirm your move",
+      "coach.dock.skip": "Skip this position (0 points)",
+      "coach.dock.best": "Show the best move",
+      "coach.dock.game": "Show the move of the game",
+      "coach.dock.explore": "Explore the board",
+      "coach.dock.reset": "Back to the position",
       "coach.chip.hint": "Hint used (-{pct}%)",
       "coach.chip.revealed": "Move revealed",
       "coach.chip.time": "{seconds} s",
@@ -350,6 +368,7 @@
       "coach.verdict.allows_mate": "This move lets the opponent force a checkmate. Check their checks before you move. {best} was better.",
       "coach.verdict.missed_mate": "There was a forced mate and you did not play it: {best}.",
       "coach.verdict.missedMateWinning": "You were still winning ({eval}), but there was a forced mate: {best}. A missed mate still costs points.",
+      "coach.verdict.slowerMate": "Still winning: your move also leads to a mate, but it takes longer. {best} gets there sooner.",
       "coach.label.missedMate": "Missed mate",
       "coach.verdict.timeout": "Time ran out before you moved. The best move was {best}.",
       "coach.verdict.skip": "You skipped this position. The best move was {best}.",
@@ -585,6 +604,19 @@
     return pct !== null && pct >= STILL_WINNING_PCT;
   }
 
+  // A move that also leads to a forced mate, only later than the best one (RK-3). Scoring records the extra moves (`mateExtraMoves`), but it
+  // records the same number for a LOST position that is mated sooner than it had to be: only a move whose own score is a mate FOR the mover
+  // is "still winning", so the score is decoded here and a record without it says nothing.
+  function isSlowerMate(answer) {
+    const assessment = (answer && answer.assessment) || {};
+    if (!(assessment.mateExtraMoves > 0) || assessment.reason !== "ok") return false;
+    const score = Number.isFinite(answer.userScore) ? answer.userScore : assessment.userScore;
+    const scoring = L().Scoring;
+    if (!Number.isFinite(score) || !scoring || typeof scoring.decodeScore !== "function") return false;
+    const decoded = scoring.decodeScore(score);
+    return Boolean(decoded && decoded.kind === "mate" && decoded.mateMoves > 0);
+  }
+
   // The i18n key of the one-sentence verdict, and the parameters it needs. The third argument is only
   // needed by sentences that quote an evaluation (its decimal comma follows the language).
   function verdictKey(context, answer, lang) {
@@ -620,6 +652,8 @@
     if (!first && code === "perfect") return { key: "coach.verdict.equivalent", params };
     if (!first && code === "brilliant") return { key: "coach.verdict.brilliantEquivalent", params };
     if (!first && code === "great") return { key: "coach.verdict.greatEquivalent", params };
+    // A slower mate still wins: "gives up a little ground" (the sentence of the label) would be false for it.
+    if ((code === "very_good" || code === "good" || code === "interesting") && isSlowerMate(ans)) return { key: "coach.verdict.slowerMate", params };
     // "Gives up part of your advantage" is only true when there was an advantage to give up.
     if (code === "dubious") {
       const score = context && context.best ? context.best.score : undefined;
@@ -1037,16 +1071,27 @@
     return h("span", { class: cls("chip", tone && `chip-${tone}`) }, text);
   }
 
-  function gaugeNode(value, max, size, tone, label) {
+  // The text alternative of a gauge, in full and in the page language (RK-2). The kit's own is "7.5 de 10" (a decimal point in Spanish, no unit,
+  // and nothing at all about what is being counted): "7.5 out of 10 points" / "7,5 de 10 puntos" for a score, "Average accuracy: 87%" for the
+  // percentage of a summary (unit "percent", the label says what it is).
+  function gaugeName(value, max, lang, unit, label) {
+    if (unit === "percent") return `${label ? `${label}: ` : ""}${formatNumber(value, lang, 0)}%`;
+    return t("coach.gauge.aria", { value: formatNumber(value, lang), max: formatNumber(max, lang) }, lang);
+  }
+
+  function gaugeNode(value, max, size, tone, label, lang, unit) {
     const kit = ui();
+    const name = gaugeName(value, max, lang, unit, label);
     if (typeof kit.gauge === "function") {
       try {
-        return kit.gauge({ value, max, size, tone, label });
+        const node = kit.gauge({ value, max, size, tone, label });
+        if (node && typeof node.setAttribute === "function") node.setAttribute("aria-label", name);
+        return node;
       } catch (error) {
         // fall through to the text version
       }
     }
-    return h("div", { class: "co-gauge-text", role: "img", "aria-label": `${formatNumber(value)} / ${max}` }, `${formatNumber(value)}/${max}`);
+    return h("div", { class: "co-gauge-text", role: "img", "aria-label": name }, `${formatNumber(value, lang)}/${formatNumber(max, lang)}`);
   }
 
   function insightTexts(answer, lang) {
@@ -1203,7 +1248,7 @@
     const chips = heroChips(context, answer, lang, options && options.rewards);
     const label = info.label;
     return h("section", { class: "co-hero", "data-q": info.code },
-      h("div", { class: "co-hero-gauge" }, gaugeNode(points, max, options && options.gaugeSize ? options.gaugeSize : 116, info.tone, t("coach.gauge.label", {}, lang))),
+      h("div", { class: "co-hero-gauge" }, gaugeNode(points, max, options && options.gaugeSize ? options.gaugeSize : 116, info.tone, t("coach.gauge.label", {}, lang), lang)),
       h("div", { class: "co-hero-copy" },
         h("h2", { class: "co-hero-title", tabindex: "-1", "data-focus": "" },
           h("span", { class: "co-glyph", "aria-hidden": "true" }, info.glyph), h("span", null, label)),
@@ -1645,7 +1690,7 @@
       h("div", { class: "co-player-head" },
         h("span", { class: "co-player-avatar", "aria-hidden": "true" }, initials),
         h("h3", { class: "co-player-name", title: answer.name }, answer.name)),
-      h("div", { class: "co-player-gauge" }, gaugeNode(points, max, 84, info.tone, "")),
+      h("div", { class: "co-player-gauge" }, gaugeNode(points, max, 84, info.tone, "", lang)),
       h("p", { class: "co-player-q" }, h("span", { class: "co-glyph", "aria-hidden": "true" }, info.glyph), h("span", null, info.label)),
       h("p", { class: "co-player-move" }, answer.uci ? showSan(answer.san, lang) : t("coach.duel.noMove", {}, lang)),
       insight ? h("p", { class: "co-player-why" }, insight.text) : null,
@@ -1815,7 +1860,7 @@
     return h("li", { class: cls("co-sum-duelist", winner && "is-winner"), "data-player": String(side + 1) },
       winner ? h("span", { class: "co-player-crown" }, icon("trophy", 13), t("coach.duel.winnerTag", {}, lang)) : null,
       h("h3", { class: "co-sum-duelname", title: info.name }, info.name),
-      h("div", { class: "co-sum-duelgauge" }, gaugeNode(info.score, max, 104, winner ? "gold" : "good", "")),
+      h("div", { class: "co-sum-duelgauge" }, gaugeNode(info.score, max, 104, winner ? "gold" : "good", "", lang)),
       h("p", { class: "co-caption" }, t("coach.sum.duelAcc", { acc: formatNumber(info.accuracy, lang, 0) }, lang)),
       h("p", { class: "co-caption" }, hitsText(info.hits, info.total, lang)),
       info.segments.length ? h("div", { class: "co-sum-duelmix" }, ...segmentsBlock(info.segments, lang, `${info.name}: ${t("coach.sum.breakdownAria", {}, lang)}`)) : null,
@@ -1842,7 +1887,7 @@
       duel ? null : statBlock(t("coach.sum.points", {}, lang), t("coach.sum.of", { points: formatNumber(summary.points, lang), max: formatNumber(summary.maxPoints, lang, 0) }, lang)),
       statBlock(t("coach.sum.positions", {}, lang), duel ? String(summary.positions) : hitsText(summary.hits, summary.positions, lang)),
       summary.durationMs > 0 ? statBlock(t("coach.sum.time", {}, lang), formatDuration(summary.durationMs, lang)) : null);
-    const heroVisual = duel ? null : h("div", { class: "co-sum-gauge" }, gaugeNode(gaugeValue, 100, 150, summary.gaugeTone, t("coach.sum.accuracy", {}, lang)));
+    const heroVisual = duel ? null : h("div", { class: "co-sum-gauge" }, gaugeNode(gaugeValue, 100, 150, summary.gaugeTone, t("coach.sum.accuracy", {}, lang), lang, "percent"));
     const hero = h("section", { class: cls("co-sum-hero", duel && "co-sum-hero-duel"), "data-tone": summary.tone }, heroVisual, h("div", { class: "co-sum-copy" }, heroCopy, stats));
     const note = summary.noMorePositions ? h("p", { class: "co-note co-note-info", role: "note" }, icon("info", 16), h("span", null, t("coach.sum.noMore", {}, lang))) : null;
     const players = duel ? h("ol", { class: "co-sum-duel", "aria-label": t("coach.section.duel", {}, lang) }, [0, 1].map((side) => duelistCard(summary, side, lang))) : null;
@@ -1906,6 +1951,75 @@
     el.setAttribute("data-tail", others % 2 === 1 ? "odd" : "even");
   }
 
+  // ---------- The dock under the board: a tooltip on every button (RK-4) ----------
+
+  // A phone on its side shows the dock as a column of words (no icons: there is no room for them) and a small window shows the same to a mouse or a
+  // keyboard. A `title` is the tooltip: the action in full, and its key when the person has the shortcuts on (app.js writes `aria-keyshortcuts` on
+  // exactly the buttons that have a key and removes it when the shortcuts are switched off, so the tooltip follows it). The accessible NAME of a
+  // button is never touched (it stays what the button says, or its aria-label): a title only adds a description.
+  const DOCK_TITLE_KEYS = {
+    "hint-btn": "coach.dock.hint",
+    "confirm-move-btn": "coach.dock.confirm",
+    "skip-btn": "coach.dock.skip",
+    "reveal-best-btn": "coach.dock.best",
+    "reveal-game-btn": "coach.dock.game",
+    "result-analysis-btn": "coach.dock.explore",
+    "result-analysis-reset-btn": "coach.dock.reset",
+  };
+
+  function dockTitle(button, lang) {
+    if (!button) return "";
+    const id = button.id || (typeof button.getAttribute === "function" ? button.getAttribute("id") : "") || "";
+    const key = DOCK_TITLE_KEYS[id];
+    let label = key ? t(key, {}, langOf(lang)) : "";
+    if (!label && typeof button.querySelector === "function") {
+      // A button this table does not know: its own words.
+      const words = button.querySelector(".btn-label");
+      label = words ? String(words.textContent || "").replace(/\s+/g, " ").trim() : "";
+    }
+    if (!label) return "";
+    const shortcut = typeof button.getAttribute === "function" ? String(button.getAttribute("aria-keyshortcuts") || "").trim() : "";
+    return shortcut ? `${label} (${shortcut})` : label;
+  }
+
+  // Writes the tooltip of every `.co-dock-btn` under `dock` (the page's #board-dock when omitted). Returns how many have one.
+  function syncDockTitles(dock, lang) {
+    const doc = getDoc();
+    const target = dock || (doc && typeof doc.getElementById === "function" ? doc.getElementById("board-dock") : null);
+    if (!target || typeof target.querySelectorAll !== "function") return 0;
+    let count = 0;
+    Array.from(target.querySelectorAll(".co-dock-btn")).forEach((button) => {
+      const title = dockTitle(button, lang);
+      if (!title) return;
+      if (button.getAttribute("title") !== title) button.setAttribute("title", title);
+      count += 1;
+    });
+    return count;
+  }
+
+  // The dock is static markup of index.html, its buttons are written by app.js: the tooltips are kept in step here, on a change of language and
+  // whenever app.js changes a shortcut. Quiet without a DOM, without a MutationObserver or without the dock.
+  function watchDock() {
+    const doc = getDoc();
+    const dock = doc && typeof doc.getElementById === "function" ? doc.getElementById("board-dock") : null;
+    if (!dock) {
+      if (doc && doc.readyState === "loading" && typeof doc.addEventListener === "function") doc.addEventListener("DOMContentLoaded", () => watchDock(), { once: true });
+      return false;
+    }
+    syncDockTitles(dock);
+    try {
+      if (typeof root.MutationObserver === "function") {
+        new root.MutationObserver(() => syncDockTitles(dock)).observe(dock, { subtree: true, attributes: true, attributeFilter: ["aria-keyshortcuts"] });
+      }
+      const i18n = L().i18n;
+      if (i18n && typeof i18n.onChange === "function") i18n.onChange(() => syncDockTitles(dock));
+    } catch (error) {
+      // The tooltips are a courtesy: never let them break loading.
+    }
+    return true;
+  }
+  watchDock();
+
   return {
     TEXT,
     QUALITY_CODES: QUALITY_CODES.slice(),
@@ -1935,5 +2049,7 @@
     renderSummary,
     renderSummaryActions,
     openConcept,
+    dockTitle,
+    syncDockTitles,
   };
 });

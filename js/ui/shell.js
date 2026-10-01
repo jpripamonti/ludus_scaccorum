@@ -572,6 +572,17 @@
       if (typeof input.focus === "function") input.focus();
     }
 
+    // Why Profile.create refused: the form's own sentence for the code (shell.profile.error.<code>), else the reason Profile itself names for
+    // it (Profile.errorKey, in both languages: "duplicate-name" and any code added later), else the generic line.
+    function profileErrorText(code, max) {
+      const i18n = L().i18n;
+      const own = `shell.profile.error.${code}`;
+      if (code && i18n.has(own)) return t(own, { max });
+      const shared = code && typeof Profile.errorKey === "function" ? Profile.errorKey(code) : "";
+      if (shared && i18n.has(shared)) return t(shared, { max });
+      return t("shell.profile.error.generic");
+    }
+
     function create() {
       const name = String(input.value || "").trim();
       if (!name) {
@@ -582,8 +593,7 @@
       if (!created) {
         const code = typeof Profile.lastError === "function" ? Profile.lastError() : "";
         const max = Profile.constants ? Profile.constants.MAX_PROFILES : 4;
-        const key = `shell.profile.error.${code}`;
-        showError(L().i18n.has(key) ? t(key, { max }) : t("shell.profile.error.generic"));
+        showError(profileErrorText(code, max));
         return false;
       }
       Profile.setActive(created.id);

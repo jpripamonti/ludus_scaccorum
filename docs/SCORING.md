@@ -447,14 +447,31 @@ from Table 1 (the tests assert the target ranges, not the exact quoted digits).
 * Lines of different depths used to be compared as if equally reliable (a fresh
   `searchMoves` line against the MultiPV lines); the learner's move is now searched
   to the depth of the best line (section 13, PF-1), which removes that bias, not the
-  noise of a search of that depth. Measured on the 28 classic
-  games (132 answers called mistakes of 3 to 8 win%), two independent 1.5 s
-  searches of the same move differ by **1.9 win% on average** (up to 7.6): 10 % of
+  noise of a search of that depth. Measured in the QA audit on the classic
+  games it covered (the library has grown since; 132 answers called mistakes of
+  3 to 8 win%), two independent 1.5 s searches of the same move differ by **1.9 win% on average** (up to 7.6): 10 % of
   those "mistakes" were under 2 % in a second search, and 15 % of the old "solid
   alternative" claims (under 3 % lost) were more than 3.5 % behind the best in the
   second search. The *points* and the label ladder are thresholds on the measured
   loss and say nothing about equivalence; the coach's sentences that do claim it
   carry a margin (section 16).
+* **Labels near a threshold (CNT-013).** The label is a pure function of the assessed
+  loss: the same lines and the same move always give the same label and points, and a
+  label that was shown does not change afterwards (the engine's results are cached by
+  position, move, depth and time while the page is open, and the profile stores the
+  assessment of every answer when it is given). It has **no hysteresis**: `assess`
+  keeps nothing between calls, so a move that sits within the search noise of a
+  boundary (Table 3: 1.06, 3.0, 5.5, 9.0, 13.0 and 20.0 win% at standard strictness)
+  can read as the neighboring label when it is searched again on another day or
+  another device. What bounds the effect is that the score is continuous at every
+  boundary: one centipawn step that flips a label moves the points by at most 0.1
+  (0.2 strict), the slope at a boundary is at most about 0.7 points per win%
+  (1.1 strict), and a worse loss never earns a better label or more points
+  (`scripts/tests/scoring.test.js`, "labels near a threshold"). The *tiers* model is a
+  staircase on purpose ("easier to read, less fine"): there a flip moves the points by
+  one whole step (at most 2.5). Nothing here is rounded to hide it: the points are
+  shown with one decimal, the label is a reading aid, and the sentences that claim
+  equivalence carry their own margin (section 16).
 * Mate distances beyond 50 moves are indistinguishable (`mate 60` = `mate 50`).
 * With a win% clamp at +-10.00 pawns, moves that are all "completely winning"
   are equal to the scorer even if their centipawn values differ.
@@ -522,6 +539,15 @@ choices that depend on these numbers live here so that one document explains the
   The generic fallback no longer makes a claim; the share of unexplained answers where a fresh
   engine line does show a plain material tactic is 19 % to 28 % (before: 32 % of them carried the
   false "no simple tactic" sentence), so coverage, not truth, is what is left to improve.
+  Re-run after the polish pass (the current `Insights` over the same stored corpus, 3,110
+  messages, judged against the same board checks and the cached independent engine lines):
+  the worst tags are "sacrifice" 5.6 % false (4.2 % on the best-move corpus), "solid
+  alternative" with "close" 5.7 % and "loses material" 2.9 %; every other tag is at or
+  under 1.1 % false (0 % for fork, pin, skewer, discovered attack, missed mate, allows
+  mate, missed check, missed capture). Unconfirmed by a fresh engine line: at most 8.3 %
+  ("tactic available"), 7.7 % (missed check), 6.5 % (missed capture); the one
+  discovered-attack message of nine on the best-move corpus that the line does not show is
+  11 %. No tag is above 10 % on any measure that has more than ten messages.
 * **Notation.** Moves are stored and compared in English SAN (`Nf3`). What the person
   reads goes through `Ludus.chess.localizeSan(san, lang)`: Spanish letters
   (R rey, D dama, T torre, A alfil, C caballo, promotions `=D`; castling, pawn moves,

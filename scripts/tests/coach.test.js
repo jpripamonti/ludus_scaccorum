@@ -30,8 +30,10 @@ const SCRIPTS = [
 
 // A document, the real modules and the coach, in the language asked for. `withKit: false`
 // leaves out js/ui/kit.js to prove the coach can still draw (and never throws) without it.
-function createEnv({ language = "es", withKit = true, withDocument = true } = {}) {
+function createEnv({ language = "es", withKit = true, withDocument = true, setup = null } = {}) {
   const doc = withDocument ? new FakeDocument() : null;
+  // `setup(doc)` runs before any script: markup the modules look for when they load (the dock under the board).
+  if (doc && typeof setup === "function") setup(doc);
   const sandbox = { console, setTimeout, clearTimeout, Date, Math, JSON, Object, Array, String, Number, Promise, Map, Set, Intl, URL, structuredClone };
   if (doc) sandbox.document = doc;
   sandbox.window = sandbox;
@@ -1633,6 +1635,153 @@ test("Coach registers its text with Ludus.i18n and follows the language of the p
   assert.strictEqual(Coach.dotsModel({ total: 1, current: 0, rounds: [{ quality: "perfect", points: 7.5 }] }).items[0].label.includes("7.5"), true);
   Ludus.i18n.setLanguage("es", { persist: false });
   assert.strictEqual(Coach.dotsModel({ total: 1, current: 0, rounds: [{ quality: "perfect", points: 7.5 }] }).items[0].label.includes("7,5"), true);
+});
+
+// ---------- Polish pass 2 (r2-coach): RK-2, RK-3, RK-4 ----------
+
+test("every gauge has a full accessible name: the number, what it is out of, and its unit, in the language of the page (RK-2)", () => {
+  const gaugeNames = (root) => all(root, "gauge").concat(all(root, "co-gauge-text")).map((node) => node.getAttribute("aria-label"));
+  [true, false].forEach((withKit) => {
+    ["en", "es"].forEach((lang) => {
+      const env = createEnv({ language: lang, withKit });
+      const { Coach, doc } = env;
+      const el = doc.createElement("div");
+      doc.body.appendChild(el);
+      const answer = makeAnswer(env, { uci: "d2d4", san: "d4" });
+      answer.assessment.points = 7.5;
+      answer.assessment.maxPoints = 10;
+      const expected = lang === "en" ? "7.5 out of 10 points" : "7,5 de 10 puntos";
+      Coach.renderRound(el, makeContext(env, [answer]), { lang });
+      assert.deepStrictEqual(gaugeNames(first(el, "co-hero-gauge")), [expected], `${lang} kit=${withKit}: the verdict's gauge`);
+      // The same name when the score is a whole number (no ",0").
+      answer.assessment.points = 10;
+      Coach.renderRound(el, makeContext(env, [answer]), { lang });
+      assert.deepStrictEqual(gaugeNames(first(el, "co-hero-gauge")), [lang === "en" ? "10 out of 10 points" : "10 de 10 puntos"]);
+      // A duel: one per player, with the unit as well.
+      const a = makeAnswer(env, { uci: "e2e4", san: "e4", name: "Ana" });
+      const b = makeAnswer(env, { uci: "a2a3", san: "a3", name: "Beto" });
+      a.assessment.points = 9;
+      b.assessment.points = 2.5;
+      Coach.renderDuel(el, makeContext(env, [a, b]), { lang });
+      const names = gaugeNames(el);
+      assert.deepStrictEqual(names.slice(0, 2), [lang === "en" ? "9 out of 10 points" : "9 de 10 puntos", lang === "en" ? "2.5 out of 10 points" : "2,5 de 10 puntos"], `${lang}: both players' gauges`);
+      // The summary: accuracy is a percentage, named by what it is; a duel summary gauge is a score.
+      Coach.renderSummary(el, Coach.summaryModel({ record: RECORD, rounds: summaryRounds(), lang }), { lang });
+      assert.deepStrictEqual(gaugeNames(first(el, "co-sum-gauge")), [lang === "en" ? "Average accuracy: 84%" : "Precisión media: 84%"], `${lang}: the summary's gauge`);
+      const duelRecord = Object.assign({}, RECORD, { mode: "duel", players: ["Ana", "Beto"] });
+      const duelRounds = summaryRounds().map((round) => Object.assign({}, round, { players: [{ name: "Ana", points: 8, quality: "good", hit: true, san: "e4" }, { name: "Beto", points: 3.5, quality: "bad", hit: false, san: "a3" }] }));
+      const duelModel = Coach.summaryModel({ record: duelRecord, rounds: duelRounds, mode: "duel", lang });
+      assert.ok(duelModel.duel, "the duel summary model carries its two players");
+      Coach.renderSummary(el, duelModel, { lang });
+      const duelNames = gaugeNames(first(el, "co-sum-duel"));
+      assert.strictEqual(duelNames.length, 2, `${lang}: one gauge per duelist`);
+      duelNames.forEach((name) => assert.ok(lang === "en" ? /^[\d.]+ out of \d+ points$/.test(name) : /^[\d,]+ de \d+ puntos$/.test(name), `${lang}: ${name}`));
+    });
+  });
+});
+
+test("a slower mate is never said to give up ground: the verdict says it still wins, and only for a mate of the mover (RK-3)", () => {
+  ["en", "es"].forEach((lang) => {
+    const env = createEnv({ language: lang });
+    const { Coach, Ludus } = env;
+    const mate = (value) => Ludus.Scoring.encodeScore({ type: "mate", value });
+    const context = (lines, uci, extra) => {
+      const answer = makeAnswer(env, { uci, san: uci, lines });
+      return { answer, context: makeContext(env, [answer], Object.assign({ best: { uci: lines[0].uci, san: "Qh4#", score: lines[0].score }, master: null, masterName: "" }, extra)) };
+    };
+    // Mate in 2 was there; the move mates in 5 instead: still winning, three moves slower.
+    const slower = context([{ uci: "e2e4", score: mate(2) }, { uci: "d2d4", score: mate(5) }, { uci: "a2a3", score: -300 }], "d2d4");
+    assert.strictEqual(slower.answer.assessment.reason, "ok");
+    assert.ok(slower.answer.assessment.mateExtraMoves > 0, "Scoring recorded the extra moves");
+    assert.ok(["very_good", "good", "interesting"].includes(slower.answer.assessment.qualityCode), `a slower mate lands on the soft part of the ladder: ${slower.answer.assessment.qualityCode}`);
+    const found = Coach.verdictKey(slower.context, slower.answer, lang);
+    assert.strictEqual(found.key, "coach.verdict.slowerMate");
+    const sentence = Coach.verdictText(slower.context, slower.answer, lang);
+    assert.ok(lang === "en" ? /Still winning/.test(sentence) && /takes longer/.test(sentence) : /Seguís ganando/.test(sentence) && /tarda más/.test(sentence), sentence);
+    assert.ok(!/gives up|cede/i.test(sentence), `no claim of lost ground: ${sentence}`);
+    assert.ok(sentence.includes(Coach.showSan("Qh4#", lang)), "and the faster mate is named");
+    // The title is still the label of the ladder (the one vocabulary of Scoring).
+    assert.strictEqual(Coach.qualityInfo(slower.answer.assessment.qualityCode, lang).label, Ludus.Scoring.qualityLabel(slower.answer.assessment.qualityCode, lang));
+    // The same extra moves while LOSING (mated sooner than it had to be) are not "still winning".
+    const sooner = context([{ uci: "e2e4", score: mate(-5) }, { uci: "d2d4", score: mate(-2) }, { uci: "a2a3", score: mate(-1) }], "d2d4");
+    assert.ok(sooner.answer.assessment.mateExtraMoves > 0, "Scoring records the extra moves here too");
+    assert.notStrictEqual(Coach.verdictKey(sooner.context, sooner.answer, lang).key, "coach.verdict.slowerMate", "mated sooner is not a slower mate of the mover");
+    // An assessment that carries the extra moves but not the move's score says nothing it cannot know.
+    const bare = { uci: "d2d4", assessment: { reason: "ok", qualityCode: "interesting", mateExtraMoves: 2 } };
+    assert.notStrictEqual(Coach.verdictKey({ best: { san: "Qh4#" } }, bare, lang).key, "coach.verdict.slowerMate");
+    // A plain inaccuracy keeps the sentence of its label.
+    const plain = { uci: "d2d4", userScore: 100, assessment: { reason: "ok", qualityCode: "interesting", mateExtraMoves: 0, userScore: 100 } };
+    assert.strictEqual(Coach.verdictKey({ best: { san: "e4" } }, plain, lang).key, "coach.verdict.interesting");
+    // The result card shows it.
+    const target = env.doc.createElement("div");
+    env.doc.body.appendChild(target);
+    Coach.renderRound(target, slower.context, { lang });
+    assert.strictEqual(text(first(target, "co-hero-verdict")), sentence);
+  });
+});
+
+test("every dock button has a translated tooltip with its key, and its accessible name is left alone (RK-4)", () => {
+  const html = fs.readFileSync(path.join(repoRoot, "index.html"), "utf8");
+  const ids = Array.from(html.matchAll(/<button\b[^>]*\bid="([^"]+)"[^>]*\bclass="[^"]*\bco-dock-btn\b/g), (m) => m[1]);
+  assert.ok(ids.length >= 7, `the dock markup was found: ${ids.join(", ")}`);
+  const dockOf = (doc, withKeys) => {
+    const dock = doc.createElement("div");
+    dock.setAttribute("id", "board-dock");
+    const keys = { "hint-btn": "H", "reveal-best-btn": "B", "reveal-game-btn": "M", "result-analysis-btn": "E" };
+    ids.forEach((id) => {
+      const button = doc.createElement("button");
+      button.setAttribute("id", id);
+      button.setAttribute("class", "btn co-dock-btn");
+      if (id === "skip-btn") button.setAttribute("aria-label", "Skip this position for 0 points");
+      if (withKeys && keys[id]) button.setAttribute("aria-keyshortcuts", keys[id]);
+      const label = doc.createElement("span");
+      label.setAttribute("class", "btn-label");
+      label.textContent = `words of ${id}`;
+      button.appendChild(label);
+      dock.appendChild(button);
+    });
+    doc.body.appendChild(dock);
+    return dock;
+  };
+  const env = createEnv({ language: "en", setup: (doc) => dockOf(doc, true) });
+  const { Coach, doc, Ludus } = env;
+  const dock = doc.getElementById("board-dock");
+  const titleOf = (id) => doc.getElementById(id).getAttribute("title");
+  // The coach wrote them when it loaded, in the language of the page, with the key where the button has one.
+  assert.strictEqual(titleOf("hint-btn"), "Hint (H)");
+  assert.strictEqual(titleOf("reveal-best-btn"), "Show the best move (B)");
+  assert.strictEqual(titleOf("reveal-game-btn"), "Show the move of the game (M)");
+  assert.strictEqual(titleOf("result-analysis-btn"), "Explore the board (E)");
+  assert.strictEqual(titleOf("skip-btn"), "Skip this position (0 points)", "no key, no suffix");
+  ids.forEach((id) => assert.ok(titleOf(id), `${id} has a tooltip`));
+  // The names of the buttons are what they were: the aria-label stays, the words stay.
+  assert.strictEqual(doc.getElementById("skip-btn").getAttribute("aria-label"), "Skip this position for 0 points");
+  ids.forEach((id) => assert.strictEqual(text(doc.getElementById(id)), `words of ${id}`));
+  ids.forEach((id) => assert.ok(!doc.getElementById(id).getAttribute("aria-describedby"), `${id}: a title, no aria-describedby`));
+  // A change of language rewrites them (es: voseo-free noun phrases, the key kept).
+  Ludus.i18n.setLanguage("es", { persist: false });
+  assert.strictEqual(titleOf("hint-btn"), "Pista (H)");
+  assert.strictEqual(titleOf("result-analysis-btn"), "Explorar el tablero (E)");
+  assert.strictEqual(titleOf("skip-btn"), "Saltear esta posición (0 puntos)");
+  assert.strictEqual(titleOf("result-analysis-reset-btn"), "Volver a la posición");
+  // The shortcuts switched off (app.js removes aria-keyshortcuts): the tooltip loses the key when it is synced again.
+  doc.getElementById("hint-btn").removeAttribute("aria-keyshortcuts");
+  assert.strictEqual(Coach.syncDockTitles(dock, "en"), ids.length);
+  assert.strictEqual(titleOf("hint-btn"), "Hint");
+  // Every tooltip text exists in both languages.
+  ["es", "en"].forEach((lang) => ids.forEach((id) => assert.ok(Coach.dockTitle(doc.getElementById(id), lang).length > 3, `${lang} ${id}`)));
+  // A button the table does not know gets its own words; no label, no title; nothing breaks without a dock or a document.
+  const stray = doc.createElement("button");
+  stray.setAttribute("id", "stray-btn");
+  stray.setAttribute("class", "co-dock-btn");
+  const words = doc.createElement("span");
+  words.setAttribute("class", "btn-label");
+  words.textContent = "  Own   words ";
+  stray.appendChild(words);
+  assert.strictEqual(Coach.dockTitle(stray, "en"), "Own words");
+  assert.strictEqual(Coach.dockTitle(doc.createElement("button"), "en"), "");
+  assert.strictEqual(Coach.syncDockTitles(doc.createElement("div"), "en"), 0);
+  assert.strictEqual(createEnv({ withDocument: false }).Coach.syncDockTitles(null), 0);
 });
 
 runAll().then(
