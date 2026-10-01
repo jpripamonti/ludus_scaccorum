@@ -72,7 +72,7 @@ After editing any deployed file (`js/`, `css/`, `assets/`, `vendor/`, `app.js`, 
 - `app.js`: the game core (board flow, own-games pipeline, session launcher `Ludus.game`).
 - `js/`: modules on the `Ludus` namespace: `chess`, `pgn`, `engine` (UCI, MultiPV), `scoring`, `insights`, `concepts`, `settings`, `profile`, `facts`, `reader`, `audio`, `auth`, `classics`, and `ui/` (kit, shell, screens).
 - `data/classics/` + `scripts/build-classics.js`: the classic games and the Stockfish analysis build; see [`docs/CLASSICS_DATA.md`](docs/CLASSICS_DATA.md).
-- Design and contracts: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/SCORING.md`](docs/SCORING.md), [`docs/FACTS_SOURCES.md`](docs/FACTS_SOURCES.md).
+- Design and contracts: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/SCORING.md`](docs/SCORING.md), [`docs/FACTS_SOURCES.md`](docs/FACTS_SOURCES.md). Open issues and what could not be verified: [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
 
 ### Deployment
 
@@ -146,7 +146,7 @@ Después de editar cualquier archivo que se publica (`js/`, `css/`, `assets/`, `
 - `app.js`: el núcleo del juego (flujo del tablero, pipeline de tus partidas, lanzador de sesiones `Ludus.game`).
 - `js/`: módulos sobre el espacio de nombres `Ludus`: `chess`, `pgn`, `engine` (UCI, MultiPV), `scoring`, `insights`, `concepts`, `settings`, `profile`, `facts`, `reader`, `audio`, `auth`, `classics`, y `ui/` (kit, shell, pantallas).
 - `data/classics/` + `scripts/build-classics.js`: las partidas clásicas y el análisis con Stockfish; ver [`docs/CLASSICS_DATA.md`](docs/CLASSICS_DATA.md).
-- Diseño y contratos: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/SCORING.md`](docs/SCORING.md), [`docs/FACTS_SOURCES.md`](docs/FACTS_SOURCES.md).
+- Diseño y contratos: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/SCORING.md`](docs/SCORING.md), [`docs/FACTS_SOURCES.md`](docs/FACTS_SOURCES.md). Problemas abiertos y lo que no se pudo verificar: [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
 
 ### Deploy
 
