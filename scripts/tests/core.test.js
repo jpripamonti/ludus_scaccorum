@@ -2132,7 +2132,9 @@ test("A11Y-003: the single-letter shortcuts can be switched off and are told to 
 test("COR-003: the daily challenge is completed by a real answer, not by a skip, a timeout or a revealed move", async () => {
   const t = makeEnv();
   const { env, Ludus, events } = t;
-  const today = "2026-09-30";
+  // Today as the app counts it: the profile refuses to complete a daily challenge of a day that is not today, so a literal date would expire.
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const dailyPosition = (index) => position(t, index, { dailyKey: today, source: "daily" });
   await Ludus.game.startSession({ kind: "daily", title: "Daily", positions: [dailyPosition(0), dailyPosition(1), dailyPosition(2)], options: { clock: { mode: "untimed" } } });
   env.run("armConfirmation = () => true"); // the tests below are about what the daily does, not about the two taps
