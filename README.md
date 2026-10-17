@@ -34,7 +34,7 @@ Settings let you choose how the best move is decided and scored: engine strength
 
 ### Profiles, progress and sync
 
-- **Local profiles** (up to 4 on a device) hold progress: accuracy trends, levels, streaks, achievements and the notebook. No account is needed. Progress can be exported and imported as a file.
+- **Local profiles** (up to 4 on a device) hold progress: accuracy trends, levels, streaks, achievements and the notebook. No account is needed; signing in with Google is optional and only adds sync between devices. Progress can be exported and imported as a file.
 - **Optional Google sign-in** syncs your progress between devices through a hidden file in **your own Google Drive** (no server of ours). It only appears once the site owner enables it: see [`docs/GOOGLE_SIGNIN.md`](docs/GOOGLE_SIGNIN.md). We cannot verify identities without a server, so this is a convenience for syncing, not an access-control system.
 
 ### Download policy (own games)
