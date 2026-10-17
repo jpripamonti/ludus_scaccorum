@@ -45,7 +45,7 @@ assert.ok(!scripts.some((file) => file.startsWith("vendor/")), "the engine worke
   const { Ludus } = env;
   assert.strictEqual(typeof Ludus, "object");
   assert.strictEqual(Ludus.version, "dev", "the fake DOM has no <meta name=ludus-version>, so the version is dev");
-  assert.strictEqual(Ludus.config.googleClientId, "", "config.js was executed and read (via window.LUDUS_CONFIG)");
+  assert.ok(/^$|^[^\s]+\.apps\.googleusercontent\.com$/.test(Ludus.config.googleClientId), "config.js was executed and read (via window.LUDUS_CONFIG): the Client ID is empty or well-formed");
   assert.strictEqual(typeof Ludus.chess.Chess, "function");
   assert.strictEqual(typeof Ludus.pgn.parseTags, "function");
 

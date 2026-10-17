@@ -7,7 +7,7 @@ window.LUDUS_CONFIG = {
   // Drive (docs/GOOGLE_SIGNIN.md explains the one-time setup). Leave it empty
   // to keep the app fully local: nothing is requested from Google and the
   // "Sign in" button stays hidden. It is a public identifier, not a secret.
-  googleClientId: "",
+  googleClientId: "1005130766759-9suqprteviosas4thdcv9ec824mpekp2.apps.googleusercontent.com",
 
   // Feature flags. Every flag defaults to true when omitted; set one to false
   // to hide that area of the app.
