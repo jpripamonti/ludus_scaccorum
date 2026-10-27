@@ -2765,6 +2765,32 @@ test("COR-006/COR-013: a mistake is a loss of WIN CHANCE, confirmed by a proper 
   void engine; void fens;
 });
 
+test("own games: a position with fewer than 6 legal moves is never a training position (guessable by elimination)", async () => {
+  const t = makeEnv();
+  const { env } = t;
+  const { Chess } = t.Ludus.chess;
+  assert.strictEqual(await env.context.ensureStockfishLoading(), true);
+  assert.strictEqual(env.run("MIN_LEGAL_MOVES_FOR_CANDIDATE"), 6);
+  // The engine always sees the played move a2a3 as a clear mistake (best b2b4, +300 against -50).
+  const realAnalyze = env.context.analyzePosition;
+  env.context.analyzePosition = async (fen, options) => {
+    const line = (uci, value, depth) => ({ multipv: 1, depth, score: { type: "cp", value }, pv: [uci] });
+    if (options.searchMoves && options.searchMoves.length) return { lines: [line("a2a3", -50, 14)], source: "stockfish", depth: 14, aborted: false };
+    if (options.noCache) return { lines: [line("b2b4", 300, 8)], source: "stockfish", depth: 8, aborted: false };
+    return { lines: [line("b2b4", 300, 14), { ...line("a2a3", -50, 14), multipv: 2 }], source: "stockfish", depth: 14, aborted: false };
+  };
+  const candidate = { gameIdx: 0, playerColor: "w", ply: 0 };
+  const ctxFor = (startFen) => ({ games: [{ tags: { White: "Ana", Black: "Rival", Event: "Casual", Date: "2024.01.01" }, sanMoves: ["a3"], startFen }], depth: 3, moveTimeMs: 250, thresholdCp: 80 });
+  const few = "7k/8/8/8/8/8/PP6/K7 w - - 0 1";
+  const many = "7k/8/8/8/8/8/PPP5/K7 w - - 0 1";
+  assert.strictEqual(new Chess(few).generateMoves().length, 5);
+  assert.ok(new Chess(many).generateMoves().length >= 6);
+  assert.strictEqual(await env.context.evaluateCandidateForMistake(candidate, ctxFor(few)), null, "5 legal moves: guessable, never returned");
+  const found = await env.context.evaluateCandidateForMistake(candidate, ctxFor(many));
+  assert.ok(found && found.gameMoveUci === "a2a3", "6 or more legal moves: still a mistake");
+  env.context.analyzePosition = realAnalyze;
+});
+
 test("RC-1/UX-006: a failure inside the game core reaches the person as a plain sentence with what to do, never as a JavaScript message", async () => {
   const internal = "Cannot read properties of undefined (reading 'lines')";
   for (const language of ["en", "es"]) {

@@ -762,7 +762,7 @@ when its dialog cannot be shown, and the Chess.com archive URLs are validated ag
 is remembered (`ludus.lastUser.v1`, forgotten with the saved games). A mistake is a loss of WIN CHANCE (`Scoring.winPercent`), not of centipawns: candidates
 are screened with a cheap search (never cached, `noCache`), confirmed with the round's own MultiPV analysis (`verifyMistakeCandidate`), and the confirmed
 analysis becomes `position.reference` (`engine.origin: "runtime"`). `mistakes.sensitivity` keeps its centipawn labels; `lossPctForCp` converts. A position with
-a single legal move is never a training position. The game phase comes from `Insights.gamePhase` (one classifier for the whole app).
+fewer than 6 legal moves is never a training position (`MIN_LEGAL_MOVES_FOR_CANDIDATE`: with 3-5 the answer can be found by elimination). The game phase comes from `Insights.gamePhase` (one classifier for the whole app).
 
 **Engine.** `Engine.supported()` probes WebAssembly SIMD and Workers; an unsupported browser never downloads the file and is told it plays with the
 backup engine. The download is prefetched as a stream (`downloadEngineFiles`) with a stall limit (`ENGINE_DOWNLOAD_STALL_MS` = 12 s without a byte, never
