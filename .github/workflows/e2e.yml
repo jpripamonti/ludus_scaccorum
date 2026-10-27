@@ -11,8 +11,29 @@ name: Browser checks
 # installed on the runner (they are deliberately not project dependencies), so a browser
 # download hiccup must not block a merge. Make it required in the repository settings
 # once it has been green for a while.
+#
+# It runs on pushes to main (the project's normal flow), on pull requests, and by hand
+# from the Actions tab (workflow_dispatch). Pushes and pull requests share the same path
+# filter, so a change that cannot affect the browser behavior does not start it.
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "sw.js"
+      - "index.html"
+      - "app.js"
+      - "js/**"
+      - "css/**"
+      - "assets/**"
+      - "vendor/**"
+      - "manifest.json"
+      - "scripts/generate-version.js"
+      - "scripts/e2e/sw.js"
+      - "scripts/e2e/csp.js"
+      - "scripts/e2e/_pages-server.js"
+      - "scripts/dev/serve.js"
+      - ".github/workflows/e2e.yml"
   pull_request:
     paths:
       - "sw.js"
