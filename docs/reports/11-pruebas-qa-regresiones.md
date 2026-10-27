@@ -34,7 +34,7 @@ Los dos checks sí aportan valor: detectan archivos/activos ausentes y sus hashe
 
 ### P1 — El usuario objetivo puede sustituirse por un rival y el flujo no tiene regresión que lo detecte
 
-**Evidencia.** La descarga conserva `username` en la fuente, pero `getActivePgnTextSources()` la reduce a `{ name, text }` ([`app.js:5663-5666`](../app.js#L5663-L5666)). Al construir el contexto, el jugador se infiere por la frecuencia de los tags y no por el nombre solicitado ([`app.js:6212-6225`](../app.js#L6212-L6225), [`app.js:3751-3762`](../app.js#L3751-L3762)); después esa inferencia determina qué color y qué jugadas se analizan ([`app.js:3795-3804`](../app.js#L3795-L3804)). En una única partida, o en un conjunto donde el mismo rival aparece tantas veces como el usuario, hay empate. La inserción de tags es `White` y luego `Black`, por lo que el orden puede elegir a blancas aunque el usuario solicitado juegue con negras.
+**Evidencia.** La descarga conserva `username` en la fuente, pero `getActivePgnTextSources()` la reduce a `{ name, text }` ([`app.js:5663-5666`](../../app.js#L5663-L5666)). Al construir el contexto, el jugador se infiere por la frecuencia de los tags y no por el nombre solicitado ([`app.js:6212-6225`](../../app.js#L6212-L6225), [`app.js:3751-3762`](../../app.js#L3751-L3762)); después esa inferencia determina qué color y qué jugadas se analizan ([`app.js:3795-3804`](../../app.js#L3795-L3804)). En una única partida, o en un conjunto donde el mismo rival aparece tantas veces como el usuario, hay empate. La inserción de tags es `White` y luego `Black`, por lo que el orden puede elegir a blancas aunque el usuario solicitado juegue con negras.
 
 **Impacto.** Es la promesa central del producto: entrenar con los errores del usuario. Una sesión puede entrenar al rival sin aviso y seguir pareciendo válida; los checks actuales no cubren ni `inferPlayerName`, ni `loadCandidateAnalysisContext`, ni la conexión con `source.username`.
 
@@ -42,7 +42,7 @@ Los dos checks sí aportan valor: detectan archivos/activos ausentes y sus hashe
 
 ### P1 — La única validación automatizada corre al llegar a `main`, no antes de integrar cambios
 
-**Evidencia.** El único workflow está disparado por `push` a `main` y `workflow_dispatch`; no tiene evento `pull_request` ([`.github/workflows/deploy-pages.yml:3-7`](../.github/workflows/deploy-pages.yml#L3-L7)). Además el job que prueba es el mismo job con permisos de Pages y despliegue ([`.github/workflows/deploy-pages.yml:9-12`](../.github/workflows/deploy-pages.yml#L9-L12), [`:34-58`](../.github/workflows/deploy-pages.yml#L34-L58)).
+**Evidencia.** El único workflow está disparado por `push` a `main` y `workflow_dispatch`; no tiene evento `pull_request` ([`.github/workflows/deploy-pages.yml:3-7`](../../.github/workflows/deploy-pages.yml#L3-L7)). Además el job que prueba es el mismo job con permisos de Pages y despliegue ([`.github/workflows/deploy-pages.yml:9-12`](../../.github/workflows/deploy-pages.yml#L9-L12), [`:34-58`](../../.github/workflows/deploy-pages.yml#L34-L58)).
 
 **Impacto.** Un cambio roto puede aprobarse/integrarse sin señal automática y sólo fallará después de que el commit ya esté en la rama de producción. El workflow evita desplegar si `npm test` falla, pero no evita la integración defectuosa ni aísla el feedback de CI del despliegue.
 
@@ -50,7 +50,7 @@ Los dos checks sí aportan valor: detectan archivos/activos ausentes y sus hashe
 
 ### P2 — El arnés simula un DOM que nunca puede detectar contratos rotos de HTML ni interacciones
 
-**Evidencia.** `getElementById` crea un elemento nuevo para cualquier id, incluso si no existe en `index.html` ([`scripts/chess-regression-check.js:95-112`](../scripts/chess-regression-check.js#L95-L112)); `addEventListener` no almacena ni dispara handlers ([`:52`](../scripts/chess-regression-check.js#L52)) y los selectores devuelven nodos nuevos o listas vacías ([`:70-75`](../scripts/chess-regression-check.js#L70-L75)). El test carga toda la aplicación en ese entorno artificial y exporta solamente doce helpers para aserciones unitarias ([`:142-145`](../scripts/chess-regression-check.js#L142-L145)).
+**Evidencia.** `getElementById` crea un elemento nuevo para cualquier id, incluso si no existe en `index.html` ([`scripts/chess-regression-check.js:95-112`](../../scripts/chess-regression-check.js#L95-L112)); `addEventListener` no almacena ni dispara handlers ([`:52`](../../scripts/chess-regression-check.js#L52)) y los selectores devuelven nodos nuevos o listas vacías ([`:70-75`](../../scripts/chess-regression-check.js#L70-L75)). El test carga toda la aplicación en ese entorno artificial y exporta solamente doce helpers para aserciones unitarias ([`:142-145`](../../scripts/chess-regression-check.js#L142-L145)).
 
 **Impacto.** Puede desaparecer un control del wizard, cambiarse un id, romperse un click, la navegación de teclado, el cambio de idioma, el modo duelo, el timer o la renderización del tablero y `npm test` seguir verde. Es especialmente riesgoso porque `app.js` contiene 6.669 líneas y concentra UI, estado y lógica de dominio.
 
@@ -58,7 +58,7 @@ Los dos checks sí aportan valor: detectan archivos/activos ausentes y sus hashe
 
 ### P2 — No hay regresiones para importación PGN ni para las respuestas reales/degradadas de Lichess y Chess.com
 
-**Evidencia.** La producción parsea tags, comentarios, variaciones, SAN y separadores de partidas en [`app.js:3659-3749`](../app.js#L3659-L3749), construye candidatas y busca errores de forma asíncrona en [`app.js:3865-4018`](../app.js#L3865-L4018), y descarga/reintenta/cachea datos de proveedores desde [`app.js:2641-2800`](../app.js#L2641-L2800) y los flujos de proveedor. Sin embargo, el arnés deshabilita toda red por diseño ([`scripts/chess-regression-check.js:136-138`](../scripts/chess-regression-check.js#L136-L138)) y ninguna de esas funciones se exporta en su lista de prueba ([`:143-145`](../scripts/chess-regression-check.js#L143-L145)).
+**Evidencia.** La producción parsea tags, comentarios, variaciones, SAN y separadores de partidas en [`app.js:3659-3749`](../../app.js#L3659-L3749), construye candidatas y busca errores de forma asíncrona en [`app.js:3865-4018`](../../app.js#L3865-L4018), y descarga/reintenta/cachea datos de proveedores desde [`app.js:2641-2800`](../../app.js#L2641-L2800) y los flujos de proveedor. Sin embargo, el arnés deshabilita toda red por diseño ([`scripts/chess-regression-check.js:136-138`](../../scripts/chess-regression-check.js#L136-L138)) y ninguna de esas funciones se exporta en su lista de prueba ([`:143-145`](../../scripts/chess-regression-check.js#L143-L145)).
 
 **Impacto.** Un PGN válido no contemplado, una variación/comentario que altera tokens, un cambio en el payload de Chess.com, 404/429/5xx, `Retry-After`, mes parcialmente fallido, caché expirada o fallback a caché stale puede dejar al usuario sin sesión o generar posiciones erróneas sin detección en CI.
 
@@ -66,7 +66,7 @@ Los dos checks sí aportan valor: detectan archivos/activos ausentes y sus hashe
 
 ### P2 — El service worker y el artefacto publicado sólo reciben validación estática
 
-**Evidencia.** El smoke check inspecciona cadenas `./...` del service worker y comprueba que los archivos existan ([`scripts/smoke-check.js:65-86`](../scripts/smoke-check.js#L65-L86)); no ejecuta `install`, `activate` ni `fetch`. En producción, `sw.js` implementa precache, borrado de caches previas, fallback de navegación offline y cache-first ([`sw.js:26-76`](../sw.js#L26-L76)). El workflow ejecuta el test antes de construir `_site` ([`.github/workflows/deploy-pages.yml:34-45`](../.github/workflows/deploy-pages.yml#L34-L45)) y no prueba después el artefacto servido.
+**Evidencia.** El smoke check inspecciona cadenas `./...` del service worker y comprueba que los archivos existan ([`scripts/smoke-check.js:65-86`](../../scripts/smoke-check.js#L65-L86)); no ejecuta `install`, `activate` ni `fetch`. En producción, `sw.js` implementa precache, borrado de caches previas, fallback de navegación offline y cache-first ([`sw.js:26-76`](../../sw.js#L26-L76)). El workflow ejecuta el test antes de construir `_site` ([`.github/workflows/deploy-pages.yml:34-45`](../../.github/workflows/deploy-pages.yml#L34-L45)) y no prueba después el artefacto servido.
 
 **Impacto.** Fallos de actualización de cache, contenido obsoleto, navegación offline o rutas de GitHub Pages pueden llegar a usuarios aunque todos los checks locales pasen.
 
@@ -74,7 +74,7 @@ Los dos checks sí aportan valor: detectan archivos/activos ausentes y sus hashe
 
 ### P3 — No hay umbral de cobertura ni segmentación testeable del núcleo asíncrono
 
-**Evidencia.** `package.json` sólo define `check`, `test:chess` y su composición `test` ([`package.json:6-10`](../package.json#L6-L10)); el lockfile declara sólo el paquete raíz. No hay medición de cobertura, lint ni una separación que permita importar sin bootstrap el estado, UI, proveedores y motor. La prueba actual depende de un `vm` y de una lista manual de símbolos.
+**Evidencia.** `package.json` sólo define `check`, `test:chess` y su composición `test` ([`package.json:6-10`](../../package.json#L6-L10)); el lockfile declara sólo el paquete raíz. No hay medición de cobertura, lint ni una separación que permita importar sin bootstrap el estado, UI, proveedores y motor. La prueba actual depende de un `vm` y de una lista manual de símbolos.
 
 **Impacto.** Las funciones nuevas pueden no sumarse a la lista de exportación del arnés y quedar completamente sin cubrir. La cifra de checks verdes no expresa qué parte de los flujos de producto fue evaluada.
 

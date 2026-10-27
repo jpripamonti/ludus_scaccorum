@@ -25,7 +25,7 @@ Prioridad: separar el *app shell* del motor y de medios optativos, iniciar/reint
 
 ### P1 — El precache de instalación descarga y reserva el motor y ambos formatos de la imagen hero antes de necesitarlos
 
-**Evidencia.** `CORE_ASSETS` incorpora el PNG de 7.19 MB, el WebP de 0.17 MB y el WASM de 7.30 MB ([`sw.js:3`](../sw.js#L3)-[`sw.js:24`](../sw.js#L24)). La portada sólo selecciona uno de los dos formatos mediante `image-set` ([`styles.css:130`](../styles.css#L130)-[`styles.css:133`](../styles.css#L133)), pero el `addAll` instala ambos. La instalación espera que `cache.addAll(CORE_ASSETS)` complete antes de activar el worker ([`sw.js:26`](../sw.js#L26)-[`sw.js:31`](../sw.js#L31)).
+**Evidencia.** `CORE_ASSETS` incorpora el PNG de 7.19 MB, el WebP de 0.17 MB y el WASM de 7.30 MB ([`sw.js:3`](../../sw.js#L3)-[`sw.js:24`](../../sw.js#L24)). La portada sólo selecciona uno de los dos formatos mediante `image-set` ([`styles.css:130`](../../styles.css#L130)-[`styles.css:133`](../../styles.css#L133)), pero el `addAll` instala ambos. La instalación espera que `cache.addAll(CORE_ASSETS)` complete antes de activar el worker ([`sw.js:26`](../../sw.js#L26)-[`sw.js:31`](../../sw.js#L31)).
 
 **Impacto.** Tras la primera carga se compite por, como mínimo, 14.36 MiB de almacenamiento/transferencia local, aun si se abandona la portada sin empezar una partida. Una caída transitoria de cualquiera de los recursos hace fallar la instalación completa del precache; la app seguirá pudiendo funcionar online, pero no adquiere soporte offline ni comunica ese estado. En móviles con plan medido, el coste excede con mucho lo necesario para mostrar la portada.
 
@@ -33,7 +33,7 @@ Prioridad: separar el *app shell* del motor y de medios optativos, iniciar/reint
 
 ### P1 — El motor se descarga al poco de abrir la portada, tiene sólo 7 s para quedar listo y no hay reintento
 
-**Evidencia.** Al arrancar, `requestIdleCallback` tiene un `timeout` de 3 s (o se usa `setTimeout(..., 0)`), de modo que `setupStockfish()` se ejecuta sin intención de jugar ([`app.js:6655`](../app.js#L6655)-[`app.js:6664`](../app.js#L6664)). Esa función primero hace un `fetch` de la misma URL y luego crea el `Worker`; espera `readyok` sólo 7 s y lo termina si no llega ([`app.js:3431`](../app.js#L3431)-[`app.js:3484`](../app.js#L3484)). El worker debe obtener el WASM de 7.30 MB. Los errores se silencian y el estado queda en el evaluador local; no hay cola de reintento ni observabilidad para la persona usuaria.
+**Evidencia.** Al arrancar, `requestIdleCallback` tiene un `timeout` de 3 s (o se usa `setTimeout(..., 0)`), de modo que `setupStockfish()` se ejecuta sin intención de jugar ([`app.js:6655`](../../app.js#L6655)-[`app.js:6664`](../../app.js#L6664)). Esa función primero hace un `fetch` de la misma URL y luego crea el `Worker`; espera `readyok` sólo 7 s y lo termina si no llega ([`app.js:3431`](../../app.js#L3431)-[`app.js:3484`](../../app.js#L3484)). El worker debe obtener el WASM de 7.30 MB. Los errores se silencian y el estado queda en el evaluador local; no hay cola de reintento ni observabilidad para la persona usuaria.
 
 **Impacto.** En conexiones lentas, caché fría o CPU modesta, el motor puede degradarse definitivamente para esa carga aunque la red se recupere segundos después. También hay una petición de comprobación del JS antes de que el Worker solicite el mismo recurso; puede satisfacerse de caché HTTP, pero no aporta una garantía y añade latencia/tráfico en frío.
 
@@ -41,15 +41,15 @@ Prioridad: separar el *app shell* del motor y de medios optativos, iniciar/reint
 
 ### P1 — El fallback del motor bloquea el hilo principal durante la ruta de peor conectividad
 
-**Evidencia.** Si Stockfish no está disponible, `getBestMoveWithEngine` y `evaluateMoveWithEngine` llaman a `searchBestMove` / `evaluatePosition` ([`app.js:3560`](../app.js#L3560)-[`app.js:3650`](../app.js#L3650)). Esas funciones hacen minimax recursivo síncrono sobre todos los movimientos y clones ([`app.js:3366`](../app.js#L3366)-[`app.js:3399`](../app.js#L3399)); el límite es profundidad 3 ([`app.js:141`](../app.js#L141)). La búsqueda de candidatas sólo cede al navegador **antes** de evaluar cada candidata ([`app.js:3940`](../app.js#L3940)-[`app.js:3960`](../app.js#L3960)); una evaluación local individual no cede ni observa la cancelación.
+**Evidencia.** Si Stockfish no está disponible, `getBestMoveWithEngine` y `evaluateMoveWithEngine` llaman a `searchBestMove` / `evaluatePosition` ([`app.js:3560`](../../app.js#L3560)-[`app.js:3650`](../../app.js#L3650)). Esas funciones hacen minimax recursivo síncrono sobre todos los movimientos y clones ([`app.js:3366`](../../app.js#L3366)-[`app.js:3399`](../../app.js#L3399)); el límite es profundidad 3 ([`app.js:141`](../../app.js#L141)). La búsqueda de candidatas sólo cede al navegador **antes** de evaluar cada candidata ([`app.js:3940`](../../app.js#L3940)-[`app.js:3960`](../../app.js#L3960)); una evaluación local individual no cede ni observa la cancelación.
 
-**Impacto.** Una posición de alta ramificación puede producir tareas largas y congelar interacción, reloj y repintado. El riesgo es invertido respecto de la expectativa: la ruta destinada a degradar bien en un dispositivo/red débiles concentra CPU en el hilo de UI. Se pueden analizar hasta 400 candidatas en una ventana de 25 s ([`app.js:147`](../app.js#L147)-[`app.js:148`](../app.js#L148)), por lo que las pausas se pueden repetir.
+**Impacto.** Una posición de alta ramificación puede producir tareas largas y congelar interacción, reloj y repintado. El riesgo es invertido respecto de la expectativa: la ruta destinada a degradar bien en un dispositivo/red débiles concentra CPU en el hilo de UI. Se pueden analizar hasta 400 candidatas en una ventana de 25 s ([`app.js:147`](../../app.js#L147)-[`app.js:148`](../../app.js#L148)), por lo que las pausas se pueden repetir.
 
 **Remediación.** Ejecutar también el evaluador local dentro de un Worker y enviar resultados/cancelación por mensaje. Si se mantiene en JS, diseñar búsqueda incremental con presupuesto de nodos/tiempo y cesión cooperativa frecuente; detenerla al cancelar o cambiar de sesión. Definir un presupuesto de interacción (por ejemplo, tareas <50 ms) y validarlo con throttling de CPU.
 
 ### P2 — La descarga de Chess.com puede encadenar minutos de espera y reintentos sin cancelar ni informar el avance por archivo
 
-**Evidencia.** Cada petición tiene 15 s de timeout y hasta dos reintentos ([`app.js:155`](../app.js#L155)-[`app.js:156`](../app.js#L156), [`app.js:2641`](../app.js#L2641)-[`app.js:2677`](../app.js#L2677)). Los archivos mensuales de hasta doce meses se recorren secuencialmente para lentas, luego Blitz y Bullet ([`app.js:5982`](../app.js#L5982)-[`app.js:6044`](../app.js#L6044)). Un fallo de mes se registra sólo en la variable local `failedMonths`, que no se consume ni se comunica ([`app.js:5980`](../app.js#L5980), [`app.js:5985`](../app.js#L5985)-[`app.js:5989`](../app.js#L5989)); las URLs fallidas se vuelven a intentar en las pasadas de fallback. Ninguna llamada recibe una señal de cancelación de sesión.
+**Evidencia.** Cada petición tiene 15 s de timeout y hasta dos reintentos ([`app.js:155`](../../app.js#L155)-[`app.js:156`](../../app.js#L156), [`app.js:2641`](../../app.js#L2641)-[`app.js:2677`](../../app.js#L2677)). Los archivos mensuales de hasta doce meses se recorren secuencialmente para lentas, luego Blitz y Bullet ([`app.js:5982`](../../app.js#L5982)-[`app.js:6044`](../../app.js#L6044)). Un fallo de mes se registra sólo en la variable local `failedMonths`, que no se consume ni se comunica ([`app.js:5980`](../../app.js#L5980), [`app.js:5985`](../../app.js#L5985)-[`app.js:5989`](../../app.js#L5989)); las URLs fallidas se vuelven a intentar en las pasadas de fallback. Ninguna llamada recibe una señal de cancelación de sesión.
 
 **Impacto.** Sin `Retry-After`, un mes no respondiente puede consumir aproximadamente 46.5 s (tres intentos de 15 s más esperas) antes de continuar. Varios meses degradados multiplican esa espera, y una persona no sabe qué archivo falla ni puede detener la operación. Reintentar fallos en las tres pasadas también aumenta el riesgo de rate limiting del proveedor.
 
@@ -57,7 +57,7 @@ Prioridad: separar el *app shell* del motor y de medios optativos, iniciar/reint
 
 ### P2 — La estrategia offline puede entregar errores del servidor en vez de la copia válida y retiene contenido sin revalidación
 
-**Evidencia.** Para navegaciones, el fallback a `index.html` ocurre únicamente si `fetch()` rechaza; una respuesta HTTP 404/500 se devuelve tal cual ([`sw.js:50`](../sw.js#L50)-[`sw.js:52`](../sw.js#L52)). Para los demás GET same-origin, la estrategia es cache-first y sólo consulta red en un miss ([`sw.js:54`](../sw.js#L54)-[`sw.js:66`](../sw.js#L66)); el `CACHE_NAME` es manual y los recursos WASM/JS usan URL sin hash de contenido ([`sw.js:1`](../sw.js#L1), [`sw.js:22`](../sw.js#L22)-[`sw.js:23`](../sw.js#L23)). El registro del SW se realiza después de `load` y su error sólo va a consola ([`app.js:6621`](../app.js#L6621)-[`app.js:6628`](../app.js#L6628)).
+**Evidencia.** Para navegaciones, el fallback a `index.html` ocurre únicamente si `fetch()` rechaza; una respuesta HTTP 404/500 se devuelve tal cual ([`sw.js:50`](../../sw.js#L50)-[`sw.js:52`](../../sw.js#L52)). Para los demás GET same-origin, la estrategia es cache-first y sólo consulta red en un miss ([`sw.js:54`](../../sw.js#L54)-[`sw.js:66`](../../sw.js#L66)); el `CACHE_NAME` es manual y los recursos WASM/JS usan URL sin hash de contenido ([`sw.js:1`](../../sw.js#L1), [`sw.js:22`](../../sw.js#L22)-[`sw.js:23`](../../sw.js#L23)). El registro del SW se realiza después de `load` y su error sólo va a consola ([`app.js:6621`](../../app.js#L6621)-[`app.js:6628`](../../app.js#L6628)).
 
 **Impacto.** Una respuesta de origen degradada puede ocultar una versión cacheada que sí serviría para la SPA. En despliegues, actualizar contenido bajo las mismas URLs requiere coordinación perfecta entre el nombre de caché y los query strings; de lo contrario, cache-first puede conservar artefactos incompatibles. La primera visita offline nunca está cubierta y un fallo de registro no es detectable por la persona usuaria.
 
@@ -65,10 +65,10 @@ Prioridad: separar el *app shell* del motor y de medios optativos, iniciar/reint
 
 ## Controles positivos observados
 
-- El script de aplicación está al final de `body` ([`index.html:308`](../index.html#L308)), por lo que no bloquea el parseo inicial del documento.
-- Stockfish, cuando está disponible, ejecuta la búsqueda en un Worker y hay timeout de evaluación con limpieza de listeners ([`app.js:3487`](../app.js#L3487)-[`app.js:3530`](../app.js#L3530)).
-- La red de proveedores usa `AbortController` por timeout, respeta `Retry-After` y cuenta con reintentos ([`app.js:2641`](../app.js#L2641)-[`app.js:2677`](../app.js#L2677)).
-- Los PGN se guardan en IndexedDB, tienen TTL de siete días y se admite una copia vencida si falla la actualización ([`app.js:152`](../app.js#L152)-[`app.js:155`](../app.js#L155), [`app.js:5828`](../app.js#L5828)-[`app.js:5837`](../app.js#L5837)).
+- El script de aplicación está al final de `body` ([`index.html:308`](../../index.html#L308)), por lo que no bloquea el parseo inicial del documento.
+- Stockfish, cuando está disponible, ejecuta la búsqueda en un Worker y hay timeout de evaluación con limpieza de listeners ([`app.js:3487`](../../app.js#L3487)-[`app.js:3530`](../../app.js#L3530)).
+- La red de proveedores usa `AbortController` por timeout, respeta `Retry-After` y cuenta con reintentos ([`app.js:2641`](../../app.js#L2641)-[`app.js:2677`](../../app.js#L2677)).
+- Los PGN se guardan en IndexedDB, tienen TTL de siete días y se admite una copia vencida si falla la actualización ([`app.js:152`](../../app.js#L152)-[`app.js:155`](../../app.js#L155), [`app.js:5828`](../../app.js#L5828)-[`app.js:5837`](../../app.js#L5837)).
 
 ## Riesgos residuales y validación posterior
 

@@ -13,7 +13,7 @@ Inspección estática del HTML, CSS, JavaScript, service worker y flujo de despl
 
 ### P1 — El tema depende por completo de `oklch()` sin una cascada de reserva
 
-**Evidencia.** Las variables que definen fondo, texto, superficies, bordes y estados se declaran exclusivamente como `oklch()` en [`styles.css`](../styles.css#L13-L47), y luego abastecen casi todo el tema mediante `var(...)` (por ejemplo el `body` en líneas 140–145). No hay valores hex/rgb previos ni un bloque `@supports` que limite el reemplazo moderno.
+**Evidencia.** Las variables que definen fondo, texto, superficies, bordes y estados se declaran exclusivamente como `oklch()` en [`styles.css`](../../styles.css#L13-L47), y luego abastecen casi todo el tema mediante `var(...)` (por ejemplo el `body` en líneas 140–145). No hay valores hex/rgb previos ni un bloque `@supports` que limite el reemplazo moderno.
 
 **Impacto.** En navegadores sin CSS Color 4 con `oklch()` (por ejemplo Safari/iOS anteriores a 15.4, y versiones antiguas de Chromium/Firefox), cada propiedad consumidora queda inválida al calcularse. No es una degradación cromática: pueden perderse fondo, color de texto, bordes y estados, dejando una interfaz difícil o imposible de usar. La misma ausencia de reserva alcanza al `oklch()` usado directamente en reglas posteriores.
 
@@ -21,7 +21,7 @@ Inspección estática del HTML, CSS, JavaScript, service worker y flujo de despl
 
 ### P2 — El service worker no convierte al sitio en una PWA instalable
 
-**Evidencia.** La app registra correctamente un service worker cuando la plataforma lo permite ([`app.js`](../app.js#L6621-L6628)) y éste precachea HTML, CSS, JS, piezas, Stockfish y WASM ([`sw.js`](../sw.js#L3-L31)). Sin embargo, en todo el snapshot no hay `manifest.webmanifest`/`manifest.json`, íconos de aplicación ni `<link rel="manifest">`; el `<head>` sólo declara `theme-color` y la hoja de estilos ([`index.html`](../index.html#L4-L12)). El empaquetado de Pages tampoco copia un manifiesto ni íconos ([`deploy-pages.yml`](../.github/workflows/deploy-pages.yml#L31-L37)).
+**Evidencia.** La app registra correctamente un service worker cuando la plataforma lo permite ([`app.js`](../../app.js#L6621-L6628)) y éste precachea HTML, CSS, JS, piezas, Stockfish y WASM ([`sw.js`](../../sw.js#L3-L31)). Sin embargo, en todo el snapshot no hay `manifest.webmanifest`/`manifest.json`, íconos de aplicación ni `<link rel="manifest">`; el `<head>` sólo declara `theme-color` y la hoja de estilos ([`index.html`](../../index.html#L4-L12)). El empaquetado de Pages tampoco copia un manifiesto ni íconos ([`deploy-pages.yml`](../../.github/workflows/deploy-pages.yml#L31-L37)).
 
 **Impacto.** Chrome/Edge no cumplen los metadatos mínimos que usan para la instalabilidad y no pueden ofrecer una instalación PWA normal. En iOS/iPadOS, “Agregar a pantalla de inicio” carece de identidad, ícono y modo de presentación definidos. El producto tiene caché offline, pero no la experiencia PWA que su service worker sugiere.
 
@@ -29,7 +29,7 @@ Inspección estática del HTML, CSS, JavaScript, service worker y flujo de despl
 
 ### P2 — No existe contrato de navegadores ni prueba que detecte regresiones de plataforma
 
-**Evidencia.** `package.json` sólo ejecuta comprobación de sintaxis, humo y regresiones de ajedrez. El despliegue corre `npm test` con Node 22 ([`package.json`](../package.json#L5-L11), [`deploy-pages.yml`](../.github/workflows/deploy-pages.yml#L23-L29)). Aun así, el *bundle* sin transpilar requiere sintaxis moderna: `??` y `?.` aparecen desde [`app.js`](../app.js#L744-L758), y también se usan `fetch`, `AbortController`, IndexedDB, Workers/WASM y service workers.
+**Evidencia.** `package.json` sólo ejecuta comprobación de sintaxis, humo y regresiones de ajedrez. El despliegue corre `npm test` con Node 22 ([`package.json`](../../package.json#L5-L11), [`deploy-pages.yml`](../../.github/workflows/deploy-pages.yml#L23-L29)). Aun así, el *bundle* sin transpilar requiere sintaxis moderna: `??` y `?.` aparecen desde [`app.js`](../../app.js#L744-L758), y también se usan `fetch`, `AbortController`, IndexedDB, Workers/WASM y service workers.
 
 **Impacto.** Un navegador que no pueda analizar optional chaining/nullish coalescing aborta la carga de todo `app.js`, antes de que sus chequeos defensivos de APIs puedan ejecutarse. En motores algo más recientes pero sin una API concreta, hay comportamientos heterogéneos no cubiertos por CI. Sin versión mínima declarada tampoco puede determinarse si las incompatibilidades CSS/JS son fallos de soporte o una decisión de producto consciente.
 
@@ -37,7 +37,7 @@ Inspección estática del HTML, CSS, JavaScript, service worker y flujo de despl
 
 ### P3 — Dos reglas de presentación se basan en `:has()` sin alternativa funcional
 
-**Evidencia.** El centrado del resumen al finalizar una sesión depende de `.result-overlay-read:has(...)` ([`styles.css`](../styles.css#L1701-L1703)); ocultar una franja vacía de herramientas depende de un segundo `:has()` anidado ([`styles.css`](../styles.css#L1908-L1911)). No hay `@supports selector(:has(*))` ni una clase que replique ambos estados.
+**Evidencia.** El centrado del resumen al finalizar una sesión depende de `.result-overlay-read:has(...)` ([`styles.css`](../../styles.css#L1701-L1703)); ocultar una franja vacía de herramientas depende de un segundo `:has()` anidado ([`styles.css`](../../styles.css#L1908-L1911)). No hay `@supports selector(:has(*))` ni una clase que replique ambos estados.
 
 **Impacto.** En navegadores que sí ejecutan la aplicación pero aún no implementan `:has()` —en particular Firefox ESR antiguos— el juego sigue funcionando, pero el resumen queda arriba y puede aparecer un hueco/fila vacía bajo el tablero. Es una degradación visual evitable y es consistente con el problema de falta de matriz.
 

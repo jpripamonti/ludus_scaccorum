@@ -59,8 +59,8 @@ function get(port, pathname, method = "GET") {
 
     // Not part of the deploy list, or not a file: nothing leaks.
     for (const url of [
-      "/.git/HEAD", "/.git/config", "/.gitignore", "/.claude/launch.json", "/package.json", "/package-lock.json", "/README.md", "/TODO.md",
-      "/docs/ARCHITECTURE.md", "/scripts/dev/serve.js", "/scripts/smoke-check.js", "/data/classics/notes.json", "/Reports/", "/progress.md",
+      "/.git/HEAD", "/.git/config", "/.gitignore", "/.claude/launch.json", "/package.json", "/package-lock.json", "/README.md", "/PENDING.md", "/CLAUDE.md",
+      "/docs/ARCHITECTURE.md", "/scripts/dev/serve.js", "/scripts/smoke-check.js", "/data/classics/notes.json", "/docs/reports/",
       "/js/", "/js", "/assets/", "/js/data/.gitkeep", "/js/../package.json", "/js/%2e%2e/package.json", "/%2e%2e/%2e%2e/etc/passwd",
       "/..%2f..%2fetc/passwd", "/js%2f..%2f..%2fpackage.json", "/js\\..\\package.json", "/vendor/%00.js", "/%", "/vendor/nope.js",
     ]) {
