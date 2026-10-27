@@ -580,6 +580,8 @@ test("the real sw.js of the repository is syntactically a service worker with al
   }
   eq(unhandled.length, 0, `no unhandled rejection (${unhandled.map(String).join("; ")})`);
   console.log(`sw.test.js: ${done} tests, ${assertions} assertions passed`);
+  // The app code keeps timers alive: the tests are done, so exit now.
+  process.exit(0);
 })().catch((error) => {
   console.error(error);
   process.exit(1);

@@ -60,7 +60,7 @@ Requires Node 22.
 
 ```bash
 npm start            # serves the deploy files on http://127.0.0.1:5010 (loopback only, nothing else of the repository)
-npm test             # smoke checks + every unit/integration test (about 30 s)
+npm test             # smoke checks + every unit/integration test (about 80 s)
 ```
 
 Browser-level checks live in `scripts/e2e/*.js` (Playwright is **not** a dependency; each script explains how to run it, for example `NODE_PATH=$(npm root -g) node scripts/e2e/gate.js`). They are not part of `npm test`.
@@ -134,7 +134,7 @@ Requiere Node 22.
 
 ```bash
 npm start            # sirve los archivos del deploy en http://127.0.0.1:5010 (solo en loopback, nada más del repositorio)
-npm test             # chequeos de humo + todas las pruebas (unos 30 s)
+npm test             # chequeos de humo + todas las pruebas (unos 80 s)
 ```
 
 Las pruebas de navegador están en `scripts/e2e/*.js` (Playwright **no** es una dependencia; cada script explica cómo correrlo, por ejemplo `NODE_PATH=$(npm root -g) node scripts/e2e/gate.js`). No forman parte de `npm test`.

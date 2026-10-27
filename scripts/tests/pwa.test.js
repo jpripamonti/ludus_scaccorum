@@ -330,6 +330,8 @@ test("a long-lived window looks for a new build when it comes back, at most ever
     }
   }
   console.log(`pwa.test.js: ${done} tests, ${assertions} assertions passed`);
+  // The app code keeps timers alive: the tests are done, so exit now.
+  process.exit(0);
 })().catch((error) => {
   console.error(error);
   process.exit(1);
