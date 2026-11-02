@@ -447,6 +447,7 @@ const TRANSLATIONS = {
     "download.cancel": "Cancelar",
     "download.elapsed": "Hace {seconds} s que estamos trabajando. Traer un año de partidas puede llevar hasta un minuto.",
     "download.elapsedLong": "Hace {seconds} s. Sigue en marcha: {provider} a veces tarda. Podés cancelar cuando quieras.",
+    "analysis.elapsed": "Hace {seconds} s que el motor revisa tus jugadas en busca de errores. Podés cancelar cuando quieras.",
     "download.cancelled": "Cancelaste la descarga. No guardamos nada.",
     "download.cancelledSearch": "Cancelaste la búsqueda.",
     "download.lastUser": "Usuario recordado en este navegador. Se borra con “Borrar datos guardados de partidas”.",
@@ -738,6 +739,7 @@ const TRANSLATIONS = {
     "download.cancel": "Cancel",
     "download.elapsed": "We have been working for {seconds} s. Getting a year of games can take up to a minute.",
     "download.elapsedLong": "{seconds} s so far. It is still running: {provider} is sometimes slow. You can cancel at any time.",
+    "analysis.elapsed": "The engine has been checking your moves for mistakes for {seconds} s. You can cancel at any time.",
     "download.cancelled": "You canceled the download. Nothing was saved.",
     "download.cancelledSearch": "You canceled the search.",
     "download.lastUser": "Username remembered in this browser. It is removed with “Clear saved game data”.",
@@ -3496,12 +3498,19 @@ function setWizardFormControlsDisabled(disabled) {
 // games is a few megabytes and the provider may be slow. Not a live region (it would chatter every second).
 let wizardBusyTimer = null;
 let wizardBusyStartedAt = 0;
+// "download" while the games are being fetched, "analysis" once they are here and the engine looks for mistakes: the
+// download lines (a year of games, a slow provider) say nothing true about the analysis.
+let wizardBusyPhase = "download";
 
 function renderWizardBusyText() {
   if (!analysisElapsedEl) return;
   const seconds = Math.max(0, Math.round((Date.now() - wizardBusyStartedAt) / 1000));
   if (seconds < 8) {
     analysisElapsedEl.textContent = "";
+    return;
+  }
+  if (wizardBusyPhase === "analysis") {
+    analysisElapsedEl.textContent = t("analysis.elapsed", { seconds });
     return;
   }
   analysisElapsedEl.textContent = seconds < 25
@@ -3511,9 +3520,18 @@ function renderWizardBusyText() {
 
 function startWizardBusyTicker() {
   stopWizardBusyTicker();
+  wizardBusyPhase = "download";
   wizardBusyStartedAt = Date.now();
   renderWizardBusyText();
   wizardBusyTimer = setInterval(renderWizardBusyText, 1000);
+}
+
+// The games are here: from now on the wait is the analysis, counted from its own start.
+function markWizardBusyAnalysis() {
+  if (wizardBusyPhase === "analysis") return;
+  wizardBusyPhase = "analysis";
+  wizardBusyStartedAt = Date.now();
+  if (wizardBusyTimer) renderWizardBusyText();
 }
 
 function stopWizardBusyTicker() {
@@ -4156,6 +4174,30 @@ async function loadMistakeVerdicts(signature) {
     if (entry.verdict !== "clean" && !(entry.verdict === "mistake" && entry.data && Array.isArray(entry.data.lines) && entry.data.lines.length)) return;
     if (!mistakeVerdictMemory.has(entry.key)) mistakeVerdictMemory.set(entry.key, entry);
   });
+}
+
+// The positions the active profile has already played (its rounds) or keeps in its notebook, as a test on a FEN: by
+// the round's position id (`own:<hash of the FEN>`, what a round of these positions records) or by the board, side,
+// castling and en passant (the notebook's own key), so a move-counter difference does not hide one.
+function playedPositionTest() {
+  const ids = new Set();
+  const boards = new Set();
+  const boardOf = (fen) => String(fen || "").trim().split(/\s+/).slice(0, 4).join(" ");
+  const profile = ludusModule("Profile");
+  try {
+    const id = activeProfileId();
+    if (profile && id) {
+      const rounds = typeof profile.rounds === "function" ? profile.rounds(id) : [];
+      const cards = profile.notebook && typeof profile.notebook.list === "function" ? profile.notebook.list({ profileId: id }) : [];
+      [...(Array.isArray(rounds) ? rounds : []), ...(Array.isArray(cards) ? cards : [])].forEach((entry) => {
+        if (entry && entry.positionId) ids.add(String(entry.positionId));
+        if (entry && entry.fen) boards.add(boardOf(entry.fen));
+      });
+    }
+  } catch (error) {
+    // Without the profile nothing counts as played: the known mistakes simply come first.
+  }
+  return (fen) => ids.has(`own:${Ludus.util.hashString(fen)}`) || boards.has(boardOf(fen));
 }
 
 function forgetMistakeVerdictsInMemory() {
@@ -5646,22 +5688,26 @@ function evalLossPctForPly(game, ply) {
   return winLossPct(sign * before, sign * after);
 }
 
-// The order in which the mistake search looks at the person's moves, in three tiers, each interleaved by game so a
+// The order in which the mistake search looks at the person's moves, in four tiers, each interleaved by game so a
 // session mixes games: (1) moves an earlier session confirmed as mistakes with these settings (served without the
-// engine), (2) moves whose loss the server's evals put above the screening line (biggest first: nearly all of them
-// confirm), (3) every other move, at random. Moves an earlier session cleared, and moves the evals clear even with the
-// lowest threshold a position can get (an endgame's), are left out. options: { verdictFor(gameIdx, ply), thresholdCp, stats }.
+// engine) that the person has not played yet, (2) moves whose loss the server's evals put above the screening line
+// (biggest first: nearly all of them confirm), (3) every other move, at random, and (4) known mistakes the person
+// already played (their rounds or their notebook): seeing a played position again is the notebook's job (its spaced
+// repetition), so they are only a last resort when nothing new is left. Moves an earlier session cleared, and moves the
+// evals clear even with the lowest threshold a position can get (an endgame's), are left out.
+// options: { verdictFor(gameIdx, ply), alreadyPlayed(fen), thresholdCp, stats }.
 function buildRandomCandidateQueue(games, targetName, options = {}) {
   const verdictFor = typeof options.verdictFor === "function" ? options.verdictFor : () => null;
+  const alreadyPlayed = typeof options.alreadyPlayed === "function" ? options.alreadyPlayed : () => false;
   const baseCp = clamp(Number(options.thresholdCp) || 150, 50, 800);
   const minScreenPct = lossPctForCp(Math.round(baseCp * 0.75)) * MISTAKE_SCREEN_FACTOR;
   const stats = options.stats && typeof options.stats === "object" ? options.stats : {};
-  Object.assign(stats, { playerMoves: 0, knownMistakes: 0, knownClean: 0, evalCandidates: 0, evalCleared: 0 });
-  const tiers = [[], [], []];
+  Object.assign(stats, { playerMoves: 0, knownMistakes: 0, knownPlayed: 0, knownClean: 0, evalCandidates: 0, evalCleared: 0 });
+  const tiers = [[], [], [], []];
   games.forEach((game, gameIdx) => {
     const playerColor = getPlayerColor(game.tags, targetName);
     if (!playerColor) return;
-    const plies = [[], [], []];
+    const plies = [[], [], [], []];
     for (let ply = 0; ply < game.sanMoves.length; ply += 1) {
       const mover = ply % 2 === 0 ? "w" : "b";
       if (mover !== playerColor) continue;
@@ -5673,7 +5719,12 @@ function buildRandomCandidateQueue(games, targetName, options = {}) {
       }
       if (known && known.verdict === "mistake") {
         stats.knownMistakes += 1;
-        plies[0].push({ gameIdx, playerColor, ply });
+        if (known.data && known.data.fen && alreadyPlayed(known.data.fen)) {
+          stats.knownPlayed += 1;
+          plies[3].push({ gameIdx, playerColor, ply });
+        } else {
+          plies[0].push({ gameIdx, playerColor, ply });
+        }
         continue;
       }
       const evalLossPct = evalLossPctForPly(game, ply);
@@ -5691,6 +5742,7 @@ function buildRandomCandidateQueue(games, targetName, options = {}) {
     tiers[0].push(shuffle(plies[0]));
     tiers[1].push(plies[1].sort((a, b) => a.evalLossPct - b.evalLossPct)); // popped from the end: biggest first
     tiers[2].push(shuffle(plies[2]));
+    tiers[3].push(shuffle(plies[3]));
   });
 
   const queue = [];
@@ -5828,6 +5880,7 @@ async function evaluateCandidateForMistake(candidate, ctx) {
         if (result) {
           recordMistakeVerdict(ctx, game, ply, "mistake", {
             playedUci,
+            fen: beforeFen,
             lines: result.lines.map((line) => ({ uci: line.uci, san: line.san || "", score: line.score, pv: line.pv })),
             depth: result.depth,
             bestMover: result.bestMover,
@@ -9349,6 +9402,7 @@ async function startSessionPipeline() {
     await ensureEngineForSession();
     if (!isCurrentSessionWork(sessionToken)) return;
     if (!(await ensurePgnSourceAvailable(sessionToken))) return;
+    markWizardBusyAnalysis();
 
     const ctx = await loadCandidateAnalysisContext(effectiveConfig);
     if (!ctx) return;
@@ -9550,6 +9604,7 @@ async function loadCandidateAnalysisContext(effectiveConfig) {
   const candidates = buildRandomCandidateQueue(allGames, playerName, {
     thresholdCp: threshold,
     verdictFor: (gameIdx, ply) => readMistakeVerdict(verdictCtx, allGames[gameIdx], ply),
+    alreadyPlayed: playedPositionTest(),
     stats: queueStats,
   });
   const uniqueGameCount = new Set(candidates.map((c) => c.gameIdx)).size;

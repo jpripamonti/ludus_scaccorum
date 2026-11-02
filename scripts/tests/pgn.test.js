@@ -133,6 +133,10 @@ assert.ok(Object.isFrozen(limits));
   assert.deepStrictEqual(tokenizeSanMoves("1. e4 e5\r\n2. Nf3 *\r\n"), ["e4", "e5", "Nf3"], "Windows line endings");
   assert.deepStrictEqual(tokenizeSanMoves('[Event "x"]\n\n*'), [], "no moves at all is an empty list, not null");
   assert.deepStrictEqual(tokenizeSanMoves("1. O-O-O {castles} O-O"), ["O-O-O", "O-O"]);
+  // A ";" comment runs to the end of ITS line only (the lines used to be joined first, so it ate the rest of the game).
+  assert.deepStrictEqual(tokenizeSanMoves("1. e4 ; the king's pawn\ne5 2. Nf3 ; develops\nNc6 *"), ["e4", "e5", "Nf3", "Nc6"], "a ; comment ends at its line");
+  assert.deepStrictEqual(tokenizeSanMoves("1. e4 {a brace comment; not a rest-of-line one} e5 2. Nf3 *"), ["e4", "e5", "Nf3"], "a ; inside braces is part of the brace comment");
+  assert.deepStrictEqual(tokenizeSanMoves("1. e4 {spans\ntwo lines} e5 *"), ["e4", "e5"], "a brace comment over two lines");
   assert.deepStrictEqual(tokenizeSanMoves("1. e8=Q+ {promo} exd6 e.p. *"), ["e8=Q+", "exd6", "e.p."], "tokens are whitespace-separated only");
 
   const many = Array.from({ length: limits.maxPlies }, (_, i) => (i % 2 ? "Nc6" : "Nf3")).join(" ");

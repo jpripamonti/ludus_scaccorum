@@ -124,8 +124,9 @@ async function runSession(env, text, config = { moveTimeMs: 250, thresholdCp: 80
   return { ctx, found, firstAfterCalls };
 }
 
-function freshApp(indexedDB) {
-  const env = loadApp(indexedDB);
+// storageMap: the browser's localStorage, shared between loads to keep the profile (its rounds and notebook).
+function freshApp(indexedDB, storageMap) {
+  const env = loadApp(indexedDB, createFakeDom({ languages: ["en"], storageMap }));
   env.calls = installEngine(env);
   return env;
 }
@@ -134,6 +135,57 @@ const tests = [];
 function test(name, fn) {
   tests.push({ name, fn });
 }
+
+test("a known mistake the person already played waits at the end of the queue: a new one comes first, the played one only when nothing else is left", async () => {
+  const idb = createFakeIndexedDB();
+  const storageMap = new Map();
+  const first = freshApp(idb, storageMap);
+  const one = await runSession(first, pgn());
+  const played = one.found.find((m) => m.gameMoveSan === "Ng5");
+  // Session 1: the person played the Ng5 position (a round of it is in the profile).
+  const Profile = first.context.Ludus.Profile;
+  Profile.ensureActive();
+  assert.ok(Profile.recordRound({ fen: played.fen, positionId: played.id, source: "own", sessionKind: "own", points: 4, userUci: "d2d4", bestUci: played.bestMoveUci }), "the round is recorded");
+
+  for (let run = 0; run < 5; run += 1) {
+    const second = freshApp(idb, storageMap);
+    const two = await runSession(second, pgn());
+    assert.strictEqual(second.calls.screening + second.calls.confirming, 0, "still no engine search");
+    assert.strictEqual(two.ctx.queueStats.knownPlayed, 1);
+    assert.strictEqual(two.ctx.candidates[0].ply, 14, "the unplayed confirmed mistake comes first");
+    assert.strictEqual(two.ctx.candidates[two.ctx.candidates.length - 1].ply, 6, "the played one is last");
+    assert.deepStrictEqual(Array.from(two.found, (m) => m.gameMoveSan), ["Nxf7", "Ng5"], "and is still served when nothing new is left");
+  }
+
+  // A position kept in the notebook counts as played too (by the board, whatever its id).
+  const notebookOnly = new Map();
+  const a = freshApp(idb, notebookOnly);
+  a.context.Ludus.Profile.ensureActive();
+  const nxf7 = one.found.find((m) => m.gameMoveSan === "Nxf7");
+  assert.ok(a.context.Ludus.Profile.notebook.add({ fen: nxf7.fen, source: "own", bestUci: nxf7.bestMoveUci }), "a notebook card");
+  const three = await runSession(a, pgn());
+  assert.strictEqual(three.ctx.candidates[0].ply, 6);
+  assert.strictEqual(three.ctx.candidates[three.ctx.candidates.length - 1].ply, 14);
+});
+
+test("the wizard's wait line speaks of the download while it lasts, and of the analysis once the games are here", async () => {
+  for (const language of ["en", "es"]) {
+    const env = loadApp(createFakeIndexedDB(), createFakeDom({ languages: [language] }));
+    const line = (secondsAgo) => env.run(`wizardBusyStartedAt = Date.now() - ${secondsAgo * 1000}; renderWizardBusyText(); analysisElapsedEl.textContent`);
+    env.run("STATE.sourceMode = \"chesscom\"; startWizardBusyTicker()");
+    const slow = line(34);
+    assert.ok(/Chess\.com/.test(slow), `the download line names the provider: ${slow}`);
+    env.run("markWizardBusyAnalysis()");
+    assert.strictEqual(line(3), "", "a short analysis says nothing");
+    const analysing = line(34);
+    assert.ok(/34/.test(analysing) && !/Chess\.com/.test(analysing), `no slow-provider line during the analysis: ${analysing}`);
+    assert.ok(language === "en" ? /engine/.test(analysing) : /motor/.test(analysing), analysing);
+    // A new session starts with the download again.
+    env.run("startWizardBusyTicker()");
+    assert.ok(/Chess\.com/.test(line(34)));
+    env.run("stopWizardBusyTicker()");
+  }
+});
 
 test("a second session over the same games searches nothing: confirmed mistakes come back with their analysis, cleared moves are skipped", async () => {
   const idb = createFakeIndexedDB();

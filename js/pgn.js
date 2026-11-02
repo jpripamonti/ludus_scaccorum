@@ -122,10 +122,11 @@
   // inside a variation goes with it and the evals line up with the moves by construction.
   function tokenizeMovesAndEvals(gameText) {
     const evalsSeen = [];
+    // The line breaks are kept until the ";" comments are gone: one runs to the end of its own line only.
     const movesText = gameText
       .split("\n")
       .filter((line) => !line.startsWith("["))
-      .join(" ");
+      .join("\n");
     const stripped = removeVariations(
       movesText
         .replace(/\{[^}]*\}/g, (comment) => {
@@ -136,7 +137,7 @@
         })
         .replace(/;.*$/gm, " ")
         .replace(/\$\d+/g, " ")
-        .replace(/\r/g, " "),
+        .replace(/[\r\n]/g, " "),
     );
     if (stripped.overflowed) return null;
     const normalized = stripped.text

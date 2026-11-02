@@ -766,9 +766,11 @@ are screened with a cheap search (never cached, `noCache`), confirmed with the r
 analysis becomes `position.reference` (`engine.origin: "runtime"`). The verdicts are kept (`MISTAKE_VERDICT_STORE` = `verdicts` in the
 same IndexedDB as the games, database version 2, same 7 days, cleared by "Clear saved game data", only in the tab when downloads are not kept),
 keyed by `mistakeVerdictSignature` (engine file, threshold, screening time, the budget of the confirmation), the game (`mistakeVerdictGameKey`)
-and the ply: "clean", or "mistake" with the confirming analysis; never a screening score. `buildRandomCandidateQueue` serves known mistakes first,
-then the moves the server's `[%eval]` loss puts above the screening line (biggest first; they skip the screening and go straight to
-`verifyMistakeCandidate`), then the rest at random; known-clean moves and moves the evals clear are left out. `mistakes.sensitivity` keeps its centipawn labels; `lossPctForCp` converts. A position with
+and the ply: "clean", or "mistake" with the confirming analysis; never a screening score. `buildRandomCandidateQueue` serves known mistakes the active
+profile has not played first, then the moves the server's `[%eval]` loss puts above the screening line (biggest first; they skip the screening and
+go straight to `verifyMistakeCandidate`), then the rest at random, and last the known mistakes already in the profile's rounds or notebook (seeing
+a played position again is the notebook's spaced repetition, so they are only a fallback); known-clean moves and moves the evals clear are left out.
+The wizard's wait line (`#analysis-elapsed`) speaks of the download until the games are here, then of the analysis (`markWizardBusyAnalysis`). `mistakes.sensitivity` keeps its centipawn labels; `lossPctForCp` converts. A position with
 fewer than 6 legal moves is never a training position (`MIN_LEGAL_MOVES_FOR_CANDIDATE`: with 3-5 the answer can be found by elimination). The game phase comes from `Insights.gamePhase` (one classifier for the whole app).
 
 **Engine.** `Engine.supported()` probes WebAssembly SIMD and Workers; an unsupported browser never downloads the file and is told it plays with the
