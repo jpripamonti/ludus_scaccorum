@@ -133,6 +133,10 @@ assert.ok(Object.isFrozen(limits));
   assert.deepStrictEqual(tokenizeSanMoves("1. e4 e5\r\n2. Nf3 *\r\n"), ["e4", "e5", "Nf3"], "Windows line endings");
   assert.deepStrictEqual(tokenizeSanMoves('[Event "x"]\n\n*'), [], "no moves at all is an empty list, not null");
   assert.deepStrictEqual(tokenizeSanMoves("1. O-O-O {castles} O-O"), ["O-O-O", "O-O"]);
+  // A ";" comment runs to the end of ITS line only (the lines used to be joined first, so it ate the rest of the game).
+  assert.deepStrictEqual(tokenizeSanMoves("1. e4 ; the king's pawn\ne5 2. Nf3 ; develops\nNc6 *"), ["e4", "e5", "Nf3", "Nc6"], "a ; comment ends at its line");
+  assert.deepStrictEqual(tokenizeSanMoves("1. e4 {a brace comment; not a rest-of-line one} e5 2. Nf3 *"), ["e4", "e5", "Nf3"], "a ; inside braces is part of the brace comment");
+  assert.deepStrictEqual(tokenizeSanMoves("1. e4 {spans\ntwo lines} e5 *"), ["e4", "e5"], "a brace comment over two lines");
   assert.deepStrictEqual(tokenizeSanMoves("1. e8=Q+ {promo} exd6 e.p. *"), ["e8=Q+", "exd6", "e.p."], "tokens are whitespace-separated only");
 
   const many = Array.from({ length: limits.maxPlies }, (_, i) => (i % 2 ? "Nc6" : "Nf3")).join(" ");
@@ -177,6 +181,37 @@ assert.ok(Object.isFrozen(limits));
   const many = Array.from({ length: limits.maxPlies + 1 }, () => "Nf3").join(" ");
   assert.strictEqual(buildGameFromText(`[Event "x"]\n\n${many}`), null, "too many plies skips the game");
   assert.strictEqual(buildGameFromText(`[Event "x"]\n\n1. e4 ${"(".repeat(13)}1. d4${")".repeat(13)} e5`), null, "over-nested variations skip the game");
+}
+
+// ---------- [%eval] comments (Lichess evals=true) ----------
+
+{
+  assert.deepStrictEqual(pgn.parseEvalComment("{ [%eval 0.17] [%clk 0:03:00] }"), { type: "cp", value: 17 });
+  assert.deepStrictEqual(pgn.parseEvalComment("{ [%clk 0:03:00] [%eval -1.5] }"), { type: "cp", value: -150 });
+  assert.deepStrictEqual(pgn.parseEvalComment("{ [%eval #3] }"), { type: "mate", value: 3 });
+  assert.deepStrictEqual(pgn.parseEvalComment("{ [%eval #-2] }"), { type: "mate", value: -2 });
+  assert.deepStrictEqual(pgn.parseEvalComment("{ [%eval 0.42,23] }"), { type: "cp", value: 42 }, "a depth after the value");
+  assert.strictEqual(pgn.parseEvalComment("{ [%clk 0:03:00] }"), null);
+  assert.strictEqual(pgn.parseEvalComment("{ Inaccuracy. Nf3 was best. }"), null);
+
+  const analysed = [
+    '[Event "Rated blitz game"]', '[White "Ana"]', '[Black "Bruno"]', "",
+    "1. e4 { [%eval 0.2] [%clk 0:03:00] } 1... e5 { [%eval 0.25] } 2. Nf3 { [%eval 0.2] } (2. f4 { [%eval -0.3] } 2... exf4 { [%eval 0.5] })",
+    "2... Nc6 { Mistake. } 3. Bc4 { [%eval #-4] } 1-0",
+  ].join("\n");
+  const built = buildGameFromText(analysed);
+  assert.deepStrictEqual(built.sanMoves, ["e4", "e5", "Nf3", "Nc6", "Bc4"], "the moves are the same as without evals");
+  assert.deepStrictEqual(built.sanMoves, tokenizeSanMoves(analysed));
+  assert.deepStrictEqual(built.evals, [
+    { type: "cp", value: 20 }, { type: "cp", value: 25 }, { type: "cp", value: 20 }, null, { type: "mate", value: -4 },
+  ], "one eval per ply, the variation's evals left out, null where a move has none");
+  // A game without any eval has no evals at all (the mistake search then screens every move with the engine).
+  const plain = buildGameFromText('[Event "x"]\n\n1. e4 { a note } e5 2. Nf3 *');
+  assert.deepStrictEqual(plain.sanMoves, ["e4", "e5", "Nf3"]);
+  assert.strictEqual(plain.evals, undefined);
+  assert.strictEqual(pgn.tokenizeMovesAndEvals('[Event "x"]\n\n1. e4 e5').evals, null);
+  // A comment before the first move belongs to no move.
+  assert.deepStrictEqual(buildGameFromText('[Event "x"]\n\n{ [%eval 0.1] } 1. e4 { [%eval 0.3] } *').evals, [{ type: "cp", value: 30 }]);
 }
 
 // ---------- Whole pipeline: PGN text -> games -> legal replay ----------

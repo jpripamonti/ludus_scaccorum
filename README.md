@@ -46,7 +46,7 @@ Settings let you choose how the best move is decided and scored: engine strength
 ### Data and privacy
 
 - Downloads go directly from your browser to Lichess or Chess.com. Before the first download of a session for each provider the app asks you to retype your username as an explicit confirmation.
-- The downloaded PGN, your username and metadata are cached in the browser's IndexedDB for 7 days; a "Clear saved game data" button deletes that cache.
+- The downloaded PGN, your username and metadata are cached in the browser's IndexedDB for 7 days, together with what the mistake search concluded about each of your moves (so the next session does not analyze them again); a "Clear saved game data" button deletes that cache.
 - Profiles, settings and the notebook are stored in the browser's `localStorage`. Nothing is sent anywhere else. Google sign-in, if enabled, loads Google's script only when you press the button.
 - **Usernames and game links.** When you train with your own Lichess or Chess.com games, every saved round keeps the players' names (your username and your opponent's) and the link to the game, and the session is titled with your username. They live in your local profile and notebook, in the export files you download and, if you turn on Google sync, in the hidden file in your own Google Drive. This app has no server, so none of it is ever sent to us. To remove it: delete the profile or use "Delete all my data" in Account, and clear the downloaded games in Settings > Privacy.
 
@@ -120,7 +120,7 @@ En Ajustes elegís cómo se decide y se puntúa la mejor jugada: potencia del mo
 ### Datos y privacidad
 
 - Las descargas van directo de tu navegador a Lichess o Chess.com. Antes de la primera descarga de la sesión para cada proveedor, la app te pide reescribir tu usuario como confirmación explícita.
-- El PGN descargado, tu usuario y metadatos se guardan en el IndexedDB del navegador durante 7 días; el botón "Borrar datos guardados de partidas" elimina esa caché.
+- El PGN descargado, tu usuario y metadatos se guardan en el IndexedDB del navegador durante 7 días, junto con lo que la búsqueda de errores concluyó sobre cada una de tus jugadas (así la próxima sesión no las vuelve a analizar); el botón "Borrar datos guardados de partidas" elimina esa caché.
 - Perfiles, ajustes y cuaderno se guardan en el `localStorage` del navegador. No se envía nada a ningún otro lado. Si se habilita el acceso con Google, el script de Google se carga solo cuando tocás el botón.
 - **Usuarios y enlaces a partidas.** Si entrenás con tus propias partidas de Lichess o Chess.com, cada ronda guardada conserva los nombres de los jugadores (tu usuario y el de tu rival) y el enlace a la partida, y la sesión lleva tu usuario como título. Quedan en tu perfil y tu cuaderno locales, en los archivos de exportación que descargues y, si activás la sincronización con Google, en el archivo oculto de tu propio Google Drive. Esta app no tiene servidor: nada de esto nos llega. Para borrarlo: eliminá el perfil o usá "Borrar todos mis datos" en Cuenta, y borrá las partidas descargadas en Ajustes > Privacidad.
 

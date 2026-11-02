@@ -252,6 +252,10 @@ const SEEN_STORAGE_KEY = "ludus.seen.v1";
 const NO_PERSIST_DOWNLOADS_STORAGE_KEY = "ludus.noPersistDownloads.v1";
 const REMOTE_PGN_CACHE_DB = "ludus.remotePgnCache.v1";
 const REMOTE_PGN_CACHE_STORE = "pgn";
+// The verdicts of the mistake search over those games (same database, same 7 days, cleared by the same
+// button): see "Mistake verdicts" below. Version 2 of the database added this store.
+const MISTAKE_VERDICT_STORE = "verdicts";
+const REMOTE_PGN_CACHE_DB_VERSION = 2;
 const REMOTE_PGN_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const REMOTE_FETCH_TIMEOUT_MS = 15000;
 const REMOTE_FETCH_RETRIES = 2;
@@ -443,10 +447,11 @@ const TRANSLATIONS = {
     "download.cancel": "Cancelar",
     "download.elapsed": "Hace {seconds} s que estamos trabajando. Traer un año de partidas puede llevar hasta un minuto.",
     "download.elapsedLong": "Hace {seconds} s. Sigue en marcha: {provider} a veces tarda. Podés cancelar cuando quieras.",
+    "analysis.elapsed": "Hace {seconds} s que el motor revisa tus jugadas en busca de errores. Podés cancelar cuando quieras.",
     "download.cancelled": "Cancelaste la descarga. No guardamos nada.",
     "download.cancelledSearch": "Cancelaste la búsqueda.",
     "download.lastUser": "Usuario recordado en este navegador. Se borra con “Borrar datos guardados de partidas”.",
-    "privacy.remoteFetchConfirm": "Vamos a pedirle a {provider} las partidas públicas de {user}. El pedido sale directo de tu navegador a ese sitio: esta app no tiene servidor propio. Guardamos esas partidas y tu usuario en este navegador hasta 7 días para no descargarlas de nuevo; podés borrarlas con “Borrar datos guardados de partidas”. Si entrenás con ellas, tu perfil también guarda los nombres de los jugadores y el enlace de cada partida; eso lo borrás desde Cuenta. En una computadora compartida, otra persona podría verlas. ¿Continuar?",
+    "privacy.remoteFetchConfirm": "Vamos a pedirle a {provider} las partidas públicas de {user}. El pedido sale directo de tu navegador a ese sitio: esta app no tiene servidor propio. Guardamos esas partidas, lo que el análisis encontró en ellas y tu usuario en este navegador hasta 7 días para no descargarlas ni analizarlas de nuevo; podés borrarlas con “Borrar datos guardados de partidas”. Si entrenás con ellas, tu perfil también guarda los nombres de los jugadores y el enlace de cada partida; eso lo borrás desde Cuenta. En una computadora compartida, otra persona podría verlas. ¿Continuar?",
     "privacy.remoteFetchCancelled": "Consulta cancelada. No se enviaron datos a {provider}.",
     "privacy.remoteFetchTitle": "Consultar partidas públicas",
     "privacy.remoteFetchAccept": "Aceptar",
@@ -734,10 +739,11 @@ const TRANSLATIONS = {
     "download.cancel": "Cancel",
     "download.elapsed": "We have been working for {seconds} s. Getting a year of games can take up to a minute.",
     "download.elapsedLong": "{seconds} s so far. It is still running: {provider} is sometimes slow. You can cancel at any time.",
+    "analysis.elapsed": "The engine has been checking your moves for mistakes for {seconds} s. You can cancel at any time.",
     "download.cancelled": "You canceled the download. Nothing was saved.",
     "download.cancelledSearch": "You canceled the search.",
     "download.lastUser": "Username remembered in this browser. It is removed with “Clear saved game data”.",
-    "privacy.remoteFetchConfirm": "We are going to ask {provider} for the public games of {user}. The request goes straight from your browser to that site: this app has no server of its own. We keep those games and your username in this browser for up to 7 days so we do not download them again; you can delete them with “Clear saved game data”. If you train with them, your profile also keeps the players' names and the link to each game; you can delete that from Account. On a shared computer, someone else could see them. Continue?",
+    "privacy.remoteFetchConfirm": "We are going to ask {provider} for the public games of {user}. The request goes straight from your browser to that site: this app has no server of its own. We keep those games, what the analysis found in them and your username in this browser for up to 7 days so we do not download or analyze them again; you can delete them with “Clear saved game data”. If you train with them, your profile also keeps the players' names and the link to each game; you can delete that from Account. On a shared computer, someone else could see them. Continue?",
     "privacy.remoteFetchCancelled": "Request canceled. No data was sent to {provider}.",
     "privacy.remoteFetchTitle": "Fetch public games",
     "privacy.remoteFetchAccept": "Accept",
@@ -3492,12 +3498,19 @@ function setWizardFormControlsDisabled(disabled) {
 // games is a few megabytes and the provider may be slow. Not a live region (it would chatter every second).
 let wizardBusyTimer = null;
 let wizardBusyStartedAt = 0;
+// "download" while the games are being fetched, "analysis" once they are here and the engine looks for mistakes: the
+// download lines (a year of games, a slow provider) say nothing true about the analysis.
+let wizardBusyPhase = "download";
 
 function renderWizardBusyText() {
   if (!analysisElapsedEl) return;
   const seconds = Math.max(0, Math.round((Date.now() - wizardBusyStartedAt) / 1000));
   if (seconds < 8) {
     analysisElapsedEl.textContent = "";
+    return;
+  }
+  if (wizardBusyPhase === "analysis") {
+    analysisElapsedEl.textContent = t("analysis.elapsed", { seconds });
     return;
   }
   analysisElapsedEl.textContent = seconds < 25
@@ -3507,9 +3520,18 @@ function renderWizardBusyText() {
 
 function startWizardBusyTicker() {
   stopWizardBusyTicker();
+  wizardBusyPhase = "download";
   wizardBusyStartedAt = Date.now();
   renderWizardBusyText();
   wizardBusyTimer = setInterval(renderWizardBusyText, 1000);
+}
+
+// The games are here: from now on the wait is the analysis, counted from its own start.
+function markWizardBusyAnalysis() {
+  if (wizardBusyPhase === "analysis") return;
+  wizardBusyPhase = "analysis";
+  wizardBusyStartedAt = Date.now();
+  if (wizardBusyTimer) renderWizardBusyText();
 }
 
 function stopWizardBusyTicker() {
@@ -3888,11 +3910,14 @@ function remotePgnCacheAvailable() {
 function openRemotePgnCacheDb() {
   if (!remotePgnCacheAvailable()) return Promise.resolve(null);
   return new Promise((resolve) => {
-    const request = indexedDB.open(REMOTE_PGN_CACHE_DB, 1);
+    const request = indexedDB.open(REMOTE_PGN_CACHE_DB, REMOTE_PGN_CACHE_DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(REMOTE_PGN_CACHE_STORE)) {
         db.createObjectStore(REMOTE_PGN_CACHE_STORE, { keyPath: "key" });
+      }
+      if (!db.objectStoreNames.contains(MISTAKE_VERDICT_STORE)) {
+        db.createObjectStore(MISTAKE_VERDICT_STORE, { keyPath: "key" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -3978,20 +4003,21 @@ async function purgeExpiredRemotePgnCache() {
   const db = await openRemotePgnCacheDb();
   if (!db) return;
   await new Promise((resolve) => {
-    const tx = db.transaction(REMOTE_PGN_CACHE_STORE, "readwrite");
-    const store = tx.objectStore(REMOTE_PGN_CACHE_STORE);
-    const cursorRequest = store.openCursor();
-    cursorRequest.onsuccess = () => {
-      const cursor = cursorRequest.result;
-      if (!cursor) return;
-      const entry = cursor.value;
-      const ageMs = Date.now() - Number(entry?.fetchedAt || 0);
-      if (ageMs > REMOTE_PGN_CACHE_TTL_MS) {
-        cursor.delete();
-      }
-      cursor.continue();
-    };
-    cursorRequest.onerror = () => resolve();
+    // The saved games and the verdicts of the mistake search over them age the same way (fetchedAt).
+    const tx = db.transaction([REMOTE_PGN_CACHE_STORE, MISTAKE_VERDICT_STORE], "readwrite");
+    [REMOTE_PGN_CACHE_STORE, MISTAKE_VERDICT_STORE].forEach((name) => {
+      const cursorRequest = tx.objectStore(name).openCursor();
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result;
+        if (!cursor) return;
+        const entry = cursor.value;
+        const ageMs = Date.now() - Number(entry?.fetchedAt || 0);
+        if (ageMs > REMOTE_PGN_CACHE_TTL_MS) {
+          cursor.delete();
+        }
+        cursor.continue();
+      };
+    });
     tx.oncomplete = () => {
       db.close();
       resolve();
@@ -4003,12 +4029,15 @@ async function purgeExpiredRemotePgnCache() {
   });
 }
 
+// "Clear saved game data": the games, and everything the mistake search learned about them (in this tab too).
 async function clearAllRemotePgnCache() {
+  forgetMistakeVerdictsInMemory();
   const db = await openRemotePgnCacheDb();
   if (!db) return;
   await new Promise((resolve) => {
-    const tx = db.transaction(REMOTE_PGN_CACHE_STORE, "readwrite");
+    const tx = db.transaction([REMOTE_PGN_CACHE_STORE, MISTAKE_VERDICT_STORE], "readwrite");
     tx.objectStore(REMOTE_PGN_CACHE_STORE).clear();
+    tx.objectStore(MISTAKE_VERDICT_STORE).clear();
     tx.oncomplete = () => {
       db.close();
       resolve();
@@ -4018,6 +4047,165 @@ async function clearAllRemotePgnCache() {
       resolve();
     };
   });
+}
+
+// ---------- Mistake verdicts ----------
+// What the mistake search concluded about a move of a downloaded game, so that a later session over the same games
+// does not search it again: "clean" (screened or verified as not a mistake) or "mistake" with the analysis that
+// confirmed it (the round's reference). Keyed by the settings that change the answer (mistakeVerdictSignature), the
+// game (mistakeVerdictGameKey) and the ply. Only verdicts of the strong engine are kept, never a shallow score: a
+// screening number is not an evaluation, the verdict it led to is. Kept in this tab always, and in IndexedDB next to
+// the games unless the person chose not to keep downloads; "Clear saved game data" forgets both.
+const MISTAKE_VERDICT_VERSION = 1;
+const MISTAKE_VERDICT_FLUSH_MS = 300;
+const mistakeVerdictMemory = new Map();
+let mistakeVerdictPending = [];
+let mistakeVerdictFlushTimer = null;
+let mistakeVerdictGeneration = 0;
+
+function mistakeVerdictEngineId() {
+  return ENGINE_FILE_URL.replace(/^.*\//, "").replace(/\.[a-z0-9]+$/i, "");
+}
+
+// Everything that changes what the search would say about a move: the sensitivity, the screening time, the budget of
+// the confirming analysis and the engine. A change of any of them starts from nothing.
+function mistakeVerdictSignature(config) {
+  const budget = engineBudgetFromSettings();
+  return [
+    `v${MISTAKE_VERDICT_VERSION}`,
+    mistakeVerdictEngineId(),
+    `t${Math.round(Number(config?.thresholdCp) || 0)}`,
+    `s${Math.round(Number(config?.moveTimeMs) || 0)}`,
+    `r${budget.movetimeMs}x${budget.multiPv}`,
+  ].join("|");
+}
+
+// The same game downloaded again (another session, a longer list) has the same key.
+function mistakeVerdictGameKey(game) {
+  const tags = game?.tags || {};
+  return Ludus.util.hashString(JSON.stringify([
+    game?.startFen || "",
+    tags.White || "", tags.Black || "", tags.Date || "", tags.UTCTime || "", tags.Site || "", tags.Link || "",
+    (game?.sanMoves || []).join(" "),
+  ]));
+}
+
+function mistakeVerdictKey(signature, gameKey, ply) {
+  return `${signature}|${gameKey}|${ply}`;
+}
+
+function readMistakeVerdict(ctx, game, ply) {
+  if (!ctx?.verdictSignature || !game?.verdictKey) return null;
+  return mistakeVerdictMemory.get(mistakeVerdictKey(ctx.verdictSignature, game.verdictKey, ply)) || null;
+}
+
+function recordMistakeVerdict(ctx, game, ply, verdict, data) {
+  if (!ctx?.verdictSignature || !game?.verdictKey) return;
+  const entry = { key: mistakeVerdictKey(ctx.verdictSignature, game.verdictKey, ply), fetchedAt: Date.now(), verdict };
+  if (data) entry.data = data;
+  mistakeVerdictMemory.set(entry.key, entry);
+  if (loadNoPersistDownloadsPreference() || !remotePgnCacheAvailable()) return;
+  mistakeVerdictPending.push(entry);
+  if (!mistakeVerdictFlushTimer) mistakeVerdictFlushTimer = setTimeout(() => void flushMistakeVerdicts(), MISTAKE_VERDICT_FLUSH_MS);
+}
+
+// Writes what is pending in one transaction (a session records many verdicts in a row).
+async function flushMistakeVerdicts() {
+  if (mistakeVerdictFlushTimer) clearTimeout(mistakeVerdictFlushTimer);
+  mistakeVerdictFlushTimer = null;
+  const batch = mistakeVerdictPending;
+  mistakeVerdictPending = [];
+  if (!batch.length) return;
+  const generation = mistakeVerdictGeneration;
+  const db = await openRemotePgnCacheDb();
+  if (!db) return;
+  // Cleared while the database was opening: what was pending is forgotten too.
+  if (generation !== mistakeVerdictGeneration) {
+    db.close();
+    return;
+  }
+  await new Promise((resolve) => {
+    let tx;
+    try {
+      tx = db.transaction(MISTAKE_VERDICT_STORE, "readwrite");
+    } catch (error) {
+      db.close();
+      resolve();
+      return;
+    }
+    const store = tx.objectStore(MISTAKE_VERDICT_STORE);
+    batch.forEach((entry) => store.put(entry));
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      resolve();
+    };
+  });
+}
+
+// Brings the saved verdicts of these settings into this tab (the 7 days of the games apply).
+async function loadMistakeVerdicts(signature) {
+  if (!signature || loadNoPersistDownloadsPreference()) return;
+  const db = await openRemotePgnCacheDb();
+  if (!db) return;
+  const generation = mistakeVerdictGeneration;
+  const entries = await new Promise((resolve) => {
+    let tx;
+    try {
+      tx = db.transaction(MISTAKE_VERDICT_STORE, "readonly");
+    } catch (error) {
+      resolve([]);
+      return;
+    }
+    const request = tx.objectStore(MISTAKE_VERDICT_STORE).getAll();
+    request.onsuccess = () => resolve(Array.isArray(request.result) ? request.result : []);
+    request.onerror = () => resolve([]);
+  });
+  db.close();
+  if (generation !== mistakeVerdictGeneration) return;
+  const prefix = `${signature}|`;
+  const now = Date.now();
+  entries.forEach((entry) => {
+    if (!entry || typeof entry.key !== "string" || !entry.key.startsWith(prefix)) return;
+    if (now - Number(entry.fetchedAt || 0) > REMOTE_PGN_CACHE_TTL_MS) return;
+    if (entry.verdict !== "clean" && !(entry.verdict === "mistake" && entry.data && Array.isArray(entry.data.lines) && entry.data.lines.length)) return;
+    if (!mistakeVerdictMemory.has(entry.key)) mistakeVerdictMemory.set(entry.key, entry);
+  });
+}
+
+// The positions the active profile has already played (its rounds) or keeps in its notebook, as a test on a FEN: by
+// the round's position id (`own:<hash of the FEN>`, what a round of these positions records) or by the board, side,
+// castling and en passant (the notebook's own key), so a move-counter difference does not hide one.
+function playedPositionTest() {
+  const ids = new Set();
+  const boards = new Set();
+  const boardOf = (fen) => String(fen || "").trim().split(/\s+/).slice(0, 4).join(" ");
+  const profile = ludusModule("Profile");
+  try {
+    const id = activeProfileId();
+    if (profile && id) {
+      const rounds = typeof profile.rounds === "function" ? profile.rounds(id) : [];
+      const cards = profile.notebook && typeof profile.notebook.list === "function" ? profile.notebook.list({ profileId: id }) : [];
+      [...(Array.isArray(rounds) ? rounds : []), ...(Array.isArray(cards) ? cards : [])].forEach((entry) => {
+        if (entry && entry.positionId) ids.add(String(entry.positionId));
+        if (entry && entry.fen) boards.add(boardOf(entry.fen));
+      });
+    }
+  } catch (error) {
+    // Without the profile nothing counts as played: the known mistakes simply come first.
+  }
+  return (fen) => ids.has(`own:${Ludus.util.hashString(fen)}`) || boards.has(boardOf(fen));
+}
+
+function forgetMistakeVerdictsInMemory() {
+  mistakeVerdictGeneration += 1;
+  mistakeVerdictMemory.clear();
+  mistakeVerdictPending = [];
+  if (mistakeVerdictFlushTimer) clearTimeout(mistakeVerdictFlushTimer);
+  mistakeVerdictFlushTimer = null;
 }
 
 // Courtesy limit on how often this browser hits the Lichess / Chess.com public
@@ -5486,34 +5674,96 @@ function buildMeta(tags, moveNumber, sideToMove) {
   };
 }
 
-function buildRandomCandidateQueue(games, targetName) {
-  const byGame = [];
+// The win chance the mover gave up with the move of this ply according to the evals the server put in the game
+// (the eval before the move is what best play keeps, the eval after it what the move kept), or NaN when the game has
+// no eval on either side of it (not analysed, the first move, a mate on the board).
+function evalLossPctForPly(game, ply) {
+  const evals = Array.isArray(game?.evals) ? game.evals : null;
+  const scoring = ludusModule("Scoring");
+  if (!evals || ply < 1 || !scoring || typeof scoring.encodeScore !== "function") return NaN;
+  const before = scoring.encodeScore(evals[ply - 1]);
+  const after = scoring.encodeScore(evals[ply]);
+  if (!Number.isFinite(before) || !Number.isFinite(after)) return NaN;
+  const sign = ply % 2 === 0 ? 1 : -1; // White moves on even plies; the evals are White's point of view
+  return winLossPct(sign * before, sign * after);
+}
+
+// The order in which the mistake search looks at the person's moves, in four tiers, each interleaved by game so a
+// session mixes games: (1) moves an earlier session confirmed as mistakes with these settings (served without the
+// engine) that the person has not played yet, (2) moves whose loss the server's evals put above the screening line
+// (biggest first: nearly all of them confirm), (3) every other move, at random, and (4) known mistakes the person
+// already played (their rounds or their notebook): seeing a played position again is the notebook's job (its spaced
+// repetition), so they are only a last resort when nothing new is left. Moves an earlier session cleared, and moves the
+// evals clear even with the lowest threshold a position can get (an endgame's), are left out.
+// options: { verdictFor(gameIdx, ply), alreadyPlayed(fen), thresholdCp, stats }.
+function buildRandomCandidateQueue(games, targetName, options = {}) {
+  const verdictFor = typeof options.verdictFor === "function" ? options.verdictFor : () => null;
+  const alreadyPlayed = typeof options.alreadyPlayed === "function" ? options.alreadyPlayed : () => false;
+  const baseCp = clamp(Number(options.thresholdCp) || 150, 50, 800);
+  const minScreenPct = lossPctForCp(Math.round(baseCp * 0.75)) * MISTAKE_SCREEN_FACTOR;
+  const stats = options.stats && typeof options.stats === "object" ? options.stats : {};
+  Object.assign(stats, { playerMoves: 0, knownMistakes: 0, knownPlayed: 0, knownClean: 0, evalCandidates: 0, evalCleared: 0 });
+  const tiers = [[], [], [], []];
   games.forEach((game, gameIdx) => {
     const playerColor = getPlayerColor(game.tags, targetName);
     if (!playerColor) return;
-    const plyIndices = [];
+    const plies = [[], [], [], []];
     for (let ply = 0; ply < game.sanMoves.length; ply += 1) {
       const mover = ply % 2 === 0 ? "w" : "b";
-      if (mover === playerColor) plyIndices.push(ply);
+      if (mover !== playerColor) continue;
+      stats.playerMoves += 1;
+      const known = verdictFor(gameIdx, ply);
+      if (known && known.verdict === "clean") {
+        stats.knownClean += 1;
+        continue;
+      }
+      if (known && known.verdict === "mistake") {
+        stats.knownMistakes += 1;
+        if (known.data && known.data.fen && alreadyPlayed(known.data.fen)) {
+          stats.knownPlayed += 1;
+          plies[3].push({ gameIdx, playerColor, ply });
+        } else {
+          plies[0].push({ gameIdx, playerColor, ply });
+        }
+        continue;
+      }
+      const evalLossPct = evalLossPctForPly(game, ply);
+      if (Number.isFinite(evalLossPct)) {
+        if (evalLossPct < minScreenPct) {
+          stats.evalCleared += 1;
+          continue;
+        }
+        stats.evalCandidates += 1;
+        plies[1].push({ gameIdx, playerColor, ply, evalLossPct });
+        continue;
+      }
+      plies[2].push({ gameIdx, playerColor, ply });
     }
-    if (plyIndices.length === 0) return;
-    byGame.push({ gameIdx, playerColor, plyIndices: shuffle(plyIndices) });
+    tiers[0].push(shuffle(plies[0]));
+    tiers[1].push(plies[1].sort((a, b) => a.evalLossPct - b.evalLossPct)); // popped from the end: biggest first
+    tiers[2].push(shuffle(plies[2]));
+    tiers[3].push(shuffle(plies[3]));
   });
 
-  const shuffledGames = shuffle(byGame);
   const queue = [];
-
-  // Interleave candidates by game so sessions naturally mix different games.
-  let remaining = true;
-  while (remaining) {
-    remaining = false;
-    shuffledGames.forEach((entry) => {
-      const ply = entry.plyIndices.pop();
-      if (!Number.isInteger(ply)) return;
-      remaining = true;
-      queue.push({ gameIdx: entry.gameIdx, playerColor: entry.playerColor, ply });
-    });
-  }
+  tiers.forEach((perGame, tier) => {
+    const shuffledGames = shuffle(perGame.filter((list) => list.length));
+    // Interleave candidates by game so sessions naturally mix different games.
+    let remaining = true;
+    while (remaining) {
+      remaining = false;
+      const round = [];
+      shuffledGames.forEach((list) => {
+        const candidate = list.pop();
+        if (!candidate) return;
+        remaining = true;
+        round.push(candidate);
+      });
+      // Within a round of the eval tier, the bigger loss first.
+      if (tier === 1) round.sort((a, b) => b.evalLossPct - a.evalLossPct);
+      queue.push(...round);
+    }
+  });
   return queue;
 }
 
@@ -5566,7 +5816,8 @@ const MISTAKE_SCREEN_FACTOR = 0.6;
 // its own when it is outside the lines), and the loss of win chance measured again. A candidate that does
 // not confirm is dropped, and a confirmed one carries the analysis as its reference: the round is then scored against
 // exactly what flagged the position (no second opinion that could disagree), and the hint agrees with it.
-// Resolves to null when it does not confirm or the work was cancelled.
+// Resolves to false when the analysis says it is not a mistake (a verdict worth keeping), and to null when there is
+// no answer (the work was cancelled, the engine gave nothing).
 async function verifyMistakeCandidate(before, fen, playedUci, thresholdPct) {
   const plan = getRoundEvaluationPlan(before, { fen }, 1);
   const root = await analyzePosition(fen, { multiPv: plan.multiPv, movetimeMs: plan.movetimeMs });
@@ -5574,7 +5825,7 @@ async function verifyMistakeCandidate(before, fen, playedUci, thresholdPct) {
   const lines = compactEngineLines(root.lines);
   if (!lines.length) return null;
   // The engine's own best move is the one the person played: nothing to learn here.
-  if (lines[0].uci === playedUci) return null;
+  if (lines[0].uci === playedUci) return false;
   const inLines = lines.find((line) => line.uci === playedUci);
   let playedMover;
   if (inLines) {
@@ -5618,33 +5869,76 @@ async function evaluateCandidateForMistake(candidate, ctx) {
       const playedUci = moveToUci(move);
       const beforeFen = before.fen();
 
-      const bestResult = await analyzePosition(beforeFen, { multiPv: 1, movetimeMs: budgetMs, noCache: true });
-      const bestLine = bestResult.lines[0];
-      if (!bestLine) return null;
-      const bestUci = lineFirstUci(bestLine);
-      // The person played the engine's move: nothing to learn here, and one search saved.
-      if (!bestUci || bestUci === playedUci) return null;
-      const playedResult = await analyzePosition(beforeFen, { searchMoves: [playedUci], multiPv: 1, movetimeMs: budgetMs, noCache: true });
-      const playedLine = playedResult.lines[0];
-      if (!playedLine) return null;
+      // An earlier session with these settings already decided this move (see "Mistake verdicts").
+      const known = readMistakeVerdict(ctx, game, ply);
+      if (known && known.verdict === "clean") return null;
+      const knownMistake = known && known.verdict === "mistake" && known.data && known.data.playedUci === playedUci
+        && Array.isArray(known.data.lines) && known.data.lines.length ? known.data : null;
+      const engineVerify = async () => {
+        const result = await verifyMistakeCandidate(before, beforeFen, playedUci, adaptive.thresholdPct);
+        if (result === false) recordMistakeVerdict(ctx, game, ply, "clean");
+        if (result) {
+          recordMistakeVerdict(ctx, game, ply, "mistake", {
+            playedUci,
+            fen: beforeFen,
+            lines: result.lines.map((line) => ({ uci: line.uci, san: line.san || "", score: line.score, pv: line.pv })),
+            depth: result.depth,
+            bestMover: result.bestMover,
+            playedMover: result.playedMover,
+            lossPct: result.lossPct,
+          });
+        }
+        return result || null;
+      };
 
-      let bestMover = lineMoverScore(bestLine);
-      let playedMover = lineMoverScore(playedLine);
-      let finalBestUci = bestUci;
-      let lossPct = winLossPct(bestMover, playedMover);
-      // Both searches came from the strong engine: a candidate that may be a mistake gets the second, proper look.
-      // (The fallback engine cannot do better than it already did.)
+      let bestMover;
+      let playedMover;
+      let finalBestUci;
+      let lossPct;
       let verified = null;
-      if (bestResult.source === "stockfish" && playedResult.source === "stockfish") {
-        if (!(lossPct >= adaptive.thresholdPct * MISTAKE_SCREEN_FACTOR)) return null;
-        verified = await verifyMistakeCandidate(before, beforeFen, playedUci, adaptive.thresholdPct);
+      if (knownMistake) {
+        verified = knownMistake;
+      } else if (Number.isFinite(candidate.evalLossPct) && engineSourceName() === "stockfish") {
+        // The server's evals stand in for the screening: below the line, nothing to search; above it, the proper look.
+        if (!(candidate.evalLossPct >= adaptive.thresholdPct * MISTAKE_SCREEN_FACTOR)) return null;
+        verified = await engineVerify();
         if (!verified) return null;
+      } else {
+        const bestResult = await analyzePosition(beforeFen, { multiPv: 1, movetimeMs: budgetMs, noCache: true });
+        const bestLine = bestResult.lines[0];
+        if (!bestLine) return null;
+        const bestUci = lineFirstUci(bestLine);
+        const strongBest = bestResult.source === "stockfish" && !bestResult.aborted && !bestResult.timedOut;
+        // The person played the engine's move: nothing to learn here, and one search saved.
+        if (bestUci && bestUci === playedUci && strongBest) recordMistakeVerdict(ctx, game, ply, "clean");
+        if (!bestUci || bestUci === playedUci) return null;
+        const playedResult = await analyzePosition(beforeFen, { searchMoves: [playedUci], multiPv: 1, movetimeMs: budgetMs, noCache: true });
+        const playedLine = playedResult.lines[0];
+        if (!playedLine) return null;
+
+        bestMover = lineMoverScore(bestLine);
+        playedMover = lineMoverScore(playedLine);
+        finalBestUci = bestUci;
+        lossPct = winLossPct(bestMover, playedMover);
+        // Both searches came from the strong engine: a candidate that may be a mistake gets the second, proper look.
+        // (The fallback engine cannot do better than it already did.)
+        if (bestResult.source === "stockfish" && playedResult.source === "stockfish") {
+          if (!(lossPct >= adaptive.thresholdPct * MISTAKE_SCREEN_FACTOR)) {
+            // The verdict is kept, not the shallow numbers that led to it.
+            if (strongBest && !playedResult.aborted && !playedResult.timedOut && Number.isFinite(lossPct)) recordMistakeVerdict(ctx, game, ply, "clean");
+            return null;
+          }
+          verified = await engineVerify();
+          if (!verified) return null;
+        } else if (!(lossPct >= adaptive.thresholdPct)) {
+          return null;
+        }
+      }
+      if (verified) {
         finalBestUci = verified.lines[0].uci;
         bestMover = verified.bestMover;
         playedMover = verified.playedMover;
         lossPct = verified.lossPct;
-      } else if (!(lossPct >= adaptive.thresholdPct)) {
-        return null;
       }
       const scored = computeLossAgainstBest(bestMover, playedMover);
 
@@ -8712,6 +9006,9 @@ async function fetchLichessPgn() {
     params.set("max", String(max));
     params.set("since", String(sinceMs));
     params.set("perfType", perfTypes.join(","));
+    // Games the server already analysed come with a [%eval] after every move: the mistake search uses them to
+    // pick its candidates instead of screening every move with the engine (buildRandomCandidateQueue).
+    params.set("evals", "true");
     const url = `https://lichess.org/api/games/user/${encodeURIComponent(rawUser)}?${params.toString()}`;
     const response = await fetchWithTimeout(url, {
       method: "GET",
@@ -9105,6 +9402,7 @@ async function startSessionPipeline() {
     await ensureEngineForSession();
     if (!isCurrentSessionWork(sessionToken)) return;
     if (!(await ensurePgnSourceAvailable(sessionToken))) return;
+    markWizardBusyAnalysis();
 
     const ctx = await loadCandidateAnalysisContext(effectiveConfig);
     if (!ctx) return;
@@ -9112,7 +9410,9 @@ async function startSessionPipeline() {
     const firstSearch = await findNextMistake(ctx, { first: true });
     if (!isCurrentSessionWork(sessionToken)) return;
     if (!firstSearch.mistake) {
-      sendWizardBackToSourceStep("provider.noUsefulMistakes", { analyzed: ctx.analyzed, total: ctx.total }, { actions: ["user", "platform"] });
+      // The moves cleared without a search (an earlier session, the server's evals) were analysed too.
+      const cleared = (ctx.queueStats?.knownClean || 0) + (ctx.queueStats?.evalCleared || 0);
+      sendWizardBackToSourceStep("provider.noUsefulMistakes", { analyzed: ctx.analyzed + cleared, total: ctx.total + cleared }, { actions: ["user", "platform"] });
       return;
     }
 
@@ -9293,9 +9593,24 @@ async function loadCandidateAnalysisContext(effectiveConfig) {
   const depth = INTERNAL_ANALYSIS_DEPTH;
   const moveTimeMs = effectiveConfig.moveTimeMs;
   const threshold = effectiveConfig.thresholdCp;
-  const candidates = buildRandomCandidateQueue(allGames, playerName);
+  // What earlier sessions over these games concluded with these settings (see "Mistake verdicts").
+  const verdictSignature = mistakeVerdictSignature({ thresholdCp: threshold, moveTimeMs });
+  await loadMistakeVerdicts(verdictSignature);
+  allGames.forEach((game) => {
+    game.verdictKey = mistakeVerdictGameKey(game);
+  });
+  const verdictCtx = { verdictSignature };
+  const queueStats = {};
+  const candidates = buildRandomCandidateQueue(allGames, playerName, {
+    thresholdCp: threshold,
+    verdictFor: (gameIdx, ply) => readMistakeVerdict(verdictCtx, allGames[gameIdx], ply),
+    alreadyPlayed: playedPositionTest(),
+    stats: queueStats,
+  });
   const uniqueGameCount = new Set(candidates.map((c) => c.gameIdx)).size;
-  if (candidates.length === 0) {
+  // Every move of the person already cleared (by an earlier session or by the server's evals) is not "nothing to
+  // analyse": the search simply finds nothing new, as it would have after screening them all again.
+  if (queueStats.playerMoves === 0) {
     sendWizardBackToSourceStep("provider.noAnalyzablePositions");
     return null;
   }
@@ -9309,6 +9624,8 @@ async function loadCandidateAnalysisContext(effectiveConfig) {
     depth,
     moveTimeMs,
     thresholdCp: threshold,
+    verdictSignature,
+    queueStats,
     candidates,
     total: candidates.length,
     analyzed: 0,
