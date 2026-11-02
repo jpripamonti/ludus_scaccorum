@@ -175,9 +175,11 @@ setting resolves to) and `Ludus.chess.spokenSan(san, lang)` (the move in words f
 an `aria-label`: `Nxf3+` -> "caballo captura en f3, jaque" / "knight takes f3, check").
 
 `js/pgn.js` → `Ludus.pgn = { parseTags, resolveGameStartFen, tokenizeSanMoves,
-splitGamesFromText, buildGameFromText, removeVariations, hasOversizedComment,
-cleanTagValue }` (moved verbatim from `app.js`, same limits).
-`buildGameFromText(text) -> { tags, sanMoves } | null`.
+tokenizeMovesAndEvals, parseEvalComment, splitGamesFromText, buildGameFromText, removeVariations,
+hasOversizedComment, cleanTagValue }` (moved verbatim from `app.js`, same limits).
+`buildGameFromText(text) -> { tags, sanMoves, evals? } | null`: `evals` only when the game carries `[%eval]` comments
+(Lichess `evals=true`), one per ply (`{ type: "cp"|"mate", value }`, White's point of view, after the move), `null` where a
+move has none; comments inside variations are dropped with them.
 
 ## 6. Engine (`js/engine.js`)
 
@@ -761,7 +763,12 @@ The download is abortable (`#analysis-cancel-btn`, elapsed seconds in `#analysis
 when its dialog cannot be shown, and the Chess.com archive URLs are validated against the provider's host and the username. The last username per provider
 is remembered (`ludus.lastUser.v1`, forgotten with the saved games). A mistake is a loss of WIN CHANCE (`Scoring.winPercent`), not of centipawns: candidates
 are screened with a cheap search (never cached, `noCache`), confirmed with the round's own MultiPV analysis (`verifyMistakeCandidate`), and the confirmed
-analysis becomes `position.reference` (`engine.origin: "runtime"`). `mistakes.sensitivity` keeps its centipawn labels; `lossPctForCp` converts. A position with
+analysis becomes `position.reference` (`engine.origin: "runtime"`). The verdicts are kept (`MISTAKE_VERDICT_STORE` = `verdicts` in the
+same IndexedDB as the games, database version 2, same 7 days, cleared by "Clear saved game data", only in the tab when downloads are not kept),
+keyed by `mistakeVerdictSignature` (engine file, threshold, screening time, the budget of the confirmation), the game (`mistakeVerdictGameKey`)
+and the ply: "clean", or "mistake" with the confirming analysis; never a screening score. `buildRandomCandidateQueue` serves known mistakes first,
+then the moves the server's `[%eval]` loss puts above the screening line (biggest first; they skip the screening and go straight to
+`verifyMistakeCandidate`), then the rest at random; known-clean moves and moves the evals clear are left out. `mistakes.sensitivity` keeps its centipawn labels; `lossPctForCp` converts. A position with
 fewer than 6 legal moves is never a training position (`MIN_LEGAL_MOVES_FOR_CANDIDATE`: with 3-5 the answer can be found by elimination). The game phase comes from `Insights.gamePhase` (one classifier for the whole app).
 
 **Engine.** `Engine.supported()` probes WebAssembly SIMD and Workers; an unsupported browser never downloads the file and is told it plays with the

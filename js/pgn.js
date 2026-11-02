@@ -101,17 +101,39 @@
     return trimmed;
   }
 
-  // Returns the SAN move list, or null when the game is malformed/pathological
-  // (variation nesting too deep, or more plies than any realistic game) so the
-  // caller can skip just this game instead of crashing or hanging on it.
-  function tokenizeSanMoves(gameText) {
+  // A server-side evaluation in a comment, as Lichess writes it with evals=true: "[%eval 0.17]",
+  // "[%eval -1.5]", "[%eval #3]" (mate in 3 for White), "[%eval #-2]", optionally ",<depth>".
+  // White's point of view; the value of the position AFTER the move the comment follows.
+  const EVAL_COMMENT = /\[%eval\s+(#?)([+-]?\d+(?:\.\d+)?)(?:,\d+)?\s*\]/;
+  const EVAL_TOKEN = /^§E(\d+)§$/;
+
+  // { type: "cp", value } (centipawns) or { type: "mate", value } (moves, + for White), or null.
+  function parseEvalComment(comment) {
+    const match = String(comment || "").match(EVAL_COMMENT);
+    if (!match) return null;
+    const value = Number(match[2]);
+    if (!Number.isFinite(value)) return null;
+    return match[1] === "#" ? { type: "mate", value: Math.round(value) } : { type: "cp", value: Math.round(value * 100) };
+  }
+
+  // The moves of the main line and, when the game carries [%eval] comments, the evaluation after each of
+  // them (null where a move has none; evals is null when the game has none at all). A comment becomes a
+  // placeholder token exactly where it used to be dropped, BEFORE the variations are removed, so a comment
+  // inside a variation goes with it and the evals line up with the moves by construction.
+  function tokenizeMovesAndEvals(gameText) {
+    const evalsSeen = [];
     const movesText = gameText
       .split("\n")
       .filter((line) => !line.startsWith("["))
       .join(" ");
     const stripped = removeVariations(
       movesText
-        .replace(/\{[^}]*\}/g, " ")
+        .replace(/\{[^}]*\}/g, (comment) => {
+          const parsed = parseEvalComment(comment);
+          if (!parsed) return " ";
+          evalsSeen.push(parsed);
+          return ` §E${evalsSeen.length - 1}§ `;
+        })
         .replace(/;.*$/gm, " ")
         .replace(/\$\d+/g, " ")
         .replace(/\r/g, " "),
@@ -121,10 +143,31 @@
       .replace(/\d+\.(\.\.)?/g, " ")
       .replace(/\s+/g, " ")
       .trim();
-    const tokens = normalized.split(" ").filter(Boolean);
-    const sanMoves = tokens.filter((token) => !["1-0", "0-1", "1/2-1/2", "*"].includes(token));
+    const sanMoves = [];
+    const evals = [];
+    let anyEval = false;
+    normalized.split(" ").filter(Boolean).forEach((token) => {
+      const placeholder = token.match(EVAL_TOKEN);
+      if (placeholder) {
+        if (sanMoves.length) {
+          evals[sanMoves.length - 1] = evalsSeen[Number(placeholder[1])];
+          anyEval = true;
+        }
+        return;
+      }
+      if (["1-0", "0-1", "1/2-1/2", "*"].includes(token)) return;
+      sanMoves.push(token);
+    });
     if (sanMoves.length > PGN_MAX_PLIES) return null;
-    return sanMoves;
+    return { sanMoves, evals: anyEval ? sanMoves.map((_, index) => evals[index] || null) : null };
+  }
+
+  // Returns the SAN move list, or null when the game is malformed/pathological
+  // (variation nesting too deep, or more plies than any realistic game) so the
+  // caller can skip just this game instead of crashing or hanging on it.
+  function tokenizeSanMoves(gameText) {
+    const parsed = tokenizeMovesAndEvals(gameText);
+    return parsed ? parsed.sanMoves : null;
   }
 
   function splitGamesFromText(text) {
@@ -141,9 +184,12 @@
   function buildGameFromText(gameText) {
     if (gameText.length > PGN_GAME_MAX_CHARS) return null;
     if (hasOversizedComment(gameText)) return null;
-    const sanMoves = tokenizeSanMoves(gameText);
-    if (!sanMoves) return null;
-    return { tags: parseTags(gameText), sanMoves };
+    const parsed = tokenizeMovesAndEvals(gameText);
+    if (!parsed) return null;
+    const game = { tags: parseTags(gameText), sanMoves: parsed.sanMoves };
+    // Only a game the server analysed carries evals (one per ply, null where a move has none).
+    if (parsed.evals) game.evals = parsed.evals;
+    return game;
   }
 
   const limits = Object.freeze({
@@ -160,6 +206,8 @@
     resolveGameStartFen,
     cleanTagValue,
     tokenizeSanMoves,
+    tokenizeMovesAndEvals,
+    parseEvalComment,
     splitGamesFromText,
     buildGameFromText,
     limits,
