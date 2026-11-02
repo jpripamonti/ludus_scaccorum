@@ -11,8 +11,8 @@ finished app (regression, visual, copy). Ids (V03, C-12, ...) are the reviewers'
 * No notched phone: `viewport-fit=cover` is deliberately off. Turn it on only with a device that reports safe-area insets.
 * No real screen reader (NVDA, VoiceOver, TalkBack): live regions, `spokenSan` labels and focus moves were checked by
   reading the DOM only. Voice-control users may not match the visible move text to the spoken accessible name (WCAG 2.5.3).
-* Lichess, Chess.com, Google sign-in and Google Drive were never reached (the sandbox blocks them): their flows are covered
-  by mocked tests only. Google sign-in needs the owner's own OAuth client id (`docs/GOOGLE_SIGNIN.md`).
+* Chess.com was run for real on 2026-11-02 (download, mistake search, a scored round). Lichess, Google sign-in and Google
+  Drive were never reached with a real account: their flows are covered by mocked tests only. Google sign-in needs the owner's own OAuth client id (`docs/GOOGLE_SIGNIN.md`).
 * axe-core was not available offline: the axe scenarios of the e2e scripts are skipped unless `LUDUS_AXE=/path/to/axe.min.js`.
 * Engine timing on a slow phone: the learner's move is now searched at the same depth as the best line (it costs up to about
   twice the time of one search). Measured on a desktop only.
