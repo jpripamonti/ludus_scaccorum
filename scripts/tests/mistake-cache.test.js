@@ -168,6 +168,37 @@ test("a known mistake the person already played waits at the end of the queue: a
   assert.strictEqual(three.ctx.candidates[three.ctx.candidates.length - 1].ply, 14);
 });
 
+test("a mistake found afresh (no saved verdict) that the person already played is kept aside and served only when nothing new is left", async () => {
+  // The positions, found once with another storage, to know their FENs.
+  const probe = await runSession(freshApp(createFakeIndexedDB()), pgn());
+  const ng5 = probe.found.find((m) => m.gameMoveSan === "Ng5");
+  const nxf7 = probe.found.find((m) => m.gameMoveSan === "Nxf7");
+  const record = (env, m) => assert.ok(env.context.Ludus.Profile.recordRound({ fen: m.fen, positionId: m.id, source: "own", sessionKind: "own", points: 4, userUci: "d2d4", bestUci: m.bestMoveUci }));
+
+  for (let run = 0; run < 5; run += 1) {
+    // Ng5 was played with the old code: a round in the profile, no verdict anywhere (a fresh IndexedDB).
+    const storageMap = new Map();
+    const before = freshApp(createFakeIndexedDB(), storageMap);
+    before.context.Ludus.Profile.ensureActive();
+    record(before, ng5);
+    const env = freshApp(createFakeIndexedDB(), storageMap);
+    const { ctx, found } = await runSession(env, pgn());
+    assert.ok(env.calls.screening >= 8, "found by the screening, not from a saved verdict");
+    assert.deepStrictEqual(Array.from(found, (m) => m.gameMoveSan), ["Nxf7", "Ng5"], "the new mistake first, the played one only at the end");
+    assert.strictEqual(ctx.playedMistakes.length, 0, "the fallback was used up");
+  }
+
+  // Both played: nothing new exists, so the played ones are still served (the session is not left empty).
+  const storageMap = new Map();
+  const both = freshApp(createFakeIndexedDB(), storageMap);
+  both.context.Ludus.Profile.ensureActive();
+  record(both, ng5);
+  record(both, nxf7);
+  const again = freshApp(createFakeIndexedDB(), storageMap);
+  const { found } = await runSession(again, pgn());
+  assert.deepStrictEqual(Array.from(found, (m) => m.gameMoveSan).sort(), ["Ng5", "Nxf7"]);
+});
+
 test("the wizard's wait line speaks of the download while it lasts, and of the analysis once the games are here", async () => {
   for (const language of ["en", "es"]) {
     const env = loadApp(createFakeIndexedDB(), createFakeDom({ languages: [language] }));

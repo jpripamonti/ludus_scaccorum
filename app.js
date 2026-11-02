@@ -5986,6 +5986,29 @@ async function findNextMistake(ctx, options = {}) {
   return { status: STATE.ui.searchCancelRequested ? "cancelled" : "exhausted", mistake: null };
 }
 
+// A mistake the active profile already played (its rounds or notebook, ctx.alreadyPlayed = playedPositionTest()) is
+// not new: seeing it again is the notebook's job, so the search keeps it aside (ctx.playedMistakes) and serves it only
+// when nothing else is left. The queue already puts the KNOWN ones last; this catches one found afresh (by the
+// screening or the evals), for instance a position played before its verdict was ever saved.
+function mistakeAlreadyPlayed(ctx, mistake) {
+  try {
+    return Boolean(mistake && typeof ctx.alreadyPlayed === "function" && ctx.alreadyPlayed(mistake.fen));
+  } catch (error) {
+    return false;
+  }
+}
+
+function servePlayedMistake(ctx, isNextSearch) {
+  const fallback = ctx.playedMistakes.shift();
+  const usedGames = ctx.usedGameIndices instanceof Set ? ctx.usedGameIndices : null;
+  if (usedGames && Number.isInteger(fallback.gameIdx)) usedGames.add(fallback.gameIdx);
+  ctx.detected += 1;
+  updateAnalysisProgress(ctx.analyzed, ctx.total, ctx.detected, t("analysis.extra.detectedRepeated"));
+  analysisStatusEl.textContent = t("analysis.status.noFresh", { count: ctx.detected });
+  if (isNextSearch) updateNextSearchStatus(ctx);
+  return fallback;
+}
+
 async function searchNextMistake(ctx, options = {}) {
   if (!ctx || STATE.analysisInProgress) return null;
   STATE.analysisInProgress = true;
@@ -5996,6 +6019,10 @@ async function searchNextMistake(ctx, options = {}) {
   const isNextSearch = Boolean(options && options.next);
   try {
     if (!Array.isArray(ctx.repeatMistakes)) ctx.repeatMistakes = [];
+    if (!Array.isArray(ctx.playedMistakes)) ctx.playedMistakes = [];
+    if (ctx.cursor >= ctx.candidates.length && ctx.repeatMistakes.length === 0 && ctx.playedMistakes.length > 0) {
+      return servePlayedMistake(ctx, isNextSearch);
+    }
     if (ctx.cursor >= ctx.candidates.length && ctx.repeatMistakes.length > 0) {
       const fallback = ctx.repeatMistakes.shift();
       const usedGames = ctx.usedGameIndices instanceof Set ? ctx.usedGameIndices : null;
@@ -6032,10 +6059,12 @@ async function searchNextMistake(ctx, options = {}) {
       if (STATE.ui.searchCancelRequested) {
         // Cancelling while a candidate was being evaluated has to stop here.
         // Keep what the engine just found so the next search can reuse it.
-        if (mistake) ctx.repeatMistakes.push(mistake);
+        if (mistake) (mistakeAlreadyPlayed(ctx, mistake) ? ctx.playedMistakes : ctx.repeatMistakes).push(mistake);
         break;
       }
-      if (mistake) {
+      if (mistake && mistakeAlreadyPlayed(ctx, mistake)) {
+        ctx.playedMistakes.push(mistake);
+      } else if (mistake) {
         const gameIdx = Number.isInteger(mistake.gameIdx) ? mistake.gameIdx : candidate.gameIdx;
         const usedGames = ctx.usedGameIndices instanceof Set ? ctx.usedGameIndices : null;
         const uniqueGameCount = Number.isInteger(ctx.uniqueGameCount) ? ctx.uniqueGameCount : 0;
@@ -6084,6 +6113,11 @@ async function searchNextMistake(ctx, options = {}) {
       analysisStatusEl.textContent = t("analysis.status.noFresh", { count: ctx.detected });
       if (isNextSearch) updateNextSearchStatus(ctx);
       return deferredRepeat;
+    }
+
+    // Nothing new is left (the queue is done, or this search ran out of budget): an already played mistake will do.
+    if (!STATE.ui.searchCancelRequested && ctx.playedMistakes.length > 0) {
+      return servePlayedMistake(ctx, isNextSearch);
     }
 
     if (STATE.ui.searchCancelRequested) {
@@ -9600,11 +9634,12 @@ async function loadCandidateAnalysisContext(effectiveConfig) {
     game.verdictKey = mistakeVerdictGameKey(game);
   });
   const verdictCtx = { verdictSignature };
+  const alreadyPlayed = playedPositionTest();
   const queueStats = {};
   const candidates = buildRandomCandidateQueue(allGames, playerName, {
     thresholdCp: threshold,
     verdictFor: (gameIdx, ply) => readMistakeVerdict(verdictCtx, allGames[gameIdx], ply),
-    alreadyPlayed: playedPositionTest(),
+    alreadyPlayed,
     stats: queueStats,
   });
   const uniqueGameCount = new Set(candidates.map((c) => c.gameIdx)).size;
@@ -9626,6 +9661,8 @@ async function loadCandidateAnalysisContext(effectiveConfig) {
     thresholdCp: threshold,
     verdictSignature,
     queueStats,
+    alreadyPlayed,
+    playedMistakes: [],
     candidates,
     total: candidates.length,
     analyzed: 0,
