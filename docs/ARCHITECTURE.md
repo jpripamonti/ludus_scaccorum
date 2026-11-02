@@ -770,6 +770,8 @@ and the ply: "clean", or "mistake" with the confirming analysis; never a screeni
 profile has not played first, then the moves the server's `[%eval]` loss puts above the screening line (biggest first; they skip the screening and
 go straight to `verifyMistakeCandidate`), then the rest at random, and last the known mistakes already in the profile's rounds or notebook (seeing
 a played position again is the notebook's spaced repetition, so they are only a fallback); known-clean moves and moves the evals clear are left out.
+A mistake found afresh by the search whose position the profile already played (no verdict was saved for it) is kept aside in
+`ctx.playedMistakes` by `searchNextMistake` and served only when nothing new is left (`mistakeAlreadyPlayed`, `playedPositionTest`).
 The wizard's wait line (`#analysis-elapsed`) speaks of the download until the games are here, then of the analysis (`markWizardBusyAnalysis`). `mistakes.sensitivity` keeps its centipawn labels; `lossPctForCp` converts. A position with
 fewer than 6 legal moves is never a training position (`MIN_LEGAL_MOVES_FOR_CANDIDATE`: with 3-5 the answer can be found by elimination). The game phase comes from `Insights.gamePhase` (one classifier for the whole app).
 
