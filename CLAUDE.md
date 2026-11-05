@@ -15,6 +15,9 @@ README.md covers features and layout; this file only holds what the code does no
 
 ## Where things live
 
+- Opening names: `data/openings/*.tsv` (Lichess chess-openings, CC0) -> `node scripts/build-openings.js` -> `js/data/openings.data.js`;
+  `scripts/tests/openings.test.js` fails when the generated file is stale.
+
 - Design and contracts: `docs/ARCHITECTURE.md`; scoring: `docs/SCORING.md`; classic games data:
   `docs/CLASSICS_DATA.md`; Google sign-in setup: `docs/GOOGLE_SIGNIN.md`.
 - Open work: `PENDING.md`. Known unfixed findings: `docs/KNOWN_ISSUES.md`. Old audit reports: `docs/reports/`.

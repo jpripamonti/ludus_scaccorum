@@ -182,7 +182,7 @@ async function runViewport(browser, viewport) {
     await waitForScreen(page, "home");
     await page.locator("#screen-home .home-mode").first().waitFor({ state: "visible" });
     const modes = await page.locator("#screen-home .home-mode").evaluateAll((cards) => cards.map((card) => card.getAttribute("data-mode")));
-    assert.deepStrictEqual(modes, ["own", "classics", "review", "duel"], "the four mode cards");
+    assert.deepStrictEqual(modes, ["own", "openings", "classics", "review", "duel"], "the five mode cards");
     for (const mode of ["own", "classics", "duel"]) {
       assert.strictEqual(await page.locator(`#screen-home .home-mode[data-mode="${mode}"]`).isVisible(), true, `the ${mode} card is visible`);
     }

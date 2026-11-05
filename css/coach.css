@@ -1265,6 +1265,13 @@ html[data-motion="reduce"] .co-score.is-bump .co-score-value { animation: none; 
 }
 .co-insight-text { margin: 0 0 6px; font-size: var(--text-base); line-height: var(--lh-normal); text-wrap: pretty; }
 /* The theme of the position (sacrifice, only move...), told after the answer. */
+/* The opening of an openings-session position: its name, then the book moves from here (or where the game left the book). */
+.co-opening-name { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-2); color: var(--color-text); font-weight: 650; line-height: var(--lh-snug); overflow-wrap: anywhere; }
+.co-book { display: grid; gap: 6px; margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+.co-book-move { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); min-width: 0; }
+.co-book-san { flex: none; min-width: 4.5ch; color: var(--color-text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.co-book-name { min-width: 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+
 .co-theme { display: grid; gap: 4px; margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--color-hairline); }
 .co-theme-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0; }
 .co-theme-label { color: var(--color-text-muted); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }

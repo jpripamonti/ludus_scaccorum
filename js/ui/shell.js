@@ -173,7 +173,7 @@
     { id: "settings", icon: "settings", key: "shell.nav.settings" },
     { id: "account", icon: "user", key: "shell.nav.account" },
   ];
-  const HASH_ROUTES = ["home", "classics", "notebook", "progress", "museum", "settings", "account", "daily"];
+  const HASH_ROUTES = ["home", "classics", "notebook", "progress", "museum", "settings", "account", "daily", "openings"];
   const MORE_IDS = MORE_ITEMS.map((item) => item.id);
   const HIDDEN_ON = ["game"];
   const MINIMAL_ON = ["landing"];
