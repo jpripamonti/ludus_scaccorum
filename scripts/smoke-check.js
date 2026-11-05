@@ -58,8 +58,9 @@ const LOGIC_MODULES = [
   "js/audio.js",
   "js/auth.js",
   "js/classics.js",
+  "js/openings.js",
 ];
-const SCREEN_NAMES = ["home", "classics", "notebook", "progress", "museum", "settings", "account"];
+const SCREEN_NAMES = ["home", "classics", "notebook", "progress", "museum", "settings", "account", "openings"];
 const UI_SUPPORT_NAMES = ["kit", "shell", "board", "coach"];
 const SCREEN_MODULES = [...UI_SUPPORT_NAMES, ...SCREEN_NAMES].map((name) => `js/ui/${name}.js`);
 const CSS_FILES = ["css/system.css", "css/shell.css", "css/board.css", "css/coach.css", ...SCREEN_NAMES.map((name) => `css/${name}.css`)];

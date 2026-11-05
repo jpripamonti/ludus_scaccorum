@@ -84,3 +84,10 @@ Operational requirement: if the fonts are ever replaced or loaded from a remote 
 - Files: `assets/brand/logo.svg`, `assets/brand/favicon.svg`, `assets/icons/icon-192.png`, `assets/icons/icon-512.png`, `assets/icons/icon-maskable-512.png`, `assets/icons/apple-touch-icon.png`.
 - Origin: an original mark drawn for this project (a rook inside a laurel wreath, built from plain geometric paths); the PNG icons are rendered from the SVG with Chromium. No third-party artwork or font is embedded in these files (the SVGs contain no text).
 - License: same as the project (GPL-3.0-or-later).
+
+## Opening names (Lichess chess-openings dataset)
+
+- Files shipped: `js/data/openings.data.js` (generated, about 240 KB), built by `scripts/build-openings.js` from `data/openings/{a,b,c,d,e}.tsv` (the dataset as published, 3,865 named lines, not deployed).
+- Source: `https://github.com/lichess-org/chess-openings` (ECO code, name and moves of each line), downloaded 2026-11-02.
+- License: public domain (CC0). The dataset's README says: "As a collection of facts, this data set is in the public domain". No attribution is required; it is credited here anyway.
+- What the app does with it: names the opening of each downloaded game by the deepest dataset position it reached (positions are matched by board, side to move, castling and en passant, so move orders that transpose find the same name), finds where the game left the book, and lists the book moves from a position in the coach. The names are shown as published (English).

@@ -135,6 +135,12 @@
       "coach.section.fact": "¿Sabías que…?",
       "coach.section.note": "Nota del maestro",
       "coach.section.duel": "Los dos jugadores",
+      "coach.section.opening": "La apertura",
+      "coach.opening.book": "Por libro, acá se juega:",
+      "coach.opening.bookEnd": "Acá terminan las líneas con nombre del libro.",
+      "coach.opening.left": "La partida salió del libro en la jugada {n}.",
+      "coach.opening.leftYou": "La partida salió del libro en la jugada {n}, con una jugada tuya.",
+      "coach.opening.leftThem": "La partida salió del libro en la jugada {n}, con una jugada de tu rival.",
       "coach.winChance": "Chances de ganar",
       "coach.winChance.aria": "Chances de ganar: {pct}%",
       "coach.eval": "Evaluación {eval}",
@@ -313,6 +319,12 @@
       "coach.section.fact": "Did you know?",
       "coach.section.note": "Note from the master",
       "coach.section.duel": "Both players",
+      "coach.section.opening": "The opening",
+      "coach.opening.book": "The book plays here:",
+      "coach.opening.bookEnd": "The named lines of the book end here.",
+      "coach.opening.left": "The game left the book on move {n}.",
+      "coach.opening.leftYou": "The game left the book on move {n}, with a move of yours.",
+      "coach.opening.leftThem": "The game left the book on move {n}, with a move of your opponent.",
       "coach.winChance": "Win chance",
       "coach.winChance.aria": "Win chance: {pct}%",
       "coach.eval": "Evaluation {eval}",
@@ -1385,6 +1397,30 @@
     ], "co-compare");
   }
 
+  // An openings session (context.opening, app.js openingContextFor): the opening of the game and, while the position is
+  // still in the book, the moves the book plays here with the names they lead to; otherwise where the game left it.
+  function openingCard(context, lang) {
+    const opening = context && context.opening;
+    if (!opening || !opening.name) return null;
+    const parts = [
+      eyebrow(t("coach.section.opening", {}, lang), "book"),
+      h("p", { class: "co-opening-name" }, opening.eco ? plainChip(opening.eco, "gold") : null, h("span", null, opening.name)),
+    ];
+    const moves = Array.isArray(opening.continuations) ? opening.continuations : [];
+    if (opening.inBook && moves.length) {
+      parts.push(h("p", { class: "co-caption" }, t("coach.opening.book", {}, lang)));
+      parts.push(h("ul", { class: "co-book" }, moves.map((move) => h("li", { class: "co-book-move" },
+        h("span", { class: "co-book-san", "aria-label": speakSan(move.san || "", lang) }, showSan(move.san || "", lang)),
+        move.name && move.name !== opening.name ? h("span", { class: "co-book-name" }, move.name) : null))));
+    } else if (opening.inBook) {
+      parts.push(h("p", { class: "co-caption" }, t("coach.opening.bookEnd", {}, lang)));
+    } else if (opening.leftMove > 0) {
+      const key = opening.leftByMe === true ? "coach.opening.leftYou" : opening.leftByMe === false ? "coach.opening.leftThem" : "coach.opening.left";
+      parts.push(h("p", { class: "co-caption" }, t(key, { n: opening.leftMove }, lang)));
+    }
+    return card(parts, "co-opening");
+  }
+
   function insightsCard(context, answer, lang) {
     if (!answer) return null;
     const list = insightTexts(answer, lang);
@@ -1666,6 +1702,7 @@
       hero(context, answer, lang, { rewards: context.rewards && context.rewards[0], gaugeSize: opts.gaugeSize }),
       ...notesFor(context, answer, lang),
       compareCard(context, [answer], { lang }),
+      openingCard(context, lang),
       insightsCard(context, answer, lang),
       conceptsRow(answer, lang),
       linesCard(context, lang, opts),

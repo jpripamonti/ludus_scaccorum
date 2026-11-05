@@ -178,6 +178,8 @@ const MAX_TURN_TIME_SECONDS = 360;
 // legal moves can be solved by elimination, so it teaches nothing; raising the minimum to 6 drops about 5% of own-game positions and
 // none of the 260 classic ones (all have 11+).
 const MIN_LEGAL_MOVES_FOR_CANDIDATE = 6;
+// "Your openings" (js/openings.js, js/ui/openings.js): the opening phase is the person's moves up to this move number.
+const OPENING_MAX_MOVE = 12;
 const LOCAL_FALLBACK_MAX_DEPTH = 3;
 // The backup engine gives the page back to the browser after this many milliseconds of work (see createLocalSlicer).
 const LOCAL_SLICE_MS = 12;
@@ -916,6 +918,13 @@ Ludus.i18n.register({
     "core.toast.achievements": "Logros desbloqueados: {names}",
     "core.toast.achievementsMany": "{n} logros desbloqueados",
     "core.session.own": "Tus partidas: {user}",
+    "core.session.openings": "Tus aperturas: {user}",
+    "core.session.openingsFamily": "{family}: {user}",
+    "core.openings.heading": "Entrená tus aperturas en 2 pasos",
+    "core.openings.wizard": "Vas a repasar las jugadas de apertura (hasta la jugada {max}) en las que te equivocaste.",
+    "core.openings.wizardFamily": "Vas a repasar las jugadas de apertura (hasta la jugada {max}) en las que te equivocaste, en tus partidas de {family}.",
+    "core.openings.noGames": "Entre tus partidas descargadas no hay jugadas tuyas de apertura para esa elección. Probá con otra apertura o descargá más partidas.",
+    "core.openings.noMistakes": "No encontramos errores en tus primeras {max} jugadas de estas partidas. Jugadas revisadas: {analyzed}/{total}.",
     "core.wizard.heading.2": "Armemos tu sesión en 2 pasos",
     "core.session.default.own": "Tus partidas",
     "core.session.default.classic": "Partidas clásicas",
@@ -977,6 +986,13 @@ Ludus.i18n.register({
     "core.toast.achievements": "Achievements unlocked: {names}",
     "core.toast.achievementsMany": "{n} achievements unlocked",
     "core.session.own": "Your games: {user}",
+    "core.session.openings": "Your openings: {user}",
+    "core.session.openingsFamily": "{family}: {user}",
+    "core.openings.heading": "Train your openings in 2 steps",
+    "core.openings.wizard": "You will replay your opening moves (up to move {max}) where you went wrong.",
+    "core.openings.wizardFamily": "You will replay your opening moves (up to move {max}) where you went wrong, in your games of the {family}.",
+    "core.openings.noGames": "Your downloaded games have no opening moves of yours for that choice. Try another opening or download more games.",
+    "core.openings.noMistakes": "We found no mistakes in your first {max} moves of these games. Moves checked: {analyzed}/{total}.",
     "core.wizard.heading.2": "Build your session in 2 steps",
     "core.session.default.own": "Your games",
     "core.session.default.classic": "Classic games",
@@ -1297,6 +1313,9 @@ const STATE = {
     // The clock of the session the wizard is building ("timed" | "untimed"): starts from the setting, changes only this session.
     clockMode: settingsGet("clock.mode", "timed") === "untimed" ? "untimed" : "timed",
     sourceError: null,
+    // Set by Ludus.game.openOwnGamesSetup({ openings }) from the openings screen: the session trains only the person's
+    // moves of the opening phase (moves 1..OPENING_MAX_MOVE), of one family and colour when given. null: every move.
+    openings: null,
   },
   // The round clock. intervalId is the handle of the pending tick (null when no clock is
   // counting down: untimed, stopped, or paused while the page is hidden); the time the page
@@ -3253,7 +3272,7 @@ function wizardVisibleSteps() {
 function renderWizardHeading() {
   const headingEl = document.querySelector("#setup-wizard .wizard-header h2");
   if (!headingEl) return;
-  const key = STATE.setupWizard.skipModeStep ? "core.wizard.heading.2" : "wizard.heading";
+  const key = STATE.setupWizard.openings ? "core.openings.heading" : STATE.setupWizard.skipModeStep ? "core.wizard.heading.2" : "wizard.heading";
   headingEl.setAttribute("data-i18n", key);
   headingEl.textContent = t(key);
 }
@@ -3722,13 +3741,30 @@ function openOwnGamesSetup(options = {}) {
     ];
   }
   const skipModeStep = mode === "solo" || (mode === "duel" && Boolean(nameA) && Boolean(nameB));
+  // From the openings screen: a solo session of the opening phase (of one family and colour when given), and the
+  // provider and user of the games that screen showed (the saved download then serves the session without the network).
+  const openings = opts.openings && typeof opts.openings === "object" && mode !== "duel"
+    ? {
+      family: typeof opts.openings.family === "string" ? opts.openings.family.slice(0, 120) : "",
+      color: opts.openings.color === "w" || opts.openings.color === "b" ? opts.openings.color : "",
+    }
+    : null;
+  STATE.setupWizard.openings = openings;
+  if (opts.provider === "lichess" || opts.provider === "chesscom") {
+    setSourceMode(opts.provider);
+    STATE.setupWizard.platform = opts.provider;
+    const username = normalizeRemoteUsername(opts.username);
+    if (username && remoteUsernameIsValid(username, opts.provider) && onlineUserInputEl) onlineUserInputEl.value = username;
+  }
   // Opening the wizard is the first sign of someone meaning to play, so the
   // engine download starts here and usually finishes while they fill it in.
   void ensureStockfishLoading();
   openSetupFromLanding({
     format: mode,
     skipModeStep,
-    statusMessage: t("wizard.status.modeSourceOptions"),
+    statusMessage: openings
+      ? (openings.family ? t("core.openings.wizardFamily", { family: openings.family, max: OPENING_MAX_MOVE }) : t("core.openings.wizard", { max: OPENING_MAX_MOVE }))
+      : t("wizard.status.modeSourceOptions"),
   });
   STATE.setupWizard.profileIds = mode === "duel" && Array.isArray(opts.profileIds)
     ? [0, 1].map((index) => (typeof opts.profileIds[index] === "string" ? opts.profileIds[index] : null))
@@ -5695,9 +5731,11 @@ function evalLossPctForPly(game, ply) {
 // already played (their rounds or their notebook): seeing a played position again is the notebook's job (its spaced
 // repetition), so they are only a last resort when nothing new is left. Moves an earlier session cleared, and moves the
 // evals clear even with the lowest threshold a position can get (an endgame's), are left out.
-// options: { verdictFor(gameIdx, ply), alreadyPlayed(fen), thresholdCp, stats }.
+// options: { verdictFor(gameIdx, ply), alreadyPlayed(fen), thresholdCp, stats, plyFilter(gameIdx, ply) }: a plyFilter
+// that says false leaves the move out entirely (an openings session looks only at the opening phase).
 function buildRandomCandidateQueue(games, targetName, options = {}) {
   const verdictFor = typeof options.verdictFor === "function" ? options.verdictFor : () => null;
+  const plyFilter = typeof options.plyFilter === "function" ? options.plyFilter : null;
   const alreadyPlayed = typeof options.alreadyPlayed === "function" ? options.alreadyPlayed : () => false;
   const baseCp = clamp(Number(options.thresholdCp) || 150, 50, 800);
   const minScreenPct = lossPctForCp(Math.round(baseCp * 0.75)) * MISTAKE_SCREEN_FACTOR;
@@ -5711,6 +5749,7 @@ function buildRandomCandidateQueue(games, targetName, options = {}) {
     for (let ply = 0; ply < game.sanMoves.length; ply += 1) {
       const mover = ply % 2 === 0 ? "w" : "b";
       if (mover !== playerColor) continue;
+      if (plyFilter && !plyFilter(gameIdx, ply)) continue;
       stats.playerMoves += 1;
       const known = verdictFor(gameIdx, ply);
       if (known && known.verdict === "clean") {
@@ -5961,6 +6000,9 @@ async function evaluateCandidateForMistake(candidate, ctx) {
         phase: adaptive.phase,
         gameIndex: candidate.gameIdx + 1,
       };
+      // An openings session: the coach also names the opening and what the book plays here (Ludus.Openings).
+      const openingContext = openingContextFor(ctx, candidate.gameIdx, beforeFen);
+      if (openingContext) position.opening = openingContext;
       // The analysis that confirmed the mistake is the round's reference (see verifyMistakeCandidate).
       if (verified) {
         position.reference = {
@@ -7385,6 +7427,8 @@ function buildRoundContext(kind, position, evaluation) {
     // Who made the move of the game and what its notes say (a classic brings a note in both languages).
     masterName: evaluation.master && !(STATE.session && STATE.session.kind === "own") ? gameMoveAuthorName() : "",
     masterNote: position.classic && position.classic.note ? { es: position.classic.note.es || "", en: position.classic.note.en || "" } : null,
+    // An openings-session position: the opening and the book moves from here (openingContextFor).
+    opening: position.opening && typeof position.opening === "object" ? position.opening : null,
     lines: evaluation.linesView,
     answers,
     assessment: primary.assessment,
@@ -9446,7 +9490,7 @@ async function startSessionPipeline() {
     if (!firstSearch.mistake) {
       // The moves cleared without a search (an earlier session, the server's evals) were analysed too.
       const cleared = (ctx.queueStats?.knownClean || 0) + (ctx.queueStats?.evalCleared || 0);
-      sendWizardBackToSourceStep("provider.noUsefulMistakes", { analyzed: ctx.analyzed + cleared, total: ctx.total + cleared }, { actions: ["user", "platform"] });
+      sendWizardBackToSourceStep(ctx.openings ? "core.openings.noMistakes" : "provider.noUsefulMistakes", { analyzed: ctx.analyzed + cleared, total: ctx.total + cleared, max: OPENING_MAX_MOVE }, { actions: ["user", "platform"] });
       return;
     }
 
@@ -9581,16 +9625,15 @@ async function ensurePgnSourceAvailable(sessionToken) {
 // Parses the active PGN sources into games, detects the target player, and
 // builds the candidate-mistake search context. Returns null (after already
 // sending the wizard back to the source step) when nothing usable was found.
-async function loadCandidateAnalysisContext(effectiveConfig) {
-  const sources = await getActivePgnTextSources();
-  // buildGameFromText returns null for a game that trips a parsing budget
-  // (oversized, an oversized comment, too many plies, variation nesting too
-  // deep); that game is skipped instead of the whole batch failing. Games
-  // that declare a custom starting FEN (SetUp "1" + FEN) but whose pair is
-  // invalid or inconsistent are skipped too, rather than replayed from the
-  // initial position, same spirit as failedMonths below for failed downloads.
-  let skippedInvalidStartFen = 0;
-  const allGames = sources
+//
+// buildGameFromText returns null for a game that trips a parsing budget
+// (oversized, an oversized comment, too many plies, variation nesting too
+// deep); that game is skipped instead of the whole batch failing. Games
+// that declare a custom starting FEN (SetUp "1" + FEN) but whose pair is
+// invalid or inconsistent are skipped too, rather than replayed from the
+// initial position, same spirit as failedMonths below for failed downloads.
+function parsePgnSourcesToGames(sources) {
+  return sources
     .flatMap(({ text }) => splitGamesFromText(text)
       .map((gameText) => {
         const built = buildGameFromText(gameText);
@@ -9599,11 +9642,153 @@ async function loadCandidateAnalysisContext(effectiveConfig) {
         return { ...built, startFen: start.fen, validStartFen: start.valid };
       })
       .filter(Boolean))
-    .filter((game) => {
-      if (game.validStartFen) return true;
-      skippedInvalidStartFen += 1;
-      return false;
-    });
+    .filter((game) => game.validStartFen);
+}
+
+// An openings session (STATE.setupWizard.openings): the opening of every game (Ludus.Openings, loaded here) and which
+// moves the search may look at: the person's moves 1..OPENING_MAX_MOVE, of the chosen family and colour when given.
+// Returns null for an ordinary session. When the openings data cannot be loaded the search still looks at the opening
+// phase of the games of that colour (the training that was asked for), only without names or a family.
+async function openingsSearchScope(games, targetName) {
+  const focus = STATE.setupWizard.openings;
+  if (!focus) return null;
+  const openings = ludusModule("Openings");
+  let loaded = false;
+  try {
+    if (openings) {
+      await openings.load();
+      loaded = true;
+    }
+  } catch (error) {
+    console.warn("[Ludus] the openings data could not be loaded", error);
+  }
+  const classifications = games.map((game) => (loaded ? openings.classifyGame(game) : null));
+  const family = loaded && typeof focus.family === "string" ? focus.family : "";
+  const color = focus.color === "w" || focus.color === "b" ? focus.color : "";
+  const maxPly = OPENING_MAX_MOVE * 2;
+  return {
+    family,
+    color,
+    classifications,
+    plyFilter(gameIdx, ply) {
+      if (ply >= maxPly) return false;
+      if (color && getPlayerColor(games[gameIdx].tags, targetName) !== color) return false;
+      if (family && !(classifications[gameIdx] && classifications[gameIdx].family === family)) return false;
+      return true;
+    },
+  };
+}
+
+// The newest saved download that is still fresh (any provider and user), or null.
+async function readNewestCachedRemotePgn() {
+  const db = await openRemotePgnCacheDb();
+  if (!db) return null;
+  const entries = await new Promise((resolve) => {
+    let tx;
+    try {
+      tx = db.transaction(REMOTE_PGN_CACHE_STORE, "readonly");
+    } catch (error) {
+      resolve([]);
+      return;
+    }
+    const request = tx.objectStore(REMOTE_PGN_CACHE_STORE).getAll();
+    request.onsuccess = () => resolve(Array.isArray(request.result) ? request.result : []);
+    request.onerror = () => resolve([]);
+  });
+  db.close();
+  const now = Date.now();
+  return entries
+    .filter((entry) => entry && entry.source && entry.source.text && now - Number(entry.fetchedAt || 0) <= REMOTE_PGN_CACHE_TTL_MS)
+    .sort((a, b) => Number(b.fetchedAt || 0) - Number(a.fetchedAt || 0))[0] || null;
+}
+
+function gameResultFor(resultTag, color) {
+  const result = cleanTagValue(resultTag);
+  if (result === "1/2-1/2") return "draw";
+  if (result === "1-0") return color === "w" ? "win" : "loss";
+  if (result === "0-1") return color === "b" ? "win" : "loss";
+  return null;
+}
+
+// Ludus.game.openingsReport() for the openings screen: the games of this tab's download, or else of the newest saved
+// one, each with its opening (Ludus.Openings.classifyGame), the person's colour and result, and how many of the person's
+// moves 1..OPENING_MAX_MOVE the mistake search has already confirmed as mistakes (its verdicts, with the current
+// settings). -> { status: "empty" } | { status: "ok", provider, username, player, fetchedAt, maxMove, games: [...] }.
+// Rejects when the openings data cannot be loaded.
+async function ownOpeningsReport() {
+  const openings = ludusModule("Openings");
+  if (!openings) throw new Error("Ludus.Openings is missing");
+  const live = STATE.remotePgnSources[0];
+  let source = live && live.text ? live : null;
+  let fetchedAt = 0;
+  if (!source) {
+    const entry = await readNewestCachedRemotePgn();
+    if (entry) {
+      source = entry.source;
+      fetchedAt = Number(entry.fetchedAt) || 0;
+    }
+  }
+  if (!source) return { status: "empty" };
+  await openings.load();
+  const games = parsePgnSourcesToGames([source]);
+  const target = resolveTargetPlayerName(games, source.username);
+  if (!games.length || !target.name) return { status: "empty" };
+  const config = getEffectiveAnalysisConfig();
+  const verdictCtx = { verdictSignature: mistakeVerdictSignature({ thresholdCp: config.thresholdCp, moveTimeMs: config.moveTimeMs }) };
+  await loadMistakeVerdicts(verdictCtx.verdictSignature);
+  const maxPly = OPENING_MAX_MOVE * 2;
+  const rows = [];
+  for (let index = 0; index < games.length; index += 1) {
+    const game = games[index];
+    const color = getPlayerColor(game.tags, target.name);
+    if (!color) continue;
+    game.verdictKey = mistakeVerdictGameKey(game);
+    let earlyMistakes = 0;
+    for (let ply = color === "w" ? 0 : 1; ply < Math.min(maxPly, game.sanMoves.length); ply += 2) {
+      const known = readMistakeVerdict(verdictCtx, game, ply);
+      if (known && known.verdict === "mistake") earlyMistakes += 1;
+    }
+    rows.push({ color, result: gameResultFor(game.tags.Result, color), opening: openings.classifyGame(game), earlyMistakes });
+    // Naming a long list replays every game: the page stays responsive meanwhile.
+    if (index % 25 === 24) await yieldToUi();
+  }
+  return {
+    status: "ok",
+    provider: getRemoteProvider(source),
+    username: String(source.username || target.name),
+    player: target.name,
+    fetchedAt,
+    maxMove: OPENING_MAX_MOVE,
+    games: rows,
+  };
+}
+
+// What the coach shows about the opening of an openings-session position: { eco, name, family, inBook, leftMove,
+// leftByMe, continuations: [{ uci, san, eco, name }] } (Openings.bookContext), or null outside such a session.
+function openingContextFor(ctx, gameIdx, fen) {
+  const openings = ludusModule("Openings");
+  if (!ctx || !ctx.openings || !openings || !openings.isLoaded()) return null;
+  try {
+    const context = openings.bookContext(fen, ctx.openings.classifications[gameIdx]);
+    if (!context) return null;
+    const mover = String(fen).split(" ")[1] === "b" ? "b" : "w";
+    return {
+      eco: context.eco,
+      name: context.name,
+      family: context.family,
+      inBook: context.inBook,
+      leftMove: context.leftMove,
+      leftByMe: context.leftBy ? context.leftBy === mover : null,
+      continuations: context.continuations.map((entry) => ({ uci: entry.uci, san: entry.san, eco: entry.eco, name: entry.name })),
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+async function loadCandidateAnalysisContext(effectiveConfig) {
+  const sources = await getActivePgnTextSources();
+  const allGames = parsePgnSourcesToGames(sources);
 
   if (allGames.length === 0) {
     sendWizardBackToSourceStep("provider.noPublicValidGames");
@@ -9636,17 +9821,19 @@ async function loadCandidateAnalysisContext(effectiveConfig) {
   const verdictCtx = { verdictSignature };
   const alreadyPlayed = playedPositionTest();
   const queueStats = {};
+  const openingsScope = await openingsSearchScope(allGames, playerName);
   const candidates = buildRandomCandidateQueue(allGames, playerName, {
     thresholdCp: threshold,
     verdictFor: (gameIdx, ply) => readMistakeVerdict(verdictCtx, allGames[gameIdx], ply),
     alreadyPlayed,
     stats: queueStats,
+    plyFilter: openingsScope ? openingsScope.plyFilter : null,
   });
   const uniqueGameCount = new Set(candidates.map((c) => c.gameIdx)).size;
   // Every move of the person already cleared (by an earlier session or by the server's evals) is not "nothing to
   // analyse": the search simply finds nothing new, as it would have after screening them all again.
   if (queueStats.playerMoves === 0) {
-    sendWizardBackToSourceStep("provider.noAnalyzablePositions");
+    sendWizardBackToSourceStep(openingsScope ? "core.openings.noGames" : "provider.noAnalyzablePositions", openingsScope ? { max: OPENING_MAX_MOVE } : {});
     return null;
   }
 
@@ -9671,6 +9858,7 @@ async function loadCandidateAnalysisContext(effectiveConfig) {
     usedGameIndices: new Set(),
     uniqueGameCount,
     repeatMistakes: [],
+    openings: openingsScope,
   };
   STATE.analysisContext = ctx;
   return ctx;
@@ -9700,7 +9888,11 @@ function enterPlayModeWithFirstPosition(firstMistake, ctx) {
   STATE.session = {
     id: Ludus.util.uid("s_"),
     kind: "own",
-    title: t("core.session.own", { user: gameMoveAuthorName() }),
+    title: ctx.openings
+      ? (ctx.openings.family
+        ? t("core.session.openingsFamily", { family: ctx.openings.family, user: gameMoveAuthorName() })
+        : t("core.session.openings", { user: gameMoveAuthorName() }))
+      : t("core.session.own", { user: gameMoveAuthorName() }),
     mode: duel ? "duel" : "solo",
     names: duel ? [duelPlayerName(0), duelPlayerName(1)] : null,
     profileIds: duel
@@ -10382,7 +10574,7 @@ function registerServiceWorker() {
 
 // ---------- Boot: shell, screens, router, public API ----------
 
-const SCREEN_NAMES = ["landing", "home", "classics", "notebook", "progress", "museum", "settings", "account"];
+const SCREEN_NAMES = ["landing", "home", "classics", "notebook", "progress", "museum", "settings", "account", "openings"];
 
 function registerRouterScreen(name, container, screen) {
   const router = ludusModule("router");
@@ -10515,6 +10707,7 @@ function exposeGameApi() {
     abort: abortSession,
     leave: leaveSession,
     openOwnGamesSetup,
+    openingsReport: ownOpeningsReport,
     // The API asks for the next level whatever the taps before it (no slip protection: a script knows what it asks).
     hint: () => requestHint(),
     session: () => publicSessionInfo(STATE.session),

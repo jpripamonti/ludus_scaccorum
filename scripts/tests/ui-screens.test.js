@@ -206,7 +206,7 @@ test("helpers: hash routes, date key, greeting part, duel players, counts", () =
   assert.strictEqual(helpers.resolveDuelPlayers([], profiles).ok, false);
 });
 
-test("home: first run is designed (greeting, four modes, disabled review, daily, fact), all through text nodes", async () => {
+test("home: first run is designed (greeting, five modes, disabled review, daily, fact), all through text nodes", async () => {
   const { Ludus, els, shown } = createEnv();
   Ludus.Screens.home.mount(els.homeEl);
   Ludus.router.show("home");
@@ -215,12 +215,12 @@ test("home: first run is designed (greeting, four modes, disabled review, daily,
   assert.strictEqual(text(findAll(root, byClass("home-greeting"))[0]), "¡Hola! ¿Empezamos?");
   assert.ok(text(root).includes("Elegí cómo querés entrenar"), "first-run sub line in rioplatense");
   const modes = findAll(root, (el) => el.hasAttribute("data-mode"));
-  assert.deepStrictEqual(modes.map((el) => el.getAttribute("data-mode")), ["own", "classics", "review", "duel"]);
+  assert.deepStrictEqual(modes.map((el) => el.getAttribute("data-mode")), ["own", "openings", "classics", "review", "duel"]);
   const review = modes.find(byData("data-mode", "review"));
   assert.strictEqual(review.tagName, "DIV", "with nothing to review the card is not a button");
   assert.ok(review.classList.contains("is-disabled"));
   assert.ok(text(review).includes("Todavía no hay errores para repasar"));
-  assert.ok(modes.filter((m) => m.tagName === "BUTTON").length === 3);
+  assert.ok(modes.filter((m) => m.tagName === "BUTTON").length === 4);
   assert.ok(findAll(root, byClass("home-daily")).length === 1);
   assert.strictEqual(findAll(root, byClass("mini-board")).length, 1, "the daily position is drawn");
   assert.ok(findAll(root, byClass("home-fact-text"))[0].textContent.length > 20);

@@ -22,6 +22,7 @@ Everything runs in your browser. There is no server: Stockfish (WebAssembly) ana
 ### Ways to train
 
 - **Your games**: downloads your public games from Lichess or Chess.com, finds the positions where you erred and lets you replay them.
+- **Your openings**: names the opening of each of your downloaded games (from the bundled Lichess opening list), groups them by family and colour with your results, where the game leaves the book and the mistakes found in your first 12 moves, and trains those mistakes; after each move the coach also shows the book moves from that position.
 - **Classic games**: ~29 famous games (Morphy, Anderssen, Capablanca, Fischer, Kasparov, Carlsen...) with a story, an interactive replay and training positions. You play the master's side and are scored against the engine's best move; the master's move and its story are revealed afterwards.
 - **Review**: your notebook of past mistakes, scheduled with spaced repetition.
 - **Daily challenge**: one classic position per day, with a streak.
@@ -96,6 +97,7 @@ GPL-3.0-or-later, see [LICENSE](./LICENSE). The project bundles Stockfish.js / S
 ### Formas de entrenar
 
 - **Tus partidas**: descarga tus partidas públicas de Lichess o Chess.com, encuentra las posiciones donde te equivocaste y te deja rejugarlas.
+- **Tus aperturas**: nombra la apertura de cada partida descargada (con la lista de aperturas de Lichess incluida en la app), las agrupa por familia y color con tus resultados, dónde la partida sale del libro y los errores encontrados en tus primeras 12 jugadas, y te hace entrenar esos errores; después de cada jugada el entrenador también muestra las jugadas del libro desde esa posición.
 - **Partidas clásicas**: unas 29 partidas famosas (Morphy, Anderssen, Capablanca, Fischer, Kaspárov, Carlsen...) con su historia, repetición interactiva y posiciones de entrenamiento. Jugás del lado del maestro y te puntúa contra la mejor jugada del motor; después se revela la jugada del maestro y su historia.
 - **Repaso**: tu cuaderno de errores con repetición espaciada.
 - **Desafío diario**: una posición clásica por día, con racha.

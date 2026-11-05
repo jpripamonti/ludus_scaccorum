@@ -10,7 +10,7 @@
   <meta name="description" content="Entrenador de ajedrez gratuito y sin registro obligatorio: aprendé de tus errores y de partidas clásicas, y ganá más puntos cuanto más cerca juegues de la mejor jugada del motor." />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Scaccorum" />
-  <meta name="ludus-version" content="b4d81fbd1938" />
+  <meta name="ludus-version" content="6c233ae09138" />
   <link rel="manifest" href="./manifest.json" />
   <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/svg+xml" href="assets/brand/favicon.svg" />
@@ -25,19 +25,20 @@
   <!-- Boot guards (js/boot.js): a tiny synchronous same-origin script that runs before the first paint. It marks
        returning visitors (no landing flash), hides the app when it is framed and shows a notice on browsers too old
        for the app; it is the only script that is not at the end of <body>. -->
-  <script src="js/boot.js?v=b4d81fbd1938"></script>
-  <link rel="stylesheet" href="styles.css?v=b4d81fbd1938" />
-  <link rel="stylesheet" href="css/system.css?v=b4d81fbd1938" />
-  <link rel="stylesheet" href="css/shell.css?v=b4d81fbd1938" />
-  <link rel="stylesheet" href="css/board.css?v=b4d81fbd1938" />
-  <link rel="stylesheet" href="css/coach.css?v=b4d81fbd1938" />
-  <link rel="stylesheet" href="css/home.css?v=b4d81fbd1938" />
-  <link rel="stylesheet" href="css/classics.css?v=b4d81fbd1938" />
-  <link rel="stylesheet" href="css/notebook.css?v=b4d81fbd1938" />
-  <link rel="stylesheet" href="css/progress.css?v=b4d81fbd1938" />
-  <link rel="stylesheet" href="css/museum.css?v=b4d81fbd1938" />
-  <link rel="stylesheet" href="css/settings.css?v=b4d81fbd1938" />
-  <link rel="stylesheet" href="css/account.css?v=b4d81fbd1938" />
+  <script src="js/boot.js?v=6c233ae09138"></script>
+  <link rel="stylesheet" href="styles.css?v=6c233ae09138" />
+  <link rel="stylesheet" href="css/system.css?v=6c233ae09138" />
+  <link rel="stylesheet" href="css/shell.css?v=6c233ae09138" />
+  <link rel="stylesheet" href="css/board.css?v=6c233ae09138" />
+  <link rel="stylesheet" href="css/coach.css?v=6c233ae09138" />
+  <link rel="stylesheet" href="css/home.css?v=6c233ae09138" />
+  <link rel="stylesheet" href="css/classics.css?v=6c233ae09138" />
+  <link rel="stylesheet" href="css/notebook.css?v=6c233ae09138" />
+  <link rel="stylesheet" href="css/progress.css?v=6c233ae09138" />
+  <link rel="stylesheet" href="css/museum.css?v=6c233ae09138" />
+  <link rel="stylesheet" href="css/settings.css?v=6c233ae09138" />
+  <link rel="stylesheet" href="css/account.css?v=6c233ae09138" />
+  <link rel="stylesheet" href="css/openings.css?v=6c233ae09138" />
 </head>
 
 <body class="mode-citizen">
@@ -402,6 +403,7 @@
     <section id="screen-museum" class="screen hidden" role="main" aria-live="off"></section>
     <section id="screen-settings" class="screen hidden" role="main" aria-live="off"></section>
     <section id="screen-account" class="screen hidden" role="main" aria-live="off"></section>
+    <section id="screen-openings" class="screen hidden" role="main" aria-live="off"></section>
 
   </div>
 
@@ -420,33 +422,35 @@
     </div>
   </div>
 
-  <script src="config.js?v=b4d81fbd1938"></script>
-  <script src="js/ludus.js?v=b4d81fbd1938"></script>
-  <script src="js/chess.js?v=b4d81fbd1938"></script>
-  <script src="js/pgn.js?v=b4d81fbd1938"></script>
-  <script src="js/engine.js?v=b4d81fbd1938"></script>
-  <script src="js/scoring.js?v=b4d81fbd1938"></script>
-  <script src="js/insights.js?v=b4d81fbd1938"></script>
-  <script src="js/concepts.js?v=b4d81fbd1938"></script>
-  <script src="js/settings.js?v=b4d81fbd1938"></script>
-  <script src="js/profile.js?v=b4d81fbd1938"></script>
-  <script src="js/facts.js?v=b4d81fbd1938"></script>
-  <script src="js/reader.js?v=b4d81fbd1938"></script>
-  <script src="js/audio.js?v=b4d81fbd1938"></script>
-  <script src="js/auth.js?v=b4d81fbd1938"></script>
-  <script src="js/classics.js?v=b4d81fbd1938"></script>
-  <script src="js/ui/kit.js?v=b4d81fbd1938"></script>
-  <script src="js/ui/shell.js?v=b4d81fbd1938"></script>
-  <script src="js/ui/board.js?v=b4d81fbd1938"></script>
-  <script src="js/ui/coach.js?v=b4d81fbd1938"></script>
-  <script src="js/ui/home.js?v=b4d81fbd1938"></script>
-  <script src="js/ui/classics.js?v=b4d81fbd1938"></script>
-  <script src="js/ui/notebook.js?v=b4d81fbd1938"></script>
-  <script src="js/ui/progress.js?v=b4d81fbd1938"></script>
-  <script src="js/ui/museum.js?v=b4d81fbd1938"></script>
-  <script src="js/ui/settings.js?v=b4d81fbd1938"></script>
-  <script src="js/ui/account.js?v=b4d81fbd1938"></script>
-  <script src="app.js?v=b4d81fbd1938"></script>
+  <script src="config.js?v=6c233ae09138"></script>
+  <script src="js/ludus.js?v=6c233ae09138"></script>
+  <script src="js/chess.js?v=6c233ae09138"></script>
+  <script src="js/pgn.js?v=6c233ae09138"></script>
+  <script src="js/engine.js?v=6c233ae09138"></script>
+  <script src="js/scoring.js?v=6c233ae09138"></script>
+  <script src="js/insights.js?v=6c233ae09138"></script>
+  <script src="js/concepts.js?v=6c233ae09138"></script>
+  <script src="js/settings.js?v=6c233ae09138"></script>
+  <script src="js/profile.js?v=6c233ae09138"></script>
+  <script src="js/facts.js?v=6c233ae09138"></script>
+  <script src="js/reader.js?v=6c233ae09138"></script>
+  <script src="js/audio.js?v=6c233ae09138"></script>
+  <script src="js/auth.js?v=6c233ae09138"></script>
+  <script src="js/classics.js?v=6c233ae09138"></script>
+  <script src="js/openings.js?v=6c233ae09138"></script>
+  <script src="js/ui/kit.js?v=6c233ae09138"></script>
+  <script src="js/ui/shell.js?v=6c233ae09138"></script>
+  <script src="js/ui/board.js?v=6c233ae09138"></script>
+  <script src="js/ui/coach.js?v=6c233ae09138"></script>
+  <script src="js/ui/home.js?v=6c233ae09138"></script>
+  <script src="js/ui/classics.js?v=6c233ae09138"></script>
+  <script src="js/ui/notebook.js?v=6c233ae09138"></script>
+  <script src="js/ui/progress.js?v=6c233ae09138"></script>
+  <script src="js/ui/museum.js?v=6c233ae09138"></script>
+  <script src="js/ui/settings.js?v=6c233ae09138"></script>
+  <script src="js/ui/account.js?v=6c233ae09138"></script>
+  <script src="js/ui/openings.js?v=6c233ae09138"></script>
+  <script src="app.js?v=6c233ae09138"></script>
 </body>
 
 </html>

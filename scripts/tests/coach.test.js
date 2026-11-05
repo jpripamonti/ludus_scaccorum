@@ -1784,6 +1784,41 @@ test("every dock button has a translated tooltip with its key, and its accessibl
   assert.strictEqual(createEnv({ withDocument: false }).Coach.syncDockTitles(null), 0);
 });
 
+test("renderRound: an openings-session position names the opening and lists the book moves from there; out of the book it says where the game left it", () => {
+  const env = createEnv({ language: "es" });
+  const { Coach, doc } = env;
+  const el = doc.createElement("div");
+  doc.body.appendChild(el);
+  const opening = {
+    eco: "C50", name: "Italian Game: Giuoco Piano", family: "Italian Game", inBook: true, leftMove: 0, leftByMe: null,
+    continuations: [
+      { uci: "c2c3", san: "c3", eco: "C53", name: "Italian Game: Classical Variation" },
+      { uci: "b1c3", san: "Nc3", eco: "", name: "" },
+    ],
+  };
+  Coach.renderRound(el, makeContext(env, [makeAnswer(env, { uci: "a2a3", san: "a3" })], { opening, source: "own" }), { lang: "es" });
+  const card = first(el, "co-opening");
+  assert.ok(card, "the opening card");
+  assert.ok(text(card).includes("Italian Game: Giuoco Piano") && text(card).includes("C50"));
+  sameData(all(card, "co-book-san").map(text), ["c3", "Cc3"], "the book moves, in the reader's piece letters");
+  assert.ok(text(card).includes("Italian Game: Classical Variation"), "with the name they lead to");
+  assert.strictEqual(all(card, "co-book-name").length, 1, "a move without a name of its own shows only the move");
+  assert.ok(all(card, "co-book-san").every((node) => node.getAttribute("aria-label")), "each move is spoken in words");
+  // The order of the cards: the comparison, then the opening, then why.
+  const cards = el.children.map((node) => node.getAttribute("class"));
+  assert.ok(cards.findIndex((c) => /co-compare/.test(c)) < cards.findIndex((c) => /co-opening/.test(c)));
+  assert.ok(cards.findIndex((c) => /co-opening/.test(c)) < cards.findIndex((c) => /co-why/.test(c)));
+
+  // Out of the book: no moves, where the game left it and who did.
+  Coach.renderRound(el, makeContext(env, [makeAnswer(env, { uci: "a2a3", san: "a3" })], { opening: Object.assign({}, opening, { inBook: false, leftMove: 5, leftByMe: false, continuations: [] }) }), { lang: "en" });
+  const out = first(el, "co-opening");
+  assert.strictEqual(all(out, "co-book-san").length, 0);
+  assert.ok(/left the book on move 5, with a move of your opponent/.test(text(out)), text(out));
+  // Any other round has no opening card.
+  Coach.renderRound(el, makeContext(env, [makeAnswer(env, { uci: "e2e4", san: "e4" })]), { lang: "en" });
+  assert.strictEqual(all(el, "co-opening").length, 0);
+});
+
 runAll().then(
   () => console.log(`coach.test.js: ${passed} tests passed`),
   (error) => {

@@ -455,6 +455,8 @@
 
 /* Mode cards */
 .home-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: var(--space-4); }
+/* An odd number of ways to train: the last one takes the whole row instead of leaving a hole. */
+.home-modes > :last-child:nth-child(odd) { grid-column: 1 / -1; }
 .home-mode {
   --card-pad: var(--space-5);
   position: relative;
