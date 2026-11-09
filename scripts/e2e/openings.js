@@ -186,6 +186,24 @@ async function main() {
     assert.deepStrictEqual(wizard.focus, { family: "Sicilian Defense", color: "b" });
     assert.strictEqual(wizard.user, "TestUser");
 
+    step("one account: no selector; a second saved account (Chess.com) adds it, and picking it retrains that account");
+    await page.evaluate(() => Ludus.router.show("openings"));
+    await page.locator("#screen-openings .openings-card").first().waitFor({ state: "visible" });
+    assert.strictEqual(await page.locator("#screen-openings .openings-account").count(), 0);
+    await page.evaluate(async () => {
+      const text = STATE.remotePgnSources[0].text;
+      await writeCachedRemotePgn("chesscom|testuser|e2e", { provider: "chesscom", username: "TestUser", text, games: 20 });
+      Ludus.router.show("home");
+      Ludus.router.show("openings");
+    });
+    await page.locator("#screen-openings .openings-account-select").waitFor({ state: "visible", timeout: 20000 });
+    assert.strictEqual(await page.locator("#screen-openings .openings-account-select option").count(), 2);
+    await page.locator("#screen-openings .openings-account-select").selectOption("chesscom|testuser");
+    await page.waitForFunction(() => /Chess\.com/.test(document.querySelector("#screen-openings .openings-source").textContent));
+    await page.locator("#screen-openings .openings-card").first().waitFor({ state: "visible" });
+    await page.locator('#screen-openings [data-openings-train="all"]').click();
+    assert.strictEqual(await page.evaluate(() => getRemoteProviderModeFromUi()), "chesscom");
+
     step("Spanish");
     await page.evaluate(() => Ludus.router.show("openings"));
     await page.evaluate(() => Ludus.i18n.setLanguage("es"));

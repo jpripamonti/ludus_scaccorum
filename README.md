@@ -22,7 +22,7 @@ Everything runs in your browser. There is no server: Stockfish (WebAssembly) ana
 ### Ways to train
 
 - **Your games**: downloads your public games from Lichess or Chess.com, finds the positions where you erred and lets you replay them.
-- **Your openings**: names the opening of each of your downloaded games (from the bundled Lichess opening list), groups them by family and colour with your results, where the game leaves the book and the mistakes found in your first 12 moves, and trains those mistakes; after each move the coach also shows the book moves from that position.
+- **Your openings**: names the opening of each of your downloaded games (from the bundled Lichess opening list), groups them by family and colour with your results, where the game leaves the book and the mistakes found in your first 12 moves, and trains those mistakes (with saved downloads from several Chess.com or Lichess accounts, a selector at the top picks which one); after each move the coach also shows the book moves from that position.
 - **Classic games**: ~29 famous games (Morphy, Anderssen, Capablanca, Fischer, Kasparov, Carlsen...) with a story, an interactive replay and training positions. You play the master's side and are scored against the engine's best move; the master's move and its story are revealed afterwards.
 - **Review**: your notebook of past mistakes, scheduled with spaced repetition.
 - **Daily challenge**: one classic position per day, with a streak.

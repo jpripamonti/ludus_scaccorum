@@ -24,6 +24,10 @@
 .openings-title:focus { outline: none; }
 .openings-sub { margin-top: var(--space-3); max-width: 60ch; line-height: 1.55; text-wrap: pretty; }
 
+.openings-account { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+.openings-account-label { color: var(--color-text-muted); font-size: var(--text-sm, 0.875rem); }
+.openings-account-select { min-width: 12rem; max-width: 100%; }
+
 .openings-loading,
 .openings-error p {
   display: flex;
