@@ -199,7 +199,7 @@ async function main() {
     await page.locator("#screen-openings .openings-account-select").waitFor({ state: "visible", timeout: 20000 });
     assert.strictEqual(await page.locator("#screen-openings .openings-account-select option").count(), 2);
     await page.locator("#screen-openings .openings-account-select").selectOption("chesscom|testuser");
-    await page.waitForFunction(() => /Chess\.com/.test(document.querySelector("#screen-openings .openings-source").textContent));
+    await page.waitForFunction(() => { const n = document.querySelector("#screen-openings .openings-source"); return !!n && /Chess\.com/.test(n.textContent); });
     await page.locator("#screen-openings .openings-card").first().waitFor({ state: "visible" });
     await page.locator('#screen-openings [data-openings-train="all"]').click();
     assert.strictEqual(await page.evaluate(() => getRemoteProviderModeFromUi()), "chesscom");
