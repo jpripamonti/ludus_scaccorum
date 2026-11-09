@@ -9679,10 +9679,10 @@ async function openingsSearchScope(games, targetName) {
   };
 }
 
-// The newest saved download that is still fresh (any provider and user), or null.
-async function readNewestCachedRemotePgn() {
+// Every saved download that is still fresh (any provider and user), newest first.
+async function readFreshCachedRemotePgns() {
   const db = await openRemotePgnCacheDb();
-  if (!db) return null;
+  if (!db) return [];
   const entries = await new Promise((resolve) => {
     let tx;
     try {
@@ -9699,7 +9699,28 @@ async function readNewestCachedRemotePgn() {
   const now = Date.now();
   return entries
     .filter((entry) => entry && entry.source && entry.source.text && now - Number(entry.fetchedAt || 0) <= REMOTE_PGN_CACHE_TTL_MS)
-    .sort((a, b) => Number(b.fetchedAt || 0) - Number(a.fetchedAt || 0))[0] || null;
+    .sort((a, b) => Number(b.fetchedAt || 0) - Number(a.fetchedAt || 0));
+}
+
+function accountIdOf(source) {
+  return `${getRemoteProvider(source)}|${String((source && source.username) || "").trim().toLowerCase()}`;
+}
+
+// The accounts whose games can be shown: this tab's download (if any) and, per provider and user, the newest fresh
+// saved download. -> [{ id, provider, username, fetchedAt, source }], the tab's download first, then newest first.
+async function listDownloadedAccounts() {
+  const accounts = [];
+  const seen = new Set();
+  const add = (source, fetchedAt) => {
+    const id = accountIdOf(source);
+    if (seen.has(id)) return;
+    seen.add(id);
+    accounts.push({ id, provider: getRemoteProvider(source), username: String(source.username || ""), fetchedAt, source });
+  };
+  const live = STATE.remotePgnSources[0];
+  if (live && live.text) add(live, 0);
+  (await readFreshCachedRemotePgns()).forEach((entry) => add(entry.source, Number(entry.fetchedAt) || 0));
+  return accounts;
 }
 
 function gameResultFor(resultTag, color) {
@@ -9710,25 +9731,23 @@ function gameResultFor(resultTag, color) {
   return null;
 }
 
-// Ludus.game.openingsReport() for the openings screen: the games of this tab's download, or else of the newest saved
-// one, each with its opening (Ludus.Openings.classifyGame), the person's colour and result, and how many of the person's
-// moves 1..OPENING_MAX_MOVE the mistake search has already confirmed as mistakes (its verdicts, with the current
-// settings). -> { status: "empty" } | { status: "ok", provider, username, player, fetchedAt, maxMove, games: [...] }.
-// Rejects when the openings data cannot be loaded.
-async function ownOpeningsReport() {
+// Ludus.game.openingsReport({ provider?, username? }) for the openings screen: the games of the chosen account (by
+// default this tab's download, or else the newest saved one), each with its opening (Ludus.Openings.classifyGame), the
+// person's colour and result, and how many of the person's moves 1..OPENING_MAX_MOVE the mistake search has already
+// confirmed as mistakes (its verdicts, with the current settings). An account that is not (or no longer) downloaded
+// falls back to the default. -> { status: "empty" } | { status: "ok", provider, username, player, fetchedAt, maxMove,
+// accounts: [{ provider, username, fetchedAt }], games: [...] }. Rejects when the openings data cannot be loaded.
+async function ownOpeningsReport(choice) {
   const openings = ludusModule("Openings");
   if (!openings) throw new Error("Ludus.Openings is missing");
-  const live = STATE.remotePgnSources[0];
-  let source = live && live.text ? live : null;
-  let fetchedAt = 0;
-  if (!source) {
-    const entry = await readNewestCachedRemotePgn();
-    if (entry) {
-      source = entry.source;
-      fetchedAt = Number(entry.fetchedAt) || 0;
-    }
-  }
-  if (!source) return { status: "empty" };
+  const accounts = await listDownloadedAccounts();
+  const wanted = choice && choice.provider
+    ? accounts.find((account) => account.id === accountIdOf({ provider: choice.provider, username: choice.username }))
+    : null;
+  const picked = wanted || accounts[0];
+  if (!picked) return { status: "empty" };
+  const source = picked.source;
+  const fetchedAt = picked.fetchedAt;
   await openings.load();
   const games = parsePgnSourcesToGames([source]);
   const target = resolveTargetPlayerName(games, source.username);
@@ -9759,6 +9778,7 @@ async function ownOpeningsReport() {
     player: target.name,
     fetchedAt,
     maxMove: OPENING_MAX_MOVE,
+    accounts: accounts.map((account) => ({ provider: account.provider, username: account.username, fetchedAt: account.fetchedAt })),
     games: rows,
   };
 }

@@ -935,7 +935,10 @@ the learner's move is searched on the best line's terms) and `gate.js`.
   before ":" and colour.
 * **The screen** reads `Ludus.game.openingsReport()` (app.js `ownOpeningsReport`): this tab's download or the newest saved one
   (IndexedDB, 7 days), each game with colour, result, opening and `earlyMistakes` = the person's moves 1..`OPENING_MAX_MOVE` (12) that
-  the mistake verdicts (current settings) say are mistakes. Empty state: the wizard. Route `#/openings`, home mode card `openings`.
+  the mistake verdicts (current settings) say are mistakes. `openingsReport({ provider, username })` picks an account (a vanished
+  one falls back to the default) and returns `accounts` (this tab's download plus the newest fresh saved download per provider and
+  user, `listDownloadedAccounts`); with 2 or more the screen shows a provider + user selector at the top, keeps the choice in memory
+  for the session (no persistence) and "train" passes that provider and user on. Empty state: the wizard. Route `#/openings`, home mode card `openings`.
 * **Training** is the own-games pipeline: `Ludus.game.openOwnGamesSetup({ mode: "solo", openings: { family, color }, provider, username })`
   sets `STATE.setupWizard.openings`; `loadCandidateAnalysisContext` then passes `openingsSearchScope().plyFilter` to
   `buildRandomCandidateQueue` (plies < 24, the family and colour), and every found position carries `position.opening`

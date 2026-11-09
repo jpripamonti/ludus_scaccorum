@@ -6,7 +6,9 @@
 // Contract: docs/ARCHITECTURE.md sections 15 and 19; styles in css/openings.css (prefix .openings-).
 //
 //   Ludus.Screens.openings.mount(el)   el = #screen-openings. Cheap: the games are read in show().
-//   Ludus.Screens.openings.show()      reads the games again (Ludus.game.openingsReport()) and repaints.
+//   Ludus.Screens.openings.show()      reads the games again (Ludus.game.openingsReport()) and repaints. With saved
+//                                      downloads of more than one account, a selector (provider + user) at the top
+//                                      picks the account; the choice lasts for the session and "train" uses it.
 //   Ludus.Screens.openings.hide()      nothing runs in the background.
 //   Ludus.Screens.openings.titleKey    "openings.title", the i18n key of document.title.
 //
@@ -75,6 +77,8 @@
       "openings.empty.body": "Descargá tus partidas de Lichess o Chess.com: te mostramos qué aperturas jugás, cómo te va con cada una y dónde salís del libro, y entrenás los errores de tus primeras jugadas.",
       "openings.empty.action": "Descargar y entrenar mis aperturas",
       "openings.source": "{provider} · {user} · {games}",
+      "openings.account.label": "Cuenta",
+      "openings.account.option": "{provider} · {user}",
       "openings.games": "{n} partidas",
       "openings.games.one": "1 partida",
       "openings.saved": "descargadas {when}",
@@ -116,6 +120,8 @@
       "openings.empty.body": "Download your Lichess or Chess.com games: we show you which openings you play, how each one goes and where you leave the book, and you train the mistakes of your first moves.",
       "openings.empty.action": "Download and train my openings",
       "openings.source": "{provider} · {user} · {games}",
+      "openings.account.label": "Account",
+      "openings.account.option": "{provider} · {user}",
       "openings.games": "{n} games",
       "openings.games.one": "1 game",
       "openings.saved": "downloaded {when}",
@@ -230,6 +236,8 @@
     status: "idle", // idle | loading | error | empty | ok | unavailable
     report: null,
     groups: [],
+    accounts: [], // the downloaded accounts of the last report: [{ provider, username }]
+    account: null, // the person's choice for this session: { provider, username } (null: the default account)
     token: 0,
     offs: [],
   };
@@ -272,7 +280,7 @@
     render();
     let report = null;
     try {
-      report = await game.openingsReport();
+      report = await game.openingsReport(state.account ? { provider: state.account.provider, username: state.account.username } : undefined);
     } catch (error) {
       if (token !== state.token) return;
       if (root.console && typeof root.console.warn === "function") root.console.warn("[Ludus.openings] the report failed", error);
@@ -285,8 +293,12 @@
     if (!report || report.status !== "ok") {
       state.status = "empty";
       state.groups = [];
+      state.accounts = [];
     } else {
       state.status = "ok";
+      state.accounts = Array.isArray(report.accounts) ? report.accounts : [];
+      // What the report shows is the account in use (the choice falls back to the default when it is gone).
+      if (state.account) state.account = { provider: report.provider, username: report.username };
       state.groups = openings.groupByFamily(report.games);
     }
     render();
@@ -313,6 +325,39 @@
       h("button", { type: "button", class: "btn btn-primary", onclick: action.onClick }, t("openings.empty.action")));
   }
 
+  function providerName(provider) {
+    return provider === "chesscom" ? t("openings.provider.chesscom") : t("openings.provider.lichess");
+  }
+
+  function accountKey(account) {
+    return `${account.provider}|${String(account.username || "").toLowerCase()}`;
+  }
+
+  function pickAccount(key) {
+    const account = state.accounts.find((entry) => accountKey(entry) === key);
+    if (!account) return;
+    state.account = { provider: account.provider, username: account.username };
+    void load();
+  }
+
+  // Only with saved downloads of more than one account: provider and user, the one shown selected.
+  function accountNode() {
+    if (state.accounts.length < 2) return null;
+    const shown = state.account || (state.report && state.report.status === "ok"
+      ? { provider: state.report.provider, username: state.report.username }
+      : state.accounts[0]);
+    const current = accountKey(shown);
+    const id = "openings-account-select";
+    const select = h("select", { class: "select openings-account-select", id, "data-openings-account": "" },
+      state.accounts.map((account) => h("option", { value: accountKey(account) },
+        t("openings.account.option", { provider: providerName(account.provider), user: account.username }))));
+    select.value = current;
+    select.addEventListener("change", () => pickAccount(select.value));
+    return h("div", { class: "openings-account" },
+      h("label", { class: "openings-account-label", for: id }, t("openings.account.label")),
+      select);
+  }
+
   function savedWhen(ts) {
     const util = L().util;
     if (!ts || !util || typeof util.formatRelativeDays !== "function") return "";
@@ -328,7 +373,7 @@
   }
 
   function summaryNode(report, model) {
-    const provider = report.provider === "chesscom" ? t("openings.provider.chesscom") : t("openings.provider.lichess");
+    const provider = providerName(report.provider);
     const when = savedWhen(report.fetchedAt);
     const source = t("openings.source", { provider, user: report.username, games: tCount("openings.games", model.games) });
     return h("section", { class: "openings-summary card", "aria-labelledby": "openings-summary-source" },
@@ -403,7 +448,7 @@
     if (!state.mounted || !state.container || !getDoc() || !L().util) return;
     const container = state.container;
     clear(container);
-    const parts = [headNode()];
+    const parts = [headNode(), accountNode()];
     if (state.status === "loading" || state.status === "idle") {
       parts.push(h("p", { class: "openings-loading", role: "status" }, t("openings.loading")));
     } else if (state.status === "unavailable") {

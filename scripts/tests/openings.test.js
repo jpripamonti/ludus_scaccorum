@@ -306,6 +306,33 @@ test("the report of the openings screen: the newest saved download, each game na
   assert.deepStrictEqual(Array.from(groups, (g) => `${g.color}|${g.family}`).sort(), ["b|Sicilian Defense", "w|Italian Game"]);
 });
 
+test("the report by account: every saved account is listed, the chosen one is read, an unknown one falls back to the default", async () => {
+  const idb = createFakeIndexedDB();
+  const seed = loadApp(idb);
+  await seed.context.writeCachedRemotePgn("lichess|ana|sig", { provider: "lichess", username: "Ana", text: PGN, games: 2 });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  await seed.context.writeCachedRemotePgn("chesscom|ana|sig", { provider: "chesscom", username: "ana", text: PGN, games: 2 });
+  // An older download of the same account does not make a second entry.
+  await seed.context.writeCachedRemotePgn("chesscom|ana|other", { provider: "chesscom", username: "Ana", text: PGN, games: 2 });
+
+  const env = loadApp(idb);
+  const ids = (report) => Array.from(report.accounts, (a) => `${a.provider}|${a.username.toLowerCase()}`);
+  const def = await env.context.ownOpeningsReport();
+  assert.strictEqual(def.provider, "chesscom", "no choice: the newest download");
+  assert.deepStrictEqual(ids(def).sort(), ["chesscom|ana", "lichess|ana"]);
+  const lichess = await env.context.ownOpeningsReport({ provider: "lichess", username: "ANA" });
+  assert.strictEqual(lichess.provider, "lichess");
+  assert.strictEqual(lichess.username, "Ana");
+  assert.strictEqual(lichess.games.length, 2);
+  const unknown = await env.context.ownOpeningsReport({ provider: "lichess", username: "nobody" });
+  assert.strictEqual(unknown.provider, "chesscom");
+  // The tab's own download comes first by default, and is the same account as its saved copy.
+  env.run(`STATE.remotePgnSources = [{ provider: "lichess", username: "Ana", text: ${JSON.stringify(PGN)} }]`);
+  const live = await env.context.ownOpeningsReport();
+  assert.strictEqual(live.provider, "lichess");
+  assert.strictEqual(live.accounts.length, 2);
+});
+
 test("the wizard opened from the openings screen: solo, the provider and user of the download, the focus; any other road clears the focus", () => {
   const env = loadApp(createFakeIndexedDB());
   env.context.ensureStockfishLoading = () => {};
@@ -398,6 +425,46 @@ test("screen: the openings by colour and family, with results, early mistakes, w
       { mode: "solo", openings: { family: "Sicilian Defense", color: "b" }, provider: "chesscom", username: "jpr82" },
       { mode: "solo", openings: { family: "", color: "" }, provider: "chesscom", username: "jpr82" },
     ]);
+  }
+});
+
+test("screen: with several downloaded accounts a selector picks the account, the report is rebuilt for it, and training uses it", async () => {
+  await Openings.load();
+  const base = sampleReport();
+  const accounts = [{ provider: "chesscom", username: "jpr82" }, { provider: "lichess", username: "juan" }];
+  for (const language of ["en", "es"]) {
+    const one = screenEnv({ language, report: Object.assign({}, base, { accounts: accounts.slice(0, 1) }) });
+    one.screen.show();
+    await tick();
+    assert.strictEqual(all(one.el, "openings-account").length, 0, "one account: no selector");
+
+    const asked = [];
+    const env = screenEnv({ language, report: base });
+    env.Ludus.game.openingsReport = async (choice) => {
+      asked.push(choice || null);
+      const picked = choice && choice.provider === "lichess" ? accounts[1] : accounts[0];
+      return Object.assign({}, base, picked, { player: picked.username, accounts });
+    };
+    env.screen.show();
+    await tick();
+    const selects = all(env.el, "openings-account-select");
+    assert.strictEqual(selects.length, 1);
+    assert.strictEqual(findAll(selects[0], (node) => node.tagName === "OPTION").length, 2);
+    assert.strictEqual(selects[0].value, "chesscom|jpr82");
+    assert.ok(text(all(env.el, "openings-account")[0]).includes(language === "en" ? "Account" : "Cuenta"));
+    selects[0].value = "lichess|juan";
+    selects[0].dispatch("change", {});
+    await tick();
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(asked)), [null, { provider: "lichess", username: "juan" }]);
+    assert.ok(text(all(env.el, "openings-source")[0]).includes("juan"));
+    assert.strictEqual(all(env.el, "openings-account-select")[0].value, "lichess|juan");
+    findAll(env.el, (node) => node.getAttribute && node.getAttribute("data-openings-train") === "all")[0].click();
+    assert.deepStrictEqual(env.calls, [{ mode: "solo", openings: { family: "", color: "" }, provider: "lichess", username: "juan" }]);
+    // Leaving and coming back keeps the choice for the session.
+    env.screen.hide();
+    env.screen.show();
+    await tick();
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(asked[asked.length - 1])), { provider: "lichess", username: "juan" });
   }
 });
 
